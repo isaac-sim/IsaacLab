@@ -62,6 +62,10 @@ coming months.
 **March or April 2023**
 
 * |uncheck| Add functional versions of all environments
+* Supported sensors
+
+  * |uncheck| Multi-camera support
+
 * Included environments
 
   * |uncheck| deformable-object manipulation: fluid transfer, fluid pouring, soft object lifting
