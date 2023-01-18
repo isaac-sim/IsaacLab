@@ -146,9 +146,7 @@ class IsaacEnv(gym.Env):
             global_prim_paths = list()
         # clone the scenes into the namespace "/World/envs" based on template namespace
         self.envs_prim_paths = cloner.generate_paths(self.env_ns + "/env", self.num_envs)
-        self.envs_positions = cloner.clone(
-            source_prim_path=self.template_env_ns, prim_paths=self.envs_prim_paths, replicate_physics=True
-        )
+        self.envs_positions = cloner.clone(source_prim_path=self.template_env_ns, prim_paths=self.envs_prim_paths)
         # convert environment positions to torch tensor
         self.envs_positions = torch.tensor(self.envs_positions, dtype=torch.float, device=self.device)
         # filter collisions within each environment instance

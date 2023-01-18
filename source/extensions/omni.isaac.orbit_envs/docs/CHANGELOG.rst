@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.1 (2023-01-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a bug in ``Isaac-Velocity-Anymal-C-v0`` where the domain randomization is
+  not applicable if cloning the environments with ``replicate_physics=True``.
+
 0.1.0 (2023-01-17)
 ~~~~~~~~~~~~~~~~~~
 
