@@ -1,0 +1,13 @@
+Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto.  Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+
+Note: Licenses for assets such as Robots and Props used within these environments can be found inside their respective folders on the Nucleus server where they are hosted.
+
+For more information: https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html
+
+For sub-dependencies of Isaac Sim: https://docs.omniverse.nvidia.com/app_isaacsim/common/licenses.html

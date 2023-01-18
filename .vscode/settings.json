@@ -1,0 +1,70 @@
+{
+    "files.associations": {
+        "*.tpp": "cpp",
+        "*.kit": "toml",
+        "*.rst": "restructuredtext",
+    },
+    "editor.rulers": [120],
+
+    // files to be ignored by the linter
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/_isaac_sim/**": true,
+        "**/_compiler/**": true
+    },
+    // Configuration for spelling checker
+    "spellright.language": [
+        "en-US-10-1."
+    ],
+    "spellright.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext",
+        "cpp",
+        "asciidoc",
+        "python",
+        "restructuredtext",
+    ],
+    "cSpell.words": [
+        "literalinclude",
+        "linenos",
+        "instanceable",
+        "isaacSim",
+        "jacobians",
+        "pointcloud",
+        "ridgeback",
+        "rllib",
+        "robomimic",
+        "teleoperation",
+        "xform",
+        "numpy",
+    ],
+    // This enables python language server. Seems to work slightly better than jedi:
+    "python.languageServer": "Pylance",
+    // We use "black" as a formatter:
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": ["--line-length", "120"],
+    // Use flake8 for linting
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=120"
+    ],
+    // Use docstring gnerator
+    "autoDocstring.docstringFormat": "google",
+    "autoDocstring.guessTypes": true,
+    // Python environment path
+    "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
+    "python.envFile": "${workspaceFolder}/.vscode/.python.env",
+    // ROS distribution
+    "ros.distro": "noetic",
+    // Language specific settings
+    "[python]": {
+        "editor.tabSize": 4
+    },
+    "[restructuredtext]": {
+        "editor.tabSize": 2
+    }
+}

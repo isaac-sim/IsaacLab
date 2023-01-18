@@ -1,0 +1,38 @@
+# C++
+**/cmake-build*/
+**/build*/
+**/*.so
+
+# Omniverse
+**/*.dmp
+**/.thumbs
+
+# Python
+.DS_Store
+**/*.egg-info/
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+**/*.pb
+
+# IDE
+**/.idea/
+**/.vscode/.**
+
+# Outputs
+**/output/*
+*.tmp
+
+# Isaac-Sim packman
+_isaac_sim
+_repo
+_build
+.lastformat
+
+# Internal
+# TODO: Remove this once we have a better way to handle internal files.
+source/extensions/omni.isaac.assets
+
+# RL-Games
+**/runs/*
+**/logs/*

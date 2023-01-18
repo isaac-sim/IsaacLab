@@ -1,0 +1,352 @@
+/* Modified from https://github.com/ARISE-Initiative/robosuite */
+
+
+.wy-side-nav-search {
+    background: rgb(143,144,147);
+}
+
+.wy-side-nav-search > div.version {
+  color: black;
+}
+
+
+.wy-nav-content-wrap {
+  background: inherit;
+}
+
+.wy-side-nav-search input[type="text"] {
+  border: none;
+  box-shadow: none;
+  background: white;
+  border-radius: 0;
+  font-size: 100%;
+}
+
+.wy-menu-vertical li.current a,
+.wy-menu-vertical li.toctree-l1.current > a {
+  border: none;
+}
+
+.ethical-rtd > div.ethical-sidebar,
+.ethical-rtd > div.ethical-footer {
+  display: none !important;
+}
+
+h1 {
+  /* text-transform: uppercase; */
+  font-family: inherit;
+  font-weight: 200;
+}
+
+h2,
+.rst-content .toctree-wrapper p.caption {
+  font-family: inherit;
+  font-weight: 200;
+}
+
+.rst-content a:visited {
+  color: #76b900;
+}
+
+/* Begin code */
+.rst-content pre.literal-block,
+.rst-content div[class^="highlight"] {
+  border: none;
+}
+
+.rst-content pre.literal-block,
+.rst-content div[class^="highlight"] pre,
+.rst-content .linenodiv pre {
+  font-size: 80%;
+}
+
+.highlight {
+  background: #f6f8fa;
+  border-radius: 6px;
+}
+
+.highlight .kn,
+.highlight .k {
+  color: #76b900;
+}
+
+.highlight .nn {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.highlight .nc {
+  color: #76b900;
+  font-weight: inherit;
+}
+
+.highlight .fm,
+.highlight .nd,
+.highlight .nf,
+.highlight .nb {
+  color: #76b900;
+}
+
+.highlight .bp,
+.highlight .n {
+  color: inherit;
+}
+
+.highlight .kc,
+.highlight .s1,
+.highlight .s2,
+.highlight .mi,
+.highlight .mf,
+.highlight .bp,
+.highlight .bn,
+.highlight .ow {
+  color: #76b900;
+  font-weight: inherit;
+}
+
+.highlight .c1 {
+  color: #6a737d;
+}
+
+.rst-content code.xref {
+  padding: .2em .4em;
+  background: rgba(27,31,35,.05);
+  border-radius: 6px;
+  border: none;
+}
+/* End code */
+
+/* This ensures that multiple constructors will remain in separate lines. */
+.rst-content dl:not(.docutils) dt,
+.rst-content dl:not(.docutils) dl dt {
+  display: table;
+  background: rgb(243,244,247);
+  color: rgba(83, 150, 0, 0.9);
+  background-color: rgba(118, 185, 0, 0.15);
+  border-top-color: rgba(83, 150, 0, 0.9);
+}
+
+.rst-content tt.literal, .rst-content tt.literal, .rst-content code.literal {
+    color: #76b900 !important;
+}
+
+.rst-content dl:not(.docutils) dt.field-odd,
+.rst-content dl:not(.docutils) dt.field-odd {
+  text-transform: uppercase;
+  background: inherit;
+  border: none;
+  padding: 6px 0;
+}
+
+.rst-content dl:not(.docutils) .property {
+  text-transform: uppercase;
+  font-style: normal;
+  padding-right: 12px;
+}
+
+em.sig-param span.n:first-child, em.sig-param span.n:nth-child(2) {
+  color: black;
+  font-style: normal;
+}
+
+em.sig-param span.n:nth-child(3),
+em.sig-param span.n:nth-child(3) a {
+  color: inherit;
+  font-weight: normal;
+  font-style: normal;
+}
+
+em.sig-param span.default_value {
+  font-family: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",Courier,monospace;
+  font-style: normal;
+  font-size: 90%;
+}
+
+.sig-paren {
+  padding: 0 4px;
+}
+
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+  white-space: normal;
+}
+
+.wy-table-bordered-all,
+.rst-content table.docutils {
+  border: none;
+}
+
+.wy-table-bordered-all td,
+.rst-content table.docutils td {
+  border: none;
+}
+
+.wy-table-odd td,
+.wy-table-striped tr:nth-child(2n-1) td,
+.rst-content table.docutils:not(.field-list) tr:nth-child(2n-1) td {
+  background: rgb(243,244,247);
+}
+
+.wy-table td,
+.rst-content table.docutils td,
+.rst-content table.field-list td,
+.wy-table th,
+.rst-content table.docutils th,
+.rst-content table.field-list th {
+  padding: 16px;
+}
+/*
+.admonition {
+  content: '\f12a';
+  font-family: FontAwesome;
+} */
+
+.admonition.note, div.admonition.note {
+  border-color: rgba(var(--pst-color-admonition-note),1);
+}
+
+.admonition.note>.admonition-title:before, div.admonition.note>.admonition-title:before {
+  color: rgba(var(--pst-color-admonition-note),1);
+  content: '\f12a'!important;
+  /* content: var(--pst-icon-admonition-note); */
+}
+
+.admonition.question>.admonition-title:before, div.admonition.question>.admonition-title:before {
+  color: rgba(var(--pst-color-admonition-note),1);
+  content: '\003f'!important;
+  /* content: var(--pst-icon-admonition-note); */
+}
+
+.admonition.explanation>.admonition-title:before, div.admonition.explanation>.admonition-title:before {
+  color: rgba(var(--pst-color-admonition-note),1);
+  content: '\f02d'!important;
+  /* content: var(--pst-icon-admonition-note); */
+}
+
+.card {
+  /* Add shadows to create the "card" effect */
+  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+  transition: 0.3s;
+  border-radius: 5px; /* 5px rounded corners */
+  width: 100%;
+  padding-bottom: 10px;
+}
+
+/* On mouse-over, add a deeper shadow */
+.card:hover {
+  box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+
+}
+
+/* Add some padding inside the card container */
+.container {
+  padding: 2px 16px;
+}
+
+.row:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.column {
+  float: left;
+  width: 50%;
+  padding: 20px 10px;
+}
+
+.box{
+  display: none;
+  width: 100%;
+}
+
+/* Use NVIDIA Colors */
+
+a {
+    color: #76b900;
+}
+
+a:hover {
+    color: #76b900;
+}
+
+a:visited {
+    color: #76b900;
+}
+
+a:hover + .box,.box:hover{
+  display: block;
+  position: absolute;
+  z-index: 100;
+  border-radius: 50px!important;
+  margin-left: 60px;
+  margin-top: 0px;
+  color: #76b900;
+}
+
+a:hover + .card:hover{
+  display: block;
+  position: absolute;
+  z-index: 100;
+  border-radius: 50px!important;
+  margin-left: 60px;
+  margin-top: 0px;
+  color: #76b900;
+}
+
+a.reference.external {
+  color: #76b900!important;
+}
+
+#p1 a {
+  color: #76b900!important;
+}
+
+
+#frame { zoom: 0.75; -moz-transform: scale(0.75); -moz-transform-origin: 0 0; }
+
+/* Global */
+
+#typewriter body{
+  height: calc(100vh - 8em);
+  padding: 4em;
+  color: rgba(255,255,255,1.0);
+  font-family: "Lato","proxima-nova","Helvetica Neue",Arial,sans-serif;
+  background-color: rgb(25,25,25);
+}
+
+#typewriter .line-1{
+    position: relative;
+    top: 50%;
+    width: 24em;
+    margin: 0 auto;
+    border-right: 2px solid rgba(255,255,255,.75);
+    font-size: 180%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    transform: translateY(-50%);
+}
+
+/* Animation */
+.anim-typewriter{
+  animation: typewriter 4s steps(44) 1s 1 normal both,
+             blinkTextCursor 500ms steps(44) infinite normal;
+}
+@keyframes typewriter{
+  from{width: 0;}
+  to{width: 24em;}
+}
+@keyframes blinkTextCursor{
+  from{border-right-color: rgba(255,255,255,.75);}
+  to{border-right-color: transparent;}
+}
+
+
+.trimmed-cover {
+  object-fit: cover;
+  width: 120%;
+  height: 177px;
+  object-position: center 40%;
+  margin-right: -100px;
+}

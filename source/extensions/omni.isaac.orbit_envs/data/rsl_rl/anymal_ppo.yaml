@@ -1,0 +1,46 @@
+# seed for the experiment
+seed: 42
+# device for the rl-agent
+device: 'cuda:0'
+
+policy:
+  init_noise_std: 1.0
+  actor_hidden_dims: [128, 128, 128]
+  critic_hidden_dims: [128, 128, 128]
+  activation: "elu"  # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
+
+  # only required when "policy_class_name" is'ActorCriticRecurrent':
+  # rnn_type: 'lstm'
+  # rnn_hidden_size: 512
+  # rnn_num_layers: 1
+
+algorithm:
+  # training params
+  value_loss_coef: 1.0
+  use_clipped_value_loss: True
+  clip_param: 0.2
+  entropy_coef: 0.01
+  num_learning_epochs: 5
+  num_mini_batches: 4  # mini batch size: num_envs * nsteps / nminibatches
+  learning_rate: 1.0e-3  # 5.e-4
+  schedule: "adaptive"  # adaptive, fixed
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+
+runner:
+  policy_class_name: "ActorCritic"
+  algorithm_class_name: "PPO"
+  num_steps_per_env: 24  # per iteration
+  max_iterations: 500  # number of policy updates
+
+  # logging
+  save_interval: 50  # check for potential saves every this many iterations
+  experiment_name: "anymal_c"
+  run_name: ""
+  # load and resume
+  resume: False
+  load_run: -1  # -1: last run
+  checkpoint: -1  # -1: last saved model
+  resume_path: None  # updated from load_run and chkpt
