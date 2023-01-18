@@ -10,62 +10,79 @@ coming months.
 
 **January 2023**
 
-* Experimental functional API
+* |check_|  Experimental functional API
 * Supported motion generators
 
-  * Joint-space control
-  * Differential inverse kinematics control
-  * Riemannian Motion Policies (RMPs)
+  * |check_| Joint-space control
+  * |check_| Differential inverse kinematics control
+  * |uncheck| Riemannian Motion Policies (RMPs)
 
 * Supported robots
 
-  * Quardupeds: ANYmal-B, ANYmal-C, Unitree A1
-  * Arms: Franka Emika Panda, UR10
-  * Mobile manipulators: Franka Emika Panda and UR10 on Clearpath Ridgeback
+  * |check_| Quardupeds: ANYmal-B, ANYmal-C, Unitree A1
+  * |check_| Arms: Franka Emika Panda, UR10
+  * |check_| Mobile manipulators: Franka Emika Panda and UR10 on Clearpath Ridgeback
 
 * Supported sensors
 
-  * Camera (non-parallelized)
-  * Height scanner (non-parallelized)
+  * |check_| Camera (non-parallelized)
+  * |check_| Height scanner (non-parallelized)
 
 * Included environments
 
-  * classic: MuJoCo classic environments (ant, humanoid, cartpole)
-  * locomotion: flat terrain for legged robots
-  * rigid-object manipulation: end-effector tracking, object lifting
+  * |check_| classic: MuJoCo-style environments (ant, humanoid, cartpole)
+  * |check_| locomotion: flat terrain for legged robots
+  * |check_| rigid-object manipulation: end-effector tracking, object lifting
 
 **February 2023**
 
-* Example on using the APIs in an Omniverse extension
+* |uncheck| Add APIs for rough terrain generation
+* |uncheck| Example on using the APIs in an Omniverse extension
 * Supported motion generators
 
-  * Operational-space control
-  * Model predictive control (OCS2)
+  * |uncheck| Operational-space control
+  * |uncheck| Model predictive control (OCS2)
 
 * Supported sensors
 
-  * Height scanner (parallelized for terrains)
+  * |uncheck| Height scanner (parallelized for terrains)
 
 * Supported robots
 
-  * Quardupeds: Unitree B1, Unitree Go1
-  * Arms: Kinova Jaco2, Kinova Gen3, Sawyer, UR10e
-  * Mobile manipulators: Fetch
+  * |uncheck| Quardupeds: Unitree B1, Unitree Go1
+  * |uncheck| Arms: Kinova Jaco2, Kinova Gen3, Sawyer, UR10e
+  * |uncheck| Mobile manipulators: Fetch
 
 * Included environments
 
-  * locomotion: rough terrain for legged robots
-  * rigid-object manipulation: in-hand manipulation, hockey puck pushing, peg-in-hole, stacking
-  * deformable-object manipulation: cloth folding, cloth lifting
+  * |uncheck| locomotion: rough terrain for legged robots
+  * |uncheck| rigid-object manipulation: in-hand manipulation, hockey puck pushing, peg-in-hole, stacking
+  * |uncheck| deformable-object manipulation: cloth folding, cloth lifting
 
 **March or April 2023**
 
-* Add functional versions of all environments
+* |uncheck| Add functional versions of all environments
 * Included environments
 
-  * deformable-object manipulation: fluid transfer, fluid pouring, deformable object lifting
+  * |uncheck| deformable-object manipulation: fluid transfer, fluid pouring, soft object lifting
 
 **May 2023**
 
-* Update code documentation and tutorials
-* Release 1.0
+* |uncheck| Stabilize APIs and release 1.0
+
+
+.. |check| raw:: html
+
+    <input checked=""  type="checkbox">
+
+.. |check_| raw:: html
+
+    <input checked=""  disabled="" type="checkbox">
+
+.. |uncheck| raw:: html
+
+    <input type="checkbox">
+
+.. |uncheck_| raw:: html
+
+    <input disabled="" type="checkbox">
