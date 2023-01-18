@@ -6,8 +6,8 @@
 """Installation script for the 'omni.isaac.orbit' python package."""
 
 import os
-
 import toml
+
 from setuptools import setup
 
 # Obtain the extension data from the extension.toml file

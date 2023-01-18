@@ -31,6 +31,7 @@ extra_standard_library = [
     "hid",
     "yaml",
     "prettytable",
+    "toml",
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
