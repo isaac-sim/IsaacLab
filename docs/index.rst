@@ -38,6 +38,7 @@ using the following BibTeX entry:
    :maxdepth: 2
    :caption: Features
 
+   source/features/environments
    source/features/actuators
    source/features/motion_generators
 
