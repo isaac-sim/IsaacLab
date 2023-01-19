@@ -32,6 +32,7 @@ INSTALL_REQUIRES = [
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=1.5.0", "tensorboard"],
+    "skrl": ["skrl>=0.10.0"],
     "rl_games": ["rl-games==1.5.2"],
     "rsl_rl": ["rsl_rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": ["robomimic@git+https://github.com/ARISE-Initiative/robomimic.git"],
