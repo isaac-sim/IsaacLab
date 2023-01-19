@@ -8,7 +8,7 @@ models:
     clip_log_std: True
     min_log_std: -20.0
     max_log_std: 2.0
-    input_shape: "Shape.STATES"               
+    input_shape: "Shape.STATES"
     hiddens: [32, 32]
     hidden_activation: ["elu", "elu"]
     output_shape: "Shape.ACTIONS"
@@ -16,7 +16,7 @@ models:
     output_scale: 1.0
   value:  # see skrl.utils.model_instantiators.deterministic_model for parameter details
     clip_actions: False
-    input_shape: "Shape.STATES"               
+    input_shape: "Shape.STATES"
     hiddens: [32, 32]
     hidden_activation: ["elu", "elu"]
     output_shape: "Shape.ONE"

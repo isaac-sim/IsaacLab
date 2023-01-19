@@ -41,8 +41,9 @@ def parse_skrl_cfg(task_name) -> dict:
 
     return cfg
 
+
 def convert_skrl_cfg(cfg):
-    """Convert simple YAML types to skrl classes/components. 
+    """Convert simple YAML types to skrl classes/components.
 
     Args:
         cfg (dict): configuration dictionary.
@@ -50,21 +51,24 @@ def convert_skrl_cfg(cfg):
     Returns:
         dict: A dictionary containing the converted configuration.
     """
-    _direct_eval = ["learning_rate_scheduler", 
-                    "state_preprocessor", 
-                    "value_preprocessor", 
-                    "input_shape", 
-                    "output_shape"]
+    _direct_eval = [
+        "learning_rate_scheduler",
+        "state_preprocessor",
+        "value_preprocessor",
+        "input_shape",
+        "output_shape",
+    ]
 
     def reward_shaper_function(scale):
         def reward_shaper(rewards, timestep, timesteps):
             return rewards * scale
+
         return reward_shaper
 
     def update_dict(d):
-        from skrl.utils.model_instantiators import Shape    # noqa: F401
-        from skrl.resources.schedulers.torch import KLAdaptiveRL    # noqa: F401
-        from skrl.resources.preprocessors.torch import RunningStandardScaler    # noqa: F401
+        from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
+        from skrl.resources.schedulers.torch import KLAdaptiveRL  # noqa: F401
+        from skrl.utils.model_instantiators import Shape  # noqa: F401
 
         for key, value in d.items():
             if isinstance(value, dict):

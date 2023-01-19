@@ -33,16 +33,14 @@ simulation_app = SimulationApp(config, experience=app_experience)
 """Rest everything follows."""
 
 
-import os
 import gym
 from datetime import datetime
 
-
-from skrl.memories.torch import RandomMemory
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
+from skrl.memories.torch import RandomMemory
 from skrl.trainers.torch import SequentialTrainer
-from skrl.utils.model_instantiators import gaussian_model, deterministic_model
 from skrl.utils import set_seed
+from skrl.utils.model_instantiators import deterministic_model, gaussian_model
 
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
@@ -51,7 +49,7 @@ import omni.isaac.orbit_envs  # noqa: F401
 from omni.isaac.orbit_envs.utils import parse_env_cfg
 from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlVecEnvWrapper
 
-from config import parse_skrl_cfg, convert_skrl_cfg
+from config import convert_skrl_cfg, parse_skrl_cfg
 
 
 def main():
@@ -76,13 +74,13 @@ def main():
     experiment_cfg["agent"]["experiment"]["experiment_name"] = log_dir
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
-    
+
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), experiment_cfg)
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), experiment_cfg)
-    
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
     # wrap around environment for skrl
@@ -94,14 +92,18 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
     models = {}
-    models["policy"] = gaussian_model(observation_space=env.observation_space,
-                                      action_space=env.action_space,
-                                      device=env.device,
-                                      **convert_skrl_cfg(experiment_cfg["models"]["policy"]))
-    models["value"] = deterministic_model(observation_space=env.observation_space,
-                                          action_space=env.action_space,
-                                          device=env.device,
-                                          **convert_skrl_cfg(experiment_cfg["models"]["value"]))
+    models["policy"] = gaussian_model(
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=env.device,
+        **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+    )
+    models["value"] = deterministic_model(
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=env.device,
+        **convert_skrl_cfg(experiment_cfg["models"]["value"]),
+    )
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
     # https://skrl.readthedocs.io/en/latest/modules/skrl.memories.random.html
@@ -117,12 +119,14 @@ def main():
     agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
     agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})
 
-    agent = PPO(models=models,
-                memory=memory,
-                cfg=agent_cfg,
-                observation_space=env.observation_space,
-                action_space=env.action_space,
-                device=env.device)
+    agent = PPO(
+        models=models,
+        memory=memory,
+        cfg=agent_cfg,
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        device=env.device,
+    )
 
     # configure and instantiate the RL trainer
     # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
