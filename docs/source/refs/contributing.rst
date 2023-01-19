@@ -18,7 +18,7 @@ and useful for everyone. These may happen in forms of:
 
    We prefer GitHub `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`_ for discussing ideas,
    asking questions, conversations and requests for new features.
-   
+
    Please use the
    `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`_ only to track executable pieces of work
    with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.

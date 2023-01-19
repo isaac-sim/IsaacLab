@@ -102,8 +102,8 @@ class PhysxCfg:
     gpu_max_rigid_patch_count: int = 80 * 1024 * 2
     """Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 80 * 2 ** 11."""
 
-    gpu_found_lost_pairs_capacity: int = 1024 * 2
-    """Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 11.
+    gpu_found_lost_pairs_capacity: int = 1024 * 1024 * 2
+    """Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 21.
 
     This is used for the found/lost pair reports in the BP.
     """
@@ -156,6 +156,13 @@ class SimCfg:
 
     If this is set to False, the geometries of instances assets will appear stationary. However, this
     can also provide some performance speed-up.
+    """
+
+    replicate_physics: bool = True
+    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is False.
+
+    Note: In Isaac Sim 2022.2.0, domain randomization of material properties is not supported when
+    ``replicate_physics`` is set to True.
     """
 
     use_flatcache: bool = True  # output from simulation to flat cache
