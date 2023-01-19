@@ -42,6 +42,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "myst_parser",
     "autodocsumm",
+    "sphinx_copybutton",
 ]
 
 # mathjax hacks

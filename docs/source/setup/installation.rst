@@ -112,7 +112,7 @@ Organizing the workspace
 -  Clone the ``orbit`` repository into your workspace:
 
    .. code:: bash
-   
+
       # Option 1: With SSH
       git clone git@github.com:NVIDIA-Omniverse/orbit.git
       # Option 2: With HTTPS
