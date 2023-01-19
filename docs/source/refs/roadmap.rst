@@ -4,9 +4,12 @@ Development Roadmap
 Following is a loosely defined roadmap for the development of the codebase. The roadmap is subject to
 change and is not a commitment to deliver specific features by specific dates or in the specified order.
 
-Some of the features listed below are already implemented in the codebase, but are not yet documented
+Some of the features listed are already implemented in the codebase, but are not yet documented
 and/or tested. We will be working on improving the documentation and testing of these features in the
 coming months.
+
+If you have any questions or suggestions, let us know on
+`GitHub discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`_.
 
 **January 2023**
 
@@ -37,6 +40,7 @@ coming months.
 **February 2023**
 
 * |uncheck| Add APIs for rough terrain generation
+* |uncheck| Extend MDP manager classes to use sensor observations
 * |uncheck| Example on using the APIs in an Omniverse extension
 * Supported motion generators
 
@@ -64,7 +68,7 @@ coming months.
 * |uncheck| Add functional versions of all environments
 * Supported sensors
 
-  * |uncheck| Multi-camera support
+  * |uncheck| Cameras (parallelized)
 
 * Included environments
 

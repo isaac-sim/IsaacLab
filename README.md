@@ -17,6 +17,22 @@ Isaac Orbit (or *orbit* in short) is a unified and modular framework for robot l
 
 Please refer our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features and tutorials.
 
+## Contributing to Orbit
+
+We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone. These may happen in
+form of bug reports, feature requests, or code contributions. For details, please check our [contribution guidelines](https://isaac-orbit.github.io/orbit/source/refs/contributing.html).
+
+## Troubleshooting
+
+Please see the [troubleshooting](https://isaac-orbit.github.io/orbit/source/refs/troubleshooting.html) section for common fixes or [submit an issue](https://github.com/NVIDIA-Omniverse/orbit/issues).
+
+For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html), or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
+
+## Support
+
+* Please use GitHub [Discussions](https://github.com/NVIDIA-Omniverse/Orbit/discussions) for discussing ideas, asking questions, and requests for new features.
+* Github [Issues](https://github.com/NVIDIA-Omniverse/orbit/issues) should only be used to track executable pieces of work with a definite scope and a clear deliverable. These can be fixing bugs, documentation issues, new features, or general updates.
+
 ## Acknowledgement
 
 NVIDIA Isaac Sim is available freely under [individual license](https://www.nvidia.com/en-us/omniverse/download/). For more information about its license terms, please check [here](https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement).
@@ -25,7 +41,7 @@ ORBIT framework is released under [BSD-3 License](LICENSE). The license files of
 
 ## Citation
 
-If you use **`orbit`** in your work, please cite:
+Please cite [this paper](https://arxiv.org/abs/2301.04195) if you use this framework in your work:
 
 ```
 @misc{mittal2023orbit,

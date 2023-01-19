@@ -21,7 +21,7 @@ Downloading pre-built binaries
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Please follow the Isaac Sim
-`documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_basic.html>`__
+`documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_workstation.html>`__
 to install the latest Isaac Sim release.
 
 To check the minimum system requirements,refer to the documentation
@@ -112,9 +112,11 @@ Organizing the workspace
 -  Clone the ``orbit`` repository into your workspace:
 
    .. code:: bash
-
-	  # For public users
-	  git clone git@github.com:NVIDIA-Omniverse/orbit.git
+   
+      # Option 1: With SSH
+      git clone git@github.com:NVIDIA-Omniverse/orbit.git
+      # Option 2: With HTTPS
+      git clone https://github.com/NVIDIA-Omniverse/Orbit.git
 
 -  Set up a symbolic link between the installed Isaac Sim root folder
    and ``_isaac_sim`` in the ``orbit``` directory. This makes it convenient

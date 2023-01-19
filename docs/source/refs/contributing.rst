@@ -5,13 +5,23 @@ We wholeheartedly welcome contributions to the project to make the framework mor
 and useful for everyone. These may happen in forms of:
 
 * Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`__.
+* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`__.
 * Code contributions: Please submit a `pull request <https://github.com/NVIDIA-Omniverse/orbit/pulls>`__.
 
   * Bug fixes
   * New features
   * Documentation improvements
   * Tutorials and tutorial improvements
+
+
+.. note::
+
+   We prefer GitHub `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`_ for discussing ideas,
+   asking questions, conversations and requests for new features.
+   
+   Please use the
+   `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`_ only to track executable pieces of work
+   with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
 
 
 Contributing Code
@@ -34,7 +44,7 @@ After sending a pull request, the maintainers will review your code and provide 
 
 Please ensure that your code is well-formatted, documented and passes all the tests.
 
-.. note::
+.. tip::
 
    It is important to keep the pull request as small as possible. This makes it easier for the
    maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
