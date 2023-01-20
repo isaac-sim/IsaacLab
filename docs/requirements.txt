@@ -5,7 +5,8 @@ sphinx-book-theme==0.3.3
 myst-parser==0.18.1
 sphinxcontrib-bibtex==2.5.0
 autodocsumm==0.2.9
+sphinx-copybutton
 
 # basic python
-numpy==1.24.1
-matplotlib==3.6.2
+numpy
+matplotlib

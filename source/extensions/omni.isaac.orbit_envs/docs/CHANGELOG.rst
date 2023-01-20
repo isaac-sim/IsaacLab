@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.2 (2023-01-19)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the flag ``replicate_physics`` to the :class:`SimCfg` class.
+* Increased the default value of ``gpu_found_lost_pairs_capacity`` in :class:`PhysxCfg` class
+
 0.1.1 (2023-01-18)
 ~~~~~~~~~~~~~~~~~~
 

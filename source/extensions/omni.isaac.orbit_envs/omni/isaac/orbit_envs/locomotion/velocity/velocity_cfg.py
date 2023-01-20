@@ -181,7 +181,9 @@ class VelocityEnvCfg(IsaacEnvCfg):
     env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=20.0)
     viewer: ViewerCfg = ViewerCfg()
     # Physics settings
-    sim: SimCfg = SimCfg(dt=0.005, substeps=4)
+    # disable replicate physics to use physics domain randomization
+    # TODO: This is a temporary fix. Should be resolved in the future.
+    sim: SimCfg = SimCfg(dt=0.005, substeps=4, replicate_physics=False)
 
     # Scene Settings
     terrain: TerrainCfg = TerrainCfg()
