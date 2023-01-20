@@ -179,6 +179,17 @@ from the environments into the respective libraries function argument and return
       # run script for playing with 32 environments
       ./orbit.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
 
+-  Training an agent with
+   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Humanoid-v0``:
+
+   .. code:: bash
+
+      # install python module (for skrl)
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[skrl]'
+      # run script for training
+      ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Humanoid-v0 --headless
+      # run script for playing with 32 environments
+      ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Humanoid-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``

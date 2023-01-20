@@ -21,6 +21,7 @@ environment instance to the wrapper constructor. For instance, to wrap an enviro
 
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _RSL-RL: https://github.com/leggedrobotics/rsl_rl
+.. _skrl: https://github.com/Toni-SM/skrl
 .. _Stable-Baselines3: https://github.com/DLR-RM/stable-baselines3
 
 
@@ -35,6 +36,13 @@ RSL-RL Wrapper
 --------------
 
 .. automodule:: omni.isaac.orbit_envs.utils.wrappers.rsl_rl
+   :members:
+   :show-inheritance:
+
+SKRL Wrapper
+------------
+
+.. automodule:: omni.isaac.orbit_envs.utils.wrappers.skrl
    :members:
    :show-inheritance:
 

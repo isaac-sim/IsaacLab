@@ -106,6 +106,7 @@ autodoc_mock_imports = [
     "omni.isaac.kit",
     "omni.isaac.cloner",
     "gym",
+    "skrl",
     "stable_baselines3",
     "rsl_rl",
     "rl_games",
