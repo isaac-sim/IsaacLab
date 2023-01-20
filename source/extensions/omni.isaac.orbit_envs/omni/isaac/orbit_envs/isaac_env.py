@@ -359,7 +359,7 @@ class IsaacEnv(gym.Env):
         This handling must be taken care of by the wrapper around the :class:`IsaacEnv` instance.
 
         Note:
-            For included frameworks (RSL-RL, RL-Games), the observations must have the key "policy". In case,
+            For included frameworks (RSL-RL, RL-Games, skrl), the observations must have the key "policy". In case,
             the key "critic" is also present, then the critic observations are taken from the "critic" group.
             Otherwise, they are the same as the "policy" group.
 
