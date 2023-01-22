@@ -3,6 +3,7 @@ seed: 42
 # Models are instantiated using skrl's model instantiator utility
 # https://skrl.readthedocs.io/en/develop/modules/skrl.utils.model_instantiators.html
 models:
+  separate: False
   policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
     clip_actions: False
     clip_log_std: True
@@ -12,7 +13,7 @@ models:
     hiddens: [128, 128, 128]
     hidden_activation: ["elu", "elu", "elu"]
     output_shape: "Shape.ACTIONS"
-    output_activation: ""
+    output_activation: "tanh"
     output_scale: 1.0
   value:  # see skrl.utils.model_instantiators.deterministic_model for parameter details
     clip_actions: False

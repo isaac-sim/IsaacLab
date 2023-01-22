@@ -3,6 +3,7 @@ seed: 42
 # Models are instantiated using skrl's model instantiator utility
 # https://skrl.readthedocs.io/en/develop/modules/skrl.utils.model_instantiators.html
 models:
+  separate: True
   policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
     clip_actions: False
     clip_log_std: True
