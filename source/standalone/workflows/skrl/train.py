@@ -40,7 +40,7 @@ from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.memories.torch import RandomMemory
 from skrl.trainers.torch import SequentialTrainer
 from skrl.utils import set_seed
-from skrl.utils.model_instantiators import deterministic_model, gaussian_model
+from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
@@ -92,18 +92,34 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
     models = {}
-    models["policy"] = gaussian_model(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        device=env.device,
-        **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
-    )
-    models["value"] = deterministic_model(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        device=env.device,
-        **convert_skrl_cfg(experiment_cfg["models"]["value"]),
-    )
+    # non-shared models
+    if experiment_cfg["models"]["separate"]:
+        models["policy"] = gaussian_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+        )
+        models["value"] = deterministic_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            **convert_skrl_cfg(experiment_cfg["models"]["value"]),
+        )
+    # shared models
+    else:
+        models["policy"] = shared_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            structure=None,
+            roles=["policy", "value"],
+            parameters=[
+                convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+                convert_skrl_cfg(experiment_cfg["models"]["value"]),
+            ],
+        )
+        models["value"] = models["policy"]
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
     # https://skrl.readthedocs.io/en/latest/modules/skrl.memories.random.html

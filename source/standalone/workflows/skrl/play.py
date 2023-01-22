@@ -32,7 +32,7 @@ from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.trainers.torch import ManualTrainer
-from skrl.utils.model_instantiators import deterministic_model, gaussian_model
+from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401
@@ -69,18 +69,34 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
     models = {}
-    models["policy"] = gaussian_model(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        device=env.device,
-        **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
-    )
-    models["value"] = deterministic_model(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        device=env.device,
-        **convert_skrl_cfg(experiment_cfg["models"]["value"]),
-    )
+    # non-shared models
+    if experiment_cfg["models"]["separate"]:
+        models["policy"] = gaussian_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+        )
+        models["value"] = deterministic_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            **convert_skrl_cfg(experiment_cfg["models"]["value"]),
+        )
+    # shared models
+    else:
+        models["policy"] = shared_model(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            device=env.device,
+            structure=None,
+            roles=["policy", "value"],
+            parameters=[
+                convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+                convert_skrl_cfg(experiment_cfg["models"]["value"]),
+            ],
+        )
+        models["value"] = models["policy"]
 
     # configure and instantiate PPO agent
     # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
