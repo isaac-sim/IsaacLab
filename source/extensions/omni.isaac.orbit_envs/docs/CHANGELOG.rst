@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.0 (2023-01-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Environment wrapper for the skrl RL library
+* Training/evaluation configuration files for the skrl RL library
+
 0.1.2 (2023-01-19)
 ~~~~~~~~~~~~~~~~~~
 
