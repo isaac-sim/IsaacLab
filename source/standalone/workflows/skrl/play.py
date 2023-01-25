@@ -28,6 +28,7 @@ simulation_app = SimulationApp(config)
 
 
 import gym
+import torch
 from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
@@ -173,6 +174,11 @@ def main():
                 timestep=timestep,
                 timesteps=None,
             )
+            # log custom environment data
+            if "episode" in infos:
+                for k, v in infos["episode"].items():
+                    if isinstance(v, torch.Tensor) and v.numel() == 1:
+                        agent.track_data(f"Info / {k}", v.item())
             # write data to TensorBoard / Weights & Biases
             super(type(agent), agent).post_interaction(timestep=timestep, timesteps=None)
             # reset environments

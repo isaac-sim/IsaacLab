@@ -197,6 +197,11 @@ def main():
                     timestep=timestep,
                     timesteps=timesteps,
                 )
+            # log custom environment data
+            if "episode" in infos:
+                for k, v in infos["episode"].items():
+                    if isinstance(v, torch.Tensor) and v.numel() == 1:
+                        agent.track_data(f"Info / {k}", v.item())
             # post-interaction stepping (write data to TensorBoard / Weights & Biases)
             agent.post_interaction(timestep=timestep, timesteps=timesteps)
             # reset environments
