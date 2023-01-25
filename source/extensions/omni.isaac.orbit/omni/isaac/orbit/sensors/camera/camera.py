@@ -28,6 +28,8 @@ from omni.isaac.orbit.utils.math import convert_quat
 from ..sensor_base import SensorBase
 from .camera_cfg import FisheyeCameraCfg, PinholeCameraCfg
 
+__all__ = ["Camera", "CameraData"]
+
 
 @dataclass
 class CameraData:
@@ -44,55 +46,52 @@ class CameraData:
     output: Dict[str, Any] = None
     """The retrieved sensor data with sensor types as key.
 
-    The format of the data is available at [1].
+    The format of the data is available in the `Replicator Documentation`_.
 
-    References:
-        [1] https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
+    .. _Replicator Documentation: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
     """
 
 
 class Camera(SensorBase):
     """The camera sensor for acquiring visual data.
 
-    Summarizing from the replicator extension [1], the following sensor types are supported:
+    Summarizing from the `replicator extension`_, the following sensor types are supported:
 
-        - "rgb": A rendered color image.
-        - "distance_to_camera": An image containing the distance to camera optical center.
-        - "distance_to_image_plane": An image containing distances of 3D points from camera plane along camera's z-axis.
-        - "normals": An image containing the local surface normal vectors at each pixel.
-        - "motion_vectors": An image containing the motion vector data at each pixel.
-        - "instance_segmentation": The instance segmentation data.
-        - "semantic_segmentation": The semantic segmentation data.
-        - "bounding_box_2d_tight": The tight 2D bounding box data (only contains non-occluded regions).
-        - "bounding_box_2d_loose": The loose 2D bounding box data (contains occluded regions).
-        - "bounding_box_3d": The 3D view space bounding box data.
-        - "occlusion": The occlusion information (such as instance id, semantic id and occluded ratio).
+    - ``"rgb"``: A rendered color image.
+    - ``"distance_to_camera"``: An image containing the distance to camera optical center.
+    - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
+    - ``"normals"``: An image containing the local surface normal vectors at each pixel.
+    - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
+    - ``"instance_segmentation"``: The instance segmentation data.
+    - ``"semantic_segmentation"``: The semantic segmentation data.
+    - ``"bounding_box_2d_tight"``: The tight 2D bounding box data (only contains non-occluded regions).
+    - ``"bounding_box_2d_loose"``: The loose 2D bounding box data (contains occluded regions).
+    - ``"bounding_box_3d"``: The 3D view space bounding box data.
+    - ``"occlusion"``: The occlusion information (such as instance id, semantic id and occluded ratio).
 
     Typically, the sensor comprises of two prims:
 
-        1. Camera rig: A dummy Xform prim to which the camera is attached to.
-        2. Camera prim: An instance of the USDGeom Camera. [3]
+    1. **Camera rig**: A dummy Xform prim to which the camera is attached to.
+    2. **Camera prim**: An instance of the `USDGeom Camera`_.
 
     However, for the sake of generality, we allow omission of the camera rig prim. This is mostly the case when
     the camera is static. In such cases, any request to set the camera pose is directly set on the camera prim,
     instead of setting the pose of the camera rig Xform prim.
 
-    Reference:
-        [1] https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
-        [2] https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
+    .. _replicator extension: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
+    .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
 
     """
 
     def __init__(self, cfg: Union[PinholeCameraCfg, FisheyeCameraCfg], device: str = "cpu"):
-        """Initializes the scanner object.
+        """Initializes the camera sensor.
 
-        Warning:
-            Replicator currently ignores the device and returns the data only on cpu.
-            This behavior will be fixed in the future, when replicator improves.
+        If the ``device`` is ``"cpu"``, the output data is returned as a numpy array. If the ``device`` is
+        ``"cuda"``, then a Warp array is returned. Note that only the valid sensor types will be moved to GPU.
 
         Args:
             cfg (Union[PinholeCameraCfg, FisheyeCameraCfg]): The configuration parameters.
-            device (str): The device on which to receive data.
+            device (str): The device on which to receive data. Defaults to "cpu".
         """
         # store inputs
         self.cfg = cfg
@@ -184,10 +183,9 @@ class Camera(SensorBase):
     def set_intrinsic_matrix(self, matrix: np.ndarray, focal_length: float = 1.0):
         """Set parameters of the USD camera from its intrinsic matrix.
 
-        Note:
-            Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
-            i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
-            is not true in the input intrinsic matrix, then the camera will not set up correctly.
+        Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
+        i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
+        is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
             intrinsic_matrix (np.ndarray): The intrinsic matrix for the camera.
@@ -237,7 +235,7 @@ class Camera(SensorBase):
             quat (Sequence[float], optional): The quaternion orientation in (w, x, y, z). Defaults to None.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call `initialize(...)` first.
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         # add note that this function is not working correctly
         # FIXME: Fix this function. Getting the camera pose and setting back over here doesn't work.
@@ -263,7 +261,7 @@ class Camera(SensorBase):
         # set the pose
         if self._sensor_rig_prim is None:
             # Note: Technically, we should prefer not to do this.
-            cam_prim = XFormPrimView(self.prim_path, reset_xform_properties=False)
+            cam_prim = XFormPrimView(self.prim_path, reset_xform_properties=True)
             cam_prim.set_world_poses(pos, quat_gl)
         else:
             self._sensor_rig_prim.set_world_poses(pos, quat_gl)
@@ -281,11 +279,11 @@ class Camera(SensorBase):
             yaw (float): Yaw angle in degrees (up, down).
             pitch (float): Pitch angle in degrees around up vector.
             roll (float): Roll angle in degrees around forward vector.
-            up_axis (str): Either 'y/Y' or 'z/Z' axis up.
+            up_axis (str): The up axis for the camera. Either 'y', 'Y' or 'z', 'Z' axis.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call `initialize(...)` first.
-            ValueError: When the `up_axis` is not "y/Y" or "z/Z".
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+            ValueError: When the ``up_axis`` is not "y/Y" or "z/Z".
         """
         # sanity conversion
         camera_target_position = np.asarray(target_position)
@@ -351,6 +349,9 @@ class Camera(SensorBase):
     def spawn(self, parent_prim_path: str, translation: Sequence[float] = None, orientation: Sequence[float] = None):
         """Spawns the sensor into the stage.
 
+        The sensor is spawned under the parent prim at the path ``parent_prim_path`` with the provided input
+        rotation and translation. The USD Camera prim is attached to the parent prim.
+
         Args:
             parent_prim_path (str): The path of the parent prim to attach sensor to.
             translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
@@ -387,6 +388,14 @@ class Camera(SensorBase):
     def initialize(self, cam_prim_path: str = None, has_rig: bool = False):
         """Initializes the sensor handles and internal buffers.
 
+        This function creates handles and registers the provided data types with the replicator registry to
+        be able to access the data from the sensor. It also initializes the internal buffers to store the data.
+
+        The function also allows initializing to a camera not spawned by using the :meth:`spawn` method.
+        For instance, connecting to the default viewport camera "/Omniverse_persp". In such cases, it is
+        the user's responsibility to ensure that the camera is valid and inform the sensor class whether
+        the camera is part of a rig or not.
+
         Args:
             cam_prim_path (str, optional): The prim path to existing camera. Defaults to None.
             has_rig (bool, optional): Whether the passed camera prim path is attached to a rig. Defaults to False.
@@ -406,7 +415,7 @@ class Camera(SensorBase):
             self._sensor_prim = UsdGeom.Camera(cam_prim)
             # Check rig
             if has_rig:
-                self._sensor_rig_prim = XFormPrimView(cam_prim_path.rsplit("/", 1)[0], reset_xform_properties=False)
+                self._sensor_rig_prim = XFormPrimView(cam_prim_path.rsplit("/", 1)[0], reset_xform_properties=True)
             else:
                 self._sensor_rig_prim = None
 
@@ -431,7 +440,7 @@ class Camera(SensorBase):
             else:
                 init_params = None
             # create annotator node
-            rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params)
+            rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params, device=self.device)
             rep_annotator.attach([self._render_product_path])
             # add to registry
             self._rep_registry[name] = rep_annotator
@@ -453,15 +462,16 @@ class Camera(SensorBase):
         self._data.image_shape = self.image_shape
         self._data.output = dict.fromkeys(self._data.output, None)
 
-    def update(self, dt: float):
-        """Updates the buffers at sensor frequency.
-
-        Args:
-            dt (float): The simulation time-step.
-        """
-        super().update(dt)
-
     def buffer(self):
+        """Updates the internal buffer with the latest data from the sensor.
+
+        This function reads the intrinsic matrix and pose of the camera. It also reads the data from
+        the annotator registry and updates the internal buffer.
+
+        Note:
+            When running in standalone mode, the function renders the scene a few times to fill all the buffers.
+            During this time, the physics simulation is paused. This is a known issue with Isaac Sim.
+        """
         # When running in standalone mode, need to render a few times to fill all the buffers
         # FIXME: Check with simulation team to get rid of this. What if someone has render or other callbacks?
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
@@ -473,7 +483,7 @@ class Camera(SensorBase):
         self._data.position, self._data.orientation = self._compute_ros_pose()
         # -- read the data from annotator registry
         for name in self._rep_registry:
-            self._data.output[name] = self._rep_registry[name].get_data(device=self.device)
+            self._data.output[name] = self._rep_registry[name].get_data()
         # -- update the trigger call data (needed by replicator BasicWriter method)
         self._data.output["trigger_outputs"] = {"on_time": self.frame}
 

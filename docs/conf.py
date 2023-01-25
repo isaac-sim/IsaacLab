@@ -78,7 +78,7 @@ autodoc_default_options = {
 # generate links to the documentation of objects in external projects
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "numpy": ("http://docs.scipy.org/doc/numpy/", None),
+    "numpy": ("http://docs.scipy.org/doc/numpy", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
 }
 
@@ -94,8 +94,10 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "README.md", "licenses/*
 autodoc_mock_imports = [
     "torch",
     "numpy",
+    "matplotlib",
     "scipy",
     "carb",
+    "warp",
     "pxr",
     "omni.kit",
     "omni.usd",

@@ -28,22 +28,26 @@ __all__ = [
     # General
     "wrap_to_pi",
     "saturate",
+    "copysign",
+    # General-Isaac Sim
     "normalize",
     "scale_transform",
     "unscale_transform",
-    "copysign",
     # Rotation
-    "quat_mul",
+    "matrix_from_quat",
     "quat_inv",
-    "quat_conjugate",
-    "quat_apply",
-    "quat_rotate",
-    "quat_rotate_inverse",
     "quat_from_euler_xyz",
     "quat_apply_yaw",
     "quat_box_minus",
     "euler_xyz_from_quat",
     "axis_angle_from_quat",
+    # Rotation-Isaac Sim
+    "quat_apply",
+    "quat_from_angle_axis",
+    "quat_mul",
+    "quat_conjugate",
+    "quat_rotate",
+    "quat_rotate_inverse",
     # Transformations
     "combine_frame_transforms",
     "subtract_frame_transforms",

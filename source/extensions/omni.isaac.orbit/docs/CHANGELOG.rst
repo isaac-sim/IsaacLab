@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.0 (2023-01-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for warp backend in camera utilities.
+* Extended the ``play_camera.py`` with ``--gpu`` flag to use GPU replicator backend.
+
 0.1.1 (2023-01-24)
 ~~~~~~~~~~~~~~~~~~
 

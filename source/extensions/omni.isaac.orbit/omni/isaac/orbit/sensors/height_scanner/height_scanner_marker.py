@@ -19,12 +19,12 @@ class HeightScannerMarker:
     It creates two spherical markers of different colors. Based on the indices provided the referenced
     marker is activated.
 
-    Proto Indices (status):
-        - 0 -> ray miss (blue sphere).
-        - 1 -> successful ray hit (red sphere).
-        - 2 -> invisible ray (disabled visualization)
+    The status marker (proto-indices) of the point instancer is used to store the following information:
 
-    TODO: Make this generic marker for all and put inside the `omni.isaac.orbit.marker` directory.
+    - :obj:`0` -> ray miss (blue sphere).
+    - :obj:`1` -> successful ray hit (red sphere).
+    - :obj:`2` -> invisible ray (disabled visualization)
+
     """
 
     def __init__(self, prim_path: str, count: int, radius: float = 1.0) -> None:
@@ -44,6 +44,7 @@ class HeightScannerMarker:
         self._radius = radius
         # create manager for handling instancing of frame markers
         self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
+        # TODO: Make this generic marker for all and put inside the `omni.isaac.orbit.marker` directory.
         # create a child prim for the marker
         # -- target missed
         prim = prim_utils.create_prim(f"{prim_path}/point_miss", "Sphere", attributes={"radius": self._radius})

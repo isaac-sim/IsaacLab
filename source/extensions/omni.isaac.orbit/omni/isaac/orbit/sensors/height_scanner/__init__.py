@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Height-scanner.
+Height-scanner based on ray-casting operations using PhysX ray-caster.
 """
 
 from .height_scanner import HeightScanner, HeightScannerData
