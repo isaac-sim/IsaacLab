@@ -37,7 +37,7 @@ from skrl.utils.model_instantiators import deterministic_model, gaussian_model, 
 
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import parse_env_cfg
+from omni.isaac.orbit_envs.utils import get_checkpoint_path, parse_env_cfg
 from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlVecEnvWrapper
 
 from config import convert_skrl_cfg, parse_skrl_cfg
@@ -50,8 +50,10 @@ def main():
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     experiment_cfg = parse_skrl_cfg(args_cli.task)
 
-    # specify directory for logging experiments
-    log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
+    # specify directory for logging experiments (write new data)
+    log_checkpoint_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
+    log_root_path = os.path.join("logs_eval", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
+    log_checkpoint_path = os.path.abspath(log_checkpoint_path)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
@@ -118,12 +120,15 @@ def main():
         device=env.device,
     )
 
-    # check checkpoint is valid
-    if args_cli.checkpoint is None:
-        raise ValueError("Checkpoint path is not valid.")
-    # load agent from provided path
-    print(f"Loading checkpoint from: {args_cli.checkpoint}")
-    agent.load(args_cli.checkpoint)
+    # specify directory for logging experiments (load checkpoint)
+    print(f"[INFO] Loading experiment from directory: {log_checkpoint_path}")
+    # get checkpoint path
+    if args_cli.checkpoint:
+        resume_path = os.path.abspath(args_cli.checkpoint)
+    else:
+        resume_path = get_checkpoint_path(log_checkpoint_path, os.path.join("*", "checkpoints"), None)
+    print(f"[INFO] Loading model checkpoint from: {resume_path}")
+    agent.load(resume_path)
 
     # test the agent according to the selected mode defined with "use_api":
     # - True: a skrl trainer will be used to evaluate the agent
