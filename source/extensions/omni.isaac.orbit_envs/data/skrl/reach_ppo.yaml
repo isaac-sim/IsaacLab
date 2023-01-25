@@ -36,7 +36,7 @@ agent:
   learning_rate: 3.e-4
   learning_rate_scheduler: "KLAdaptiveRL"
   learning_rate_scheduler_kwargs:
-    kl_threshold: 0.008
+    kl_threshold: 0.01
   state_preprocessor: "RunningStandardScaler"
   state_preprocessor_kwargs: null
   value_preprocessor: "RunningStandardScaler"
@@ -50,7 +50,7 @@ agent:
   entropy_loss_scale: 0.0
   value_loss_scale: 2.0
   kl_threshold: 0
-  rewards_shaper_scale: 0.01
+  rewards_shaper_scale: 1.0
   # logging and checkpoint
   experiment:
     directory: "reach"
@@ -62,5 +62,5 @@ agent:
 # Sequential trainer
 # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
 trainer:
-  timesteps: 8000
+  timesteps: 16000
   use_api: False  # whether to use a trainer or run the steps manually
