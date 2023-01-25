@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.1.1 (2023-01-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of physics material on the ground plane when using :meth:``omni.isaac.orbit.utils.kit.create_ground_plane`` function.
+
+
 0.1.0 (2023-01-17)
 ~~~~~~~~~~~~~~~~~~
 

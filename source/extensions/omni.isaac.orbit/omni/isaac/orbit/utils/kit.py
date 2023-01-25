@@ -61,7 +61,12 @@ def create_ground_plane(
     # Spawn Ground-plane
     prim_utils.create_prim(prim_path, usd_path=usd_path, translation=(0.0, 0.0, z_position))
     # Create physics material
-    material = PhysicsMaterial(f"{prim_path}/groundMaterial", static_friction, dynamic_friction, restitution)
+    material = PhysicsMaterial(
+        f"{prim_path}/groundMaterial",
+        static_friction=static_friction,
+        dynamic_friction=dynamic_friction,
+        restitution=restitution,
+    )
     # Apply PhysX Rigid Material schema
     physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(material.prim)
     # Set patch friction property

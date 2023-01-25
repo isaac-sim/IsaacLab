@@ -140,7 +140,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/demo/play_ik_control.py --robot franka_panda --num_robots 128
+   ./orbit.sh -p source/standalone/demo/play_ik_control.py --robot franka_panda --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using a task-space controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches the
