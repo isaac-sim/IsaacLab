@@ -31,7 +31,6 @@ import gym
 from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
-from skrl.trainers.torch import ManualTrainer
 from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
 import omni.isaac.contrib_envs  # noqa: F401
@@ -124,16 +123,41 @@ def main():
     print(f"Loading checkpoint from: {args_cli.checkpoint}")
     agent.load(args_cli.checkpoint)
 
-    # configure and instantiate the RL trainer
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
-    trainer_cfg = experiment_cfg["trainer"]
-    trainer_cfg["disable_progressbar"] = True
-    trainer = ManualTrainer(cfg=trainer_cfg, env=env, agents=agent)
+    # execute the interaction with the environment without using a trainer
+    # (note that skrl requires the execution of some additional agent methods for proper operation).
+    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.manual.html
+    timestep = 0
+    agent.init()
+    agent.set_running_mode("eval")
 
+    # reset environment
+    obs, infos = env.reset()
     # simulate environment
     while simulation_app.is_running():
-        # agent and environment stepping
-        trainer.eval()
+        timestep += 1
+        # agent stepping
+        actions = agent.act(obs, timestep=timestep, timesteps=None)[0]
+        # env stepping
+        next_obs, rewards, terminated, truncated, infos = env.step(actions)
+        # track data
+        agent.record_transition(
+            states=obs,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_obs,
+            terminated=terminated,
+            truncated=truncated,
+            infos=infos,
+            timestep=timestep,
+            timesteps=None,
+        )
+        # write data to TensorBoard / Weights & Biases
+        super(type(agent), agent).post_interaction(timestep=timestep, timesteps=None)
+        # reset environments
+        if terminated.any() or truncated.any():
+            obs, infos = env.reset()
+        else:
+            obs.copy_(next_obs)
         # check if simulator is stopped
         if env.sim.is_stopped():
             break
