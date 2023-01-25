@@ -28,11 +28,8 @@ simulation_app = SimulationApp(config)
 
 
 import gym
-import torch
-from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
-from skrl.trainers.torch import ManualTrainer
 from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
 import omni.isaac.contrib_envs  # noqa: F401
@@ -49,20 +46,6 @@ def main():
     # parse env configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     experiment_cfg = parse_skrl_cfg(args_cli.task)
-
-    # specify directory for logging experiments (write new data)
-    log_checkpoint_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
-    log_root_path = os.path.join("logs_eval", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
-    log_checkpoint_path = os.path.abspath(log_checkpoint_path)
-    log_root_path = os.path.abspath(log_root_path)
-    print(f"[INFO] Logging experiment in directory: {log_root_path}")
-    # specify directory for logging runs
-    log_dir = datetime.now().strftime("%b%d_%H-%M-%S")
-    if experiment_cfg["agent"]["experiment"]["experiment_name"]:
-        log_dir += f'_{experiment_cfg["agent"]["experiment"]["experiment_name"]}'
-    # set directory into agent config
-    experiment_cfg["agent"]["experiment"]["directory"] = log_root_path
-    experiment_cfg["agent"]["experiment"]["experiment_name"] = log_dir
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
@@ -109,6 +92,7 @@ def main():
 
     agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
     agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})
+    agent_cfg["experiment"]["write_interval"] = 0  # don't log to Tensorboard
     agent_cfg["experiment"]["checkpoint_interval"] = 0  # don't generate checkpoints
 
     agent = PPO(
@@ -121,79 +105,32 @@ def main():
     )
 
     # specify directory for logging experiments (load checkpoint)
-    print(f"[INFO] Loading experiment from directory: {log_checkpoint_path}")
+    log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
+    log_root_path = os.path.abspath(log_root_path)
+    print(f"[INFO] Loading experiment from directory: {log_root_path}")
     # get checkpoint path
     if args_cli.checkpoint:
         resume_path = os.path.abspath(args_cli.checkpoint)
     else:
-        resume_path = get_checkpoint_path(log_checkpoint_path, os.path.join("*", "checkpoints"), None)
+        resume_path = get_checkpoint_path(log_root_path, os.path.join("*", "checkpoints"), None)
     print(f"[INFO] Loading model checkpoint from: {resume_path}")
+    agent.init()
     agent.load(resume_path)
 
-    # test the agent according to the selected mode defined with "use_api":
-    # - True: a skrl trainer will be used to evaluate the agent
-    # - False: the interaction with the environment will be performed manually.
-    #          This mode allows recording specific information about the environment
+    def get_actions(obs):
+        return agent.act(obs, timestep=0, timesteps=0)[0]
 
-    # configure and instantiate the RL trainer
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
-    if experiment_cfg["trainer"]["use_api"]:
-        trainer_cfg = experiment_cfg["trainer"]
-        trainer_cfg["disable_progressbar"] = True
-        trainer = ManualTrainer(cfg=trainer_cfg, env=env, agents=agent)
-
-        # simulate environment
-        while simulation_app.is_running():
-            # agent and environment stepping
-            trainer.eval()
-            # check if simulator is stopped
-            if env.sim.is_stopped():
-                break
-
-    # execute the interaction with the environment without using a trainer
-    # (note that skrl requires the execution of some additional agent methods for proper operation).
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.manual.html
-    else:
-        timestep = 0
-        agent.init()
-        agent.set_running_mode("eval")
-
-        # reset environment
-        obs, infos = env.reset()
-        # simulate environment
-        while simulation_app.is_running():
-            timestep += 1
-            # agent stepping
-            actions = agent.act(obs, timestep=timestep, timesteps=None)[0]
-            # env stepping
-            next_obs, rewards, terminated, truncated, infos = env.step(actions)
-            # track data
-            agent.record_transition(
-                states=obs,
-                actions=actions,
-                rewards=rewards,
-                next_states=next_obs,
-                terminated=terminated,
-                truncated=truncated,
-                infos=infos,
-                timestep=timestep,
-                timesteps=None,
-            )
-            # log custom environment data
-            if "episode" in infos:
-                for k, v in infos["episode"].items():
-                    if isinstance(v, torch.Tensor) and v.numel() == 1:
-                        agent.track_data(f"Info / {k}", v.item())
-            # write data to TensorBoard / Weights & Biases
-            super(type(agent), agent).post_interaction(timestep=timestep, timesteps=None)
-            # reset environments
-            if terminated.any() or truncated.any():
-                obs, infos = env.reset()
-            else:
-                obs.copy_(next_obs)
-            # check if simulator is stopped
-            if env.sim.is_stopped():
-                break
+    # reset environment
+    obs, _ = env.reset()
+    # simulate environment
+    while simulation_app.is_running():
+        # agent stepping
+        actions = get_actions(obs)
+        # env stepping
+        obs, _, _, _, _ = env.step(actions)
+        # check if simulator is stopped
+        if env.sim.is_stopped():
+            break
 
     # close the simulator
     env.close()
