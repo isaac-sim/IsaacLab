@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Camera.
+Camera wrapper around USD camera prim to provide an interface that follows the robotics convention.
 """
 
 from .camera import Camera, CameraData

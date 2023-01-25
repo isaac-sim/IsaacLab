@@ -3,19 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-@author     Mayank Mittal
-@email      mittalma@ethz.ch
-@author     David Hoeller
-@email      dhoeller@nvidia.com
-
-@brief      Height-map scanner in Omniverse workflows.
-"""
 
 import numpy as np
 import scipy.spatial.transform as tf
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List, Sequence
 
 import omni
 import omni.isaac.core.utils.prims as prim_utils
@@ -29,6 +21,8 @@ from ..sensor_base import SensorBase
 from .height_scanner_cfg import HeightScannerCfg
 from .height_scanner_marker import HeightScannerMarker
 
+__all__ = ["HeightScanner", "HeightScannerData"]
+
 
 @dataclass
 class HeightScannerData:
@@ -37,13 +31,19 @@ class HeightScannerData:
     position: np.ndarray = None
     """Position of the sensor origin in world frame."""
     orientation: np.ndarray = None
-    """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame."""
+    """Orientation of the sensor origin in quaternion ``(w, x, y, z)`` in world frame."""
     hit_points: np.ndarray = None
-    """The end point locations of ray-casted rays."""
+    """The end point locations of ray-casted rays. Shape is (N, 3), where ``N`` is
+    the number of scan points."""
     hit_distance: np.ndarray = None
-    """The ray-cast travel distance from query point."""
+    """The ray-cast travel distance from query point. Shape is (N,), where ``N`` is
+    the number of scan points."""
     hit_status: np.ndarray = None
-    """Whether the ray hit an object or not."""
+    """Whether the ray hit an object or not. Shape is (N,), where ``N`` is
+    the number of scan points.
+
+    It is set to ``1`` if the ray hit an object, and ``0`` otherwise.
+    """
 
 
 class HeightScanner(SensorBase):
@@ -53,27 +53,20 @@ class HeightScanner(SensorBase):
     often we care about the terrain for locomotion. The height-map, also called elevation map, simplifies the
     terrain as a two-dimensional surface. Each grid-cell represents the height of the terrain.
 
-    Unlike algorithms which fuse depth measurements to create an elevation map [1], in this method we directly use
-    the PhysX API for ray-casting and query the height of the terrain from a set of query scan points. These points
-    represent the location of the grid cells.
+    Unlike algorithms which fuse depth measurements to create an elevation map :cite:p:`frankhauser2018probabilistic`,
+    in this method we directly use the PhysX API for ray-casting and query the height of the terrain from a set
+    of query scan points. These points represent the location of the grid cells.
 
     The height-scanner uses PhysX for ray-casting to collision bodies. To prevent the casting to certain prims
     in the scene (such as the robot on which height-scanner is present), one needs to provide the names of the
     prims to not check collision with as a part of the dictionary config.
 
-    The scanner offset :math:`(x_o, y_o, z_o)` is the offset of the sensor from the frame it is attached to. During the
-    `update(...)` or `buffer(...)`, the pose of the mounted frame needs to be provided.
+    The scanner offset :math:`(x_o, y_o, z_o)` is the offset of the sensor from the frame it is attached to.
+    During the :meth:`update` or :meth:`buffer`, the pose of the mounted frame needs to be provided.
 
     If visualization is enabled, rays that have a hit are displayed in red, while a miss is displayed in blue.
     During a miss, the point's distance is set to the maximum ray-casting distance.
 
-    References:
-        [1] Fankhauser, P., Bloesch, M., & Hutter, M. (2018). Probabilistic terrain mapping for mobile robots
-            with uncertain localization. IEEE Robotics and Automation Letters, 3(4), 3019-3026.
-
-    TODO:
-        Move this class to use generic range sensor from Isaac Sim.
-        Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_range_sensor.html#isaac-sim-generic-range-sensor-example
     """
 
     def __init__(self, cfg: HeightScannerCfg):
@@ -82,6 +75,8 @@ class HeightScanner(SensorBase):
         Args:
             cfg (HeightScannerCfg): The configuration parameters.
         """
+        # TODO: Use generic range sensor from Isaac Sim?
+        # Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_range_sensor.html#isaac-sim-generic-range-sensor-example
         # store inputs
         self.cfg = cfg
         # initialize base class
@@ -122,12 +117,12 @@ class HeightScanner(SensorBase):
 
     @property
     def prim_path(self) -> str:
-        """Returns: The path to the height-map sensor."""
+        """The path to the height-map sensor."""
         return self._sensor_prim.prim_paths[0]
 
     @property
     def data(self) -> HeightScannerData:
-        """Returns: Data related to height scanner."""
+        """Data related to height scanner."""
         return self._data
 
     """
@@ -137,8 +132,8 @@ class HeightScanner(SensorBase):
     def set_visibility(self, visible: bool):
         """Enables drawing of the scan points in the viewport.
 
-        Arguments:
-            visible {bool} -- Whether to draw scan points or not. (default: {True})
+        Args:
+            visible (bool) -- Whether to draw scan points or not.
         """
         # copy argument
         self._visualize = visible
@@ -151,7 +146,7 @@ class HeightScanner(SensorBase):
         If None is passed into argument, then no filtering is performed.
 
         Args:
-            names (List[str]): A list of prim names to ignore raycast collisions with.
+            names (List[str]): A list of prim names to ignore ray-cast collisions with.
         """
         # default
         if names is None:
@@ -202,27 +197,26 @@ class HeightScanner(SensorBase):
         self._data.position = None
         self._data.orientation = None
 
-    def update(self, dt: float, pos: Union[np.ndarray, List[float]], quat: Union[np.ndarray, List[float]]):
+    def update(self, dt: float, pos: Sequence[float], quat: Sequence[float]):
         """Updates the buffers at sensor frequency.
 
         Args:
             dt (float): The simulation time-step.
-            pos (Union[np.ndarray, List[float]]): Position of the frame to which the sensor is attached.
-            quat (Union[np.ndarray, List[float]]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
+            pos (Sequence[float]): Position of the frame to which the sensor is attached.
+            quat (Sequence[float]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
         """
         super().update(dt, pos, quat)
 
-    def buffer(self, pos: Union[np.ndarray, List[float]], quat: Union[np.ndarray, List[float]]):
+    def buffer(self, pos: Sequence[float], quat: Sequence[float]):
         """Fills the buffers of the sensor data.
 
-        This function does not perform any time-based checks and directly fills the data into the data container.
-
-        Warning:
-            Although this method is public, `update(dt)` should be the preferred way of filling buffers.
+        This function uses the input position and orientation to compute the ray-casting queries
+        and fill the buffers. If a collision is detected, then the hit distance is stored in the buffer.
+        Otherwise, the hit distance is set to the maximum value specified in the configuration.
 
         Args:
-            pos (Union[np.ndarray, List[float]]): Position of the frame to which the sensor is attached.
-            quat (Union[np.ndarray, List[float]]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
+            pos (Sequence[float]): Position of the frame to which the sensor is attached.
+            quat (Sequence[float]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
         """
         # convert to numpy for sanity
         pos = np.asarray(pos)

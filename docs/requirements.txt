@@ -10,3 +10,4 @@ sphinx-copybutton
 # basic python
 numpy
 matplotlib
+warp-lang

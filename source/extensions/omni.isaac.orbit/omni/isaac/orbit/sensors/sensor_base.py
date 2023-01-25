@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Base class for sensors in Omniverse workflows.
+"""Base class for sensors.
 
-This class defines an interface similar to how the RobotBase class works.
+This class defines an interface for sensors similar to how the :class:`omni.isaac.orbit.robot.robot_base.RobotBase` class works.
+Each sensor class should inherit from this class and implement the abstract methods.
 """
 
 
@@ -14,20 +15,17 @@ from typing import Any
 
 
 class SensorBase:
-    """
-    The base class for implementation of a sensor.
+    """The base class for implementing a sensor.
 
     Note:
         These sensors are not vectorized yet.
-
-    Attributes:
-        frame (int) - Frame number when the measurement took place.
-        timestamp (float) - Simulation time of the measurement (in seconds).
-        sensor_tick (float) - Simulation seconds between sensor buffers (ticks).
     """
 
     def __init__(self, sensor_tick: float = 0.0):
         """Initialize the sensor class.
+
+        The sensor tick is the time between two sensor buffers. If the sensor tick is zero, then the sensor
+        buffers are filled at every simulation step.
 
         Args:
             sensor_tick (float, optional): Simulation seconds between sensor buffers. Defaults to 0.0.
@@ -108,6 +106,10 @@ class SensorBase:
 
     def update(self, dt: float, *args, **kwargs):
         """Updates the buffers at sensor frequency.
+
+        This function performs time-based checks and fills the data into the data container. It
+        calls the function :meth:`buffer()` to fill the data. The function :meth:`buffer()` should
+        not be called directly.
 
         Args:
             dt (float): The simulation time-step.

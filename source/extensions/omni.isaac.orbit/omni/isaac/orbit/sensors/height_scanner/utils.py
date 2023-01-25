@@ -16,23 +16,24 @@ __all__ = ["create_points_from_grid", "plot_height_grid"]
 
 
 def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.ndarray:
-    """Creates a list of points from 2D meshgrid.
+    """Creates a list of points from 2D mesh-grid.
 
     The terrain scan is approximated with a grid map of the input resolution.
-
-        By default, we consider the origin as the center of the local map and the scan size (X, Y) is the map size.
-        Given these settings, the elevation map spans from: `(- X / 2, - Y / 2)` to `(+ X / 2, + Y / 2)`.
+    By default, we consider the origin as the center of the local map and the scan size ``(X, Y)`` is the
+    map size. Given these settings, the elevation map spans from: ``(- X / 2, - Y / 2)`` to
+    ``(+ X / 2, + Y / 2)``.
 
     Example:
         For a grid of size (0.2, 0.2) with resolution of 0.1, the created points will first x-axis fixed, while the
         y-axis changes, i.e.:
-            ```
+
+        .. code-block:: none
+
             [
                 [-0.1, -0.1], [-0.1, 0.0], [-0.1, 0.1],
                 [0.0, -0.1], [0.0, 0.], [0.0, 0.1],
                 [0.1, -0.1], [0.1, 0.0], [0.1, 0.1],
             ]
-            ```
 
     Args:
         size (Tuple[float, float]): The 2D scan region along x and y directions (in meters).
@@ -57,9 +58,11 @@ def plot_height_grid(
 ) -> AxesImage:
     """Plots the sensor height-map distances using matplotlib.
 
+    If the axes is not provided, a new figure is created.
+
     Note:
         This method currently only supports if the grid is evenly spaced, i.e. the scan points are created using
-        `create_points_from_grid(...)` method.
+        :meth:`create_points_from_grid` method.
 
     Args:
         hit_distance (dict): The ray hit distance measured from the sensor.

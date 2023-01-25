@@ -19,6 +19,14 @@ Loading and saving data
    :undoc-members:
    :show-inheritance:
 
+Array operations
+~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.orbit.utils.array
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Dictionary operations
 ~~~~~~~~~~~~~~~~~~~~~
 
