@@ -63,3 +63,4 @@ agent:
 # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
 trainer:
   timesteps: 1600
+  use_api: False  # whether to use a trainer or run the steps manually

@@ -34,6 +34,7 @@ simulation_app = SimulationApp(config, experience=app_experience)
 
 
 import gym
+import torch
 from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
@@ -144,16 +145,73 @@ def main():
         device=env.device,
     )
 
+    # train the agent according to the selected mode defined with "use_api":
+    # - True: a skrl trainer will be used to train the agent
+    # - False: the interaction with the environment will be performed manually.
+    #          This mode allows recording specific information about the environment
+
     # configure and instantiate the RL trainer
     # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
-    trainer_cfg = experiment_cfg["trainer"]
-    trainer = SequentialTrainer(cfg=trainer_cfg, env=env, agents=agent)
+    if experiment_cfg["trainer"]["use_api"]:
+        trainer_cfg = experiment_cfg["trainer"]
+        trainer = SequentialTrainer(cfg=trainer_cfg, env=env, agents=agent)
 
-    # train the agent
-    trainer.train()
+        # train the agent
+        trainer.train()
 
-    # close the simulator (the environment is automatically closed by skrl)
-    simulation_app.close()
+        # close the simulator (the environment is automatically closed by skrl)
+        simulation_app.close()
+
+    # execute the interaction with the environment without using a trainer
+    # (note that skrl requires the execution of some additional agent methods for proper operation).
+    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.manual.html
+    else:
+        import tqdm
+
+        timesteps = experiment_cfg["trainer"]["timesteps"]
+        agent.init()
+        agent.set_running_mode("train")
+
+        # reset environment
+        obs, infos = env.reset()
+        # simulate environment
+        for timestep in tqdm.tqdm(range(timesteps)):
+            timestep += 1
+            # pre-interaction stepping
+            agent.pre_interaction(timestep=timestep, timesteps=timesteps)
+            # agent stepping
+            with torch.no_grad():
+                actions = agent.act(obs, timestep=timestep, timesteps=timesteps)[0]
+            # env stepping
+            next_obs, rewards, terminated, truncated, infos = env.step(actions)
+            # record environment transitions and track data
+            with torch.no_grad():
+                agent.record_transition(
+                    states=obs,
+                    actions=actions,
+                    rewards=rewards,
+                    next_states=next_obs,
+                    terminated=terminated,
+                    truncated=truncated,
+                    infos=infos,
+                    timestep=timestep,
+                    timesteps=timesteps,
+                )
+            # post-interaction stepping (write data to TensorBoard / Weights & Biases)
+            agent.post_interaction(timestep=timestep, timesteps=timesteps)
+            # reset environments
+            with torch.no_grad():
+                if terminated.any() or truncated.any():
+                    obs, infos = env.reset()
+                else:
+                    obs.copy_(next_obs)
+            # check if simulator is stopped
+            if env.sim.is_stopped():
+                break
+
+        # close the simulator
+        env.close()
+        simulation_app.close()
 
 
 if __name__ == "__main__":
