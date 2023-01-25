@@ -96,6 +96,7 @@ autodoc_mock_imports = [
     "numpy",
     "scipy",
     "carb",
+    "warp",
     "pxr",
     "omni.kit",
     "omni.usd",

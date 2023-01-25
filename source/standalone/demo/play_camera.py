@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """
 This script shows how to use the camera sensor from the Orbit framework.
 
@@ -12,14 +11,15 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 
 """Launch Isaac Sim Simulator first."""
 
-
 import argparse
 
+# omni-isaac-orbit
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+parser.add_argument("--gpu", action="store_true", default=False, help="Use gpu for pointcloud unprojection.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
@@ -45,6 +45,7 @@ from pxr import Gf, UsdGeom
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.sensors.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
+from omni.isaac.orbit.utils import convert_dict_to_backend
 
 """
 Helpers
@@ -69,6 +70,8 @@ def design_scene():
         translation=(-4.5, 3.5, 10.0),
         attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
     )
+    # Xform to hold objects
+    prim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
     for i in range(8):
         # sample random position
@@ -101,6 +104,7 @@ Main
 def main():
     """Runs a camera sensor from orbit."""
 
+    device = "cuda" if args_cli.gpu else "cpu"
     # Load kit helper
     sim = SimulationContext(stage_units_in_meters=1.0, physics_dt=0.005, rendering_dt=0.005, backend="torch")
     # Set main camera
@@ -118,8 +122,12 @@ def main():
         data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
         usd_params=PinholeCameraCfg.UsdCameraCfg(clipping_range=(0.1, 1.0e5)),
     )
-    camera = Camera(cfg=camera_cfg, device="cpu")
+    camera = Camera(cfg=camera_cfg, device=device)
+
+    # Spawn camera
     camera.spawn("/World/CameraSensor")
+    # Initialize camera
+    # note: For rendering based sensors, it is not necessary to initialize before playing the simulation.
     camera.initialize()
 
     # Create replicator writer
@@ -144,13 +152,16 @@ def main():
         sim.step()
         # Update camera data
         camera.update(dt=0.0)
+
+        # Print camera info
         print(camera)
         print("Received shape of rgb   image: ", camera.data.output["rgb"].shape)
         print("Received shape of depth image: ", camera.data.output["distance_to_image_plane"].shape)
         print("-------------------------------")
 
         # Save images
-        rep_writer.write(camera.data.output)
+        # note: BasicWriter only supports saving data in numpy format
+        rep_writer.write(convert_dict_to_backend(camera.data.output, backend="numpy"))
 
         # Pointcloud in world frame
         pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
@@ -162,7 +173,13 @@ def main():
             normalize_rgb=True,
             num_channels=4,
         )
-        # visualize the points
+
+        # Convert to numpy for visualization
+        if not isinstance(pointcloud_w, np.ndarray):
+            pointcloud_w = pointcloud_w.cpu().numpy()
+        if not isinstance(pointcloud_rgb, np.ndarray):
+            pointcloud_rgb = pointcloud_rgb.cpu().numpy()
+        # Visualize the points
         num_points = pointcloud_w.shape[0]
         points_size = [1.25] * num_points
         points_color = pointcloud_rgb

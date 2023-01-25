@@ -12,6 +12,8 @@ from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
 from typing import Tuple
 
+__all__ = ["create_points_from_grid", "plot_height_grid"]
+
 
 def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.ndarray:
     """Creates a list of points from 2D meshgrid.

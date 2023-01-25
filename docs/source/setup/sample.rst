@@ -31,6 +31,15 @@ A few quick demo scripts to run and checkout:
 
       ./orbit.sh -p source/standalone/demo/play_ik_control.py --robot franka_panda --num_envs 128
 
+-  Spawn a camera and visualize the obtained pointcloud:
+
+   .. code:: bash
+
+      # CPU
+      ./orbit.sh -p source/standalone/demo/play_camera.py
+      # GPU
+      ./orbit.sh -p source/standalone/demo/play_camera.py --gpu
+
 Environments
 ------------
 
