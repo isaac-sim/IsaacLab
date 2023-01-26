@@ -117,6 +117,28 @@ autodoc_mock_imports = [
     "h5py",
     "hid",
     "prettytable",
+    "tqdm",
+]
+
+# List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
+# suppressed, ignored).
+suppress_warnings = [
+    # FIXME: *THIS IS TERRIBLE.* Generally speaking, we do want Sphinx to inform
+    # us about cross-referencing failures. Remove this hack entirely after Sphinx
+    # resolves this open issue:
+    #   https://github.com/sphinx-doc/sphinx/issues/4961
+    # Squelch mostly ignorable warnings resembling:
+    #     WARNING: more than one target found for cross-reference 'TypeHint':
+    #     beartype.door._doorcls.TypeHint, beartype.door.TypeHint
+    #
+    # Sphinx currently emits *MANY* of these warnings against our
+    # documentation. All of these warnings appear to be ignorable. Although we
+    # could explicitly squelch *SOME* of these warnings by canonicalizing
+    # relative to absolute references in docstrings, Sphinx emits still others
+    # of these warnings when parsing PEP-compliant type hints via static
+    # analysis. Since those hints are actual hints that *CANNOT* by definition
+    # by canonicalized, our only recourse is to squelch warnings altogether.
+    'ref.python',
 ]
 
 # -- Options for HTML output -------------------------------------------------
