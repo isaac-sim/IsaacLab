@@ -35,7 +35,7 @@ Vectorized environment wrapper.
 
 
 class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
-    """Wraps around IsaacSim environment for Stable Baselines3.
+    """Wraps around Isaac Orbit environment for Stable Baselines3.
 
     Isaac Sim internally implements a vectorized environment. However, since it is
     still considered a single environment instance, Stable Baselines tries to wrap
@@ -51,8 +51,8 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     1. numpy datatype for MDP signals
     2. a list of info dicts for each sub-environment (instead of a dict)
     3. when environment has terminated, the observations from the environment should correspond
-        to the one after reset. The "real" final observation is passed using the info dicts
-        under the key `terminal_observation`.
+       to the one after reset. The "real" final observation is passed using the info dicts
+       under the key ``terminal_observation``.
 
     Warning:
         By the nature of physics stepping in Isaac Sim, it is not possible to forward the

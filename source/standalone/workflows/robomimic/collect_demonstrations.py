@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to collect demonstrations with IsaacSim environments."""
+"""Script to collect demonstrations with Isaac Orbit environments."""
 
 """Launch Isaac Sim Simulator first."""
 

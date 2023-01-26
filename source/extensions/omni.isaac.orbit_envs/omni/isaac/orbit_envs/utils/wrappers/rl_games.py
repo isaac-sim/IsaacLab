@@ -50,9 +50,9 @@ Vectorized environment wrapper.
 
 
 class RlGamesVecEnvWrapper(gym.Wrapper):
-    """Wraps around IsaacSim environment for RL-Games.
+    """Wraps around Isaac Orbit environment for RL-Games.
 
-    This class wraps around the IsaacSim environment. Since RL-Games works directly on
+    This class wraps around the Isaac Orbit environment. Since RL-Games works directly on
     GPU buffers, the wrapper handles moving of buffers from the simulation environment
     to the same device as the learning agent. Additionally, it performs clipping of
     observations and actions.

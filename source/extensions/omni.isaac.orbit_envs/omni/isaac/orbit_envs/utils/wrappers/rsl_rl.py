@@ -44,7 +44,7 @@ VecEnvStepReturn = Tuple[VecEnvObs, VecEnvObs, torch.Tensor, torch.Tensor, Dict]
 
 
 class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
-    """Wraps around IsaacSim environment for RSL-RL.
+    """Wraps around Isaac Orbit environment for RSL-RL.
 
     To use asymmetric actor-critic, the environment instance must have the attributes :attr:`num_states` (int)
     and :attr:`state_space` (:obj:`gym.spaces.Box`). These are used by the learning agent to allocate buffers in

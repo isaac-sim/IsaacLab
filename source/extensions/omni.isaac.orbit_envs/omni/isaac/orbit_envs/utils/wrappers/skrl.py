@@ -41,9 +41,9 @@ Vectorized environment wrapper.
 
 
 def SkrlVecEnvWrapper(env: IsaacEnv):
-    """Wraps around IsaacSim environment for skrl.
+    """Wraps around Isaac Orbit environment for skrl.
 
-    This function wraps around the IsaacSim environment. Since the :class:`IsaacEnv` environment
+    This function wraps around the Isaac Orbit environment. Since the :class:`IsaacEnv` environment
     wrapping functionality is defined within the skrl library itself, this implementation
     is maintained for compatibility with the structure of the extension that contains it.
     Internally it calls the :func:`wrap_env` from the skrl library API.
