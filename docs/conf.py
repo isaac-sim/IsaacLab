@@ -138,7 +138,7 @@ suppress_warnings = [
     # of these warnings when parsing PEP-compliant type hints via static
     # analysis. Since those hints are actual hints that *CANNOT* by definition
     # by canonicalized, our only recourse is to squelch warnings altogether.
-    'ref.python',
+    "ref.python",
 ]
 
 # -- Options for HTML output -------------------------------------------------

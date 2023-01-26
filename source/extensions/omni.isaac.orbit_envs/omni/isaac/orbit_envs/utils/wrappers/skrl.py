@@ -156,7 +156,7 @@ class SkrlSequentialLogTrainer(Trainer):
             if "episode" in infos:
                 for k, v in infos["episode"].items():
                     if isinstance(v, torch.Tensor) and v.numel() == 1:
-                        self.agents.track_data(f"Episode / {k}", v.item())
+                        self.agents.track_data(f"EpisodeInfo / {k}", v.item())
             # post-interaction
             self.agents.post_interaction(timestep=timestep, timesteps=self.timesteps)
             # reset the environments
@@ -220,7 +220,7 @@ class SkrlSequentialLogTrainer(Trainer):
                     if "episode" in infos:
                         for k, v in infos["episode"].items():
                             if isinstance(v, torch.Tensor) and v.numel() == 1:
-                                agent.track_data(f"Episode / {k}", v.item())
+                                agent.track_data(f"EpisodeInfo / {k}", v.item())
                     # perform post-interaction
                     super(type(agent), agent).post_interaction(timestep=timestep, timesteps=self.timesteps)
 
