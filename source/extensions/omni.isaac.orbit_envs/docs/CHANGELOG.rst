@@ -7,8 +7,8 @@ Changelog
 Added
 ^^^^^
 
-* Environment wrapper for the skrl RL library
-* Training/evaluation configuration files for the skrl RL library
+* Added environment wrapper and sequential trainer for the skrl RL library
+* Added training/evaluation configuration files for the skrl RL library
 
 0.1.2 (2023-01-19)
 ~~~~~~~~~~~~~~~~~~

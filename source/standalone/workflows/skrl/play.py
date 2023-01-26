@@ -114,18 +114,19 @@ def main():
     else:
         resume_path = get_checkpoint_path(log_root_path, os.path.join("*", "checkpoints"), None)
     print(f"[INFO] Loading model checkpoint from: {resume_path}")
+
+    # initialize agent
     agent.init()
     agent.load(resume_path)
-
-    def get_actions(obs):
-        return agent.act(obs, timestep=0, timesteps=0)[0]
+    # set agent to evaluation mode
+    agent.set_running_mode("eval")
 
     # reset environment
     obs, _ = env.reset()
     # simulate environment
     while simulation_app.is_running():
         # agent stepping
-        actions = get_actions(obs)
+        actions = agent.act(obs, timestep=0, timesteps=0)[0]
         # env stepping
         obs, _, _, _, _ = env.step(actions)
         # check if simulator is stopped

@@ -46,7 +46,7 @@ from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401
 from omni.isaac.orbit_envs.utils import parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlLogTrainer, SkrlVecEnvWrapper
+from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlSequentialLogTrainer, SkrlVecEnvWrapper
 
 from config import convert_skrl_cfg, parse_skrl_cfg
 
@@ -146,7 +146,7 @@ def main():
     # configure and instantiate a custom RL trainer for logging episode events
     # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html
     trainer_cfg = experiment_cfg["trainer"]
-    trainer = SkrlLogTrainer(cfg=trainer_cfg, env=env, agents=agent)
+    trainer = SkrlSequentialLogTrainer(cfg=trainer_cfg, env=env, agents=agent)
 
     # train the agent
     trainer.train()
