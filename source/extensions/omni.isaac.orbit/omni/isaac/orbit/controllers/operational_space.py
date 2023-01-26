@@ -83,6 +83,17 @@ class OperationSpaceController:
     """
 
     def __init__(self, cfg: OperationSpaceControllerCfg, num_robots: int, num_dof: int, device: str):
+        """Initialize operation-space controller.
+
+        Args:
+            cfg (OperationSpaceControllerCfg): The configuration for operation-space controller.
+            num_robots (int): The number of robots to control.
+            num_dof (int): The number of degrees of freedom of the robot.
+            device (str): The device to use for computations.
+
+        Raises:
+            ValueError: When invalid control command is provided.
+        """
         # store inputs
         self.cfg = cfg
         self.num_robots = num_robots
@@ -171,7 +182,11 @@ class OperationSpaceController:
         pass
 
     def set_command(self, command: torch.Tensor):
-        """Set target end-effector pose command."""
+        """Set target end-effector pose or force command.
+
+        Args:
+            command (torch.Tensor): The target end-effector pose or force command.
+        """
         # check input size
         if command.shape != (self.num_robots, self.num_actions):
             raise ValueError(
@@ -213,6 +228,27 @@ class OperationSpaceController:
         gravity: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Performs inference with the controller.
+
+        Args:
+            jacobian (torch.Tensor): The Jacobian matrix of the end-effector.
+            ee_pose (Optional[torch.Tensor], optional): The current end-effector pose. It is a tensor of shape
+                (num_robots, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to None.
+            ee_vel (Optional[torch.Tensor], optional): The current end-effector velocity. It is a tensor of shape
+                (num_robots, 6), which contains the linear and angular velocities. Defaults to None.
+            ee_force (Optional[torch.Tensor], optional): The current external force on the end-effector.
+                It is a tensor of shape (num_robots, 3), which contains the linear force. Defaults to None.
+            mass_matrix (Optional[torch.Tensor], optional): The joint-space inertial matrix. Defaults to None.
+            gravity (Optional[torch.Tensor], optional): The joint-space gravity vector. Defaults to None.
+
+        Raises:
+            ValueError: When the end-effector pose is not provided for the 'position_rel' command.
+            ValueError: When the end-effector pose is not provided for the 'position_abs' command.
+            ValueError: When the end-effector pose is not provided for the 'pose_rel' command.
+            ValueError: When an invalid command type is provided.
+            ValueError: When motion-control is enabled but the end-effector pose or velocity is not provided.
+            ValueError: When force-control is enabled but the end-effector force is not provided.
+            ValueError: When inertial compensation is enabled but the mass matrix  is not provided.
+            ValueError: When gravity compensation is enabled but the gravity vector is not provided.
 
         Returns:
             torch.Tensor: The target joint torques commands.

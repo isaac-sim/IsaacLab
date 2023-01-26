@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 
 class TimerError(Exception):
-    """A custom exception used to report errors in use of Timer class"""
+    """A custom exception used to report errors in use of :class:`Timer` class."""
 
     pass
 
@@ -22,6 +22,10 @@ class Timer(ContextDecorator):
 
     A class to keep track of time for performance measurement.
     It allows timing via context managers and decorators as well.
+
+    It uses the `time.perf_counter` function to measure time. This function
+    returns the number of seconds since the epoch as a float. It has the
+    highest resolution available on the system.
 
     As a regular object:
 
@@ -56,8 +60,11 @@ class Timer(ContextDecorator):
     """
 
     def __init__(self, msg: Optional[str] = None):
-        """
-        Initializes the class variables
+        """Initializes the timer.
+
+        Args:
+            msg (Optional[str], optional): The message to display when using the timer
+                class in a context manager. Defaults to None.
         """
         self._msg = msg
         self._start_time = None
@@ -65,9 +72,10 @@ class Timer(ContextDecorator):
         self._elapsed_time = None
 
     def __str__(self) -> str:
-        """
+        """A string representation of the class object.
+
         Returns:
-            str -- String representation of the class object.
+            str: A string containing the elapsed time.
         """
         return f"{self.time_elapsed:0.6f} seconds"
 
@@ -101,7 +109,7 @@ class Timer(ContextDecorator):
         self._start_time = time.perf_counter()
 
     def stop(self):
-        """Stop timing"""
+        """Stop timing."""
         if self._start_time is None:
             raise TimerError("Timer is not running. Use .start() to start it")
 

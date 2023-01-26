@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to train RL agent with RL-Games.
-"""
+"""Script to train RL agent with RL-Games."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -58,7 +56,7 @@ from config import parse_rlg_cfg
 
 def main():
     """Train with RL-Games agent."""
-
+    # parse seed from command line
     args_cli_seed = args_cli.seed
 
     # parse configuration
@@ -73,10 +71,7 @@ def main():
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs
-    if "full_experiment_name" not in agent_cfg["params"]["config"]:
-        log_dir = datetime.now().strftime("%b%d_%H-%M-%S")
-    else:
-        log_dir = agent_cfg["params"]["config"]["full_experiment_name"]
+    log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%b%d_%H-%M-%S"))
     # set directory into agent config
     # logging directory path: <train_dir>/<full_experiment_name>
     agent_cfg["params"]["config"]["train_dir"] = log_root_path

@@ -1,3 +1,11 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+
+"""Utility functions for parsing skrl configuration files."""
+
 import os
 import yaml
 
@@ -82,6 +90,4 @@ def convert_skrl_cfg(cfg):
                     d["rewards_shaper"] = reward_shaper_function(value)
 
     # parse agent configuration and convert to classes
-    update_dict(cfg)
-    # return the updated configuration
-    return cfg
+    return update_dict(cfg)

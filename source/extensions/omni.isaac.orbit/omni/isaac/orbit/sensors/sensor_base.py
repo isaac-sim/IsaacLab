@@ -61,7 +61,7 @@ class SensorBase:
     @property
     def data(self) -> Any:
         """The data from the simulated sensor."""
-        return None
+        return None  # noqa: R501
 
     """
     Helpers

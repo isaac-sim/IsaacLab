@@ -75,5 +75,4 @@ def _scale_to_control(x, axis_scale=350.0, min_v=-1.0, max_v=1.0):
         float: Clipped, scaled input from HID
     """
     x = x / axis_scale
-    x = min(max(x, min_v), max_v)
-    return x
+    return min(max(x, min_v), max_v)

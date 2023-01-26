@@ -1,6 +1,13 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """
-Script to play a checkpoint if an RL agent from skrl.
-Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples structured in a more user-friendly way
+Script to play a checkpoint of an RL agent from skrl.
+
+Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples structured in
+a more user-friendly way.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -42,7 +49,6 @@ from config import convert_skrl_cfg, parse_skrl_cfg
 
 def main():
     """Play with skrl agent."""
-
     # parse env configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     experiment_cfg = parse_skrl_cfg(args_cli.task)

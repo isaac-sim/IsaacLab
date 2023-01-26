@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Keyboard controller for SE(3) control.
-"""
+"""Keyboard controller for SE(3) control."""
 
 
 import numpy as np

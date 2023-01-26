@@ -117,7 +117,7 @@ class Camera(SensorBase):
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         # message for class
-        msg = (
+        return (
             f"Camera @ '{self.prim_path}': \n"
             f"\tdata types   : {list(self._data.output.keys())} \n"
             f"\ttick rate (s): {self.sensor_tick}\n"
@@ -127,7 +127,6 @@ class Camera(SensorBase):
             f"\tposition     : {self._data.position} \n"
             f"\torientation  : {self._data.orientation} \n"
         )
-        return msg
 
     """
     Properties
@@ -523,9 +522,8 @@ class Camera(SensorBase):
         b = width * 0.5
         c = focal_px
         d = height * 0.5
-        cam_intrinsic_matrix = np.array([[a, 0, b], [0, c, d], [0, 0, 1]], dtype=float)
-
-        return cam_intrinsic_matrix
+        # return the matrix
+        return np.array([[a, 0, b], [0, c, d], [0, 0, 1]], dtype=float)
 
     def _compute_ros_pose(self) -> Tuple[np.ndarray, np.ndarray]:
         """Computes the pose of the camera in the world frame with ROS convention.

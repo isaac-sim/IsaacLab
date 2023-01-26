@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+"""Reward manager for computing reward signals for a given world."""
+
 import copy
 import inspect
 import torch

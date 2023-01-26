@@ -30,6 +30,7 @@ simulation_app = SimulationApp(config)
 """Rest everything follows."""
 
 
+import contextlib
 import gym
 import os
 import torch
@@ -109,7 +110,7 @@ def main():
     collector_interface.reset()
 
     # simulate environment
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         while not collector_interface.is_stopped():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
@@ -151,8 +152,6 @@ def main():
             # flush data from collector for successful environments
             reset_env_ids = dones.nonzero(as_tuple=False).squeeze(-1)
             collector_interface.flush(reset_env_ids)
-    except KeyboardInterrupt:
-        pass
 
     # close the simulator
     collector_interface.close()

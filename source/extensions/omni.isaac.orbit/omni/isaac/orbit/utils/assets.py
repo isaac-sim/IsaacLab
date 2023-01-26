@@ -69,7 +69,8 @@ def read_file(path: str) -> io.BytesIO:
     # check file status
     file_status = check_file_path(path)
     if file_status == 1:
-        return io.BytesIO(open(path, "rb").read())
+        with open(path, "rb") as f:
+            return io.BytesIO(f.read())
     elif file_status == 2:
         file_content = omni.client.read_file(path)[2]
         return io.BytesIO(memoryview(file_content).tobytes())

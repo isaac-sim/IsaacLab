@@ -90,7 +90,7 @@ class IsaacEnv(gym.Env):
         self.rendering_dt = self.cfg.sim.dt * self.cfg.sim.substeps
 
         # print useful information
-        print("[INFO]: Isaac Sim Environment:")
+        print("[INFO]: Isaac Orbit environment:")
         print(f"\t\t Number of instances : {self.num_envs}")
         print(f"\t\t Environment device  : {self.device}")
         print(f"\t\t Physics step-size   : {self.physics_dt}")

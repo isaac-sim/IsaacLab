@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utility functions for parsing robomimic configuration files."""
+
+
 import os
 
 from omni.isaac.orbit_envs import ORBIT_ENVS_DATA_DIR

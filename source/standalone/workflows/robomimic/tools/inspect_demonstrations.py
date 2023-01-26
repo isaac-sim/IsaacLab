@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Tool to check structure of hdf5 files.
-"""
+"""Tool to check structure of hdf5 files."""
 
 
 import argparse

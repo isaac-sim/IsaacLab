@@ -46,7 +46,7 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     We also add monitoring functionality that computes the un-discounted episode
     return and length. This information is added to the info dicts under key `episode`.
 
-    In contrast to Isaac Sim environment, stable-baselines expect the following:
+    In contrast to Isaac Orbit environment, stable-baselines expect the following:
 
     1. numpy datatype for MDP signals
     2. a list of info dicts for each sub-environment (instead of a dict)
@@ -67,6 +67,14 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     """
 
     def __init__(self, env: IsaacEnv):
+        """Initialize the wrapper.
+
+        Args:
+            env: The environment to wrap around.
+
+        Raises:
+            ValueError: When the environment is not an instance of :class:`IsaacEnv`.
+        """
         # check that input is valid
         if not isinstance(env.unwrapped, IsaacEnv):
             raise ValueError(f"The environment must be inherited from IsaacEnv. Environment type: {type(env)}")
@@ -94,12 +102,12 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     Operations - MDP
     """
 
-    def reset(self) -> VecEnvObs:
+    def reset(self) -> VecEnvObs:  # noqa: D102
         obs_dict = self.env.reset()
         # convert data types to numpy depending on backend
         return self._process_obs(obs_dict)
 
-    def step(self, actions: np.ndarray) -> VecEnvStepReturn:
+    def step(self, actions: np.ndarray) -> VecEnvStepReturn:  # noqa: D102
         # convert input to numpy array
         actions = np.asarray(actions)
         # convert to tensor
@@ -130,25 +138,25 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     Unused methods.
     """
 
-    def step_async(self, actions):
+    def step_async(self, actions):  # noqa: D102
         self._async_actions = actions
 
-    def step_wait(self):
+    def step_wait(self):  # noqa: D102
         return self.step(self._async_actions)
 
-    def get_attr(self, attr_name, indices):
+    def get_attr(self, attr_name, indices):  # noqa: D102
         raise NotImplementedError
 
-    def set_attr(self, attr_name, value, indices=None):
+    def set_attr(self, attr_name, value, indices=None):  # noqa: D102
         raise NotImplementedError
 
-    def env_method(self, method_name: str, *method_args, indices=None, **method_kwargs):
+    def env_method(self, method_name: str, *method_args, indices=None, **method_kwargs):  # noqa: D102
         raise NotImplementedError
 
-    def env_is_wrapped(self, wrapper_class, indices=None):
+    def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
         raise NotImplementedError
 
-    def get_images(self):
+    def get_images(self):  # noqa: D102
         raise NotImplementedError
 
     """

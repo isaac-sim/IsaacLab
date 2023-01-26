@@ -132,12 +132,12 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
     Operations - MDP
     """
 
-    def reset(self):
+    def reset(self):  # noqa: D102
         obs_dict = self.env.reset()
         # process observations and states
         return self._process_obs(obs_dict)
 
-    def step(self, actions):
+    def step(self, actions):  # noqa: D102
         # clip the actions
         actions = torch.clamp(actions.clone(), -self._clip_actions, self._clip_actions)
         # perform environment step
@@ -212,16 +212,32 @@ class RlGamesGpuEnv(IVecEnv):
     # TODO: Adding this for now but do we really need this?
 
     def __init__(self, config_name: str, num_actors: int, **kwargs):
+        """Initialize the environment.
+
+        Args:
+            config_name (str): The name of the environment configuration.
+            num_actors (int): The number of actors in the environment. This is not used in this wrapper.
+        """
         self.env: RlGamesVecEnvWrapper = env_configurations.configurations[config_name]["env_creator"](**kwargs)
 
-    def step(self, action):
+    def step(self, action):  # noqa: D102
         return self.env.step(action)
 
-    def reset(self):
+    def reset(self):  # noqa: D102
         return self.env.reset()
 
-    def get_number_of_agents(self):
+    def get_number_of_agents(self) -> int:
+        """Get number of agents in the environment.
+
+        Returns:
+            int: The number of agents in the environment.
+        """
         return self.env.get_number_of_agents()
 
-    def get_env_info(self):
+    def get_env_info(self) -> dict:
+        """Get the Gym spaces for the environment.
+
+        Returns:
+            dict: The Gym spaces for the environment.
+        """
         return self.env.get_env_info()

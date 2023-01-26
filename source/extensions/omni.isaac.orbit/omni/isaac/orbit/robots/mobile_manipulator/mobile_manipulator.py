@@ -23,6 +23,11 @@ class MobileManipulator(SingleArmManipulator):
     """Configuration for the mobile manipulator."""
 
     def __init__(self, cfg: MobileManipulatorCfg):
+        """Initialize the robot class.
+
+        Args:
+            cfg (MobileManipulatorCfg): The configuration instance.
+        """
         # initialize parent
         super().__init__(cfg)
         # container for data access
@@ -116,6 +121,11 @@ class LeggedMobileManipulator(MobileManipulator, LeggedRobot):
     """Configuration for the legged mobile manipulator."""
 
     def __init__(self, cfg: LeggedMobileManipulatorCfg):
+        """Initialize the robot class.
+
+        Args:
+            cfg (LeggedMobileManipulatorCfg): The configuration instance.
+        """
         # initialize parent
         super().__init__(cfg)
         # container for data access

@@ -100,7 +100,7 @@ class HeightScanner(SensorBase):
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         # message for class
-        msg = (
+        return (
             f"Height Scanner @ '{self.prim_path}': \n"
             f"\ttick rate (s) : {self.sensor_tick}\n"
             f"\ttimestamp (s) : {self.timestamp}\n"
@@ -109,7 +109,6 @@ class HeightScanner(SensorBase):
             f"\torientation   : {self.data.orientation}\n"
             f"\t# of hits     : {np.sum(self.data.hit_status)} / {self._scan_points[0]}\n"
         )
-        return msg
 
     """
     Properties
@@ -159,7 +158,7 @@ class HeightScanner(SensorBase):
     Operations
     """
 
-    def spawn(self, parent_prim_path: str):
+    def spawn(self, parent_prim_path: str):  # noqa: D102
         # Check if sensor is already spawned
         if self._is_spawned:
             raise RuntimeError(f"The height scanner sensor instance has already been spawned at: {self.prim_path}.")
@@ -175,7 +174,7 @@ class HeightScanner(SensorBase):
         # Set spawning to true
         self._is_spawned = True
 
-    def initialize(self):
+    def initialize(self):  # noqa: D102
         # Check that sensor has been spawned
         if not self._is_spawned:
             raise RuntimeError("Height scanner sensor must be spawned first. Please call `spawn(...)`.")
@@ -187,7 +186,7 @@ class HeightScanner(SensorBase):
         # Initialize buffers
         self.reset()
 
-    def reset(self):
+    def reset(self):  # noqa: D102
         # reset the timestamp
         super().reset()
         # reset the buffer

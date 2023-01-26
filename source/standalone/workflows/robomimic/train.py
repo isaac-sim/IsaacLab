@@ -62,10 +62,7 @@ from config import ROBOMIMIC_CONFIG_FILES_DICT
 
 
 def train(config, device):
-    """
-    Train a model using the algorithm.
-    """
-
+    """Train a model using the algorithm."""
     # first set seeds
     np.random.seed(config.train.seed)
     torch.manual_seed(config.train.seed)
@@ -331,10 +328,13 @@ def train(config, device):
 
 
 def main(args):
-
+    """Train a model on a task using a specified algorithm."""
+    # load config
     if args.task is not None:
-        ext_cfg = json.load(open(ROBOMIMIC_CONFIG_FILES_DICT[args.task][args.algo]))
-        config = config_factory(ext_cfg["algo_name"])
+        # load config from json file
+        with open(ROBOMIMIC_CONFIG_FILES_DICT[args.task][args.algo]) as f:
+            ext_cfg = json.load(f)
+            config = config_factory(ext_cfg["algo_name"])
         # update config with external json - this will throw errors if
         # the external config has keys not present in the base algo config
         with config.values_unlocked():

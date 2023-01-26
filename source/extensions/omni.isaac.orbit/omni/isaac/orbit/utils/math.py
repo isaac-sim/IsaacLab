@@ -112,7 +112,6 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: The output tensor.
     """
-
     mag = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
     return torch.abs(mag) * torch.sign(other)
 
@@ -288,7 +287,7 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
-    """Implements box-minus operator (quaternion difference)
+    """Implements box-minus operator (quaternion difference).
 
     Args:
         q1 (torch.Tensor): A (N, 4) tensor for quaternion (x, y, z, w)
@@ -350,7 +349,7 @@ Transformations
 def combine_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor = None, q12: torch.Tensor = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Combine transformations between two reference frames into a stationary frame.
+    r"""Combine transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{02} = T_{01} \\times T_{12}`,
     where :math:`T_{AB}` is the homogenous transformation matrix from frame A to B.
@@ -383,7 +382,7 @@ def combine_frame_transforms(
 def subtract_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Subtract transformations between two reference frames into a stationary frame.
+    r"""Subtract transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{12} = T_{01}^{-1} \\times T_{02}`,
     where :math:`T_{AB}` is the homogenous transformation matrix from frame A to B.
@@ -522,9 +521,7 @@ def random_orientation(num: int, device: str) -> torch.Tensor:
     # sample random orientation from normal distribution
     quat = torch.randn((num, 4), dtype=torch.float, device=device)
     # normalize the quaternion
-    quat = torch.nn.functional.normalize(quat, p=2.0, dim=-1, eps=1e-12)
-
-    return quat
+    return torch.nn.functional.normalize(quat, p=2.0, dim=-1, eps=1e-12)
 
 
 @torch.jit.script

@@ -182,6 +182,7 @@ class ControlCfg:
 
 @configclass
 class LiftEnvCfg(IsaacEnvCfg):
+    """Configuration for the Lift environment."""
 
     # General Settings
     env: EnvCfg = EnvCfg(num_envs=1024, env_spacing=2.5, episode_length_s=4.0)

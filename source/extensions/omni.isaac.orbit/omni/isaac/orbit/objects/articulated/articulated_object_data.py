@@ -57,10 +57,7 @@ class ArticulatedObjectData:
 
     @property
     def root_quat_w(self) -> torch.Tensor:
-        """
-        Root orientation in quaternion (w, x, y, z) in simulation world frame.
-        Shape is ``(count, 4)``.
-        """
+        """Root orientation in quaternion (w, x, y, z) in simulation world frame. Shape is ``(count, 4)``."""
         return self.root_state_w[:, 3:7]
 
     @property

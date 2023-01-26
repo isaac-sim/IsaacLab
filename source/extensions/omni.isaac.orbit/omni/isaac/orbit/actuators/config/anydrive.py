@@ -3,8 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Configuration instances of actuation models for ANYmal robot.
+"""Configuration instances of actuation models for ANYmal robot.
+
+The following actuator models are available:
+
+* ANYdrive 3.x with DC actuator model.
+* ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model.
+
+The following actuator groups are available:
+
+* ANYmal-C default actuator group that uses ANYdrive 3.0 with LSTM actuator model.
 """
 
 from omni.isaac.orbit.actuators.group import ActuatorControlCfg, ActuatorGroupCfg

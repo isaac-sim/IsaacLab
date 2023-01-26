@@ -1,4 +1,4 @@
-"""Wrapper to configure an :class:`IsaacEnv` instance to skrl environment
+"""Wrapper to configure an :class:`IsaacEnv` instance to skrl environment.
 
 The following example shows how to wrap an environment for skrl:
 
@@ -47,6 +47,12 @@ def SkrlVecEnvWrapper(env: IsaacEnv):
     wrapping functionality is defined within the skrl library itself, this implementation
     is maintained for compatibility with the structure of the extension that contains it.
     Internally it calls the :func:`wrap_env` from the skrl library API.
+
+    Args:
+        env: The environment to wrap around.
+
+    Raises:
+        ValueError: When the environment is not an instance of :class:`IsaacEnv`.
 
     Reference:
         https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html

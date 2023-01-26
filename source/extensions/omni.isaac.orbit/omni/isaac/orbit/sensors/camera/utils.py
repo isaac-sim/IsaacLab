@@ -28,7 +28,7 @@ def transform_points(
     orientation: Optional[Sequence[float]] = None,
     device: Union[torch.device, str, None] = None,
 ) -> Union[np.ndarray, torch.Tensor]:
-    """Transform input points in a given frame to a target frame.
+    r"""Transform input points in a given frame to a target frame.
 
     This function uses torch operations to transform points from a source frame to a target frame. The
     transformation is defined by the position ``t`` and orientation ``R`` of the target frame in the source frame.
@@ -85,7 +85,7 @@ def create_pointcloud_from_depth(
     orientation: Optional[Sequence[float]] = None,
     device: Optional[Union[torch.device, str]] = None,
 ) -> Union[np.ndarray, torch.Tensor]:
-    """Creates pointcloud from input depth image and camera intrinsic matrix.
+    r"""Creates pointcloud from input depth image and camera intrinsic matrix.
 
     This function creates a pointcloud from a depth image and camera intrinsic matrix. The pointcloud is
     computed using the following equation:
@@ -356,4 +356,4 @@ def _create_pointcloud_from_depth_jit(
         pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(points_xyz), ~torch.isinf(points_xyz)), dim=1)
         points_xyz = points_xyz[pts_idx_to_keep, ...]
 
-    return points_xyz
+    return points_xyz  # noqa: D504

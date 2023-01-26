@@ -63,7 +63,6 @@ def split_train_val_from_hdf5(hdf5_path, val_ratio=0.1, filter_key=None):
         filter_key (str): if provided, split the subset of demonstration keys stored
             under mask/@filter_key instead of the full set of demonstrations
     """
-
     # retrieve number of demos
     f = h5py.File(hdf5_path, "r")
     if filter_key is not None:

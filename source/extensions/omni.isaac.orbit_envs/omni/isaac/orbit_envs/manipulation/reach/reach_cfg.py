@@ -128,6 +128,7 @@ class ControlCfg:
 
 @configclass
 class ReachEnvCfg(IsaacEnvCfg):
+    """Configuration for the reach environment."""
 
     # General Settings
     env: EnvCfg = EnvCfg(num_envs=2048, env_spacing=2.5, episode_length_s=4.0)

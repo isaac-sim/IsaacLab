@@ -1,6 +1,13 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """
 Script to train RL agent with skrl.
-Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples structured in a more user-friendly way
+
+Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples structured in
+a more user-friendly way.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -53,7 +60,7 @@ from config import convert_skrl_cfg, parse_skrl_cfg
 
 def main():
     """Train with skrl agent."""
-
+    # read the seed from command line
     args_cli_seed = args_cli.seed
 
     # parse configuration

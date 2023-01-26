@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to an environment with random action agent.
-"""
+"""Script to an environment with random action agent."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -38,8 +36,7 @@ from omni.isaac.orbit_envs.utils import parse_env_cfg
 
 
 def main():
-    """Random actions agent with Isaac Sim environment."""
-
+    """Random actions agent with Isaac Orbit environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     # create environment

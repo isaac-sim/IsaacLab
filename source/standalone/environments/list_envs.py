@@ -22,7 +22,6 @@ import omni.isaac.orbit_envs  # noqa: F401
 
 def main():
     """Print all environments registered in `omni.isaac.orbit_envs` extension."""
-
     # print all the available environments
     table = PrettyTable(["S. No.", "Task Name", "Entry Point", "Config"])
     table.title = "Available Environments in ORBIT"

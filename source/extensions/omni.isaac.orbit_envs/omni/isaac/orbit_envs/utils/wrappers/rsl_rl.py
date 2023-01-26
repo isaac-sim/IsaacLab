@@ -58,6 +58,15 @@ class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
     """
 
     def __init__(self, env: IsaacEnv):
+        """Initializes the wrapper.
+
+        Args:
+            env (IsaacEnv): The environment to wrap around.
+
+        Raises:
+            ValueError: When the environment is not an instance of :class:`IsaacEnv`.
+            ValueError: When the observation space is not a :obj:`gym.spaces.Box`.
+        """
         # check that input is valid
         if not isinstance(env.unwrapped, IsaacEnv):
             raise ValueError(f"The environment must be inherited from IsaacEnv. Environment type: {type(env)}")
@@ -100,13 +109,13 @@ class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
     Operations - MDP
     """
 
-    def reset(self) -> VecEnvObs:
+    def reset(self) -> VecEnvObs:  # noqa: D102
         # reset the environment
         obs_dict = self.env.reset()
         # return observations
         return self._process_obs(obs_dict)
 
-    def step(self, actions: torch.Tensor) -> VecEnvStepReturn:
+    def step(self, actions: torch.Tensor) -> VecEnvStepReturn:  # noqa: D102
         # record step information
         obs_dict, rew, dones, extras = self.env.step(actions)
         # process observations

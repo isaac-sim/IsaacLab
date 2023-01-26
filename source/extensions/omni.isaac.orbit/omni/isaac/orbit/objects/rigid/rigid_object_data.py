@@ -24,7 +24,7 @@ class RigidObjectData:
 
     @property
     def root_pos_w(self) -> torch.Tensor:
-        """Root position in simulation world frame. Shape is ``(count, 3).``"""
+        """Root position in simulation world frame. Shape is ``(count, 3)``."""
         return self.root_state_w[:, :3]
 
     @property

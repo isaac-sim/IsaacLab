@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to train RL agent with RSL-RL.
-"""
+"""Script to train RL agent with RSL-RL."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -54,7 +52,6 @@ from config import parse_rslrl_cfg
 
 def main():
     """Train with RSL-RL agent."""
-
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     agent_cfg = parse_rslrl_cfg(args_cli.task)

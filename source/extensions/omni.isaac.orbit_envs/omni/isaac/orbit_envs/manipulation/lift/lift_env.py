@@ -227,8 +227,7 @@ class LiftEnv(IsaacEnv):
             setattr(config, attr, torch.tensor(getattr(config, attr), device=self.device, requires_grad=False))
 
     def _initialize_views(self) -> None:
-        """Creates views and extract useful quantities from them"""
-
+        """Creates views and extract useful quantities from them."""
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         self.sim.reset()

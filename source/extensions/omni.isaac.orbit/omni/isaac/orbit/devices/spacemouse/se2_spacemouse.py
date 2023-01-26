@@ -16,7 +16,7 @@ from .utils import convert_buffer
 
 
 class Se2SpaceMouse(DeviceBase):
-    """A space-mouse controller for sending SE(2) commands as delta poses.
+    r"""A space-mouse controller for sending SE(2) commands as delta poses.
 
     This class implements a space-mouse controller to provide commands to mobile base.
     It uses the `HID-API`_ which interfaces with USD and Bluetooth HID-class devices across multiple platforms.

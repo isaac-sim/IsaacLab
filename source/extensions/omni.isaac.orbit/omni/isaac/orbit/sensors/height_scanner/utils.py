@@ -48,9 +48,7 @@ def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.
     y = np.arange(-size[1] / 2, size[1] / 2 + resolution, resolution)
     grid = np.meshgrid(x, y, sparse=False, indexing="ij")
     # Concatenate the scan grid into points array (N, 2): first x is fixed while y changes
-    points = np.vstack(list(map(np.ravel, grid))).T
-
-    return points
+    return np.vstack(list(map(np.ravel, grid))).T
 
 
 def plot_height_grid(

@@ -32,6 +32,11 @@ class LeggedRobot(RobotBase):
     """
 
     def __init__(self, cfg: LeggedRobotCfg):
+        """Initialize the robot class.
+
+        Args:
+            cfg (LeggedRobotCfg): The configuration instance.
+        """
         # initialize parent
         super().__init__(cfg)
         # container for data access

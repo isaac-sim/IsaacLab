@@ -38,6 +38,16 @@ class RmpFlowController:
     """Wraps around RMP-Flow from IsaacSim for batched environments."""
 
     def __init__(self, cfg: RmpFlowControllerCfg, prim_paths_expr: str, device: str):
+        """Initialize the controller.
+
+        Args:
+            cfg (RmpFlowControllerCfg): The configuration for the controller.
+            prim_paths_expr (str): The expression to find the articulation prim paths.
+            device (str): The device to use for computation.
+
+        Raises:
+            NotImplementedError: When the robot name is not supported.
+        """
         # store input
         self.cfg = cfg
         self._device = device

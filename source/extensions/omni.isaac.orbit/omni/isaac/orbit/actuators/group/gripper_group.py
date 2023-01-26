@@ -17,7 +17,7 @@ class GripperActuatorGroup(ActuatorGroup):
     """
     A mimicking actuator group to format a binary open/close command into the joint commands.
 
-    The input actions are processed as a scalar which sign determines whethter to open or close the gripper.
+    The input actions are processed as a scalar which sign determines whether to open or close the gripper.
     We consider the following convention:
 
     1. Positive value (> 0): open command
@@ -25,7 +25,7 @@ class GripperActuatorGroup(ActuatorGroup):
 
     The mimicking actuator group has only two valid command types: absolute positions (``"p_abs"``) or absolute
     velocity (``"v_abs"``). Based on the chosen command type, the joint commands are computed by multiplying the
-    reference command with the mimicking multipler.
+    reference command with the mimicking multiplier.
 
     * **position mode:** The reference command is resolved as the joint position target for opening or closing the
       gripper. These targets are read from the :class:`GripperActuatorGroupCfg` class.
@@ -74,6 +74,7 @@ class GripperActuatorGroup(ActuatorGroup):
         self._previous_dof_targets = torch.zeros(self.num_articulation, self.num_actuators, device=self.device)
 
     def __str__(self) -> str:
+        """String representation of the actuator group."""
         msg = super().__str__() + "\n"
         msg = msg.replace("ActuatorGroup", "GripperActuatorGroup")
         msg += (

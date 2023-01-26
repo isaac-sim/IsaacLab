@@ -81,6 +81,17 @@ class DifferentialInverseKinematics:
     """Default parameters for different inverse kinematics approaches."""
 
     def __init__(self, cfg: DifferentialInverseKinematicsCfg, num_robots: int, device: str):
+        """Initialize the controller.
+
+        Args:
+            cfg (DifferentialInverseKinematicsCfg): The configuration for the controller.
+            num_robots (int): The number of robots to control.
+            device (str): The device to use for computations.
+
+        Raises:
+            ValueError: When configured IK-method is not supported.
+            ValueError: When configured command type is not supported.
+        """
         # store inputs
         self.cfg = cfg
         self.num_robots = num_robots

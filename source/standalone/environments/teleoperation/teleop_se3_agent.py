@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to run a keyboard teleoperation with Orbit manipulation environments.
-"""
+"""Script to run a keyboard teleoperation with Orbit manipulation environments."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -60,7 +58,6 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 
 def main():
     """Running keyboard teleoperation with Orbit manipulation environment."""
-
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     # modify configuration

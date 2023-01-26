@@ -176,6 +176,7 @@ class ControlCfg:
 
 @configclass
 class VelocityEnvCfg(IsaacEnvCfg):
+    """Configuration for the locomotion velocity environment."""
 
     # General Settings
     env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=20.0)

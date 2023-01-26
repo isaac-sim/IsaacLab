@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utility functions for parsing rl-games configuration files."""
+
 import os
 import yaml
 

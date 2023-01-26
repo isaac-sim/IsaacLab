@@ -42,6 +42,7 @@ Output from the above commands:
 
 
 import argparse
+import contextlib
 
 # omni-isaac-orbit
 from omni.isaac.kit import SimulationApp
@@ -74,7 +75,6 @@ from omni.isaac.orbit.utils.nucleus import check_file_path
 
 def main():
     """Spawns the USD asset robot and clones it using Isaac Gym Cloner API."""
-
     # check valid file path
     if not check_file_path(args_cli.input):
         raise ValueError(f"Invalid file path: {args_cli.input}")
@@ -116,12 +116,10 @@ def main():
 
     # Simulate scene (if not headless)
     if not args_cli.headless:
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             while True:
                 # perform step
                 sim.step()
-        except KeyboardInterrupt:
-            pass
 
 
 if __name__ == "__main__":

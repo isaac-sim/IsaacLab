@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+"""Utilities for file I/O with pickle."""
+
 import os
 import pickle
 from typing import Any

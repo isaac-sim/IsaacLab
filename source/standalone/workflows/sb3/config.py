@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utility functions for parsing sb3 configuration files."""
+
 import os
 import yaml
 from torch import nn as nn  # noqa: F401
@@ -40,6 +42,9 @@ def parse_sb3_cfg(task_name) -> dict:
     # parse agent configuration
     with open(config_file) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
+    # check config is valid
+    if cfg is None:
+        raise ValueError(f"Config file is empty: {config_file}")
 
     # post-process certain arguments
     # reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/0e5eb145faefa33e7d79c7f8c179788574b20da5/utils/exp_manager.py#L358

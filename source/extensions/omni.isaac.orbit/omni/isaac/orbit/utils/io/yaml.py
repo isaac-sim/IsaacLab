@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Utilities for file I/O with yaml."""
+
 import os
 import yaml
 from typing import Dict, Union

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import contextlib
 import math
 from typing import Optional, Sequence
 
@@ -343,9 +344,9 @@ def set_rigid_body_properties(
     # check if prim has rigid-body applied on it
     if not UsdPhysics.RigidBodyAPI(rigid_body_prim):
         raise ValueError(f"No rigid body schema present for prim '{prim_path}'.")
-    else:
-        usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-    # retrieve the rigid-body api
+    # retrieve the USD rigid-body api
+    usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
+    # retrieve the physx rigid-body api
     physx_rigid_body_api = PhysxSchema.PhysxRigidBodyAPI(rigid_body_prim)
     if not physx_rigid_body_api:
         physx_rigid_body_api = PhysxSchema.PhysxRigidBodyAPI.Apply(rigid_body_prim)
@@ -471,10 +472,8 @@ def set_nested_articulation_properties(prim_path: str, **kwargs) -> None:
         # get current prim
         child_prim = all_prims.pop(0)
         # set articulation properties
-        try:
+        with contextlib.suppress(ValueError):
             set_articulation_properties(prim_utils.get_prim_path(child_prim), **kwargs)
-        except ValueError:
-            pass
         # add all children to tree
         all_prims += child_prim.GetChildren()
 
@@ -516,10 +515,8 @@ def set_nested_rigid_body_properties(prim_path: str, **kwargs):
         # get current prim
         child_prim = all_prims.pop(0)
         # set rigid-body properties
-        try:
+        with contextlib.suppress(ValueError):
             set_rigid_body_properties(prim_utils.get_prim_path(child_prim), **kwargs)
-        except ValueError:
-            pass
         # add all children to tree
         all_prims += child_prim.GetChildren()
 
@@ -550,9 +547,7 @@ def set_nested_collision_properties(prim_path: str, **kwargs):
         # get current prim
         child_prim = all_prims.pop(0)
         # set collider properties
-        try:
+        with contextlib.suppress(ValueError):
             set_collision_properties(prim_utils.get_prim_path(child_prim), **kwargs)
-        except ValueError:
-            pass
         # add all children to tree
         all_prims += child_prim.GetChildren()

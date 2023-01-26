@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Keyboard controller for SE(2) control.
-"""
+"""Keyboard controller for SE(2) control."""
 
 
 import numpy as np
@@ -18,7 +16,7 @@ from ..device_base import DeviceBase
 
 
 class Se2Keyboard(DeviceBase):
-    """A keyboard controller for sending SE(2) commands as velocity commands.
+    r"""A keyboard controller for sending SE(2) commands as velocity commands.
 
     This class is designed to provide a keyboard controller for mobile base (such as quadrupeds).
     It uses the Omniverse keyboard interface to listen to keyboard events and map them to robot's

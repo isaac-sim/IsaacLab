@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Convert a mesh file to `.obj` using blender
+Convert a mesh file to `.obj` using blender.
 
 This file processes a given dae mesh file and saves the resulting mesh file in obj format.
 
@@ -59,7 +59,7 @@ def parse_cli_args():
 
 
 def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
-    """Convert a mesh file to `.obj` using blender
+    """Convert a mesh file to `.obj` using blender.
 
     Args:
         in_file (str): Input mesh file to process.

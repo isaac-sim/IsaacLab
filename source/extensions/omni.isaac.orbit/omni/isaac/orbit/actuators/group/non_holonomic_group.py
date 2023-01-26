@@ -14,7 +14,7 @@ from .actuator_group_cfg import NonHolonomicKinematicsGroupCfg
 
 
 class NonHolonomicKinematicsGroup(ActuatorGroup):
-    """
+    r"""
     An actuator group that formulates the 2D-base constraint for vehicle kinematics control.
 
     In simulation, it is easier to consider the mobile base as a floating link controlled by three dummy joints

@@ -222,8 +222,7 @@ class VelocityEnv(IsaacEnv):
         self._push_interval = math.ceil(self.cfg.randomization.push_robot["interval_s"] / self.dt)
 
     def _initialize_views(self) -> None:
-        """Creates views and extract useful quantities from them"""
-
+        """Creates views and extract useful quantities from them."""
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         self.sim.reset()
@@ -477,7 +476,7 @@ class LocomotionVelocityRewardManager(RewardManager):
         return torch.sum(out_of_limits, dim=1)
 
     def dof_vel_limits(self, env: VelocityEnv, soft_ratio: float):
-        """Penalize dof velocities too close to the limit
+        """Penalize dof velocities too close to the limit.
 
         Args:
             soft_ratio (float): Defines the soft limit as a percentage of the hard limit.

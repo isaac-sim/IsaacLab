@@ -64,6 +64,18 @@ class JointImpedanceController:
     """
 
     def __init__(self, cfg: JointImpedanceControllerCfg, num_robots: int, dof_pos_limits: torch.Tensor, device: str):
+        """Initialize joint impedance controller.
+
+        Args:
+            cfg (JointImpedanceControllerCfg): The configuration for the controller.
+            num_robots (int): The number of robots to control.
+            dof_pos_limits (torch.Tensor): The joint position limits for each robot. This is a tensor of shape
+                (num_robots, num_dof, 2) where the last dimension contains the lower and upper limits.
+            device (str): The device to use for computations.
+
+        Raises:
+            ValueError: When the shape of :obj:`dof_pos_limits` is not (num_robots, num_dof, 2).
+        """
         # check valid inputs
         if len(dof_pos_limits.shape) != 3:
             raise ValueError(f"Joint position limits has shape '{dof_pos_limits.shape}'. Expected length of shape = 3.")
@@ -127,7 +139,12 @@ class JointImpedanceController:
         pass
 
     def set_command(self, command: torch.Tensor):
-        """Set target end-effector pose command."""
+        """Set target end-effector pose command.
+
+        Args:
+            command (torch.Tensor): The command to set. This is a tensor of shape (num_robots, num_actions) where
+                :obj:`num_actions` is the dimension of the action space of the controller.
+        """
         # check input size
         if command.shape != (self.num_robots, self.num_actions):
             raise ValueError(
@@ -167,6 +184,15 @@ class JointImpedanceController:
         gravity: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Performs inference with the controller.
+
+        Args:
+            dof_pos (torch.Tensor): The current joint positions.
+            dof_vel (torch.Tensor): The current joint velocities.
+            mass_matrix (Optional[torch.Tensor], optional): The joint-space inertial matrix. Defaults to None.
+            gravity (Optional[torch.Tensor], optional): The joint-space gravity vector. Defaults to None.
+
+        Raises:
+            ValueError: When the command type is invalid.
 
         Returns:
             torch.Tensor: The target joint torques commands.

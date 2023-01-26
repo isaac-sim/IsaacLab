@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to play a checkpoint if an RL agent from RL-Games.
-"""
+"""Script to play a checkpoint if an RL agent from RL-Games."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -53,7 +51,6 @@ from config import parse_rlg_cfg
 
 def main():
     """Play with RL-Games agent."""
-
     # parse env configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     agent_cfg = parse_rlg_cfg(args_cli.task)

@@ -16,16 +16,17 @@ from omni.isaac.orbit.actuators.model import DCMotor, IdealActuator, ImplicitAct
 
 
 class ActuatorGroup:
-    """
+    """A class for applying actuator models over a collection of actuated joints in an articulation.
+
     The default actuator group for applying the same actuator model over a collection of actuated joints in
-    an articulation.
+    an articulation. It is possible to specify multiple joint-level command types (position, velocity or
+    torque control).
 
     The joint names are specified in the configuration through a list of regular expressions. The regular
     expressions are matched against the joint names in the articulation. The first match is used to determine
     the joint indices in the articulation.
 
-    It is possible to specify multiple joint-level command types (position, velocity or torque control). The
-    command types are applied in the order they are specified in the configuration. For each command, the
+    The command types are applied in the order they are specified in the configuration. For each command, the
     scaling and offset can be configured through the :class:`ActuatorControlCfg` class.
 
     In the default actuator group, no constraints or formatting is performed over the input actions. Thus, the
@@ -135,7 +136,7 @@ class ActuatorGroup:
 
     def __str__(self) -> str:
         """A string representation of the actuator group."""
-        msg = (
+        return (
             "<class ActuatorGroup> object:\n"
             f"\tNumber of DOFs: {self.num_actuators}\n"
             f"\tDOF names     : {self.dof_names}\n"
@@ -145,7 +146,6 @@ class ActuatorGroup:
             f"\tControl mode  : {self.control_mode}\n"
             f"\tControl dim   : {self.control_dim}"
         )
-        return msg
 
     """
     Properties- Group.

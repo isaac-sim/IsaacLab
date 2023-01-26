@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Base class for tele-operation interface.
-"""
+"""Base class for teleoperation interface."""
 
 
 from abc import ABC, abstractmethod
@@ -47,6 +45,6 @@ class DeviceBase(ABC):
         """Provides the joystick event state.
 
         Returns:
-            Any -- The processed output form the joystick.
+            Any: The processed output form the joystick.
         """
         raise NotImplementedError

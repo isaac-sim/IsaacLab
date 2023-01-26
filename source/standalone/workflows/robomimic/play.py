@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Script to run a trained policy from robomimic.
-"""
+"""Script to run a trained policy from robomimic."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -30,7 +28,6 @@ simulation_app = SimulationApp(config)
 
 
 import gym
-import math
 import torch
 
 import robomimic  # noqa: F401
@@ -43,8 +40,7 @@ from omni.isaac.orbit_envs.utils import parse_env_cfg
 
 
 def main():
-    """Run a trained policy from robomimic with Isaac Sim environment."""
-
+    """Run a trained policy from robomimic with Isaac Orbit environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=1)
     # modify configuration
@@ -53,17 +49,7 @@ def main():
     env_cfg.terminations.episode_timeout = False
     env_cfg.terminations.is_success = True
     env_cfg.observations.return_dict_obs_in_group = True
-    # FIXME: Teleop works Spawn the Franka s.t. it is axis aligned with world frame.
-    env_cfg.robot.init_state.dof_pos = {
-        "panda_joint1": 0.0,
-        "panda_joint2": math.pi / 16.0,
-        "panda_joint3": 0.0,
-        "panda_joint4": -math.pi / 2.0 - math.pi / 3.0,
-        "panda_joint5": 0.0,
-        "panda_joint6": math.pi - 0.2,
-        "panda_joint7": math.pi / 4,
-        "panda_finger_joint*": 0.035,
-    }
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
 

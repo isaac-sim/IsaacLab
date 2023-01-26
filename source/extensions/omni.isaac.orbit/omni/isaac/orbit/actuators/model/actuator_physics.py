@@ -20,7 +20,7 @@ from .actuator_cfg import DCMotorCfg, IdealActuatorCfg, VariableGearRatioDCMotor
 
 
 class IdealActuator:
-    """Ideal torque-controlled actuator model with a simple saturation model.
+    r"""Ideal torque-controlled actuator model with a simple saturation model.
 
     It employs the following model for computing torques for the actuated joint :math:`j`:
 
@@ -172,7 +172,7 @@ class IdealActuator:
 
 
 class DCMotor(IdealActuator):
-    """
+    r"""
     Direct control (DC) motor actuator model with velocity-based saturation model.
 
     It uses the same model as the :class:`IdealActuator` for computing the torques from input commands.
@@ -253,7 +253,7 @@ class DCMotor(IdealActuator):
 
 
 class VariableGearRatioDCMotor(DCMotor):
-    """Torque-controlled actuator with variable gear-ratio based saturation model.
+    r"""Torque-controlled actuator with variable gear-ratio based saturation model.
 
     Instead of using a fixed gear box, some motors are equiped with variators that allow the gear-ratio
     to be changed continuously (instead of steps). This model implements a DC motor with a variable

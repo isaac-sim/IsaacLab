@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+"""Helper class to handle visual sphere markers to show ray-casting of height scanner."""
+
 import numpy as np
 import torch
 from typing import List, Optional, Sequence, Union
@@ -28,6 +31,16 @@ class HeightScannerMarker:
     """
 
     def __init__(self, prim_path: str, count: int, radius: float = 1.0) -> None:
+        """Initialize the class.
+
+        Args:
+            prim_path (str): The prim path of the point instancer.
+            count (int): The number of markers to create.
+            radius (float, optional): The radius of the spherical markers. Defaults to 1.0.
+
+        Raises:
+            ValueError: When a prim at the given path exists but is not a valid point instancer.
+        """
         # check inputs
         stage = stage_utils.get_current_stage()
         # -- prim path

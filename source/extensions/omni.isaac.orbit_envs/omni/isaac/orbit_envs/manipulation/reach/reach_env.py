@@ -199,8 +199,7 @@ class ReachEnv(IsaacEnv):
             setattr(config, attr, torch.tensor(getattr(config, attr), device=self.device, requires_grad=False))
 
     def _initialize_views(self) -> None:
-        """Creates views and extract useful quantities from them"""
-
+        """Creates views and extract useful quantities from them."""
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         self.sim.reset()
@@ -320,8 +319,7 @@ class ReachRewardManager(RewardManager):
     def tracking_robot_position_l2(self, env: ReachEnv):
         """Penalize tracking position error using L2-kernel."""
         # compute error
-        error = torch.sum(torch.square(env.ee_des_pose_w[:, :3] - env.robot.data.ee_state_w[:, 0:3]), dim=1)
-        return error
+        return torch.sum(torch.square(env.ee_des_pose_w[:, :3] - env.robot.data.ee_state_w[:, 0:3]), dim=1)
 
     def tracking_robot_position_exp(self, env: ReachEnv, sigma: float):
         """Penalize tracking position error using exp-kernel."""

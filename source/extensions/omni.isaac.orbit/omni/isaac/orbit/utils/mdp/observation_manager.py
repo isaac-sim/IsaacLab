@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
+"""Observation manager for computing observation signals for a given world."""
+
 import copy
 import functools
 import inspect

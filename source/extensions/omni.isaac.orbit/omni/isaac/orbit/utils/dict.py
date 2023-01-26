@@ -97,8 +97,8 @@ def update_class_from_dict(obj, data: Dict[str, Any], _ns: str = "") -> None:
                     raise ValueError(
                         f"[Config]: Incorrect length under namespace: {key_ns}. Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
-                else:
-                    setattr(obj, key, value)
+                # set value
+                setattr(obj, key, value)
             elif callable(obj_mem):
                 # update function name
                 value = _string_to_callable(value)
@@ -148,11 +148,11 @@ def convert_dict_to_backend(
         dict: The updated dict with the data converted to the desired backend.
     """
     # THINK: Should we also support converting to a specific device, e.g. "cuda:0"?
-    # Define the conversion functions for each backend.
+    # Check the backend is valid.
     if backend not in TENSOR_TYPE_CONVERSIONS:
         raise ValueError(f"Unknown backend '{backend}'. Supported backends are 'numpy', 'torch', and 'warp'.")
-    else:
-        tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
+    # Define the conversion functions for each backend.
+    tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
     parsed_types = list()
@@ -176,8 +176,8 @@ def convert_dict_to_backend(
             # check if we have a known conversion.
             if data_type not in tensor_type_conversions:
                 raise ValueError(f"No registered conversion for data type: {data_type} to {backend}!")
-            else:
-                output_dict[key] = tensor_type_conversions[data_type](value)
+            # convert the data to the desired backend.
+            output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
         elif isinstance(data[key], dict):
             output_dict[key] = convert_dict_to_backend(value)
