@@ -15,14 +15,16 @@ from typing import Any, Dict, Sequence, Tuple, Union
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import omni.usd
-from omni.isaac.core.prims import XFormPrimView
+from omni.isaac.core.prims import XFormPrim
 from omni.isaac.core.simulation_context import SimulationContext
-from pxr import UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import class_to_dict, to_camel_case
+from omni.isaac.orbit.utils.array import convert_to_torch
 from omni.isaac.orbit.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
@@ -55,6 +57,8 @@ class CameraData:
 class Camera(SensorBase):
     r"""The camera sensor for acquiring visual data.
 
+    This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.
+
     Summarizing from the `replicator extension`_, the following sensor types are supported:
 
     - ``"rgb"``: A rendered color image.
@@ -77,15 +81,6 @@ class Camera(SensorBase):
     - ``"fisheye_equisolid"``: Fisheye camera model using equisolid correction.
     - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
     - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
-
-    Typically, the sensor comprises of two prims:
-
-    1. **Camera rig**: A dummy Xform prim to which the camera is attached to.
-    2. **Camera prim**: An instance of the `USDGeom Camera`_.
-
-    However, for the sake of generality, we allow omission of the camera rig prim. This is mostly the case when
-    the camera is static. In such cases, any request to set the camera pose is directly set on the camera prim,
-    instead of setting the pose of the camera rig Xform prim.
 
     .. _replicator extension: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
     .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
@@ -113,8 +108,8 @@ class Camera(SensorBase):
 
         # Acquire simulation context
         self._sim_context = SimulationContext.instance()
-        # Xform prim for the camera rig
-        self._sensor_rig_prim: XFormPrimView = None
+        # Xform prim for handling transforms
+        self._sensor_xform: XFormPrim = None
         # UsdGeom Camera prim for the sensor
         self._sensor_prim: UsdGeom.Camera = None
         # Create empty variables for storing output data
@@ -200,7 +195,7 @@ class Camera(SensorBase):
             focal_length (float, optional): Focal length to use when computing aperture values. Defaults to 1.0.
         """
         # convert to numpy for sanity
-        intrinsic_matrix = np.asarray(matrix).astype(np.float)
+        intrinsic_matrix = np.asarray(matrix, dtype=float)
         # extract parameters from matrix
         f_x = intrinsic_matrix[0, 0]
         c_x = intrinsic_matrix[0, 2]
@@ -245,10 +240,6 @@ class Camera(SensorBase):
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
-        # add note that this function is not working correctly
-        # FIXME: Fix this function. Getting the camera pose and setting back over here doesn't work.
-        carb.log_warn("The function `set_world_pose_ros` is currently not implemented correctly.")
-
         # check camera prim exists
         if self._sensor_prim is None:
             raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
@@ -260,19 +251,13 @@ class Camera(SensorBase):
             rotm = tf.Rotation.from_quat(convert_quat(quat, "xyzw")).as_matrix()
             rotm[:, 2] = -rotm[:, 2]
             rotm[:, 1] = -rotm[:, 1]
-            rotm = rotm.transpose()
-            quat_gl = tf.Rotation.from_matrix(rotm).as_quat()
             # convert to isaac-sim convention
+            quat_gl = tf.Rotation.from_matrix(rotm).as_quat()
             quat_gl = convert_quat(quat_gl, "wxyz")
         else:
             quat_gl = None
         # set the pose
-        if self._sensor_rig_prim is None:
-            # Note: Technically, we should prefer not to do this.
-            cam_prim = XFormPrimView(self.prim_path, reset_xform_properties=True)
-            cam_prim.set_world_poses(pos, quat_gl)
-        else:
-            self._sensor_rig_prim.set_world_poses(pos, quat_gl)
+        self._sensor_xform.set_world_pose(pos, quat_gl)
 
     def set_world_pose_from_ypr(
         self, target_position: Sequence[float], distance: float, yaw: float, pitch: float, roll: float, up_axis: str
@@ -331,9 +316,9 @@ class Camera(SensorBase):
         cam_quat = tf.Rotation.from_matrix(cam_tf[:3, :3].T).as_quat()
         cam_pos = cam_tf[3, :3]
         # set camera pose
-        self.set_camera_pose(cam_pos, cam_quat)
+        self._sensor_xform.set_world_pose(cam_pos, cam_quat)
 
-    def set_world_pose_from_view(self, eye: Sequence[float], target: Sequence[float] = [0, 0, 0], vel: float = 0.0):
+    def set_world_pose_from_view(self, eye: Sequence[float], target: Sequence[float] = [0, 0, 0]):
         """Set the pose of the camera from the eye position and look-at target position.
 
         Warn:
@@ -343,12 +328,27 @@ class Camera(SensorBase):
         Args:
             eye (Sequence[float]): The position of the camera's eye.
             target (Sequence[float], optional): The target location to look at. Defaults to [0, 0, 0].
-            vel (float, optional): The velocity of the camera.. Defaults to 0.0.
         """
-        with self._rep_camera:
-            rep.modify.pose(position=eye, look_at=target)
-        # FIXME: add note that this function is not working correctly
-        carb.log_warn("The function `set_world_pose_from_view` is currently not implemented correctly.")
+        # compute camera's eye pose
+        eye_position = np.asarray(eye)
+        target_position = np.asarray(target)
+        f = (target_position - eye_position) / np.linalg.norm(target_position - eye_position)
+        u = np.array([0.0, 1.0, 0.0])
+        s = np.cross(f, u)
+        # create camera's view matrix: camera_T_world
+        cam_view_matrix = np.eye(4)
+        cam_view_matrix[:3, 0] = s
+        cam_view_matrix[:3, 1] = u
+        cam_view_matrix[:3, 2] = -f
+        cam_view_matrix[3, 0] = -np.dot(s, eye_position)
+        cam_view_matrix[3, 1] = -np.dot(u, eye_position)
+        cam_view_matrix[3, 2] = np.dot(f, eye_position)
+        # compute camera transform: world_T_camera
+        cam_tf = np.linalg.inv(cam_view_matrix)
+        cam_quat = tf.Rotation.from_matrix(cam_tf[:3, :3].T).as_quat()
+        cam_pos = cam_tf[3, :3]
+        # set camera pose
+        self._sensor_xform.set_world_pose(cam_pos, cam_quat)
 
     """
     Operations
@@ -357,48 +357,38 @@ class Camera(SensorBase):
     def spawn(self, parent_prim_path: str, translation: Sequence[float] = None, orientation: Sequence[float] = None):
         """Spawns the sensor into the stage.
 
-        The sensor is spawned under the parent prim at the path ``parent_prim_path`` with the provided input
-        rotation and translation. The USD Camera prim is attached to the parent prim.
+        The USD Camera prim is spawned under the parent prim at the path ``parent_prim_path`` with the provided input
+        rotation and translation.
 
         Args:
             parent_prim_path (str): The path of the parent prim to attach sensor to.
             translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
             orientation (Sequence[float], optional): The local rotation offset in `(w, x, y, z)` w.r.t. parent prim. Defaults to None.
         """
-        # Convert to camel case
-        projection_type = to_camel_case(self.cfg.projection_type, to="cC")
-        # Create camera using replicator. This creates under it two prims:
-        # 1) the rig: at the path f"{prim_path}/Camera_Xform"
-        # 2) the USD camera: at the path f"{prim_path}/Camera_Xform/Camera"
-        self._rep_camera = rep.create.camera(
-            parent=parent_prim_path,
-            projection_type=projection_type,
-            **class_to_dict(self.cfg.usd_params),
-        )
-        # Acquire the sensor prims
-        # 1) the rig
-        cam_rig_prim_path = rep.utils.get_node_targets(self._rep_camera.node, "inputs:prims")[0]
-        self._sensor_rig_prim = XFormPrimView(cam_rig_prim_path, reset_xform_properties=False)
-        # 2) the USD camera
-        cam_prim = prim_utils.get_prim_children(prim_utils.get_prim_at_path(cam_rig_prim_path))[0]
-        self._sensor_prim = UsdGeom.Camera(cam_prim)
+        # Check if sensor is already spawned
+        if self._is_spawned:
+            raise RuntimeError(f"The camera sensor instance has already been spawned at: {self.prim_path}.")
+        # Create sensor prim path
+        prim_path = stage_utils.get_next_free_path(f"{parent_prim_path}/Camera")
+        # Create sensor prim
+        self._sensor_prim = UsdGeom.Camera(prim_utils.define_prim(prim_path, "Camera"))
+        # Add replicator camera attributes
+        self._define_usd_camera_attributes()
         # Set the transformation of the camera
-        # Note: As mentioned in Isaac Sim documentation, it is better to never transform to camera directly.
-        #   Hence, we only transform the camera rig.
-        self._sensor_rig_prim.set_local_poses(translation, orientation)
+        self._sensor_xform = XFormPrim(self.prim_path)
+        self._sensor_xform.set_local_pose(translation, orientation)
         # Set spawning to true
         self._is_spawned = True
 
-    def initialize(self, cam_prim_path: str = None, has_rig: bool = False):
+    def initialize(self, cam_prim_path: str = None):
         """Initializes the sensor handles and internal buffers.
 
         This function creates handles and registers the provided data types with the replicator registry to
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
 
         The function also allows initializing to a camera not spawned by using the :meth:`spawn` method.
-        For instance, connecting to the default viewport camera "/Omniverse_persp". In such cases, it is
-        the user's responsibility to ensure that the camera is valid and inform the sensor class whether
-        the camera is part of a rig or not.
+        For instance, connecting to the default viewport camera "/Omniverse_persp". In such cases, the USD
+        settings present on the camera prim is used instead of the settings passed in the configuration object.
 
         Args:
             cam_prim_path (str, optional): The prim path to existing camera. Defaults to None.
@@ -417,11 +407,6 @@ class Camera(SensorBase):
             # Force to set active camera to input prim path/
             cam_prim = prim_utils.get_prim_at_path(cam_prim_path)
             self._sensor_prim = UsdGeom.Camera(cam_prim)
-            # Check rig
-            if has_rig:
-                self._sensor_rig_prim = XFormPrimView(cam_prim_path.rsplit("/", 1)[0], reset_xform_properties=True)
-            else:
-                self._sensor_rig_prim = None
 
         # Enable synthetic data sensors
         self._render_product_path = rep.create.render_product(
@@ -495,6 +480,52 @@ class Camera(SensorBase):
     Private Helpers
     """
 
+    def _define_usd_camera_attributes(self):
+        """Creates and sets USD camera attributes.
+
+        This function creates additional attributes on the camera prim used by Replicator.
+        It also sets the default values for these attributes based on the camera configuration.
+        """
+        # camera attributes
+        # reference: omni.replicator.core.scripts.create.py: camera()
+        attribute_types = {
+            "cameraProjectionType": "token",
+            "fthetaWidth": "float",
+            "fthetaHeight": "float",
+            "fthetaCx": "float",
+            "fthetaCy": "float",
+            "fthetaMaxFov": "float",
+            "fthetaPolyA": "float",
+            "fthetaPolyB": "float",
+            "fthetaPolyC": "float",
+            "fthetaPolyD": "float",
+            "fthetaPolyE": "float",
+        }
+        # get camera prim
+        prim = prim_utils.get_prim_at_path(self.prim_path)
+        # create attributes
+        for attr_name, attr_type in attribute_types.items():
+            # check if attribute does not exist
+            if prim.GetAttribute(attr_name).Get() is None:
+                # create attribute based on type
+                if attr_type == "token":
+                    prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Token)
+                elif attr_type == "float":
+                    prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
+        # set attribute values
+        # -- projection type
+        projection_type = to_camel_case(self.cfg.projection_type, to="cC")
+        prim.GetAttribute("cameraProjectionType").Set(projection_type)
+        # -- other attributes
+        for param_name, param_value in class_to_dict(self.cfg.usd_params).items():
+            # check if value is valid
+            if param_value is None:
+                continue
+            # convert to camel case (CC)
+            param = to_camel_case(param_name, to="cC")
+            # get attribute from the class
+            prim.GetAttribute(param).Set(param_value)
+
     def _compute_intrinsic_matrix(self) -> np.ndarray:
         """Compute camera's matrix of intrinsic parameters.
 
@@ -540,7 +571,7 @@ class Camera(SensorBase):
             Tuple[np.ndarray, np.ndarray]: A tuple of the position (in meters) and quaternion (w, x, y, z).
         """
         # get camera's location in world space
-        prim_tf = UsdGeom.Xformable(self._sensor_prim).ComputeLocalToWorldTransform(0.0)
+        prim_tf = self._sensor_prim.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         # GfVec datatypes are row vectors that post-multiply matrices to effect transformations,
         # which implies, for example, that it is the fourth row of a GfMatrix4d that specifies
         # the translation of the transformation. Thus, we take transpose here to make it post multiply.
