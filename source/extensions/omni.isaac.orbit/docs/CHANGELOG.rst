@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.1 (2023-01-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :class:`Camera` class to support different fisheye projection types.
+
+
 0.2.0 (2023-01-25)
 ~~~~~~~~~~~~~~~~~~
 

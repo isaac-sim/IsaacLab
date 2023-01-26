@@ -19,24 +19,6 @@ __all__ = ["PinholeCameraCfg", "FisheyeCameraCfg"]
 class PinholeCameraCfg:
     """Configuration for a pinhole camera sensor."""
 
-    sensor_tick: float = 0.0
-    """Simulation seconds between sensor buffers. Defaults to 0.0."""
-    data_types: List[str] = ["rgb"]
-    """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
-    width: int = MISSING
-    """Width of the image in pixels."""
-    height: int = MISSING
-    """Height of the image in pixels."""
-    semantic_types: List[str] = ["class"]
-    """List of allowed semantic types the types. Defaults to ["class"].
-
-    For example, if semantic types is [“class”], only the bounding boxes for prims with semantics of
-    type “class” will be retrieved.
-
-    More information available at:
-        https://docs.omniverse.nvidia.com/app_code/prod_extensions/ext_replicator/semantic_schema_editor.html
-    """
-
     @configclass
     class UsdCameraCfg:
         """USD related configuration of the sensor.
@@ -71,6 +53,25 @@ class PinholeCameraCfg:
         vertical_aperture_offset: float = None
         """Offsets Resolution/Film gate vertically."""
 
+    sensor_tick: float = 0.0
+    """Simulation seconds between sensor buffers. Defaults to 0.0."""
+    data_types: List[str] = ["rgb"]
+    """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
+    width: int = MISSING
+    """Width of the image in pixels."""
+    height: int = MISSING
+    """Height of the image in pixels."""
+    semantic_types: List[str] = ["class"]
+    """List of allowed semantic types the types. Defaults to ["class"].
+
+    For example, if semantic types is [“class”], only the bounding boxes for prims with semantics of
+    type “class” will be retrieved.
+
+    More information available at:
+        https://docs.omniverse.nvidia.com/app_code/prod_extensions/ext_replicator/semantic_schema_editor.html
+    """
+    projection_type: str = "pinhole"
+    """Type of projection to use for the camera. Defaults to "pinhole"."""
     usd_params: UsdCameraCfg = UsdCameraCfg()
     """Parameters for setting USD camera settings."""
 
@@ -103,5 +104,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
         fisheye_polynomial_e: float = None
         """Fifth component of fisheye polynomial."""
 
+    projection_type: str = "fisheye_polynomial"
+    """Type of projection to use for the camera. Defaults to "fisheye_polynomial"."""
     usd_params: UsdCameraCfg = UsdCameraCfg()
     """Parameters for setting USD camera settings."""

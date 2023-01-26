@@ -69,6 +69,15 @@ class Camera(SensorBase):
     - ``"bounding_box_3d"``: The 3D view space bounding box data.
     - ``"occlusion"``: The occlusion information (such as instance id, semantic id and occluded ratio).
 
+    The camera sensor supports the following projection types:
+
+    - ``"pinhole"``: Standard pinhole camera model (disables fisheye parameters).
+    - ``"fisheye_orthographic"``: Fisheye camera model using orthographic correction.
+    - ``"fisheye_equidistant"``: Fisheye camera model using equidistant correction.
+    - ``"fisheye_equisolid"``: Fisheye camera model using equisolid correction.
+    - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^\\circ` spherical projection.
+    - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^\\circ` full-frame projection.
+
     Typically, the sensor comprises of two prims:
 
     1. **Camera rig**: A dummy Xform prim to which the camera is attached to.
@@ -356,12 +365,8 @@ class Camera(SensorBase):
             translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
             orientation (Sequence[float], optional): The local rotation offset in `(w, x, y, z)` w.r.t. parent prim. Defaults to None.
         """
-        # Check projection type of the camera.
-        if isinstance(self.cfg, FisheyeCameraCfg):
-            projection_type: str = "fisheye_polynomial"
-        else:
-            projection_type = "pinhole"
-
+        # Convert to camel case
+        projection_type = to_camel_case(self.cfg.projection_type, to="cC")
         # Create camera using replicator. This creates under it two prims:
         # 1) the rig: at the path f"{prim_path}/Camera_Xform"
         # 2) the USD camera: at the path f"{prim_path}/Camera_Xform/Camera"
