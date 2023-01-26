@@ -1,0 +1,65 @@
+seed: 42
+
+# Models are instantiated using skrl's model instantiator utility
+# https://skrl.readthedocs.io/en/develop/modules/skrl.utils.model_instantiators.html
+models:
+  separate: False
+  policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
+    clip_actions: False
+    clip_log_std: True
+    min_log_std: -20.0
+    max_log_std: 2.0
+    input_shape: "Shape.STATES"
+    hiddens: [128, 128, 128]
+    hidden_activation: ["elu", "elu", "elu"]
+    output_shape: "Shape.ACTIONS"
+    output_activation: "tanh"
+    output_scale: 1.0
+  value:  # see skrl.utils.model_instantiators.deterministic_model for parameter details
+    clip_actions: False
+    input_shape: "Shape.STATES"
+    hiddens: [128, 128, 128]
+    hidden_activation: ["elu", "elu", "elu"]
+    output_shape: "Shape.ONE"
+    output_activation: ""
+    output_scale: 1.0
+
+
+# PPO agent configuration (field names are from PPO_DEFAULT_CONFIG)
+# https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+agent:
+  rollouts: 24
+  learning_epochs: 5
+  mini_batches: 4
+  discount_factor: 0.99
+  lambda: 0.95
+  learning_rate: 1.e-3
+  learning_rate_scheduler: "KLAdaptiveRL"
+  learning_rate_scheduler_kwargs:
+    kl_threshold: 0.01
+  state_preprocessor: "RunningStandardScaler"
+  state_preprocessor_kwargs: null
+  value_preprocessor: "RunningStandardScaler"
+  value_preprocessor_kwargs: null
+  random_timesteps: 0
+  learning_starts: 0
+  grad_norm_clip: 1.0
+  ratio_clip: 0.2
+  value_clip: 0.2
+  clip_predicted_values: True
+  entropy_loss_scale: 0.0
+  value_loss_scale: 1.0
+  kl_threshold: 0
+  rewards_shaper_scale: 1.0
+  # logging and checkpoint
+  experiment:
+    directory: "anymal"
+    experiment_name: ""
+    write_interval: 60
+    checkpoint_interval: 600
+
+
+# Sequential trainer
+# https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
+trainer:
+  timesteps: 12000
