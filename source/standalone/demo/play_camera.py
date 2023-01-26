@@ -120,7 +120,9 @@ def main():
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
-        usd_params=PinholeCameraCfg.UsdCameraCfg(clipping_range=(0.1, 1.0e5)),
+        usd_params=PinholeCameraCfg.UsdCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
     )
     camera = Camera(cfg=camera_cfg, device=device)
 
@@ -137,7 +139,10 @@ def main():
     # Play simulator
     sim.play()
     # Set pose
-    camera.set_world_pose_from_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])
+    # camera.set_world_pose_from_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])
+    position = [1.0, -4.0, 4.0]
+    orientation = [-0.42541983, 0.90495201, 0.00808576, -0.00380113]
+    camera.set_world_pose_ros(position, orientation)
 
     # Simulate physics
     while simulation_app.is_running():
@@ -180,6 +185,7 @@ def main():
         if not isinstance(pointcloud_rgb, np.ndarray):
             pointcloud_rgb = pointcloud_rgb.cpu().numpy()
         # Visualize the points
+        print(camera.data.intrinsic_matrix)
         num_points = pointcloud_w.shape[0]
         points_size = [1.25] * num_points
         points_color = pointcloud_rgb
