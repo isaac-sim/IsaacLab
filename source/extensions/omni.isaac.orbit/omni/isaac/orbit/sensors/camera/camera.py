@@ -13,18 +13,17 @@ import scipy.spatial.transform as tf
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence, Tuple, Union
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.core.prims import XFormPrim
 from omni.isaac.core.simulation_context import SimulationContext
-from pxr import Sdf, Usd, UsdGeom
+from omni.isaac.core.utils.rotations import gf_quat_to_np_array
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import class_to_dict, to_camel_case
-from omni.isaac.orbit.utils.array import convert_to_torch
 from omni.isaac.orbit.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
@@ -330,23 +329,23 @@ class Camera(SensorBase):
             target (Sequence[float], optional): The target location to look at. Defaults to [0, 0, 0].
         """
         # compute camera's eye pose
-        eye_position = np.asarray(eye)
-        target_position = np.asarray(target)
-        f = (target_position - eye_position) / np.linalg.norm(target_position - eye_position)
-        u = np.array([0.0, 1.0, 0.0])
-        s = np.cross(f, u)
-        # create camera's view matrix: camera_T_world
-        cam_view_matrix = np.eye(4)
-        cam_view_matrix[:3, 0] = s
-        cam_view_matrix[:3, 1] = u
-        cam_view_matrix[:3, 2] = -f
-        cam_view_matrix[3, 0] = -np.dot(s, eye_position)
-        cam_view_matrix[3, 1] = -np.dot(u, eye_position)
-        cam_view_matrix[3, 2] = np.dot(f, eye_position)
-        # compute camera transform: world_T_camera
-        cam_tf = np.linalg.inv(cam_view_matrix)
-        cam_quat = tf.Rotation.from_matrix(cam_tf[:3, :3].T).as_quat()
-        cam_pos = cam_tf[3, :3]
+        eye_position = Gf.Vec3d(np.asarray(eye).tolist())
+        target_position = Gf.Vec3d(np.asarray(target).tolist())
+        # get up axis
+        up_axis_token = stage_utils.get_stage_up_axis()
+        if up_axis_token == UsdGeom.Tokens.x:
+            up_axis = Gf.Vec3d(1, 0, 0)
+        elif up_axis_token == UsdGeom.Tokens.z:
+            up_axis = Gf.Vec3d(0, 0, 1)
+        else:
+            up_axis = Gf.Vec3d(0, 1, 0)
+        # compute matrix transformation
+        # view matrix: camera_T_world
+        matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
+        # camera position and rotation in world frame
+        matrix_gf = matrix_gf.GetInverse()
+        cam_pos = np.array(matrix_gf.ExtractTranslation())
+        cam_quat = gf_quat_to_np_array(matrix_gf.ExtractRotationQuat())
         # set camera pose
         self._sensor_xform.set_world_pose(cam_pos, cam_quat)
 

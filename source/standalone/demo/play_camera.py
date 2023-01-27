@@ -138,10 +138,12 @@ def main():
 
     # Play simulator
     sim.play()
-    # Set pose
-    # camera.set_world_pose_from_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])
-    position = [1.0, -4.0, 4.0]
-    orientation = [-0.42541983, 0.90495201, 0.00808576, -0.00380113]
+    # Set pose: There are two ways to set the pose of the camera.
+    # -- Option-1: Set pose using view
+    # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    # -- Option-2: Set pose using ROS
+    position = [2.5, 2.5, 2.5]
+    orientation = [-0.19352206, 0.30525208, 0.83396422, -0.41698208]
     camera.set_world_pose_ros(position, orientation)
 
     # Simulate physics

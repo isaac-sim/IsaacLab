@@ -343,6 +343,45 @@ class TestCameraSensor(unittest.TestCase):
             np.testing.assert_almost_equal(camera.data.position, camera_position, 4)
             np.testing.assert_almost_equal(camera.data.orientation, camera_orientation, 4)
 
+    def test_pose_view(self):
+        """Checks that the camera's set method works for look-at pose."""
+        # Create camera instance
+        camera_cfg = PinholeCameraCfg(
+            sensor_tick=0,
+            height=240,
+            width=320,
+            data_types=["rgb", "distance_to_image_plane"],
+            usd_params=PinholeCameraCfg.UsdCameraCfg(clipping_range=(0.1, 1.0e5)),
+        )
+        camera = Camera(cfg=camera_cfg, device="cpu")
+        # Note: the camera is spawned by default in the stage
+        camera.spawn("/World/CameraSensor")
+
+        # Play simulator
+        self.sim.reset()
+        # Initialize sensor
+        camera.initialize()
+
+        # Test look-at pose
+        # -- inputs
+        eye = np.array([2.5, 2.5, 2.5])
+        target = np.array([0.0, 0.0, 0.0])
+        # -- expected outputs
+        camera_position = eye
+        camera_orientation = np.asarray([-0.19352206, 0.30525208, 0.83396422, -0.41698208])
+
+        # Simulate physics
+        for _ in range(10):
+            # set camera pose
+            camera.set_world_pose_view(eye=eye, target=target)
+            # perform rendering
+            self.sim.step()
+            # update camera
+            camera.update(self.dt)
+            # Check that pose is correct
+            np.testing.assert_almost_equal(camera.data.position, camera_position, 4)
+            np.testing.assert_almost_equal(camera.data.orientation, camera_orientation, 4)
+
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
         # Create directory to dump results
