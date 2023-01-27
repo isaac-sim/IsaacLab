@@ -143,7 +143,7 @@ def main():
     # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # -- Option-2: Set pose using ROS
     position = [2.5, 2.5, 2.5]
-    orientation = [-0.19352206, 0.30525208, 0.83396422, -0.41698208]
+    orientation = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
     camera.set_world_pose_ros(position, orientation)
 
     # Simulate physics

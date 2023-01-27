@@ -151,7 +151,7 @@ class TestCameraSensor(unittest.TestCase):
                 self.assertEqual(width, width_expected)
 
     def test_single_cam(self):
-        """Checks that the single camera gets created properly with a rig."""
+        """Checks that the single camera gets created properly."""
         # Create directory to dump results
         test_dir = os.path.dirname(os.path.abspath(__file__))
         output_dir = os.path.join(test_dir, "output", "camera", "single")
@@ -211,7 +211,7 @@ class TestCameraSensor(unittest.TestCase):
                 self.assertEqual(width, width_expected)
 
     def test_multiple_cam(self):
-        """Checks that the multiple cameras created properly with and without rig."""
+        """Checks that the multiple cameras created properly."""
         # Create camera instance
         # -- default viewport
         camera_def_cfg = PinholeCameraCfg(
@@ -303,14 +303,16 @@ class TestCameraSensor(unittest.TestCase):
             camera.update(self.dt)
             # Check that matrix is correct
             K = camera.data.intrinsic_matrix
-            # TODO: This is not correctly setting all values in the matrix.
+            # TODO: This is not correctly setting all values in the matrix since the
+            #       vertical aperture and aperture offsets are not being set correctly
+            #       This is a bug in the simulator.
             self.assertAlmostEqual(rs_intrinsic_matrix[0, 0], K[0, 0], 4)
             # self.assertAlmostEqual(rs_intrinsic_matrix[1, 1], K[1, 1], 4)
         # Display results
         print(f">>> Desired intrinsic matrix: \n{rs_intrinsic_matrix}")
         print(f">>> Current intrinsic matrix: \n{camera.data.intrinsic_matrix}")
 
-    def test_pose_ros(self):
+    def test_set_pose_ros(self):
         """Checks that the camera's set and retrieve methods work for pose in ROS convention."""
         # Create camera instance
         camera_cfg = PinholeCameraCfg(
@@ -332,7 +334,7 @@ class TestCameraSensor(unittest.TestCase):
         # Simulate physics
         for _ in range(10):
             # set camera pose randomly
-            camera_position = np.random.random() * 5.0
+            camera_position = np.random.random(3) * 5.0
             camera_orientation = convert_quat(tf.Rotation.random().as_quat(), "wxyz")
             camera.set_world_pose_ros(pos=camera_position, quat=camera_orientation)
             # perform rendering
@@ -340,10 +342,14 @@ class TestCameraSensor(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # Check that pose is correct
+            # -- position
             np.testing.assert_almost_equal(camera.data.position, camera_position, 4)
+            # -- orientation
+            if np.sign(camera.data.orientation[0]) != np.sign(camera_orientation[0]):
+                camera_orientation *= -1
             np.testing.assert_almost_equal(camera.data.orientation, camera_orientation, 4)
 
-    def test_pose_view(self):
+    def test_set_pose_from_view(self):
         """Checks that the camera's set method works for look-at pose."""
         # Create camera instance
         camera_cfg = PinholeCameraCfg(
@@ -365,21 +371,28 @@ class TestCameraSensor(unittest.TestCase):
         # Test look-at pose
         # -- inputs
         eye = np.array([2.5, 2.5, 2.5])
-        target = np.array([0.0, 0.0, 0.0])
+        targets = [np.array([0.0, 0.0, 0.0]), np.array([2.5, 2.5, 0.0])]
         # -- expected outputs
-        camera_position = eye
-        camera_orientation = np.asarray([-0.19352206, 0.30525208, 0.83396422, -0.41698208])
+        camera_position = eye.copy()
+        camera_orientations = [
+            np.array([-0.17591989, 0.33985114, 0.82047325, -0.42470819]),
+            np.array([0.0, 1.0, 0.0, 0.0]),
+        ]
 
-        # Simulate physics
-        for _ in range(10):
+        # check that the camera pose is correct
+        for target, camera_orientation in zip(targets, camera_orientations):
             # set camera pose
-            camera.set_world_pose_view(eye=eye, target=target)
+            camera.set_world_pose_from_view(eye=eye, target=target)
             # perform rendering
             self.sim.step()
             # update camera
             camera.update(self.dt)
             # Check that pose is correct
+            # -- position
             np.testing.assert_almost_equal(camera.data.position, camera_position, 4)
+            # # -- orientation
+            if np.sign(camera.data.orientation[0]) != np.sign(camera_orientation[0]):
+                camera_orientation *= -1
             np.testing.assert_almost_equal(camera.data.orientation, camera_orientation, 4)
 
     def test_throughput(self):

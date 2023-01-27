@@ -39,7 +39,7 @@ class CameraData:
     position: np.ndarray = None
     """Position of the sensor origin in world frame, following ROS convention."""
     orientation: np.ndarray = None
-    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention.."""
+    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention."""
     intrinsic_matrix: np.ndarray = None
     """The intrinsic matrix for the camera."""
     image_shape: Tuple[int, int] = None
@@ -57,6 +57,7 @@ class Camera(SensorBase):
     r"""The camera sensor for acquiring visual data.
 
     This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.
+    It ensures that the camera follows the ROS convention for the coordinate system.
 
     Summarizing from the `replicator extension`_, the following sensor types are supported:
 
@@ -169,7 +170,7 @@ class Camera(SensorBase):
             visible (bool): Whether to make instance visible or invisible.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call `initialize(...)` first.
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
         """
         # check camera prim
         if self._sensor_prim is None:
@@ -185,9 +186,19 @@ class Camera(SensorBase):
     def set_intrinsic_matrix(self, matrix: np.ndarray, focal_length: float = 1.0):
         """Set parameters of the USD camera from its intrinsic matrix.
 
-        Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
-        i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
-        is not true in the input intrinsic matrix, then the camera will not set up correctly.
+        The intrinsic matrix and focal length are used to set the following parameters to the USD camera:
+
+        - ``focal_length``: The focal length of the camera.
+        - ``horizontal_aperture``: The horizontal aperture of the camera.
+        - ``vertical_aperture``: The vertical aperture of the camera.
+        - ``horizontal_aperture_offset``: The horizontal offset of the camera.
+        - ``vertical_aperture_offset``: The vertical offset of the camera.
+
+        .. warning::
+
+            Due to limitations of Omniverse camera, we need to assume that the camera is a spherical lens,
+            i.e. has square pixels, and the optical center is centered at the camera eye. If this assumption
+            is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
             intrinsic_matrix (np.ndarray): The intrinsic matrix for the camera.
@@ -227,10 +238,15 @@ class Camera(SensorBase):
     """
 
     def set_world_pose_ros(self, pos: Sequence[float] = None, quat: Sequence[float] = None):
-        """Set the pose of the camera w.r.t. world frame using ROS convention.
+        r"""Set the pose of the camera w.r.t. world frame using ROS convention.
 
-        This methods uses the ROS convention to resolve the input pose. In this convention,
-        we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
+        In USD, the camera is always in **Y up** convention. This means that the camera is looking down the -Z axis
+        with the +Y axis pointing up , and +X axis pointing right. However, in ROS, the camera is looking down
+        the +Z axis with the +Y axis pointing down, and +X axis pointing right. Thus, the camera needs to be rotated
+        by :math:`180^\\circ` around the X axis to follow the ROS convention.
+
+        .. math::
+            T_{ROS} = \\begin{bmatrix}  1 & 0 & 0 & 0 \\\\ 0 & -1 & 0 & 0 \\\\ 0 & 0 & -1 & 0 \\\\ 0 & 0 & 0 & 1 \\end{bmatrix} T_{USD}
 
         Args:
             pos (Sequence[float], optional): The cartesian coordinates (in meters). Defaults to None.
@@ -258,87 +274,45 @@ class Camera(SensorBase):
         # set the pose
         self._sensor_xform.set_world_pose(pos, quat_gl)
 
-    def set_world_pose_from_ypr(
-        self, target_position: Sequence[float], distance: float, yaw: float, pitch: float, roll: float, up_axis: str
-    ):
-        """Computes the view matrix from the inputs and sets the camera prim pose.
-
-        The implementation follows from the `computeViewMatrixFromYawPitchRoll()` function in Bullet3.
-
-        Args:
-            target_position (Sequence[float]): Target focus point in cartesian world coordinates.
-            distance (float): Distance from eye to focus point.
-            yaw (float): Yaw angle in degrees (up, down).
-            pitch (float): Pitch angle in degrees around up vector.
-            roll (float): Roll angle in degrees around forward vector.
-            up_axis (str): The up axis for the camera. Either 'y', 'Y' or 'z', 'Z' axis.
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
-            ValueError: When the ``up_axis`` is not "y/Y" or "z/Z".
-        """
-        # sanity conversion
-        camera_target_position = np.asarray(target_position)
-        up_axis = up_axis.upper()
-        # check camera prim exists
-        if self._sensor_prim is None:
-            raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
-        # check inputs
-        if up_axis not in ["Y", "Z"]:
-            raise ValueError(f"Invalid specified up axis '{up_axis}'. Valid options: ['Y', 'Z'].")
-        # compute camera's eye pose
-        if up_axis == "Y":
-            eye_position = np.array([0.0, 0.0, -distance])
-            eye_rotation = tf.Rotation.from_euler("ZYX", [roll, yaw, -pitch], degrees=True).as_matrix()
-            up_vector = np.array([0.0, 1.0, 0.0])
-        else:
-            eye_position = np.array([0.0, -distance, 0.0])
-            eye_rotation = tf.Rotation.from_euler("ZYX", [yaw, roll, pitch], degrees=True).as_matrix()
-            up_vector = np.array([0.0, 0.0, 1.0])
-        # transform eye to get camera position
-        cam_up_vector = np.dot(eye_rotation, up_vector)
-        cam_position = np.dot(eye_rotation, eye_position) + camera_target_position
-        # axis direction for camera's view matrix
-        f = (camera_target_position - cam_position) / np.linalg.norm(camera_target_position - cam_position)
-        u = cam_up_vector / np.linalg.norm(cam_up_vector)
-        s = np.cross(f, u)
-        # create camera's view matrix: camera_T_world
-        cam_view_matrix = np.eye(4)
-        cam_view_matrix[:3, 0] = s
-        cam_view_matrix[:3, 1] = u
-        cam_view_matrix[:3, 2] = -f
-        cam_view_matrix[3, 0] = -np.dot(s, cam_position)
-        cam_view_matrix[3, 1] = -np.dot(u, cam_position)
-        cam_view_matrix[3, 2] = np.dot(f, cam_position)
-        # compute camera transform: world_T_camera
-        cam_tf = np.linalg.inv(cam_view_matrix)
-        cam_quat = tf.Rotation.from_matrix(cam_tf[:3, :3].T).as_quat()
-        cam_pos = cam_tf[3, :3]
-        # set camera pose
-        self._sensor_xform.set_world_pose(cam_pos, cam_quat)
-
     def set_world_pose_from_view(self, eye: Sequence[float], target: Sequence[float] = [0, 0, 0]):
         """Set the pose of the camera from the eye position and look-at target position.
-
-        Warn:
-            This method directly sets the camera prim pose and not the pose of the camera rig.
-            It is advised not to use it when the camera is part of a sensor rig.
 
         Args:
             eye (Sequence[float]): The position of the camera's eye.
             target (Sequence[float], optional): The target location to look at. Defaults to [0, 0, 0].
+
+        Raises:
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+            NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
+        # check camera prim exists
+        if self._sensor_prim is None:
+            raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
         # compute camera's eye pose
         eye_position = Gf.Vec3d(np.asarray(eye).tolist())
         target_position = Gf.Vec3d(np.asarray(target).tolist())
+        # compute forward direction
+        forward_dir = (eye_position - target_position).GetNormalized()
         # get up axis
         up_axis_token = stage_utils.get_stage_up_axis()
-        if up_axis_token == UsdGeom.Tokens.x:
-            up_axis = Gf.Vec3d(1, 0, 0)
+        if up_axis_token == UsdGeom.Tokens.y:
+            # deal with degenerate case
+            if forward_dir == Gf.Vec3d(0, 1, 0):
+                up_axis = Gf.Vec3d(0, 0, 1)
+            elif forward_dir == Gf.Vec3d(0, -1, 0):
+                up_axis = Gf.Vec3d(0, 0, -1)
+            else:
+                up_axis = Gf.Vec3d(0, 1, 0)
         elif up_axis_token == UsdGeom.Tokens.z:
-            up_axis = Gf.Vec3d(0, 0, 1)
+            # deal with degenerate case
+            if forward_dir == Gf.Vec3d(0, 0, 1):
+                up_axis = Gf.Vec3d(0, 1, 0)
+            elif forward_dir == Gf.Vec3d(0, 0, -1):
+                up_axis = Gf.Vec3d(0, -1, 0)
+            else:
+                up_axis = Gf.Vec3d(0, 0, 1)
         else:
-            up_axis = Gf.Vec3d(0, 1, 0)
+            raise NotImplementedError(f"This method is not supported for up-axis '{up_axis_token}'.")
         # compute matrix transformation
         # view matrix: camera_T_world
         matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
@@ -357,12 +331,13 @@ class Camera(SensorBase):
         """Spawns the sensor into the stage.
 
         The USD Camera prim is spawned under the parent prim at the path ``parent_prim_path`` with the provided input
-        rotation and translation.
+        translation and orientation.
 
         Args:
             parent_prim_path (str): The path of the parent prim to attach sensor to.
             translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
-            orientation (Sequence[float], optional): The local rotation offset in `(w, x, y, z)` w.r.t. parent prim. Defaults to None.
+            orientation (Sequence[float], optional): The local rotation offset in ``(w, x, y, z)`` w.r.t.
+                parent prim. Defaults to None.
         """
         # Check if sensor is already spawned
         if self._is_spawned:
@@ -386,8 +361,8 @@ class Camera(SensorBase):
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
 
         The function also allows initializing to a camera not spawned by using the :meth:`spawn` method.
-        For instance, connecting to the default viewport camera "/Omniverse_persp". In such cases, the USD
-        settings present on the camera prim is used instead of the settings passed in the configuration object.
+        For instance, cameras that already exist in the USD stage. In such cases, the USD settings present on
+        the camera prim is used instead of the settings passed in the configuration object.
 
         Args:
             cam_prim_path (str, optional): The prim path to existing camera. Defaults to None.
@@ -395,7 +370,7 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: When input `cam_prim_path` is :obj:`None`, the method defaults to using the last
-                camera prim path set when calling the :meth:`spawn()` function. In case, the camera was not spawned
+                camera prim path set when calling the :meth:`spawn` function. In case, the camera was not spawned
                 and no valid `cam_prim_path` is provided, the function throws an error.
         """
         # Check that sensor has been spawned
@@ -403,9 +378,14 @@ class Camera(SensorBase):
             if not self._is_spawned:
                 raise RuntimeError("Initialize the camera failed! Please provide a valid argument for `prim_path`.")
         else:
-            # Force to set active camera to input prim path/
+            # Get prim at path
             cam_prim = prim_utils.get_prim_at_path(cam_prim_path)
+            # Check if prim is valid
+            if cam_prim.IsValid() is False:
+                raise RuntimeError(f"Initialize the camera failed! Invalid prim path: {cam_prim_path}.")
+            # Force to set active camera to input prim path
             self._sensor_prim = UsdGeom.Camera(cam_prim)
+            self._sensor_xform = XFormPrim(cam_prim_path)
 
         # Enable synthetic data sensors
         self._render_product_path = rep.create.render_product(
@@ -538,7 +518,7 @@ class Camera(SensorBase):
             np.ndarray: A 3 x 3 numpy array containing the intrinsic parameters for the camera.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call `initialize(...)` first.
+            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
         """
         # check camera prim exists
         if self._sensor_prim is None:

@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.2.2 (2023-01-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`set_world_pose_ros` and :meth:`set_world_pose_from_view` in the :class:`Camera` class.
+
+Deprecated
+^^^^^^^^^^
+
+* Removed the :meth:`set_world_pose_from_ypr` method from the :class:`Camera` class.
+
+
 0.2.1 (2023-01-26)
 ~~~~~~~~~~~~~~~~~~
 
