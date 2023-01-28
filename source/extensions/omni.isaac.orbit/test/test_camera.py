@@ -32,8 +32,8 @@ import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 from omni.isaac.core.prims import RigidPrim
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
 from omni.isaac.core.utils.torch import set_seed
+from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
