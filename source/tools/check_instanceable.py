@@ -70,7 +70,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 
 from omni.isaac.orbit.utils import Timer
-from omni.isaac.orbit.utils.nucleus import check_file_path
+from omni.isaac.orbit.utils.assets import check_file_path
 
 
 def main():
