@@ -106,8 +106,6 @@ class Camera(SensorBase):
         # TODO: Should this be done here or maybe inside the app config file?
         rep.settings.set_render_rtx_realtime(antialiasing="FXAA")
 
-        # Acquire simulation context
-        self._sim_context = SimulationContext.instance()
         # Xform prim for handling transforms
         self._sensor_xform: XFormPrim = None
         # UsdGeom Camera prim for the sensor
@@ -417,8 +415,11 @@ class Camera(SensorBase):
         # When running in standalone mode, need to render a few times to fill all the buffers
         # FIXME: Check with simulation team to get rid of this. What if someone has render or other callbacks?
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+            # get simulation context
+            sim_context = SimulationContext.instance()
+            # render a few times
             for _ in range(4):
-                self._sim_context.render()
+                sim_context.render()
 
     def reset(self):
         # reset the timestamp
@@ -440,11 +441,6 @@ class Camera(SensorBase):
             When running in standalone mode, the function renders the scene a few times to fill all the buffers.
             During this time, the physics simulation is paused. This is a known issue with Isaac Sim.
         """
-        # When running in standalone mode, need to render a few times to fill all the buffers
-        # FIXME: Check with simulation team to get rid of this. What if someone has render or other callbacks?
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            for _ in range(4):
-                self._sim_context.render()
         # -- intrinsic matrix
         self._data.intrinsic_matrix = self._compute_intrinsic_matrix()
         # -- pose

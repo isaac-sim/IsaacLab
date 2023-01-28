@@ -64,6 +64,7 @@ using the following BibTeX entry:
 
    source/refs/contributing
    source/refs/troubleshooting
+   source/refs/issues
    source/refs/changelog
    source/refs/roadmap
    source/refs/license
