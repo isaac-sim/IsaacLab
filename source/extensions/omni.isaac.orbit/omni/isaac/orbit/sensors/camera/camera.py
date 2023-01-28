@@ -241,10 +241,11 @@ class Camera(SensorBase):
         In USD, the camera is always in **Y up** convention. This means that the camera is looking down the -Z axis
         with the +Y axis pointing up , and +X axis pointing right. However, in ROS, the camera is looking down
         the +Z axis with the +Y axis pointing down, and +X axis pointing right. Thus, the camera needs to be rotated
-        by :math:`180^\\circ` around the X axis to follow the ROS convention.
+        by :math:`180^{\circ}` around the X axis to follow the ROS convention.
 
         .. math::
-            T_{ROS} = \\begin{bmatrix}  1 & 0 & 0 & 0 \\\\ 0 & -1 & 0 & 0 \\\\ 0 & 0 & -1 & 0 \\\\ 0 & 0 & 0 & 1 \\end{bmatrix} T_{USD}
+
+            T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
 
         Args:
             pos (Sequence[float], optional): The cartesian coordinates (in meters). Defaults to None.
