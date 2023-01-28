@@ -33,6 +33,7 @@ import omni.replicator.core as rep
 from omni.isaac.core.prims import RigidPrim
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
+from omni.isaac.core.utils.torch import set_seed
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
@@ -52,13 +53,15 @@ class TestCameraSensor(unittest.TestCase):
     def setUp(self) -> None:
         """Create a blank new stage for each test."""
         # Simulation time-step
-        self.dt = 0.1
+        self.dt = 0.01
         # Load kit helper
         self.sim = SimulationContext(
             stage_units_in_meters=1.0, physics_dt=self.dt, rendering_dt=self.dt, backend="numpy"
         )
         # Set camera view
-        set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
+        set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+        # Fix random seed -- to generate same scene every time
+        set_seed(0)
         # Spawn things into stage
         self._populate_scene()
         # Wait for spawning
@@ -130,6 +133,8 @@ class TestCameraSensor(unittest.TestCase):
         self.sim.reset()
         # Initialize sensor
         camera.initialize("/OmniverseKit_Persp")
+        # Set camera pose
+        set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
         # Simulate physics
         for i in range(10):
@@ -140,6 +145,8 @@ class TestCameraSensor(unittest.TestCase):
             # Save images
             rep_writer.write(camera.data.output)
             # Check image data
+            # expect same frame number
+            self.assertEqual(i + 1, camera.frame)
             # expected camera image shape
             height_expected, width_expected = camera.image_shape
             # check that the camera image shape is correct
@@ -189,7 +196,7 @@ class TestCameraSensor(unittest.TestCase):
         camera.initialize()
         # Set camera position directly
         # Note: Not a recommended way but was feeling lazy to do it properly.
-        camera.set_world_pose_from_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
+        camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
         # Simulate physics
         for i in range(4):
@@ -252,7 +259,7 @@ class TestCameraSensor(unittest.TestCase):
         camera_2.initialize()
 
         # Simulate physics
-        for i in range(10):
+        for _ in range(10):
             # perform rendering
             self.sim.step()
             # update camera
@@ -421,6 +428,8 @@ class TestCameraSensor(unittest.TestCase):
         self.sim.reset()
         # Initialize sensor
         camera.initialize()
+        # Set camera pose
+        camera.set_world_pose_from_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
         # Simulate physics
         for _ in range(5):
@@ -470,15 +479,15 @@ class TestCameraSensor(unittest.TestCase):
         # Random objects
         for i in range(8):
             # sample random position
-            position = np.random.rand(3) - np.asarray([0.5, 0.5, -1.0])
-            position *= np.asarray([15.0, 15.0, 5.0])
+            position = np.random.rand(3) - np.asarray([0.05, 0.05, -1.0])
+            position *= np.asarray([1.5, 1.5, 0.5])
             # create prim
             prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
             _ = prim_utils.create_prim(
                 f"/World/Objects/Obj_{i:02d}",
                 prim_type,
                 translation=position,
-                scale=(2.5, 2.5, 2.5),
+                scale=(0.25, 0.25, 0.25),
                 semantic_label=prim_type,
             )
             # add rigid properties
@@ -492,4 +501,4 @@ class TestCameraSensor(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
