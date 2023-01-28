@@ -19,7 +19,8 @@ from omni.isaac.kit import SimulationApp
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
-parser.add_argument("--gpu", action="store_true", default=False, help="Use gpu for pointcloud unprojection.")
+parser.add_argument("--gpu", action="store_true", default=False, help="Use GPU device for camera rendering output.")
+parser.add_argument("--draw", action="store_true", default=False, help="Draw the obtained pointcloud on viewport.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
@@ -104,7 +105,6 @@ Main
 def main():
     """Runs a camera sensor from orbit."""
 
-    device = "cuda" if args_cli.gpu else "cpu"
     # Load kit helper
     sim = SimulationContext(stage_units_in_meters=1.0, physics_dt=0.005, rendering_dt=0.005, backend="torch")
     # Set main camera
@@ -124,13 +124,10 @@ def main():
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = Camera(cfg=camera_cfg, device=device)
+    camera = Camera(cfg=camera_cfg, device="cuda" if args_cli.gpu else "cpu")
 
     # Spawn camera
     camera.spawn("/World/CameraSensor")
-    # Initialize camera
-    # note: For rendering based sensors, it is not necessary to initialize before playing the simulation.
-    camera.initialize()
 
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
@@ -138,6 +135,9 @@ def main():
 
     # Play simulator
     sim.play()
+    # Initialize camera
+    camera.initialize()
+
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
     # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
@@ -145,6 +145,12 @@ def main():
     position = [2.5, 2.5, 2.5]
     orientation = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
     camera.set_world_pose_ros(position, orientation)
+
+    # Simulate for a few steps
+    # note: This is a workaround to ensure that the textures are loaded.
+    #   Check "Known Issues" section in the documentation for more details.
+    for _ in range(14):
+        sim.render()
 
     # Simulate physics
     while simulation_app.is_running():
@@ -181,18 +187,19 @@ def main():
             num_channels=4,
         )
 
-        # Convert to numpy for visualization
-        if not isinstance(pointcloud_w, np.ndarray):
-            pointcloud_w = pointcloud_w.cpu().numpy()
-        if not isinstance(pointcloud_rgb, np.ndarray):
-            pointcloud_rgb = pointcloud_rgb.cpu().numpy()
-        # Visualize the points
-        print(camera.data.intrinsic_matrix)
-        num_points = pointcloud_w.shape[0]
-        points_size = [1.25] * num_points
-        points_color = pointcloud_rgb
-        draw_interface.clear_points()
-        draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
+        # Draw pointcloud
+        if not args_cli.headless and args_cli.draw:
+            # Convert to numpy for visualization
+            if not isinstance(pointcloud_w, np.ndarray):
+                pointcloud_w = pointcloud_w.cpu().numpy()
+            if not isinstance(pointcloud_rgb, np.ndarray):
+                pointcloud_rgb = pointcloud_rgb.cpu().numpy()
+            # Visualize the points
+            num_points = pointcloud_w.shape[0]
+            points_size = [1.25] * num_points
+            points_color = pointcloud_rgb
+            draw_interface.clear_points()
+            draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
 
 
 if __name__ == "__main__":
