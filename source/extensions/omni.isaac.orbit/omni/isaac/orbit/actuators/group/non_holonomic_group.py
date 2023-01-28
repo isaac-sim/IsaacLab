@@ -23,17 +23,17 @@ class NonHolonomicKinematicsGroup(ActuatorGroup):
     translating the input velocity command into joint velocity commands.
 
     A skid-steering base is under-actuated, i.e. the commands are forward velocity :math:`v_{B,x}` and the turning rate
-    :\\omega_{B,z}: in the base frame. Using the current base orientation, the commands are transformed into dummy
+    :\omega_{B,z}: in the base frame. Using the current base orientation, the commands are transformed into dummy
     joint velocity targets as:
 
     .. math::
 
-        \\dot{q}_{0, des} &= v_{B,x} \\cos(\\theta) \\\\
-        \\dot{q}_{1, des} &= v_{B,x} \\sin(\\theta) \\\\
-        \\dot{q}_{2, des} &= \\omega_{B,z}
+        \dot{q}_{0, des} &= v_{B,x} \cos(\theta) \\
+        \dot{q}_{1, des} &= v_{B,x} \sin(\theta) \\
+        \dot{q}_{2, des} &= \omega_{B,z}
 
-    where :math:`\\theta` is the yaw of the 2-D base. Since the base is simulated as a dummy joint, the yaw is directly
-    the value of the revolute joint along z, i.e., :math:`q_2 = \\theta`.
+    where :math:`\theta` is the yaw of the 2-D base. Since the base is simulated as a dummy joint, the yaw is directly
+    the value of the revolute joint along z, i.e., :math:`q_2 = \theta`.
 
     Tip:
         For velocity control of the base with dummy mechanism, we recommed setting high damping gains to the joints.

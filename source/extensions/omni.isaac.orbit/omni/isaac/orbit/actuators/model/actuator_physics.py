@@ -26,22 +26,22 @@ class IdealActuator:
 
     .. math::
 
-        \\tau_{j, computed} = k_p * (q - q_{des}) + k_d * (\\dot{q} - \\dot{q}_{des}) + \\tau_{ff}
+        \tau_{j, computed} = k_p * (q - q_{des}) + k_d * (\dot{q} - \dot{q}_{des}) + \tau_{ff}
 
-    where, :math:`k_p` and :math:`k_d` are joint stiffness and damping gains, :math:`q` and :math:`\\dot{q}`
-    are the current joint positions and velocities, :math:`q_{des}`, :math:`\\dot{q}_{des}` and :math:`\tau_{ff}`
+    where, :math:`k_p` and :math:`k_d` are joint stiffness and damping gains, :math:`q` and :math:`\dot{q}`
+    are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_{des}` and :math:`\tau_{ff}`
     are the desired joint positions, velocities and torques commands.
 
     The clipping model is based on the maximum torque applied by the motor. It is implemented as:
 
     .. math::
 
-        \\tau_{j, max} & = \\gamma \\times \\tau_{motor, max} \\\\
-        \\tau_{j, applied} & = clip(\\tau_{computed}, -\\tau_{j, max}, \\tau_{j, max})
+        \tau_{j, max} & = \gamma \times \tau_{motor, max} \\
+        \tau_{j, applied} & = clip(\tau_{computed}, -\tau_{j, max}, \tau_{j, max})
 
     where the clipping function is defined as :math:`clip(x, x_{min}, x_{max}) = min(max(x, x_{min}), x_{max})`.
-    The parameters :math:`\\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    and :math:`\\tau_{motor, max}` is the maximum motor effort possible. These parameters are read from
+    The parameters :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
+    and :math:`\tau_{motor, max}` is the maximum motor effort possible. These parameters are read from
     the configuration instance passed to the class.
     """
 
@@ -185,22 +185,22 @@ class DCMotor(IdealActuator):
 
     A DC motor characteristics are defined by the following parameters:
 
-    * Continuous-rated speed (:math:`\\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.
-    * Continuous-stall torque (:math:`\\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
-    * Peak torque (:math:`\\tau_{motor, peak}`): The maximum torque that can be outputted for a short period.
+    * Continuous-rated speed (:math:`\dot{q}_{motor, max}`) : The maximum-rated speed of the motor.
+    * Continuous-stall torque (:math:`\tau_{motor, max}`): The maximum-rated torque produced at 0 speed.
+    * Peak torque (:math:`\tau_{motor, peak}`): The maximum torque that can be outputted for a short period.
 
     Based on these parameters, the instantaneous minimum and maximum torques are defined as follows:
 
     .. math::
 
-        \\tau_{j, max}(\\dot{q}) & = clip \\left (\\tau_{j, peak} \\times \\left(1 -
-            \\frac{\\dot{q}}{\\dot{q}_{j, max}}\\right), 0.0, \\tau_{j, max} \\right) \\\\
-        \\tau_{j, min}(\\dot{q}) & = clip \\left (\\tau_{j, peak} \\times \\left( -1 -
-            \\frac{\\dot{q}}{\\dot{q}_{j, max}}\\right), - \\tau_{j, max}, 0.0 \\right)
+        \tau_{j, max}(\dot{q}) & = clip \left (\tau_{j, peak} \times \left(1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), 0.0, \tau_{j, max} \right) \\
+        \tau_{j, min}(\dot{q}) & = clip \left (\tau_{j, peak} \times \left( -1 -
+            \frac{\dot{q}}{\dot{q}_{j, max}}\right), - \tau_{j, max}, 0.0 \right)
 
-    where :math:`\\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
-    :math:`\\dot{q}_{j, max} = \\gamma^{-1} \\times  \\dot{q}_{motor, max}`, :math:`\\tau_{j, max} =
-    \\gamma \\times \\tau_{motor, max}` and :math:`\\tau_{j, peak} = \\gamma \\times \\tau_{motor, peak}`
+    where :math:`\gamma` is the gear ratio of the gear box connecting the motor and the actuated joint ends,
+    :math:`\dot{q}_{j, max} = \gamma^{-1} \times  \dot{q}_{motor, max}`, :math:`\tau_{j, max} =
+    \gamma \times \tau_{motor, max}` and :math:`\tau_{j, peak} = \gamma \times \tau_{motor, peak}`
     are the maximum joint velocity, maximum joint torque and peak torque, respectively. These parameters
     are read from the configuration instance passed to the class.
 
@@ -209,7 +209,7 @@ class DCMotor(IdealActuator):
 
     .. math::
 
-        \\tau_{j, applied} = clip(\\tau_{computed}, \\tau_{j, min}(\\dot{q}), \\tau_{j, max}(\\dot{q}))
+        \tau_{j, applied} = clip(\tau_{computed}, \tau_{j, min}(\dot{q}), \tau_{j, max}(\dot{q}))
 
     """
 
@@ -261,9 +261,9 @@ class VariableGearRatioDCMotor(DCMotor):
 
     .. math::
 
-        \\gamma = \\gamma(q)
+        \gamma = \gamma(q)
 
-    where :math:`\\gamma(\\cdot)` is read from the configuration instance passed to the class. The gear-ratio function is evaluated at
+    where :math:`\gamma(\cdot)` is read from the configuration instance passed to the class. The gear-ratio function is evaluated at
     every time step and the motor parameters are computed accordingly.
 
     """

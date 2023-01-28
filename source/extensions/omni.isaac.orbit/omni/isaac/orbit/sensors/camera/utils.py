@@ -34,7 +34,7 @@ def transform_points(
     transformation is defined by the position ``t`` and orientation ``R`` of the target frame in the source frame.
 
     .. math::
-        p_{target} = R_{target} \\times p_{source} + t_{target}
+        p_{target} = R_{target} \times p_{source} + t_{target}
 
     If either the inputs `position` and `orientation` are :obj:`None`, the corresponding transformation is not applied.
 
@@ -91,7 +91,7 @@ def create_pointcloud_from_depth(
     computed using the following equation:
 
     .. math::
-        p_{camera} = K^{-1} \\times [u, v, 1]^T \\times d
+        p_{camera} = K^{-1} \times [u, v, 1]^T \times d
 
     where :math:`K` is the camera intrinsic matrix, :math:`u` and :math:`v` are the pixel coordinates and
     :math:`d` is the depth value at the pixel.
@@ -100,7 +100,7 @@ def create_pointcloud_from_depth(
     the position ``t`` and orientation ``R`` of the camera in the target frame:
 
     .. math::
-        p_{target} = R_{target} \\times p_{camera} + t_{target}
+        p_{target} = R_{target} \times p_{camera} + t_{target}
 
     Args:
         intrinsic_matrix (Union[np.ndarray, torch.Tensor, wp.array]): A (3, 3) array providing camera's calibration

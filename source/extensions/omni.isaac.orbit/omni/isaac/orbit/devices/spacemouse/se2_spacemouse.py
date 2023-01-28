@@ -21,7 +21,7 @@ class Se2SpaceMouse(DeviceBase):
     This class implements a space-mouse controller to provide commands to mobile base.
     It uses the `HID-API`_ which interfaces with USD and Bluetooth HID-class devices across multiple platforms.
 
-    The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \\omega_z)`.
+    The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \omega_z)`.
 
     Note:
         The interface finds and uses the first supported device connected to the computer.

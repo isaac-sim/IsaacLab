@@ -53,7 +53,7 @@ class CameraData:
 
 
 class Camera(SensorBase):
-    """The camera sensor for acquiring visual data.
+    r"""The camera sensor for acquiring visual data.
 
     Summarizing from the `replicator extension`_, the following sensor types are supported:
 
@@ -75,8 +75,8 @@ class Camera(SensorBase):
     - ``"fisheye_orthographic"``: Fisheye camera model using orthographic correction.
     - ``"fisheye_equidistant"``: Fisheye camera model using equidistant correction.
     - ``"fisheye_equisolid"``: Fisheye camera model using equisolid correction.
-    - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^\\circ` spherical projection.
-    - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^\\circ` full-frame projection.
+    - ``"fisheye_polynomial"``: Fisheye camera model with :math:`360^{\circ}` spherical projection.
+    - ``"fisheye_spherical"``: Fisheye camera model with :math:`360^{\circ}` full-frame projection.
 
     Typically, the sensor comprises of two prims:
 

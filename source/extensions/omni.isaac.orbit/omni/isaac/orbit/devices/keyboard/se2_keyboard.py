@@ -22,7 +22,7 @@ class Se2Keyboard(DeviceBase):
     It uses the Omniverse keyboard interface to listen to keyboard events and map them to robot's
     task-space commands.
 
-    The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \\omega_z)`.
+    The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \omega_z)`.
 
     Key bindings:
         ====================== ========================= ========================
