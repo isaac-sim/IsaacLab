@@ -12,7 +12,7 @@ from typing import List, Sequence
 import omni
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
-from omni.isaac.core.prims import XFormPrimView
+from omni.isaac.core.prims import XFormPrim
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils.math import convert_quat
@@ -93,7 +93,7 @@ class HeightScanner(SensorBase):
         # Whether to visualize the scanner points. Defaults to False.
         self._visualize = False
         # Xform prim for the sensor rig
-        self._sensor_prim: XFormPrimView = None
+        self._sensor_xform: XFormPrim = None
         # Create empty variables for storing output data
         self._data = HeightScannerData()
 
@@ -117,7 +117,7 @@ class HeightScanner(SensorBase):
     @property
     def prim_path(self) -> str:
         """The path to the height-map sensor."""
-        return self._sensor_prim.prim_paths[0]
+        return self._sensor_xform.prim_path
 
     @property
     def data(self) -> HeightScannerData:
@@ -166,7 +166,7 @@ class HeightScanner(SensorBase):
         prim_path = stage_utils.get_next_free_path(f"{parent_prim_path}/HeightScan_Xform")
         # Create the sensor prim
         prim_utils.create_prim(prim_path, "XForm")
-        self._sensor_prim = XFormPrimView(prim_path, translations=np.expand_dims(self.cfg.offset, axis=0))
+        self._sensor_xform = XFormPrim(prim_path, translation=self.cfg.offset)
         # Create visualization marker
         # TODO: Move this inside the height-scan prim to make it cleaner?
         vis_prim_path = stage_utils.get_next_free_path("/World/Visuals/HeightScan")
@@ -179,7 +179,7 @@ class HeightScanner(SensorBase):
         if not self._is_spawned:
             raise RuntimeError("Height scanner sensor must be spawned first. Please call `spawn(...)`.")
         # Initialize Xform class
-        self._sensor_prim.initialize()
+        self._sensor_xform.initialize()
         # Acquire physx ray-casting interface
         self._physx_query_interface = omni.physx.get_physx_scene_query_interface()
         # Since height scanner is fictitious sensor, we have no schema config to set in this case.
