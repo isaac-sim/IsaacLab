@@ -1,0 +1,44 @@
+version: "3"
+services: 
+  isaac-sim:
+    image: isaac-sim:2022.1.1-ubuntu20.04 
+    build: 
+      context: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles.git
+      dockerfile: Dockerfile.2022.1.1-ubuntu20.04
+      args:
+        ISAACSIM_VERSION: 2022.1.1
+        BASE_DIST: ubuntu20.04
+        CUDA_VERSION: 11.4.2
+        VULKAN_SDK_VERSION: 1.3.224.1
+  orbit:
+    image: orbit:2022.1.1-ubuntu20.04
+    build:
+      context: ../
+      dockerfile: .docker/orbit.Dockerfile.2022.1.1-ubuntu20.04
+    depends_on:
+      - isaac-sim
+    environment:
+      - ACCEPT_EULA=Y
+      - ISAACSIM_PATH=/isaac-sim
+      - ISAACSIM_PYTHON_EXE=/isaac-sim/python.sh
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=${DOCKER_XAUTH}
+    volumes:
+      - /usr/share/vulkan/icd.d/nvidia_icd.json:/etc/vulkan/icd.d/nvidia_icd.json 
+      - /usr/share/vulkan/implicit_layer.d/nvidia_layers.json:/etc/vulkan/implicit_layer.d/nvidia_layers.json
+      - /usr/share/glvnd/egl_vendor.d/10_nvidia.json:/usr/share/glvnd/egl_vendor.d/10_nvidia.json 
+      - ~/docker/isaac-sim/cache/ov:/root/.cache/ov
+      - ~/docker/isaac-sim/cache/pip:/root/.cache/pip
+      - ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache
+      - ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache
+      - ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs
+      - ~/docker/isaac-sim/config:/root/.nvidia-omniverse/config
+      - ~/docker/isaac-sim/data:/root/.local/share/ov/data
+      - ~/docker/isaac-sim/documents:/root/Documents
+      - /tmp/.X11-unix:/tml/.X11-unix
+      - ${DOCKER_XAUTH}:${DOCKER_XAUTH}
+    network_mode: host
+    runtime: nvidia
+    # specify the command you want to run here e.g.
+    command: orbit -p ./source/standalone/demo/play_arms.py --robot franka_panda
+    #command: ./runheadless.native.sh

@@ -1,0 +1,2 @@
+#!/bin/sh
+/isaac-sim/Orbit/orbit.sh $@
