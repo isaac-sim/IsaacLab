@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the end-effector body index used for getting Jacobian in the :class:`SingleArm` class.
+* Fixed the end-effector body index used for getting the Jacobian in the :class:`SingleArm` and :class:`MobileManipulator` classes.
 
 
 0.2.2 (2023-01-27)
