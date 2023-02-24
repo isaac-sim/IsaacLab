@@ -154,6 +154,8 @@ class SingleArmManipulator(RobotBase):
         for body_index, body_name in enumerate(self.body_names):
             if re.fullmatch(self.cfg.ee_info.body_name, body_name):
                 self.ee_body_index = body_index
+        if self.ee_body_index is None:
+            raise ValueError(f"Could not find end-effector body with name: {self.cfg.ee_info.body_name}")
         # -- tool sites
         if self.cfg.meta_info.tool_sites_names:
             tool_sites_names = list()
@@ -163,6 +165,10 @@ class SingleArmManipulator(RobotBase):
                     if re.fullmatch(re_key, body_name):
                         tool_sites_names.append(body_name)
                         tool_sites_indices.append(body_index)
+            # check valid indices
+            if len(tool_sites_names) == 0:
+                raise ValueError(f"Could not find any tool sites with names: {self.cfg.meta_info.tool_sites_names}")
+            # create dictionary to map names to indices
             self.tool_sites_indices: Dict[str, int] = dict(zip(tool_sites_names, tool_sites_indices))
         else:
             self.tool_sites_indices = None
@@ -212,7 +218,9 @@ class SingleArmManipulator(RobotBase):
         # jacobian
         if self.cfg.data_info.enable_jacobian:
             jacobians = self.articulations.get_jacobians(indices=self._ALL_INDICES, clone=False)
-            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index, :, : self.arm_num_dof]
+            # Returned jacobian: [batch, body, 6, dof] does not include the base body (i.e. the first link).
+            # So we need to subtract 1 from the body index to get the correct jacobian.
+            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index - 1, :, : self.arm_num_dof]
         # mass matrix
         if self.cfg.data_info.enable_mass_matrix:
             mass_matrices = self.articulations.get_mass_matrices(indices=self._ALL_INDICES, clone=False)
