@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.3 (2023-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the end-effector body index used for getting the Jacobian in the :class:`SingleArm` and :class:`MobileManipulator` classes.
+
+
 0.2.2 (2023-01-27)
 ~~~~~~~~~~~~~~~~~~
 
