@@ -150,11 +150,11 @@ class SingleArmManipulator(RobotBase):
         super()._process_info_cfg()
         # resolve regex expressions for indices
         # -- end-effector body
-        self.ee_body_index = None
+        self.ee_body_index = -1
         for body_index, body_name in enumerate(self.body_names):
             if re.fullmatch(self.cfg.ee_info.body_name, body_name):
                 self.ee_body_index = body_index
-        if self.ee_body_index is None:
+        if self.ee_body_index == -1:
             raise ValueError(f"Could not find end-effector body with name: {self.cfg.ee_info.body_name}")
         # -- tool sites
         if self.cfg.meta_info.tool_sites_names:
