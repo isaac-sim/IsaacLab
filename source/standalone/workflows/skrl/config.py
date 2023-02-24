@@ -89,5 +89,7 @@ def convert_skrl_cfg(cfg):
                 elif key in ["rewards_shaper_scale"]:
                     d["rewards_shaper"] = reward_shaper_function(value)
 
+        return d
+
     # parse agent configuration and convert to classes
     return update_dict(cfg)
