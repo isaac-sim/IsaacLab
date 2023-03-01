@@ -15,12 +15,10 @@ import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.isaac.core.utils.torch as torch_utils
-import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.extensions import disable_extension
+from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.core.utils.viewports import set_camera_view
 
 from .isaac_env_cfg import IsaacEnvCfg
@@ -105,6 +103,8 @@ class IsaacEnv(gym.Env):
             if "physx" in sim_params:
                 physx_params = sim_params.pop("physx")
                 sim_params.update(physx_params)
+        # set flags for simulator
+        self._configure_simulation_flags(sim_params)
         # create a simulation context to control the simulator
         self.sim = SimulationContext(
             stage_units_in_meters=1.0,
@@ -115,8 +115,6 @@ class IsaacEnv(gym.Env):
             physics_prim_path="/physicsScene",
             device=self.device,
         )
-        # set flags for simulator
-        self._configure_simulation_flags(sim_params)
         # add flag for checking closing status
         self._is_closed = False
 
@@ -191,6 +189,8 @@ class IsaacEnv(gym.Env):
         Args:
             seed (int, optional): The seed for random generator. Defaults to -1.
         """
+        import omni.replicator.core as rep
+
         rep.set_global_seed(seed)
         return torch_utils.set_seed(seed)
 
@@ -390,20 +390,27 @@ class IsaacEnv(gym.Env):
     """
 
     def _configure_simulation_flags(self, sim_params: dict = None):
-        """Configure the various flags for performance.
-
-        This function enables flat-cache for speeding up GPU pipeline, enables hydra scene-graph
-        instancing for visualizing multiple instances when flatcache is enabled, and disables the
-        viewport if running in headless mode.
-        """
-        # enable flat-cache for speeding up GPU pipeline
-        if self.sim.get_physics_context().use_gpu_pipeline:
-            self.sim.get_physics_context().enable_flatcache(True)
+        """Configure various simulation flags for performance improvements at load and run time."""
+        # acquire settings interface
+        carb_settings_iface = carb.settings.get_settings()
         # enable hydra scene-graph instancing
-        # Think: Create your own carb-settings instance?
-        set_carb_setting(self.sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
-        # check viewport settings
-        if sim_params and "enable_viewport" in sim_params:
-            # if viewport is disabled, then don't create a window (minor speedups)
-            if not sim_params["enable_viewport"]:
-                disable_extension("omni.kit.viewport.window")
+        # note: this allows rendering of instanceable assets on the GUI
+        carb_settings_iface.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
+        # note: dispatcher handles how threads are launched for multi-threaded physics
+        carb_settings_iface.set_bool("/physics/physxDispatcher", True)
+        # disable contact processing in omni.physx if requested
+        # note: helpful when creating contact reporting over limited number of objects in the scene
+        if sim_params["disable_contact_processing"]:
+            carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
+
+        # set flags based on whether rendering is enabled or not
+        if self.enable_render:
+            # enable scene querying if rendering is enabled
+            # this is needed for some GUI features
+            sim_params["enable_scene_query_support"] = True
+            # enable viewport extension if not running in headless mode
+            enable_extension("omni.kit.viewport.bundle")
+        # enable isaac replicator extension
+        # note: moved here since it requires to have the viewport extension to be enabled first.
+        enable_extension("omni.replicator.isaac")
