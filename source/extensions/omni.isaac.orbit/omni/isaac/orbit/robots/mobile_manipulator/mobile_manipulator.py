@@ -97,7 +97,9 @@ class MobileManipulator(SingleArmManipulator):
         # jacobian
         if self.cfg.data_info.enable_jacobian:
             jacobians = self.articulations.get_jacobians(indices=self._ALL_INDICES, clone=False)
-            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index, :, self.base_num_dof : self.arm_num_dof]
+            # Returned jacobian: [batch, body, 6, dof] does not include the base body (i.e. the first link).
+            # So we need to subtract 1 from the body index to get the correct jacobian.
+            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index - 1, :, self.base_num_dof : self.arm_num_dof]
         # mass matrix
         if self.cfg.data_info.enable_mass_matrix:
             mass_matrices = self.articulations.get_mass_matrices(indices=self._ALL_INDICES, clone=False)
