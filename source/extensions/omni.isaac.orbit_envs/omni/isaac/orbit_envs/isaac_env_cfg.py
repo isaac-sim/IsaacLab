@@ -151,31 +151,58 @@ class SimCfg:
     gravity: Tuple[float, float, float] = (0.0, 0.0, -9.81)
     """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
 
-    enable_scene_query_support: bool = True
-    """Enable/disable scene query support when using instanced assets. Default is True.
+    enable_scene_query_support: bool = False
+    """Enable/disable scene query support for collision shapes. Default is False.
 
-    If this is set to False, the geometries of instances assets will appear stationary. However, this
-    can also provide some performance speed-up.
+    This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and
+    attached shapes in the scene. This is useful for implementing custom collision detection logic
+    outside of the physics engine.
+
+    If set to False, the physics engine does not create the scene query manager and the scene query
+    functionality will not be available. However, this provides some performance speed-up.
+
+    Note:
+        This flag is overridden to True inside the :class:`IsaacEnv` class when running the simulation
+        with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
     replicate_physics: bool = True
     """Enable/disable replication of physics schemas when using the Cloner APIs. Default is False.
 
-    Note: In Isaac Sim 2022.2.0, domain randomization of material properties is not supported when
-    ``replicate_physics`` is set to True.
+    Note:
+        In Isaac Sim 2022.2.0, domain randomization of material properties is not supported when
+        ``replicate_physics`` is set to True.
     """
 
-    use_flatcache: bool = True  # output from simulation to flat cache
+    use_flatcache: bool = True
     """Enable/disable reading of physics buffers directly. Default is True.
 
-    If this is set to False, the physics buffers will be read from USD, which leads to overhead with
-    massive parallelization.
+    When running the simulation, updates in the states in the scene is normally synchronized with USD.
+    This leads to an overhead in reading the data and does not scale well with massive parallelization.
+    This flag allows disabling the synchronization and reading the data directly from the physics buffers.
+
+    It is recommended to set this flag to :obj:`True` when running the simulation with a large number
+    of primitives in the scene.
+
+    Note:
+        When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
+        updates, please set this flag to :obj:`False`.
+    """
+
+    disable_contact_processing: bool = False
+    """Enable/disable contact processing. Default is False.
+
+    By default, the physics engine processes all the contacts in the scene. However, reporting this contact
+    information can be expensive due to its combinatorial complexity. This flag allows disabling the contact
+    processing and querying the contacts manually by the user over a limited set of primitives in the scene.
+
+    It is recommended to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.
     """
 
     use_gpu_pipeline: bool = True
     """Enable/disable GPU pipeline. Default is True.
 
-    If this is set to False, the physics data will be read as CPU buffers.
+    If set to False, the physics data will be read as CPU buffers.
     """
 
     device: str = "cuda:0"

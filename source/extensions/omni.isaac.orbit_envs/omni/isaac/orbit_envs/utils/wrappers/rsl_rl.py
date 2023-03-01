@@ -172,17 +172,18 @@ def export_policy_as_jit(actor_critic: object, path: str, filename="policy.pt"):
     policy_exporter.export(path, filename)
 
 
-def export_policy_as_onnx(actor_critic: object, path: str, filename="policy.onnx"):
+def export_policy_as_onnx(actor_critic: object, path: str, filename="policy.onnx", verbose=False):
     """Export policy into a Torch ONNX file.
 
     Args:
         actor_critic (object): The actor-critic torch module.
         path (str): The path to the saving directory.
         filename (str, optional): The name of exported JIT file. Defaults to "policy.pt".
+        verbose (bool, optional): Whether to print the model summary. Defaults to False.
     """
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
-    policy_exporter = _OnnxPolicyExporter(actor_critic)
+    policy_exporter = _OnnxPolicyExporter(actor_critic, verbose)
     policy_exporter.export(path, filename)
 
 
@@ -239,8 +240,9 @@ class _TorchPolicyExporter(torch.nn.Module):
 class _OnnxPolicyExporter(torch.nn.Module):
     """Exporter of actor-critic into ONNX file."""
 
-    def __init__(self, actor_critic):
+    def __init__(self, actor_critic, verbose=False):
         super().__init__()
+        self.verbose = verbose
         self.actor = copy.deepcopy(actor_critic.actor)
         self.is_recurrent = actor_critic.is_recurrent
         if self.is_recurrent:
@@ -269,7 +271,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
                 os.path.join(path, filename),
                 export_params=True,
                 opset_version=11,
-                verbose=True,
+                verbose=self.verbose,
                 input_names=["obs", "h_in", "c_in"],
                 output_names=["actions", "h_out", "c_out"],
                 dynamic_axes={},
@@ -282,7 +284,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
                 os.path.join(path, filename),
                 export_params=True,
                 opset_version=11,
-                verbose=True,
+                verbose=self.verbose,
                 input_names=["obs"],
                 output_names=["actions"],
                 dynamic_axes={},
