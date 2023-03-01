@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.2.1 (2023-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a flag ``disable_contact_processing`` to the :class:`SimCfg` class to handle
+  contact processing effectively when using TensorAPIs for contact reporting.
+* Added verbosity flag to :meth:`export_policy_as_onnx` to print model summary.
+
+Fixed
+^^^^^
+
+* Clarified the documentation of flags in the :class:`SimCfg` class.
+* Added enabling of ``omni.kit.viewport`` and ``omni.replicator.isaac`` extensions
+  dynamically to maintain order in the startup of extensions.
+* Corrected the experiment names in the configuration files for training environments with ``rsl_rl``.
+
+Changed
+^^^^^^^
+
+* Changed the default value of ``enable_scene_query_support`` in :class:`SimCfg` class to False.
+  The flag is overridden to True inside :class:`IsaacEnv` class when running the simulation in
+  non-headless mode.
+
 0.2.0 (2023-01-25)
 ~~~~~~~~~~~~~~~~~~
 
