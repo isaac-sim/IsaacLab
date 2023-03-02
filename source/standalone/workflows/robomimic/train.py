@@ -251,7 +251,6 @@ def train(config, device):
         video_paths = None
         rollout_check = (epoch % config.experiment.rollout.rate == 0) or (should_save_ckpt and ckpt_reason == "time")
         if config.experiment.rollout.enabled and (epoch > config.experiment.rollout.warmstart) and rollout_check:
-
             # wrap model as a RolloutPolicy to prepare for rollouts
             rollout_model = RolloutPolicy(model, obs_normalization_stats=obs_normalization_stats)
 

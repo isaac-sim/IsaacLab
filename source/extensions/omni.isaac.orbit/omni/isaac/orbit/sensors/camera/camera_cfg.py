@@ -82,6 +82,7 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
     @configclass
     class UsdCameraCfg(PinholeCameraCfg.UsdCameraCfg):
+        """USD related configuration of the sensor for the fisheye model."""
 
         fisheye_nominal_width: float = None
         """Nominal width of fisheye lens model."""

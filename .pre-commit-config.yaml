@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/python/black
-    rev: 22.12.0
+    rev: 23.1.0
     hooks:
       - id: black
         args: ["--line-length", "120"]
@@ -25,7 +25,7 @@ repos:
       - id: detect-private-key
       - id: debug-statements
   - repo: https://github.com/pycqa/isort
-    rev: 5.11.4
+    rev: 5.12.0
     hooks:
       - id: isort
         name: isort (python)
@@ -37,12 +37,12 @@ repos:
         args: ["--py37-plus"]
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
-  #   rev: v1.1.291
+  #   rev: v1.1.296
   #   hooks:
   #   - id: pyright
   # Note: We disable this by default since not all code is compatible with it.
   # - repo: https://github.com/Lucas-C/pre-commit-hooks
-  #   rev: v1.3.1
+  #   rev: v1.4.2
   #   hooks:
   #     - id: insert-license
   #       files: \.py$
