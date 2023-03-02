@@ -30,7 +30,7 @@
 *.tmp
 
 # Isaac-Sim packman
-_isaac_sim
+_isaac_sim*
 _repo
 _build
 .lastformat

@@ -248,4 +248,4 @@ To run over the entire repository, please execute the following command in the t
 
 .. code:: bash
 
-   ./orbit.sh --format
+   ./orbit.sh --format  # or `./orbit.sh -f`

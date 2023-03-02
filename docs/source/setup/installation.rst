@@ -140,12 +140,13 @@ utilities to manage extensions:
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-p] [-s] -- Utility to manage extensions in Isaac Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] -- Utility to manage extensions in Isaac Orbit.
 
    optional arguments:
        -h, --help       Display the help content.
        -i, --install    Install the extensions inside Isaac Orbit.
        -e, --extra      Install extra dependencies such as the learning frameworks.
+       -f, --format     Run pre-commit to format the code and check lints.
        -p, --python     Run the python executable (python.sh) provided by Isaac Sim.
        -s, --sim        Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
 
@@ -180,11 +181,11 @@ To build all the extensions, run the following commands:
 
    .. code:: bash
 
-      ./orbit.sh --install
+      ./orbit.sh --install  # or `./orbit.sh -i`
 
 -  For installing all other dependencies (such as learning
    frameworks), execute:
 
    .. code:: bash
 
-      ./orbit.sh --extra
+      ./orbit.sh --extra  # or `./orbit.sh -e`

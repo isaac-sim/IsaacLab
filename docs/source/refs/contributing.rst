@@ -76,7 +76,7 @@ following command in the terminal:
 
 .. code:: bash
 
-   ./orbit.sh --format
+   ./orbit.sh --format  # or `./orbit.sh -f`
 
 Maintaining a changelog
 -----------------------
