@@ -40,7 +40,7 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 
 ## Checklist
 
-- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `pre-commit run --all-files` (see [here](https://pre-commit.com/#install) instructions to set it up)
+- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./orbit.sh --format`
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings
 - [ ] I have added tests that prove my fix is effective or that my feature works

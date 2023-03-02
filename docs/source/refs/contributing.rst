@@ -76,7 +76,7 @@ following command in the terminal:
 
 .. code:: bash
 
-   pre-commit run --all-files
+   ./orbit.sh --format
 
 Maintaining a changelog
 -----------------------
