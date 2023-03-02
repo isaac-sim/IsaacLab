@@ -255,7 +255,7 @@ class DCMotor(IdealActuator):
 class VariableGearRatioDCMotor(DCMotor):
     r"""Torque-controlled actuator with variable gear-ratio based saturation model.
 
-    Instead of using a fixed gear box, some motors are equiped with variators that allow the gear-ratio
+    Instead of using a fixed gear box, some motors are equipped with variators that allow the gear-ratio
     to be changed continuously (instead of steps). This model implements a DC motor with a variable
     gear ratio function that computes the gear-ratio as a function of the joint position, i.e.:
 

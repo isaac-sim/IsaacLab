@@ -139,7 +139,7 @@ It may also contains the ``scripts`` directory for keeping python-based applicat
 that are loaded into Omniverse when then extension is enabled using the
 `Extension Manager <https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_extension-manager.html>`__.
 
-More specificially, when an extension is enabled, the python module specified in the
+More specifically, when an extension is enabled, the python module specified in the
 ``config/extension.toml`` file is loaded and scripts that contains children of the
 :class:`omni.ext.IExt` class are executed.
 
@@ -209,7 +209,7 @@ class.
 
    from omni.isaac.core.simulation_context import SimulationContext
 
-   if __init__ == "__main__":
+   if __name__ == "__main__":
       # get simulation context
       simulation_context = SimulationContext()
       # rest and play simulation

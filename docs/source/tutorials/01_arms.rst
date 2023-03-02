@@ -31,7 +31,7 @@ Designing the simulation scene
 ------------------------------
 
 The single arm manipulators refer to robotic arms with a fixed base. These robots are at the ground height, i.e. `z=0`.
-Accordingly, the robots areplaced on a table that define their workspace. In this tutorial, we spawn two robots on two
+Accordingly, the robots are placed on a table that define their workspace. In this tutorial, we spawn two robots on two
 different tables. The first robot is placed on the left table ``/World/Table_1`` and the second robot is placed on the
 right table ``/World/Table_2``.
 

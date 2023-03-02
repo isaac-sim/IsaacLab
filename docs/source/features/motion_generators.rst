@@ -217,7 +217,7 @@ We currently support the following planners:
 
 -  **MPC (OCS2):** A receding horizon control policy based on sequential linear-quadratic (SLQ) programming.
    It formulates various constraints into a single optimization problem via soft-penalties and uses automatic
-   differentiation to compute derivatives of the system dynamics, constriants and costs. Currently, we support
+   differentiation to compute derivatives of the system dynamics, constraints and costs. Currently, we support
    the MPC formulation for end-effector trajectory tracking in fixed-arm and mobile manipulators. The formulation
    considers a kinematic system model with joint limits and self-collision avoidance :cite:p:`mittal2021articulated`.
 
