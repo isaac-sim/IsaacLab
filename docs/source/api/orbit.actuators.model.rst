@@ -16,7 +16,7 @@ apply into the simulation. This process comprise of three main steps:
 2. :func:`compute_torque`: Compute the joint efforts using the actuator model.
 3. :func:`clip_torques`: Clip the desired torques epxlicitly using an actuator saturation model.
 
-It is upto the model how the input values from step (1) are processed and dealt with in step (2).
+It is up to the model how the input values from step (1) are processed and dealt with in step (2).
 The steps (2) and (3) are segregrated explicitly, since many times in learning, we need both the
 computed (desired) or clipped (applied) joint efforts. For instance, to penalize the difference
 between the computed and clipped joint efforts, so that the learned policy does not keep outputting
