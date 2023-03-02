@@ -110,8 +110,6 @@ while [[ $# -gt 0 ]]; do
             # this does not check dependencies between extensions
             export -f extract_isaacsim_python
             export -f install_orbit_extension
-            # initialize git hooks
-            pip install pre-commit
             # source directory
             find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
             # unset local variables
@@ -146,8 +144,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         # run the formatter over the repository
         -f|--format)
+            if ! command -v pre-commit &>/dev/null; then
+                echo "[INFO] Installing pre-commit..."
+                pip install pre-commit
+            fi
             echo "[INFO] Formatting the repository..."
+            # always execute inside the Orbit directory
+            cd "${ORBIT_PATH}"
             pre-commit run --all-files
+            cd -
             shift # past argument
             # exit neatly
             break
