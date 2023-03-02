@@ -209,7 +209,7 @@ class.
 
    from omni.isaac.core.simulation_context import SimulationContext
 
-   if __init__ == "__main__":
+   if __name__ == "__main__":
       # get simulation context
       simulation_context = SimulationContext()
       # rest and play simulation
