@@ -149,7 +149,10 @@ while [[ $# -gt 0 ]]; do
                 pip install pre-commit
             fi
             echo "[INFO] Formatting the repository..."
+            # always execute inside the Orbit directory
+            cd "${ORBIT_PATH}"
             pre-commit run --all-files
+            cd -
             shift # past argument
             # exit neatly
             break
