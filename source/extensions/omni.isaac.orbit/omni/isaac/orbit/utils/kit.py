@@ -13,7 +13,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 from omni.isaac.core.materials import PhysicsMaterial
 from omni.isaac.core.prims import GeometryPrim
-from pxr import Gf, PhysxSchema, UsdPhysics
+from pxr import Gf, PhysxSchema, UsdPhysics, UsdShade
 
 
 def create_ground_plane(
@@ -444,6 +444,49 @@ def set_collision_properties(
         physx_collision_api.GetMinTorsionalPatchRadiusAttr().Set(min_torsional_patch_radius)
 
 
+def apply_physics_material(prim_path: str, material_path: str, weaker_than_descendants: bool = False):
+    """Apply a physics material to a prim.
+
+    Physics material can be applied only to a prim with physics-enabled on them. This includes having
+    a collision APIs, or deformable body APIs, or being a particle system.
+
+    Args:
+        prim_path (str): The prim path of parent.
+        material_path (str): The prim path of the material to apply.
+
+    Raises:
+        ValueError: If the material path does not exist on stage.
+        ValueError: When prim at specified path is not physics-enabled.
+    """
+    # check if material exists
+    if not prim_utils.is_prim_path_valid(material_path):
+        raise ValueError(f"Physics material '{material_path}' does not exist.")
+    # get USD prim
+    prim = prim_utils.get_prim_at_path(prim_path)
+    # check if prim has collision applied on it
+    has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
+    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
+    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    if not (has_collider or has_deformable_body or has_particle_system):
+        raise ValueError(
+            f"Cannot apply physics material on prim '{prim_path}'. It is neither a collider, nor a deformable body, nor a particle system."
+        )
+    # obtain material binding API
+    if prim.HasAPI(UsdShade.MaterialBindingAPI):
+        material_binding_api = UsdShade.MaterialBindingAPI(prim)
+    else:
+        material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    # obtain the material prim
+    material = UsdShade.Material(prim_utils.get_prim_at_path(material_path))
+    # resolve token for weaker than descendants
+    if weaker_than_descendants:
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    else:
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
+    # apply the material
+    material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")
+
+
 def set_nested_articulation_properties(prim_path: str, **kwargs) -> None:
     """Set PhysX parameters on all articulations under specified prim-path.
 
@@ -549,5 +592,37 @@ def set_nested_collision_properties(prim_path: str, **kwargs):
         # set collider properties
         with contextlib.suppress(ValueError):
             set_collision_properties(prim_utils.get_prim_path(child_prim), **kwargs)
+        # add all children to tree
+        all_prims += child_prim.GetChildren()
+
+
+def apply_nested_physics_material(prim_path: str, material_path: str, weaker_than_descendants: bool = False):
+    """Apply the physics material on all meshes under a specified prim path.
+
+    Physics material can be applied only to a prim with physics-enabled on them. This includes having
+    a collision APIs, or deformable body APIs, or being a particle system.
+
+    Args:
+        prim_path (str): The prim path under which to search and apply physics material.
+        material_path (str): The path to the physics material to apply.
+        weaker_than_descendants (bool, optional): Whether the material should override the
+            descendants materials. Defaults to False.
+
+    Raises:
+        ValueError: If the material path does not exist on stage.
+    """
+    # check if material exists
+    if not prim_utils.is_prim_path_valid(material_path):
+        raise ValueError(f"Physics material '{material_path}' does not exist.")
+    # get USD prim
+    prim = prim_utils.get_prim_at_path(prim_path)
+    # iterate over all prims under prim-path
+    all_prims = [prim]
+    while len(all_prims) > 0:
+        # get current prim
+        child_prim = all_prims.pop(0)
+        # set physics material
+        with contextlib.suppress(ValueError):
+            apply_physics_material(prim_utils.get_prim_path(child_prim), material_path, weaker_than_descendants)
         # add all children to tree
         all_prims += child_prim.GetChildren()
