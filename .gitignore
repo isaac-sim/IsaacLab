@@ -24,6 +24,8 @@
 # IDE
 **/.idea/
 **/.vscode/.**
+# Include all but settings.json: auto-generated using the template in .vscode/tools/settings.template.json
+.vscode/settings.json
 
 # Outputs
 **/output/*
