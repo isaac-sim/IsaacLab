@@ -140,7 +140,7 @@ utilities to manage extensions:
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] -- Utility to manage extensions in Isaac Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-v] -- Utility to manage extensions in Isaac Orbit.
 
    optional arguments:
        -h, --help       Display the help content.
@@ -149,6 +149,7 @@ utilities to manage extensions:
        -f, --format     Run pre-commit to format the code and check lints.
        -p, --python     Run the python executable (python.sh) provided by Isaac Sim.
        -s, --sim        Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
+       -v, --vscode     Generate the VSCode settings file from template.
 
 The executable automatically fetches the python bundled with Isaac
 Sim, using ``./orbit.sh -p`` command. To not restrict running commands
