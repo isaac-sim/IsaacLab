@@ -36,7 +36,7 @@ from omni.isaac.core.utils.viewports import set_camera_view
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.objects.rigid import RigidObject, RigidObjectCfg
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import sample_cylinder, random_yaw_orientation, quat_mul, convert_quat
+from omni.isaac.orbit.utils.math import convert_quat, quat_mul, random_yaw_orientation, sample_cylinder
 
 """
 Helpers
@@ -93,7 +93,7 @@ def main():
         "mustardBottle": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
     }
     for key, usd_path in ycb_usd_paths.items():
-        translation = torch.rand(3,).tolist()
+        translation = torch.rand(3).tolist()
         prim_utils.create_prim(f"/World/Objects/{key}", usd_path=usd_path, translation=translation)
 
     # Setup rigid object
