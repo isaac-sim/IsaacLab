@@ -394,16 +394,18 @@ class ArticulatedObject:
         """Post processing of configuration parameters."""
         # default state
         # -- root state
+        # note: we cast to tuple to avoid torch/numpy type mismatch.
         default_root_state = (
-            self.cfg.init_state.pos
-            + self.cfg.init_state.rot
-            + self.cfg.init_state.lin_vel
-            + self.cfg.init_state.ang_vel
+            tuple(self.cfg.init_state.pos)
+            + tuple(self.cfg.init_state.rot)
+            + tuple(self.cfg.init_state.lin_vel)
+            + tuple(self.cfg.init_state.ang_vel)
         )
-        self._default_root_states = torch.tensor(default_root_state, device=self.device).repeat(self.count, 1)
+        self._default_root_states = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
+        self._default_root_states = self._default_root_states.repeat(self.count, 1)
         # -- dof state
-        self._default_dof_pos = torch.zeros(self.count, self.num_dof, device=self.device)
-        self._default_dof_vel = torch.zeros(self.count, self.num_dof, device=self.device)
+        self._default_dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
+        self._default_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         for index, dof_name in enumerate(self.articulations.dof_names):
             # dof pos
             for re_key, value in self.cfg.init_state.dof_pos.items():

@@ -246,13 +246,15 @@ class RigidObject:
         """Post processing of configuration parameters."""
         # default state
         # -- root state
+        # note: we cast to tuple to avoid torch/numpy type mismatch.
         default_root_state = (
-            self.cfg.init_state.pos
-            + self.cfg.init_state.rot
-            + self.cfg.init_state.lin_vel
-            + self.cfg.init_state.ang_vel
+            tuple(self.cfg.init_state.pos)
+            + tuple(self.cfg.init_state.rot)
+            + tuple(self.cfg.init_state.lin_vel)
+            + tuple(self.cfg.init_state.ang_vel)
         )
-        self._default_root_states = torch.tensor(default_root_state, device=self.device).repeat(self.count, 1)
+        self._default_root_states = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
+        self._default_root_states = self._default_root_states.repeat(self.count, 1)
 
     def _create_buffers(self):
         """Create buffers for storing data."""
