@@ -75,9 +75,18 @@ install_orbit_extension() {
     fi
 }
 
+# update the vscode settings from template and isaac sim settings
+update_vscode_settings() {
+    echo "[INFO] Setting up vscode settings..."
+    # retrieve the python executable
+    python_exe=$(extract_isaacsim_python)
+    # run the setup script
+    ${python_exe} ${ORBIT_PATH}/.vscode/tools/setup_vscode.py
+}
+
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] -- Utility to manage extensions in Isaac Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] -- Utility to manage extensions in Isaac Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help       Display the help content."
     echo -e "\t-i, --install    Install the extensions inside Isaac Orbit."
@@ -85,6 +94,7 @@ print_help () {
     echo -e "\t-f, --format     Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python     Run the python executable (python.sh) provided by Isaac Sim."
     echo -e "\t-s, --sim        Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
+    echo -e "\t-v, --vscode     Generate the VSCode settings file from template."
     echo -e "\n" >&2
 }
 
@@ -116,9 +126,7 @@ while [[ $# -gt 0 ]]; do
             # unset local variables
             unset install_orbit_extension
             # setup vscode settings
-            echo "[INFO] Setting up vscode settings..."
-            python_exe=$(extract_isaacsim_python)
-            ${python_exe} ${ORBIT_PATH}/.vscode/tools/setup_vscode.py
+            update_vscode_settings
             shift # past argument
             ;;
         -e|--extra)
@@ -128,6 +136,22 @@ while [[ $# -gt 0 ]]; do
             # install the rl-frameworks specified
             ${python_exe} ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
             shift # past argument
+            ;;
+        -f|--format)
+            # run the formatter over the repository
+            # check if pre-commit is installed
+            if ! command -v pre-commit &>/dev/null; then
+                echo "[INFO] Installing pre-commit..."
+                pip install pre-commit
+            fi
+            echo "[INFO] Formatting the repository..."
+            # always execute inside the Orbit directory
+            cd "${ORBIT_PATH}"
+            pre-commit run --all-files
+            cd -
+            shift # past argument
+            # exit neatly
+            break
             ;;
         -p|--python)
             # run the python provided by isaacsim
@@ -147,18 +171,9 @@ while [[ $# -gt 0 ]]; do
             # exit neatly
             break
             ;;
-        -f|--format)
-            # run the formatter over the repository
-            # check if pre-commit is installed
-            if ! command -v pre-commit &>/dev/null; then
-                echo "[INFO] Installing pre-commit..."
-                pip install pre-commit
-            fi
-            echo "[INFO] Formatting the repository..."
-            # always execute inside the Orbit directory
-            cd "${ORBIT_PATH}"
-            pre-commit run --all-files
-            cd -
+        -v|--vscode)
+            # update the vscode settings
+            update_vscode_settings
             shift # past argument
             # exit neatly
             break
