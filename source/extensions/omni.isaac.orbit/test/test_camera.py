@@ -55,9 +55,7 @@ class TestCameraSensor(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(
-            stage_units_in_meters=1.0, physics_dt=self.dt, rendering_dt=self.dt, backend="numpy"
-        )
+        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
         # Set camera view
         set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         # Fix random seed -- to generate same scene every time

@@ -164,7 +164,7 @@ def main():
         # Open the stage with USD
         stage_utils.open_stage(dest_path)
         # Load kit helper
-        sim = SimulationContext(stage_units_in_meters=1.0)
+        sim = SimulationContext()
         # stage_utils.add_reference_to_stage(dest_path, "/Robot")
         # Reinitialize the simulation
         # Run simulation

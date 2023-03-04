@@ -60,9 +60,7 @@ def main():
     """Spawns a single-arm manipulator and applies commands through inverse kinematics control."""
 
     # Load kit helper
-    sim = SimulationContext(
-        stage_units_in_meters=1.0, physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0"
-    )
+    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Enable GPU pipeline and flatcache

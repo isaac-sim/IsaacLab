@@ -38,9 +38,7 @@ class TestKitUtilities(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.1
         # Load kit helper
-        self.sim = SimulationContext(
-            stage_units_in_meters=1.0, physics_dt=self.dt, rendering_dt=self.dt, backend="numpy"
-        )
+        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
         # Set camera view
         set_camera_view(eye=[1.0, 1.0, 1.0], target=[0.0, 0.0, 0.0])
         # Spawn things into stage
