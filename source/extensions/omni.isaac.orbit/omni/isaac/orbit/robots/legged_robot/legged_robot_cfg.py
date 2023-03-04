@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 from omni.isaac.orbit.utils import configclass
 
@@ -48,5 +48,8 @@ class LeggedRobotCfg(RobotBaseCfg):
 
     The returned tensor for feet state is in the same order as that of the provided list.
     """
-    physics_material: PhysicsMaterialCfg = PhysicsMaterialCfg()
-    """Settings for the physics material to apply to feet."""
+    physics_material: Optional[PhysicsMaterialCfg] = PhysicsMaterialCfg()
+    """Settings for the physics material to apply to feet.
+
+    If set to None, no physics material will be created and applied.
+    """

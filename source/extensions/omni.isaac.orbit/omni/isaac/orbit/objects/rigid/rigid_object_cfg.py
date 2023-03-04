@@ -19,11 +19,6 @@ class RigidObjectCfg:
 
         usd_path: str = MISSING
         """USD file to spawn asset from."""
-        geom_prim_rel_path: str = MISSING
-        """Relative path to the collision geom from the default prim in the USD file.
-
-        This is used to apply physics material to the rigid body.
-        """
         scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
         """Scale to spawn the object with. Defaults to (1.0, 1.0, 1.0)."""
 
@@ -41,17 +36,17 @@ class RigidObjectCfg:
         """Disable gravity for the actor. Defaults to False."""
 
     @configclass
-    class PhysicsMaterialPropertiesCfg:
-        """Properties to apply to the rigid body."""
+    class PhysicsMaterialCfg:
+        """Physics material applied to the rigid object."""
 
-        static_friction: Optional[float] = 0.5
-        """Static friction for the rigid body. Defaults to 0.5."""
-        dynamic_friction: Optional[float] = 0.5
-        """Dynamic friction for the rigid body. Defaults to 0.5."""
-        restitution: Optional[float] = 0.0
-        """Restitution for the rigid body. Defaults to 0.0."""
-        material_path: Optional[str] = "/physics_material"
-        """Relative path to spawn the material for the rigid body. Defaults to "/physics_material"."""
+        prim_path: str = "/World/Materials/rigidMaterial"
+        """Path to the physics material prim. Default: /World/Materials/rigidMaterial."""
+        static_friction: float = 0.5
+        """Static friction coefficient. Defaults to 0.5."""
+        dynamic_friction: float = 0.5
+        """Dynamic friction coefficient. Defaults to 0.5."""
+        restitution: float = 0.0
+        """Restitution coefficient. Defaults to 0.0."""
 
     @configclass
     class InitialStateCfg:
@@ -74,10 +69,13 @@ class RigidObjectCfg:
     ##
 
     meta_info: MetaInfoCfg = MetaInfoCfg()
-    """Meta-information about the rigid body."""
+    """Meta-information about the rigid object."""
     init_state: InitialStateCfg = InitialStateCfg()
-    """Initial state of the rigid body."""
+    """Initial state of the rigid object."""
     rigid_props: RigidBodyPropertiesCfg = RigidBodyPropertiesCfg()
-    """Properties to apply to the rigid body."""
-    material_props: PhysicsMaterialPropertiesCfg = PhysicsMaterialPropertiesCfg()
-    """Properties to apply to the physics material on the rigid body."""
+    """Properties to apply to all rigid bodies in the object."""
+    physics_material: Optional[PhysicsMaterialCfg] = PhysicsMaterialCfg()
+    """Settings for the physics material to apply to the rigid object.
+
+    If set to None, no physics material will be created and applied.
+    """
