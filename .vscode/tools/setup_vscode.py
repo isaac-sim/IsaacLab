@@ -14,9 +14,10 @@ when the "setup_python_env.sh" is run as part of the vs-code launch configuratio
 
 import re
 import os
+import pathlib
 
 
-ORBIT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+ORBIT_DIR = pathlib.Path(__file__).parents[2]
 """Path to the orbit directory."""
 ISAACSIM_DIR = os.path.join(ORBIT_DIR, "_isaac_sim")
 """Path to the isaac-sim directory."""
@@ -24,7 +25,10 @@ ISAACSIM_DIR = os.path.join(ORBIT_DIR, "_isaac_sim")
 
 def main():
     # isaac-sim settings
-    isaacsim_vscode_filename = os.path.join(ISAACSIM_DIR, ".vscode/settings.json")
+    isaacsim_vscode_filename = os.path.join(ISAACSIM_DIR, ".vscode", "settings.json")
+    # make sure the isaac-sim settings file exists
+    if not os.path.exists(isaacsim_vscode_filename):
+        raise FileNotFoundError(f"Could not find the isaac-sim settings file: {isaacsim_vscode_filename}")
     # read the path names from the isaac-sim settings file
     with open(isaacsim_vscode_filename) as f:
         vscode_settings = f.read()
@@ -42,8 +46,12 @@ def main():
     # combine them into a single string
     path_names = ",\n\t\t".expandtabs(4).join(path_names)
 
+    # orbit template settings
+    orbit_vscode_template_filename = os.path.join(ORBIT_DIR, ".vscode", "tools", "settings.template.json")
+    # make sure the orbit template settings file exists
+    if not os.path.exists(orbit_vscode_template_filename):
+        raise FileNotFoundError(f"Could not find the orbit template settings file: {orbit_vscode_template_filename}")
     # read the orbit template settings file
-    orbit_vscode_template_filename = os.path.join(ORBIT_DIR, ".vscode/tools/settings.template.json")
     with open(orbit_vscode_template_filename) as f:
         orbit_template_settings = f.read()
     # replace the path names in the orbit settings file with the path names from the isaac-sim settings file
@@ -63,7 +71,7 @@ def main():
     orbit_settings = header_message + orbit_settings
 
     # write the orbit settings file
-    orbit_vscode_filename = os.path.join(ORBIT_DIR, ".vscode/settings.json")
+    orbit_vscode_filename = os.path.join(ORBIT_DIR, ".vscode", "settings.json")
     with open(orbit_vscode_filename, "w") as f:
         f.write(orbit_settings)
 
