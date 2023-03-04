@@ -40,7 +40,12 @@ class RigidObjectCfg:
         """Physics material applied to the rigid object."""
 
         prim_path: str = "/World/Materials/rigidMaterial"
-        """Path to the physics material prim. Default: /World/Materials/rigidMaterial."""
+        """Path to the physics material prim. Default: /World/Materials/rigidMaterial.
+
+        Note:
+            If the prim path is not absolute, it will be resolved relative to the path specified when spawning
+            the object.
+        """
         static_friction: float = 0.5
         """Static friction coefficient. Defaults to 0.5."""
         dynamic_friction: float = 0.5

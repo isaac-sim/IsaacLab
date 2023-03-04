@@ -16,6 +16,11 @@ Fixed
 
 * Simplified the physics material application in the rigid object and legged robot classes.
 
+Removed
+^^^^^^^
+
+* Removed the ``geom_prim_rel_path`` argument in the :class:``RigidObjectCfg.MetaInfoCfg`` class.
+
 
 0.2.3 (2023-02-24)
 ~~~~~~~~~~~~~~~~~~
