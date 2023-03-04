@@ -8,7 +8,6 @@ from typing import Dict, Optional, Sequence
 
 from omni.isaac.core.materials import PhysicsMaterial
 from omni.isaac.core.prims import RigidPrimView
-from omni.isaac.core.prims.geometry_prim_view import GeometryPrimView
 from pxr import PhysxSchema
 
 import omni.isaac.orbit.utils.kit as kit_utils
@@ -66,21 +65,24 @@ class LeggedRobot(RobotBase):
         # alter physics collision properties
         kit_utils.set_nested_collision_properties(prim_path, contact_offset=0.02, rest_offset=0.0)
         # add physics material to the feet bodies!
-        # TODO: Make this something configurable?
-        foot_material = PhysicsMaterial(
-            prim_path=self.cfg.physics_material.prim_path,
-            static_friction=self.cfg.physics_material.static_friction,
-            dynamic_friction=self.cfg.physics_material.dynamic_friction,
-            restitution=self.cfg.physics_material.restitution,
-        )
-        # enable patch-friction: yields better results!
-        physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(foot_material.prim)
-        physx_material_api.CreateImprovePatchFrictionAttr().Set(True)
-        # add to bodies
-        body_names = [foot_cfg.body_name for foot_cfg in self.cfg.feet_info.values()]
-        # bind materials
-        geom_prim = GeometryPrimView(f"{prim_path}/{body_names}/collisions", reset_xform_properties=False)
-        geom_prim.apply_physics_materials(foot_material, weaker_than_descendants=False)
+        if self.cfg.physics_material is not None:
+            # -- resolve material path
+            material_path = self.cfg.physics_material.prim_path
+            if not material_path.startswith("/"):
+                material_path = prim_path + "/" + material_path
+            # -- create material
+            material = PhysicsMaterial(
+                prim_path=material_path,
+                static_friction=self.cfg.physics_material.static_friction,
+                dynamic_friction=self.cfg.physics_material.dynamic_friction,
+                restitution=self.cfg.physics_material.restitution,
+            )
+            # -- enable patch-friction: yields better results!
+            physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(material.prim)
+            physx_material_api.CreateImprovePatchFrictionAttr().Set(True)
+            # -- bind material to feet
+            for foot_cfg in self.cfg.feet_info.values():
+                kit_utils.apply_nested_physics_material(f"{prim_path}/{foot_cfg.body_name}", material.prim_path)
 
     def initialize(self, prim_paths_expr: Optional[str] = None):
         # initialize parent handles

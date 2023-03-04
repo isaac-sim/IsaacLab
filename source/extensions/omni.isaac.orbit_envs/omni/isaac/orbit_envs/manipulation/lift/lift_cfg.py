@@ -31,7 +31,6 @@ class ManipulationObjectCfg(RigidObjectCfg):
 
     meta_info = RigidObjectCfg.MetaInfoCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        geom_prim_rel_path="/collisions",
         scale=(0.8, 0.8, 0.8),
     )
     init_state = RigidObjectCfg.InitialStateCfg(
@@ -43,8 +42,8 @@ class ManipulationObjectCfg(RigidObjectCfg):
         max_depenetration_velocity=10.0,
         disable_gravity=False,
     )
-    material_props = RigidObjectCfg.PhysicsMaterialPropertiesCfg(
-        static_friction=0.5, dynamic_friction=0.5, restitution=0.0, material_path="/physics_material"
+    physics_material = RigidObjectCfg.PhysicsMaterialCfg(
+        static_friction=0.5, dynamic_friction=0.5, restitution=0.0, prim_path="/World/Materials/cubeMaterial"
     )
 
 
@@ -53,9 +52,9 @@ class GoalMarkerCfg:
     """Properties for visualization marker."""
 
     # usd file to import
-    usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd"
+    usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd"
     # scale of the asset at import
-    scale = [0.8, 0.8, 0.8]  # x,y,z
+    scale = [0.05, 0.05, 0.05]  # x,y,z
 
 
 @configclass

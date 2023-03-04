@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.materials import PhysicsMaterial
-from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
+from omni.isaac.core.prims import RigidPrim, RigidPrimView
 
 import omni.isaac.orbit.utils.kit as kit_utils
 
@@ -107,8 +107,7 @@ class RigidObject:
         else:
             carb.log_warn(f"A prim already exists at prim path: '{prim_path}'. Skipping...")
 
-        # TODO: What if prim already exists in the stage and spawn isn't called?
-        # apply rigid body properties
+        # apply rigid body properties API
         RigidPrim(prim_path=prim_path)
         # -- set rigid body properties
         kit_utils.set_nested_rigid_body_properties(
@@ -119,19 +118,20 @@ class RigidObject:
             disable_gravity=self.cfg.rigid_props.disable_gravity,
         )
         # create physics material
-        material = PhysicsMaterial(
-            prim_path + self.cfg.material_props.material_path,
-            static_friction=self.cfg.material_props.static_friction,
-            dynamic_friction=self.cfg.material_props.dynamic_friction,
-            restitution=self.cfg.material_props.restitution,
-        )
-        # TODO: Iterate over the rigid prim and set this material to all collision shapes.
-        if self.cfg.meta_info.geom_prim_rel_path is not None:
-            object_geom = GeometryPrim(prim_path=prim_path + self.cfg.meta_info.geom_prim_rel_path)
-        else:
-            object_geom = GeometryPrim(prim_path=prim_path)
-        # apply physics material on object
-        object_geom.apply_physics_material(material)
+        if self.cfg.physics_material is not None:
+            # -- resolve material path
+            material_path = self.cfg.physics_material.prim_path
+            if not material_path.startswith("/"):
+                material_path = prim_path + "/" + prim_path
+            # -- create physics material
+            material = PhysicsMaterial(
+                prim_path=material_path,
+                static_friction=self.cfg.physics_material.static_friction,
+                dynamic_friction=self.cfg.physics_material.dynamic_friction,
+                restitution=self.cfg.physics_material.restitution,
+            )
+            # -- apply physics material
+            kit_utils.apply_nested_physics_material(prim_path, material.prim_path)
 
     def initialize(self, prim_paths_expr: Optional[str] = None):
         """Initializes the PhysX handles and internal buffers.
