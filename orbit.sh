@@ -115,6 +115,10 @@ while [[ $# -gt 0 ]]; do
             find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
             # unset local variables
             unset install_orbit_extension
+            # setup vscode settings
+            echo "[INFO] Setting up vscode settings..."
+            python_exe=$(extract_isaacsim_python)
+            ${python_exe} ${ORBIT_PATH}/.vscode/tools/setup_vscode.py
             shift # past argument
             ;;
         -e|--extra)
@@ -122,7 +126,7 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             python_exe=$(extract_isaacsim_python)
             # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
+            ${python_exe} ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
             shift # past argument
             ;;
         -p|--python)

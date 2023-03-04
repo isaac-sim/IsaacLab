@@ -2,7 +2,7 @@
     "files.associations": {
         "*.tpp": "cpp",
         "*.kit": "toml",
-        "*.rst": "restructuredtext",
+        "*.rst": "restructuredtext"
     },
     "editor.rulers": [120],
 
@@ -25,7 +25,7 @@
         "cpp",
         "asciidoc",
         "python",
-        "restructuredtext",
+        "restructuredtext"
     ],
     "cSpell.words": [
         "literalinclude",
@@ -39,7 +39,7 @@
         "robomimic",
         "teleoperation",
         "xform",
-        "numpy",
+        "numpy"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",
@@ -66,5 +66,8 @@
     },
     "[restructuredtext]": {
         "editor.tabSize": 2
-    }
+    },
+    // Python extra paths
+    // Note: this is filled up when "./orbit.sh -i" is run
+    "python.analysis.extraPaths": []
 }
