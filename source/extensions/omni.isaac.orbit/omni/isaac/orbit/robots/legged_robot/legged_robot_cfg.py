@@ -31,18 +31,18 @@ class LeggedRobotCfg(RobotBaseCfg):
         """Physics material applied to the feet of the robot."""
 
         prim_path = "/World/Materials/footMaterial"
-        """Path to the physics material prim. Default: /World/Materials/footMaterial.
+        """Path to the physics material prim. Defaults to /World/Materials/footMaterial.
 
         Note:
             If the prim path is not absolute, it will be resolved relative to the path specified when spawning
             the object.
         """
         static_friction: float = 1.0
-        """Static friction coefficient. Default: 1.0."""
+        """Static friction coefficient. Defaults to 1.0."""
         dynamic_friction: float = 1.0
-        """Dynamic friction coefficient. Default: 1.0."""
+        """Dynamic friction coefficient. Defaults to 1.0."""
         restitution: float = 0.0
-        """Restitution coefficient. Default: 0.0."""
+        """Restitution coefficient. Defaults to 0.0."""
 
     ##
     # Initialize configurations.

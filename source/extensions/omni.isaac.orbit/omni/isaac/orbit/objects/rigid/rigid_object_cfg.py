@@ -40,7 +40,7 @@ class RigidObjectCfg:
         """Physics material applied to the rigid object."""
 
         prim_path: str = "/World/Materials/rigidMaterial"
-        """Path to the physics material prim. Default: /World/Materials/rigidMaterial.
+        """Path to the physics material prim. Defaults to /World/Materials/rigidMaterial.
 
         Note:
             If the prim path is not absolute, it will be resolved relative to the path specified when spawning
