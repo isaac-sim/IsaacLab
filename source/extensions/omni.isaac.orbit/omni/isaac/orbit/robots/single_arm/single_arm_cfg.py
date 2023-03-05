@@ -56,6 +56,24 @@ class SingleArmManipulatorCfg(RobotBaseCfg):
         enable_gravity: bool = False
         """Fill in generalized gravity forces into data buffers. Defaults to False."""
 
+    @configclass
+    class PhysicsMaterialCfg:
+        """Physics material applied to the tool sites of the robot."""
+
+        prim_path = "/World/Materials/toolMaterial"
+        """Path to the physics material prim. Defaults to /World/Materials/toolMaterial.
+
+        Note:
+            If the prim path is not absolute, it will be resolved relative to the path specified when spawning
+            the object.
+        """
+        static_friction: float = 1.0
+        """Static friction coefficient. Defaults to 1.0."""
+        dynamic_friction: float = 1.0
+        """Dynamic friction coefficient. Defaults to 1.0."""
+        restitution: float = 0.0
+        """Restitution coefficient. Defaults to 0.0."""
+
     ##
     # Initialize configurations.
     ##
@@ -66,3 +84,5 @@ class SingleArmManipulatorCfg(RobotBaseCfg):
     """Information about the end-effector frame location."""
     data_info: DataInfoCfg = DataInfoCfg()
     """Information about what all data to read from simulator."""
+    physics_material: PhysicsMaterialCfg = PhysicsMaterialCfg()
+    """Physics material applied to the tool sites of the robot."""

@@ -5,10 +5,13 @@
 
 import re
 import torch
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
+from omni.isaac.core.materials import PhysicsMaterial
 from omni.isaac.core.prims import RigidPrimView
+from pxr import PhysxSchema
 
+import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.utils.math import combine_frame_transforms, quat_rotate_inverse, subtract_frame_transforms
 
 from ..robot_base import RobotBase
@@ -63,6 +66,31 @@ class SingleArmManipulator(RobotBase):
     """
     Operations.
     """
+
+    def spawn(self, prim_path: str, translation: Sequence[float] = None, orientation: Sequence[float] = None):
+        # spawn the robot and set its location
+        super().spawn(prim_path, translation, orientation)
+        # alter physics collision properties
+        kit_utils.set_nested_collision_properties(prim_path, contact_offset=0.02, rest_offset=0.0)
+        # add physics material to the tool sites bodies!
+        if self.cfg.physics_material is not None and self.cfg.meta_info.tool_sites_names is not None:
+            # -- resolve material path
+            material_path = self.cfg.physics_material.prim_path
+            if not material_path.startswith("/"):
+                material_path = prim_path + "/" + material_path
+            # -- create material
+            material = PhysicsMaterial(
+                prim_path=material_path,
+                static_friction=self.cfg.physics_material.static_friction,
+                dynamic_friction=self.cfg.physics_material.dynamic_friction,
+                restitution=self.cfg.physics_material.restitution,
+            )
+            # -- enable patch-friction: yields better results!
+            physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(material.prim)
+            physx_material_api.CreateImprovePatchFrictionAttr().Set(True)
+            # -- bind material to feet
+            for site_name in self.cfg.meta_info.tool_sites_names:
+                kit_utils.apply_nested_physics_material(f"{prim_path}/{site_name}", material.prim_path)
 
     def initialize(self, prim_paths_expr: Optional[str] = None):
         # initialize parent handles
