@@ -72,6 +72,8 @@ class GripperActuatorGroup(ActuatorGroup):
 
         # create buffers
         self._previous_dof_targets = torch.zeros(self.num_articulation, self.num_actuators, device=self.device)
+        # constants
+        self._ALL_INDICES = torch.arange(self.view.count, device=self.view._device, dtype=torch.long)
 
     def __str__(self) -> str:
         """String representation of the actuator group."""
@@ -109,18 +111,25 @@ class GripperActuatorGroup(ActuatorGroup):
 
         We consider the following convention:
 
-        * Positive command -> open grippers
-        * Negative command -> close grippers
+        * Non-negative command (includes 0): open grippers
+        * Negative command: close grippers
 
         Returns:
             torch.Tensor: The target joint commands for the gripper.
         """
         # FIXME: mimic joint positions -- Gazebo plugin seems to do this.
-        #   The following is commented out because Isaac Sim doesn't support setting joint positions
-        #   of particular dof indices properly. It sets joint positions and joint position targets for
-        #   the whole robot, i.e. all previous position targets is lost.
-        # mimic_dof_pos = self._dof_pos[:, 0] * self._mimic_multiplier
-        # self.view.set_joint_positions(mimic_dof_pos, joint_indices=self.dof_indices)
+        # The following is commented out because Isaac Sim doesn't support setting joint positions
+        # of particular dof indices properly. It sets joint positions and joint position targets for
+        # the whole robot, i.e. all previous position targets is lost. This affects resetting the robot
+        # to a particular joint position.
+        # self.view._physics_sim_view.enable_warnings(False)
+        # # get current joint positions
+        # new_dof_pos = self.view._physics_view.get_dof_positions()
+        # # set joint positions of the mimic joints
+        # new_dof_pos[:, self.dof_indices] = self._dof_pos[:, 0].unsqueeze(1) * self._mimic_multiplier
+        # # set joint positions to the physics view
+        # self.view.set_joint_positions(new_dof_pos, self._ALL_INDICES)
+        # self.view._physics_sim_view.enable_warnings(True)
 
         # process actions
         if self.control_mode == "velocity":
@@ -134,7 +143,7 @@ class GripperActuatorGroup(ActuatorGroup):
             return dof_vel_targets
         else:
             # compute new command
-            dof_pos_targets = torch.where(command > 0, self._open_dof_pos, self._close_dof_pos)
+            dof_pos_targets = torch.where(command >= 0, self._open_dof_pos, self._close_dof_pos)
             dof_pos_targets = dof_pos_targets * self._mimic_multiplier
             # store new command
             self._previous_dof_targets[:] = dof_pos_targets
