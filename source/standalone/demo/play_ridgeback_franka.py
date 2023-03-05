@@ -130,7 +130,7 @@ def main():
             actions[:, -1] = 1
             print(">>>>>>>> Reset! Opening gripper.")
         # change the gripper action
-        if ep_step_count % 200:
+        if ep_step_count % 200 == 0:
             # flip command
             actions[:, -1] = -actions[:, -1]
         # change the base action

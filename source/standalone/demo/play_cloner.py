@@ -163,7 +163,7 @@ def main():
                 actions[:, -1] = -1
             print("[INFO]: Resetting robots state...")
         # change the gripper action
-        if ep_step_count % 200 and has_gripper:
+        if ep_step_count % 50 == 0 and has_gripper:
             # flip command for the gripper
             actions[:, -1] = -actions[:, -1]
         # apply actions
