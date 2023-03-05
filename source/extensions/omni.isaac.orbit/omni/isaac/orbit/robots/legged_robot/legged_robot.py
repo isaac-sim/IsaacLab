@@ -62,8 +62,6 @@ class LeggedRobot(RobotBase):
     def spawn(self, prim_path: str, translation: Sequence[float] = None, orientation: Sequence[float] = None):
         # spawn the robot and set its location
         super().spawn(prim_path, translation, orientation)
-        # alter physics collision properties
-        kit_utils.set_nested_collision_properties(prim_path, contact_offset=0.02, rest_offset=0.0)
         # add physics material to the feet bodies!
         if self.cfg.physics_material is not None:
             # -- resolve material path

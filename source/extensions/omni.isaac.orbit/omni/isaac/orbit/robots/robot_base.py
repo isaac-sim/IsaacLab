@@ -67,7 +67,7 @@ class RobotBase:
     @property
     def device(self) -> str:
         """Memory device for computation."""
-        return self.articulations._device
+        return self.articulations._device  # noqa: W0212
 
     @property
     def body_names(self) -> List[str]:
@@ -132,23 +132,11 @@ class RobotBase:
             carb.log_warn(f"A prim already exists at prim path: '{prim_path}'. Skipping...")
 
         # apply rigid body properties
-        kit_utils.set_nested_rigid_body_properties(
-            prim_path,
-            linear_damping=self.cfg.rigid_props.linear_damping,
-            angular_damping=self.cfg.rigid_props.angular_damping,
-            max_linear_velocity=self.cfg.rigid_props.max_linear_velocity,
-            max_angular_velocity=self.cfg.rigid_props.max_angular_velocity,
-            max_depenetration_velocity=self.cfg.rigid_props.max_depenetration_velocity,
-            disable_gravity=self.cfg.rigid_props.disable_gravity,
-            retain_accelerations=self.cfg.rigid_props.retain_accelerations,
-        )
+        kit_utils.set_nested_rigid_body_properties(prim_path, **self.cfg.rigid_props.to_dict())
+        # apply collision properties
+        kit_utils.set_nested_collision_properties(prim_path, **self.cfg.collision_props.to_dict())
         # articulation root settings
-        kit_utils.set_articulation_properties(
-            prim_path,
-            enable_self_collisions=self.cfg.articulation_props.enable_self_collisions,
-            solver_position_iteration_count=self.cfg.articulation_props.solver_position_iteration_count,
-            solver_velocity_iteration_count=self.cfg.articulation_props.solver_velocity_iteration_count,
-        )
+        kit_utils.set_articulation_properties(prim_path, **self.cfg.articulation_props.to_dict())
         # set spawned to true
         self._is_spawned = True
 
@@ -204,6 +192,7 @@ class RobotBase:
         # reset history
         self._previous_dof_vel[env_ids] = 0
         # TODO: Reset other cached variables.
+        self.articulations.set_joint_efforts(self._ZERO_JOINT_EFFORT, indices=self._ALL_INDICES)
         # reset actuators
         for group in self.actuator_groups.values():
             group.reset(env_ids)
@@ -220,11 +209,6 @@ class RobotBase:
         # slice actions per actuator group
         group_actions_dims = [group.control_dim for group in self.actuator_groups.values()]
         all_group_actions = torch.split(actions, group_actions_dims, dim=-1)
-        # silence the physics sim for warnings that make no sense :)
-        self.articulations._physics_sim_view.enable_warnings(False)
-        # note (18.08.2022): Saw a difference of up to 5 ms per step when using Isaac Sim
-        #   interfaces compared to direct PhysX calls. Thus, this function is optimized.
-        #   acquire tensors for whole robot
         # note: we use internal buffers to deal with the resets() as the buffers aren't forwarded
         #   unit the next simulation step.
         dof_pos = self._data.dof_pos
@@ -250,6 +234,11 @@ class RobotBase:
             self._data.gear_ratio[:, group.dof_indices] = group.gear_ratio
             if group.velocity_limit is not None:
                 self._data.soft_dof_vel_limits[:, group.dof_indices] = group.velocity_limit
+        # silence the physics sim for warnings that make no sense :)
+        # note (18.08.2022): Saw a difference of up to 5 ms per step when using Isaac Sim
+        #   ArticulationView.apply_action() method compared to direct PhysX calls. Thus,
+        #   this function is optimized to apply actions for the whole robot.
+        self.articulations._physics_sim_view.enable_warnings(False)
         # apply actions into sim
         if self.sim_dof_control_modes["position"]:
             self.articulations._physics_view.set_dof_position_targets(self._data.dof_pos_targets, self._ALL_INDICES)
@@ -472,6 +461,7 @@ class RobotBase:
         self._previous_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         # constants
         self._ALL_INDICES = torch.arange(self.count, dtype=torch.long, device=self.device)
+        self._ZERO_JOINT_EFFORT = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
 
         # -- frame states
         self._data.root_state_w = torch.zeros(self.count, 13, dtype=torch.float, device=self.device)
