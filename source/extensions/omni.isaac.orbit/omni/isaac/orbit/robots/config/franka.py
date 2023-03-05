@@ -40,12 +40,19 @@ FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG = SingleArmManipulatorCfg(
             "panda_joint5": 0.0,
             "panda_joint6": 3.037,
             "panda_joint7": 0.741,
-            "panda_finger_joint*": 0.035,
+            "panda_finger_joint*": 0.04,
         },
         dof_vel={".*": 0.0},
     ),
     ee_info=SingleArmManipulatorCfg.EndEffectorFrameCfg(
         body_name="panda_hand", pos_offset=(0.0, 0.0, 0.1034), rot_offset=(1.0, 0.0, 0.0, 0.0)
+    ),
+    rigid_props=SingleArmManipulatorCfg.RigidBodyPropertiesCfg(
+        max_depenetration_velocity=5.0,
+    ),
+    collision_props=SingleArmManipulatorCfg.CollisionPropertiesCfg(
+        contact_offset=0.005,
+        rest_offset=0.0,
     ),
     actuator_groups={
         "panda_shoulder": ActuatorGroupCfg(
