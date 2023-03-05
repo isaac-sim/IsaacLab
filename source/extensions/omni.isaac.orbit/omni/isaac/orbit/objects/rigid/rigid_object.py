@@ -110,13 +110,7 @@ class RigidObject:
         # apply rigid body properties API
         RigidPrim(prim_path=prim_path)
         # -- set rigid body properties
-        kit_utils.set_nested_rigid_body_properties(
-            prim_path,
-            max_linear_velocity=self.cfg.rigid_props.max_linear_velocity,
-            max_angular_velocity=self.cfg.rigid_props.max_angular_velocity,
-            max_depenetration_velocity=self.cfg.rigid_props.max_depenetration_velocity,
-            disable_gravity=self.cfg.rigid_props.disable_gravity,
-        )
+        kit_utils.set_nested_rigid_body_properties(prim_path, **self.cfg.rigid_props.to_dict())
         # create physics material
         if self.cfg.physics_material is not None:
             # -- resolve material path

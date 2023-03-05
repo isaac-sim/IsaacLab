@@ -26,6 +26,10 @@ class RigidObjectCfg:
     class RigidBodyPropertiesCfg:
         """Properties to apply to the rigid body."""
 
+        solver_position_iteration_count: Optional[int] = None
+        """Solver position iteration counts for the body."""
+        solver_velocity_iteration_count: Optional[int] = None
+        """Solver position iteration counts for the body."""
         max_linear_velocity: Optional[float] = 1000.0
         """Maximum linear velocity for rigid bodies. Defaults to 1000.0."""
         max_angular_velocity: Optional[float] = 1000.0
