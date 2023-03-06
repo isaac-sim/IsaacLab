@@ -356,6 +356,10 @@ class LiftEnv(IsaacEnv):
 class LiftObservationManager(ObservationManager):
     """Reward manager for single-arm reaching environment."""
 
+    def arm_dof_pos(self, env: LiftEnv):
+        """DOF positions for the arm."""
+        return env.robot.data.arm_dof_pos
+
     def arm_dof_pos_scaled(self, env: LiftEnv):
         """DOF positions for the arm normalized to its max and min ranges."""
         return scale_transform(
@@ -427,6 +431,10 @@ class LiftObservationManager(ObservationManager):
 
     def tool_actions(self, env: LiftEnv):
         """Last tool actions provided to env."""
+        return env.actions[:, -1].unsqueeze(1)
+
+    def tool_actions_bool(self, env: LiftEnv):
+        """Last tool actions transformed to a boolean command."""
         return torch.sign(env.actions[:, -1]).unsqueeze(1)
 
 
@@ -469,8 +477,8 @@ class LiftRewardManager(RewardManager):
         return -torch.sum(torch.square(env.actions[:, :-1] - env.previous_actions[:, :-1]), dim=1)
 
     def penalizing_tool_action_l2(self, env: LiftEnv):
-        """Penalize large variations in action commands in the tool."""
-        return -torch.square(env.actions[:, -1] - env.previous_actions[:, -1])
+        """Penalize large values in action commands for the tool."""
+        return -torch.square(env.actions[:, -1])
 
     def tracking_object_position_exp(self, env: LiftEnv, sigma: float, threshold: float):
         """Penalize tracking object position error using exp-kernel."""

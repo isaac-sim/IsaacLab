@@ -37,8 +37,8 @@ class ManipulationObjectCfg(RigidObjectCfg):
         pos=(0.4, 0.0, 0.075), rot=(1.0, 0.0, 0.0, 0.0), lin_vel=(0.0, 0.0, 0.0), ang_vel=(0.0, 0.0, 0.0)
     )
     rigid_props = RigidObjectCfg.RigidBodyPropertiesCfg(
-        solver_position_iteration_count=8,
-        solver_velocity_iteration_count=0,
+        solver_position_iteration_count=16,
+        solver_velocity_iteration_count=1,
         max_angular_velocity=1000.0,
         max_linear_velocity=1000.0,
         max_depenetration_velocity=5.0,
@@ -86,8 +86,8 @@ class RandomizationCfg:
         position_cat: str = "default"  # randomize position: "default", "uniform"
         orientation_cat: str = "default"  # randomize position: "default", "uniform"
         # randomize position
-        position_uniform_min = [0.25, -0.25, 0.25]  # position (x,y,z)
-        position_uniform_max = [0.5, 0.25, 0.25]  # position (x,y,z)
+        position_uniform_min = [0.4, -0.25, 0.075]  # position (x,y,z)
+        position_uniform_max = [0.6, 0.25, 0.075]  # position (x,y,z)
 
     @configclass
     class ObjectDesiredPoseCfg:
@@ -98,8 +98,8 @@ class RandomizationCfg:
         orientation_cat: str = "default"  # randomize position: "default", "uniform"
         # randomize position
         position_default = [0.5, 0.0, 0.5]  # position default (x,y,z)
-        position_uniform_min = [0.25, -0.25, 0.25]  # position (x,y,z)
-        position_uniform_max = [0.5, 0.25, 0.5]  # position (x,y,z)
+        position_uniform_min = [0.4, -0.25, 0.25]  # position (x,y,z)
+        position_uniform_max = [0.6, 0.25, 0.5]  # position (x,y,z)
         # randomize orientation
         orientation_default = [1.0, 0.0, 0.0, 0.0]  # orientation default
 
@@ -120,15 +120,18 @@ class ObservationsCfg:
         enable_corruption: bool = True
         # observation terms
         # -- joint state
-        # arm_dof_pos_scaled = {"scale": 1.0, "noise": {"name": "uniform", "min": -0.01, "max": 0.01}}
-        arm_dof_vel = {"scale": 0.5, "noise": {"name": "uniform", "min": -0.1, "max": 0.1}}
+        arm_dof_pos = {"scale": 1.0}
+        # arm_dof_pos_scaled = {"scale": 1.0}
+        # arm_dof_vel = {"scale": 0.5, "noise": {"name": "uniform", "min": -0.01, "max": 0.01}}
         tool_dof_pos_scaled = {"scale": 1.0}
         # -- end effector state
         tool_positions = {"scale": 1.0}
         tool_orientations = {"scale": 1.0}
         # -- object state
-        object_relative_tool_positions = {"scale": 1.0}
+        # object_positions = {"scale": 1.0}
         # object_orientations = {"scale": 1.0}
+        object_relative_tool_positions = {"scale": 1.0}
+        # object_relative_tool_orientations = {"scale": 1.0}
         # -- object desired state
         object_desired_positions = {"scale": 1.0}
         # -- previous action
@@ -146,18 +149,20 @@ class ObservationsCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # robot-centric
+    # -- robot-centric
     # reaching_object_position_l2 = {"weight": 0.0}
     # reaching_object_position_exp = {"weight": 2.5, "sigma": 0.25}
-    reaching_object_position_tanh = {"weight": 1.5, "sigma": 0.1}
+    reaching_object_position_tanh = {"weight": 2.5, "sigma": 0.1}
     # penalizing_arm_dof_velocity_l2 = {"weight": 1e-5}
     # penalizing_tool_dof_velocity_l2 = {"weight": 1e-5}
     # penalizing_robot_dof_acceleration_l2 = {"weight": 1e-7}
+    # -- action-centric
     penalizing_arm_action_rate_l2 = {"weight": 1e-2}
-    # object-centric
+    # penalizing_tool_action_l2 = {"weight": 1e-2}
+    # -- object-centric
     # tracking_object_position_exp = {"weight": 5.0, "sigma": 0.25, "threshold": 0.08}
-    tracking_object_position_tanh = {"weight": 5.0, "sigma": 0.1, "threshold": 0.08}
-    lifting_object_success = {"weight": 2.5, "threshold": 0.08}
+    tracking_object_position_tanh = {"weight": 5.0, "sigma": 0.2, "threshold": 0.08}
+    lifting_object_success = {"weight": 3.5, "threshold": 0.08}
 
 
 @configclass
@@ -197,7 +202,7 @@ class LiftEnvCfg(IsaacEnvCfg):
     """Configuration for the Lift environment."""
 
     # General Settings
-    env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=8.0)
+    env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=5.0)
     viewer: ViewerCfg = ViewerCfg(debug_vis=True, eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))
     # Physics settings
     sim: SimCfg = SimCfg(
