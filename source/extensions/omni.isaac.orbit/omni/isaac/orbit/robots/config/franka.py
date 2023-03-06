@@ -54,6 +54,9 @@ FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG = SingleArmManipulatorCfg(
         contact_offset=0.005,
         rest_offset=0.0,
     ),
+    articulation_props=SingleArmManipulatorCfg.ArticulationRootPropertiesCfg(
+        enable_self_collisions=True,
+    ),
     actuator_groups={
         "panda_shoulder": ActuatorGroupCfg(
             dof_names=["panda_joint[1-4]"],
