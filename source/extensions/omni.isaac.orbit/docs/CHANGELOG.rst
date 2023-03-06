@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.2.5 (2023-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`CollisionPropertiesCfg` to rigid/articulated object and robot base classes.
+* Added the :class:`PhysicsMaterialCfg` to the :class:`SingleArm` class for tool sites.
+
+Changed
+^^^^^^^
+
+* Changed the default control mode of the :obj:`PANDA_HAND_MIMIC_GROUP_CFG` to be from ``"v_abs"`` to ``"p_abs"``.
+  Using velocity control for the mimic group can cause the hand to move in a jerky manner.
+
+
 0.2.4 (2023-03-04)
 ~~~~~~~~~~~~~~~~~~
 
