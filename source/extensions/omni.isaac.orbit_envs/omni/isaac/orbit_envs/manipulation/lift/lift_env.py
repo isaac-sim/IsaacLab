@@ -16,7 +16,7 @@ from omni.isaac.orbit.markers import StaticMarker
 from omni.isaac.orbit.objects import RigidObject
 from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
 from omni.isaac.orbit.utils.dict import class_to_dict
-from omni.isaac.orbit.utils.math import random_orientation, sample_uniform, scale_transform
+from omni.isaac.orbit.utils.math import quat_inv, quat_mul, random_orientation, sample_uniform, scale_transform
 from omni.isaac.orbit.utils.mdp import ObservationManager, RewardManager
 
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv, VecEnvIndices, VecEnvObs
@@ -60,7 +60,9 @@ class LiftEnv(IsaacEnv):
         # compute the action space
         self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(self.num_actions,))
         print("[INFO]: Completed setting up the environment...")
+
         # Take an initial step to initialize the scene.
+        # This is required to compute quantities like Jacobians used in step().
         self.sim.step()
         # -- fill up buffers
         self.object.update_buffers(self.dt)
@@ -151,7 +153,7 @@ class LiftEnv(IsaacEnv):
             # offset actuator command with position offsets
             dof_pos_offset = self.robot.data.actuator_pos_offset
             self.robot_actions[:, : self.robot.arm_num_dof] -= dof_pos_offset[:, : self.robot.arm_num_dof]
-            # we assume last command is gripper action so don't change that
+            # we assume last command is tool action so don't change that
             self.robot_actions[:, -1] = self.actions[:, -1]
         elif self.cfg.control.control_type == "default":
             self.robot_actions[:] = self.actions
@@ -252,6 +254,8 @@ class LiftEnv(IsaacEnv):
         self.robot_actions = torch.zeros((self.num_envs, self.robot.num_actions), device=self.device)
         # commands
         self.object_des_pose_w = torch.zeros((self.num_envs, 7), device=self.device)
+        # buffers
+        self.object_root_pose_ee = torch.zeros((self.num_envs, 7), device=self.device)
         # time-step = 0
         self.object_init_pose_w = torch.zeros((self.num_envs, 7), device=self.device)
 
@@ -376,17 +380,54 @@ class LiftObservationManager(ObservationManager):
         """Current end-effector position of the arm."""
         return env.robot.data.ee_state_w[:, :3] - env.envs_positions
 
+    def tool_orientations(self, env: LiftEnv):
+        """Current end-effector orientation of the arm."""
+        # make the first element positive
+        quat_w = env.robot.data.ee_state_w[:, 3:7]
+        quat_w[quat_w[:, 0] < 0] *= -1
+        return quat_w
+
     def object_positions(self, env: LiftEnv):
         """Current object position."""
         return env.object.data.root_pos_w - env.envs_positions
+
+    def object_orientations(self, env: LiftEnv):
+        """Current object orientation."""
+        # make the first element positive
+        quat_w = env.object.data.root_quat_w
+        quat_w[quat_w[:, 0] < 0] *= -1
+        return quat_w
+
+    def object_relative_tool_positions(self, env: LiftEnv):
+        """Current object position w.r.t. end-effector frame."""
+        return env.object.data.root_pos_w - env.robot.data.ee_state_w[:, :3]
+
+    def object_relative_tool_orientations(self, env: LiftEnv):
+        """Current object orientation w.r.t. end-effector frame."""
+        # compute the relative orientation
+        quat_ee = quat_mul(quat_inv(env.robot.data.ee_state_w[:, 3:7]), env.object.data.root_quat_w)
+        # make the first element positive
+        quat_ee[quat_ee[:, 0] < 0] *= -1
+        return quat_ee
 
     def object_desired_positions(self, env: LiftEnv):
         """Desired object position."""
         return env.object_des_pose_w[:, 0:3] - env.envs_positions
 
-    def actions(self, env: LiftEnv):
-        """Last actions provided to env."""
-        return env.actions
+    def object_desired_orientations(self, env: LiftEnv):
+        """Desired object orientation."""
+        # make the first element positive
+        quat_w = env.object_des_pose_w[:, 3:7]
+        quat_w[quat_w[:, 0] < 0] *= -1
+        return quat_w
+
+    def arm_actions(self, env: LiftEnv):
+        """Last arm actions provided to env."""
+        return env.actions[:, :-1]
+
+    def tool_actions(self, env: LiftEnv):
+        """Last tool actions provided to env."""
+        return torch.sign(env.actions[:, -1]).unsqueeze(1)
 
 
 class LiftRewardManager(RewardManager):
@@ -398,27 +439,53 @@ class LiftRewardManager(RewardManager):
 
     def reaching_object_position_exp(self, env: LiftEnv, sigma: float):
         """Penalize end-effector tracking position error using exp-kernel."""
-        return torch.sum(torch.square(env.robot.data.ee_state_w[:, 0:3] - env.object.data.root_pos_w), dim=1)
+        error = torch.sum(torch.square(env.robot.data.ee_state_w[:, 0:3] - env.object.data.root_pos_w), dim=1)
+        return torch.exp(-error / sigma)
 
-    def penalizing_robot_dof_velocity_l2(self, env: LiftEnv):
+    def reaching_object_position_tanh(self, env: LiftEnv, sigma: float):
+        """Penalize tool sites tracking position error using tanh-kernel."""
+        # distance of end-effector to the object: (num_envs,)
+        ee_distance = torch.norm(env.robot.data.ee_state_w[:, 0:3] - env.object.data.root_pos_w, dim=1)
+        # distance of the tool sites to the object: (num_envs, num_tool_sites)
+        object_root_pos = env.object.data.root_pos_w.unsqueeze(1)  # (num_envs, 1, 3)
+        tool_sites_distance = torch.norm(env.robot.data.tool_sites_state_w[:, :, :3] - object_root_pos, dim=-1)
+        # average distance of the tool sites to the object: (num_envs,)
+        # note: we add the ee distance to the average to make sure that the ee is always closer to the object
+        num_tool_sites = tool_sites_distance.shape[1]
+        average_distance = (ee_distance + torch.sum(tool_sites_distance, dim=1)) / (num_tool_sites + 1)
+
+        return 1 - torch.tanh(average_distance / sigma)
+
+    def penalizing_arm_dof_velocity_l2(self, env: LiftEnv):
         """Penalize large movements of the robot arm."""
         return -torch.sum(torch.square(env.robot.data.arm_dof_vel), dim=1)
 
-    def penalizing_robot_dof_acceleration_l2(self, env: LiftEnv):
-        """Penalize fast movements of the robot arm."""
-        return -torch.sum(torch.square(env.robot.data.dof_acc), dim=1)
+    def penalizing_tool_dof_velocity_l2(self, env: LiftEnv):
+        """Penalize large movements of the robot tool."""
+        return -torch.sum(torch.square(env.robot.data.tool_dof_vel), dim=1)
 
-    def penalizing_action_rate_l2(self, env: LiftEnv):
-        """Penalize large variations in action commands."""
-        return -torch.sum(torch.square(env.actions - env.previous_actions), dim=1)
+    def penalizing_arm_action_rate_l2(self, env: LiftEnv):
+        """Penalize large variations in action commands besides tool."""
+        return -torch.sum(torch.square(env.actions[:, :-1] - env.previous_actions[:, :-1]), dim=1)
 
-    def tracking_object_position_exp(self, env: LiftEnv, sigma: float):
+    def penalizing_tool_action_l2(self, env: LiftEnv):
+        """Penalize large variations in action commands in the tool."""
+        return -torch.square(env.actions[:, -1] - env.previous_actions[:, -1])
+
+    def tracking_object_position_exp(self, env: LiftEnv, sigma: float, threshold: float):
         """Penalize tracking object position error using exp-kernel."""
-        initial_error = torch.sum(torch.square(env.object_des_pose_w[:, 0:3] - env.object_init_pose_w[:, 0:3]), dim=1)
-        current_error = torch.sum(torch.square(env.object_des_pose_w[:, 0:3] - env.object.data.root_pos_w), dim=1)
-        return torch.exp(-current_error / sigma) - torch.exp(-initial_error / sigma)
+        # distance of the end-effector to the object: (num_envs,)
+        error = torch.sum(torch.square(env.object_des_pose_w[:, 0:3] - env.object.data.root_pos_w), dim=1)
+        # rewarded if the object is lifted above the threshold
+        return (env.object.data.root_pos_w[:, 2] > threshold) * torch.exp(-error / sigma)
+
+    def tracking_object_position_tanh(self, env: LiftEnv, sigma: float, threshold: float):
+        """Penalize tracking object position error using tanh-kernel."""
+        # distance of the end-effector to the object: (num_envs,)
+        distance = torch.norm(env.object_des_pose_w[:, 0:3] - env.object.data.root_pos_w, dim=1)
+        # rewarded if the object is lifted above the threshold
+        return (env.object.data.root_pos_w[:, 2] > threshold) * (1 - torch.tanh(distance / sigma))
 
     def lifting_object_success(self, env: LiftEnv, threshold: float):
         """Sparse reward if object is lifted successfully."""
-        error = torch.sum(torch.square(env.object.data.root_pos_w - env.object_des_pose_w[:, 0:3]), dim=1)
-        return torch.where(error < threshold, 1.0, 0.0)
+        return torch.where(env.object.data.root_pos_w[:, 2] > threshold, 1.0, 0.0)

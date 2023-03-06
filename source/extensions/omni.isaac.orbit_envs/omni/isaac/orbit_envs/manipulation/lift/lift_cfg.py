@@ -37,9 +37,11 @@ class ManipulationObjectCfg(RigidObjectCfg):
         pos=(0.4, 0.0, 0.075), rot=(1.0, 0.0, 0.0, 0.0), lin_vel=(0.0, 0.0, 0.0), ang_vel=(0.0, 0.0, 0.0)
     )
     rigid_props = RigidObjectCfg.RigidBodyPropertiesCfg(
+        solver_position_iteration_count=8,
+        solver_velocity_iteration_count=0,
         max_angular_velocity=1000.0,
         max_linear_velocity=1000.0,
-        max_depenetration_velocity=10.0,
+        max_depenetration_velocity=5.0,
         disable_gravity=False,
     )
     physics_material = RigidObjectCfg.PhysicsMaterialCfg(
@@ -85,7 +87,7 @@ class RandomizationCfg:
         orientation_cat: str = "default"  # randomize position: "default", "uniform"
         # randomize position
         position_uniform_min = [0.25, -0.25, 0.25]  # position (x,y,z)
-        position_uniform_max = [0.5, 0.25, 0.5]  # position (x,y,z)
+        position_uniform_max = [0.5, 0.25, 0.25]  # position (x,y,z)
 
     @configclass
     class ObjectDesiredPoseCfg:
@@ -117,13 +119,21 @@ class ObservationsCfg:
         # global group settings
         enable_corruption: bool = True
         # observation terms
-        arm_dof_pos_scaled = {"scale": 1.0, "noise": {"name": "uniform", "min": -0.01, "max": 0.01}}
-        tool_dof_pos_scaled = {"scale": 1.0}
+        # -- joint state
+        # arm_dof_pos_scaled = {"scale": 1.0, "noise": {"name": "uniform", "min": -0.01, "max": 0.01}}
         arm_dof_vel = {"scale": 0.5, "noise": {"name": "uniform", "min": -0.1, "max": 0.1}}
-        tool_positions = {}
-        object_positions = {}
-        object_desired_positions = {}
-        actions = {}
+        tool_dof_pos_scaled = {"scale": 1.0}
+        # -- end effector state
+        tool_positions = {"scale": 1.0}
+        tool_orientations = {"scale": 1.0}
+        # -- object state
+        object_relative_tool_positions = {"scale": 1.0}
+        # object_orientations = {"scale": 1.0}
+        # -- object desired state
+        object_desired_positions = {"scale": 1.0}
+        # -- previous action
+        arm_actions = {"scale": 1.0}
+        tool_actions = {"scale": 1.0}
 
     # global observation settings
     return_dict_obs_in_group = False
@@ -137,14 +147,17 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # robot-centric
-    reaching_object_position_l2 = {"weight": 0.0}
-    reaching_object_position_exp = {"weight": 2.5, "sigma": 0.25}
-    penalizing_robot_dof_velocity_l2 = {"weight": 1e-4}
-    penalizing_robot_dof_acceleration_l2 = {"weight": 1e-7}
-    penalizing_action_rate_l2 = {"weight": 1e-2}
+    # reaching_object_position_l2 = {"weight": 0.0}
+    # reaching_object_position_exp = {"weight": 2.5, "sigma": 0.25}
+    reaching_object_position_tanh = {"weight": 1.5, "sigma": 0.1}
+    # penalizing_arm_dof_velocity_l2 = {"weight": 1e-5}
+    # penalizing_tool_dof_velocity_l2 = {"weight": 1e-5}
+    # penalizing_robot_dof_acceleration_l2 = {"weight": 1e-7}
+    penalizing_arm_action_rate_l2 = {"weight": 1e-2}
     # object-centric
-    tracking_object_position_exp = {"weight": 2.5, "sigma": 0.5}
-    lifting_object_success = {"weight": 0.0, "threshold": 1e-3}
+    # tracking_object_position_exp = {"weight": 5.0, "sigma": 0.25, "threshold": 0.08}
+    tracking_object_position_tanh = {"weight": 5.0, "sigma": 0.1, "threshold": 0.08}
+    lifting_object_success = {"weight": 2.5, "threshold": 0.08}
 
 
 @configclass
@@ -184,15 +197,18 @@ class LiftEnvCfg(IsaacEnvCfg):
     """Configuration for the Lift environment."""
 
     # General Settings
-    env: EnvCfg = EnvCfg(num_envs=1024, env_spacing=2.5, episode_length_s=4.0)
+    env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=8.0)
     viewer: ViewerCfg = ViewerCfg(debug_vis=True, eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))
     # Physics settings
     sim: SimCfg = SimCfg(
-        dt=1.0 / 60.0,
+        dt=0.01,
         substeps=1,
         physx=PhysxCfg(
-            gpu_found_lost_aggregate_pairs_capacity=512 * 1024,
-            gpu_total_aggregate_pairs_capacity=6 * 1024,
+            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+            gpu_total_aggregate_pairs_capacity=16 * 1024,
+            friction_correlation_distance=0.00625,
+            friction_offset_threshold=0.01,
+            bounce_threshold_velocity=0.2,
         ),
     )
 
