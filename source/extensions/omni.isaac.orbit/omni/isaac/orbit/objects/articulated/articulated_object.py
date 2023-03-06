@@ -133,6 +133,8 @@ class ArticulatedObject:
         # TODO: What if prim already exists in the stage and spawn isn't called?
         # apply rigid body properties
         kit_utils.set_nested_rigid_body_properties(prim_path, **self.cfg.rigid_props.to_dict())
+        # apply collision properties
+        kit_utils.set_nested_collision_properties(prim_path, **self.cfg.collision_props.to_dict())
         # articulation root settings
         kit_utils.set_articulation_properties(prim_path, **self.cfg.articulation_props.to_dict())
 

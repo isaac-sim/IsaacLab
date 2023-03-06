@@ -111,6 +111,8 @@ class RigidObject:
         RigidPrim(prim_path=prim_path)
         # -- set rigid body properties
         kit_utils.set_nested_rigid_body_properties(prim_path, **self.cfg.rigid_props.to_dict())
+        # apply collision properties
+        kit_utils.set_nested_collision_properties(prim_path, **self.cfg.collision_props.to_dict())
         # create physics material
         if self.cfg.physics_material is not None:
             # -- resolve material path

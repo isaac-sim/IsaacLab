@@ -41,6 +41,21 @@ class RigidObjectCfg:
         """Disable gravity for the actor. Defaults to False."""
 
     @configclass
+    class CollisionPropertiesCfg:
+        """Properties to apply to all collisions in the articulation."""
+
+        collision_enabled: Optional[bool] = None
+        """Whether to enable or disable collisions."""
+        contact_offset: Optional[float] = None
+        """Contact offset for the collision shape."""
+        rest_offset: Optional[float] = None
+        """Rest offset for the collision shape."""
+        torsional_patch_radius: Optional[float] = None
+        """Radius of the contact patch for applying torsional friction."""
+        min_torsional_patch_radius: Optional[float] = None
+        """Minimum radius of the contact patch for applying torsional friction."""
+
+    @configclass
     class PhysicsMaterialCfg:
         """Physics material applied to the rigid object."""
 
@@ -84,6 +99,8 @@ class RigidObjectCfg:
     """Initial state of the rigid object."""
     rigid_props: RigidBodyPropertiesCfg = RigidBodyPropertiesCfg()
     """Properties to apply to all rigid bodies in the object."""
+    collision_props: CollisionPropertiesCfg = CollisionPropertiesCfg()
+    """Properties to apply to all collisions in the articulation."""
     physics_material: Optional[PhysicsMaterialCfg] = PhysicsMaterialCfg()
     """Settings for the physics material to apply to the rigid object.
 

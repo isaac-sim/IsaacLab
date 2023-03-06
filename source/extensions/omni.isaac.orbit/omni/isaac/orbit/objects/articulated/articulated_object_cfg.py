@@ -45,6 +45,21 @@ class ArticulatedObjectCfg:
         """Carries over forces/accelerations over sub-steps."""
 
     @configclass
+    class CollisionPropertiesCfg:
+        """Properties to apply to all collisions in the articulation."""
+
+        collision_enabled: Optional[bool] = None
+        """Whether to enable or disable collisions."""
+        contact_offset: Optional[float] = None
+        """Contact offset for the collision shape."""
+        rest_offset: Optional[float] = None
+        """Rest offset for the collision shape."""
+        torsional_patch_radius: Optional[float] = None
+        """Radius of the contact patch for applying torsional friction."""
+        min_torsional_patch_radius: Optional[float] = None
+        """Minimum radius of the contact patch for applying torsional friction."""
+
+    @configclass
     class ArticulationRootPropertiesCfg:
         """Properties to apply to articulation."""
 
@@ -86,5 +101,7 @@ class ArticulatedObjectCfg:
     """Initial state of the articulated object."""
     rigid_props: RigidBodyPropertiesCfg = RigidBodyPropertiesCfg()
     """Properties to apply to all rigid bodies in the articulation."""
+    collision_props: CollisionPropertiesCfg = CollisionPropertiesCfg()
+    """Properties to apply to all collisions in the articulation."""
     articulation_props: ArticulationRootPropertiesCfg = ArticulationRootPropertiesCfg()
     """Properties to apply to articulation."""
