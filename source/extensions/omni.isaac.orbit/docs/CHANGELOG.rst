@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.5 (2023-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the indices used for the Jacobian and dynamics quantities in the :class:`MobileManipulator` class.
+
+
 0.2.4 (2023-03-04)
 ~~~~~~~~~~~~~~~~~~
 

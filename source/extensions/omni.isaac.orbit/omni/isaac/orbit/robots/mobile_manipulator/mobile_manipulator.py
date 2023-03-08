@@ -94,26 +94,26 @@ class MobileManipulator(SingleArmManipulator):
         # Note: we implement this function here to allow inherited classes decide whether these
         #   quantities need to be updated similarly or not.
         # -- dynamic state (note: base and tools don't contribute towards these quantities)
+        start_index = self.base_num_dof
+        end_index = start_index + self.arm_num_dof
         # jacobian
         if self.cfg.data_info.enable_jacobian:
             jacobians = self.articulations.get_jacobians(indices=self._ALL_INDICES, clone=False)
             # Returned jacobian: [batch, body, 6, dof] does not include the base body (i.e. the first link).
             # So we need to subtract 1 from the body index to get the correct jacobian.
-            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index - 1, :, self.base_num_dof : self.arm_num_dof]
+            self._data.ee_jacobian[:] = jacobians[:, self.ee_body_index - 1, :, start_index:end_index]
         # mass matrix
         if self.cfg.data_info.enable_mass_matrix:
             mass_matrices = self.articulations.get_mass_matrices(indices=self._ALL_INDICES, clone=False)
-            self._data.mass_matrix[:] = mass_matrices[
-                :, self.base_num_dof : self.arm_num_dof, self.base_num_dof : self.arm_num_dof
-            ]
+            self._data.mass_matrix[:] = mass_matrices[:, start_index:end_index, start_index:end_index]
         # coriolis
         if self.cfg.data_info.enable_coriolis:
             forces = self.articulations.get_coriolis_and_centrifugal_forces(indices=self._ALL_INDICES, clone=False)
-            self._data.coriolis[:] = forces[:, self.base_num_dof : self.arm_num_dof]
+            self._data.coriolis[:] = forces[:, start_index:end_index]
         # gravity
         if self.cfg.data_info.enable_gravity:
             gravity = self.articulations.get_generalized_gravity_forces(indices=self._ALL_INDICES, clone=False)
-            self._data.gravity[:] = gravity[:, self.base_num_dof : self.arm_num_dof]
+            self._data.gravity[:] = gravity[:, start_index:end_index]
 
 
 class LeggedMobileManipulator(MobileManipulator, LeggedRobot):
