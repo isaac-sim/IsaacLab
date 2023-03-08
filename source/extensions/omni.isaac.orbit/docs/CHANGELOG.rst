@@ -16,7 +16,7 @@ Fixed
 Added
 ^^^^^
 
-* Added the :meth:`apply_physics_material` and :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.core.utils.kit``.
+* Added :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.core.utils.kit``.
 * Added the :meth:`sample_cylinder` to sample points from a cylinder's surface.
 * Added documentation about the issue in using instanceable asset as markers.
 
@@ -28,7 +28,7 @@ Fixed
 Removed
 ^^^^^^^
 
-* Removed the ``geom_prim_rel_path`` argument in the :class:``RigidObjectCfg.MetaInfoCfg`` class.
+* Removed the ``geom_prim_rel_path`` argument in the :class:`RigidObjectCfg.MetaInfoCfg` class.
 
 
 0.2.3 (2023-02-24)
