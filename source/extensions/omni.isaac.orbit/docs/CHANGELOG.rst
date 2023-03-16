@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.2.5 (2023-03-06)
+0.2.6 (2023-03-16)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -17,13 +17,22 @@ Changed
   Using velocity control for the mimic group can cause the hand to move in a jerky manner.
 
 
+0.2.5 (2023-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the indices used for the Jacobian and dynamics quantities in the :class:`MobileManipulator` class.
+
+
 0.2.4 (2023-03-04)
 ~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added the :meth:`apply_physics_material` and :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.core.utils.kit``.
+* Added :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.core.utils.kit``.
 * Added the :meth:`sample_cylinder` to sample points from a cylinder's surface.
 * Added documentation about the issue in using instanceable asset as markers.
 
@@ -35,7 +44,7 @@ Fixed
 Removed
 ^^^^^^^
 
-* Removed the ``geom_prim_rel_path`` argument in the :class:``RigidObjectCfg.MetaInfoCfg`` class.
+* Removed the ``geom_prim_rel_path`` argument in the :class:`RigidObjectCfg.MetaInfoCfg` class.
 
 
 0.2.3 (2023-02-24)
