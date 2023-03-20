@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.3 (2023-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Tuned the observations and rewards for ``Isaac-Lift-Franka-v0`` environment.
+
 0.2.2 (2023-03-04)
 ~~~~~~~~~~~~~~~~~~
 

@@ -132,23 +132,11 @@ class ArticulatedObject:
 
         # TODO: What if prim already exists in the stage and spawn isn't called?
         # apply rigid body properties
-        kit_utils.set_nested_rigid_body_properties(
-            prim_path,
-            linear_damping=self.cfg.rigid_props.linear_damping,
-            angular_damping=self.cfg.rigid_props.angular_damping,
-            max_linear_velocity=self.cfg.rigid_props.max_linear_velocity,
-            max_angular_velocity=self.cfg.rigid_props.max_angular_velocity,
-            max_depenetration_velocity=self.cfg.rigid_props.max_depenetration_velocity,
-            disable_gravity=self.cfg.rigid_props.disable_gravity,
-            retain_accelerations=self.cfg.rigid_props.retain_accelerations,
-        )
+        kit_utils.set_nested_rigid_body_properties(prim_path, **self.cfg.rigid_props.to_dict())
+        # apply collision properties
+        kit_utils.set_nested_collision_properties(prim_path, **self.cfg.collision_props.to_dict())
         # articulation root settings
-        kit_utils.set_articulation_properties(
-            prim_path,
-            enable_self_collisions=self.cfg.articulation_props.enable_self_collisions,
-            solver_position_iteration_count=self.cfg.articulation_props.solver_position_iteration_count,
-            solver_velocity_iteration_count=self.cfg.articulation_props.solver_velocity_iteration_count,
-        )
+        kit_utils.set_articulation_properties(prim_path, **self.cfg.articulation_props.to_dict())
 
     def initialize(self, prim_paths_expr: Optional[str] = None):
         """Initializes the PhysX handles and internal buffers.

@@ -322,14 +322,14 @@ def set_rigid_body_properties(
         solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
         linear_damping (Optional[float]): Linear damping coefficient.
         angular_damping (Optional[float]): Angular damping coefficient.
-        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body.
-        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body.
+        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body (in m/s).
+        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body (in rad/s).
         sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an actor
             may go to sleep.
         stabilization_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which
             an actor may participate in stabilization.
         max_depenetration_velocity (Optional[float]): The maximum depenetration velocity permitted to
-            be introduced by the solver.
+            be introduced by the solver (in m/s).
         max_contact_impulse (Optional[float]): The limit on the impulse that may be applied at a contact.
         enable_gyroscopic_forces (Optional[bool]): Enables computation of gyroscopic forces on the
             rigid body.
@@ -408,12 +408,12 @@ def set_collision_properties(
     Args:
         prim_path (str): The prim path of parent.
         collision_enabled (Optional[bool], optional): Whether to enable/disable collider.
-        contact_offset (Optional[float], optional): Contact offset of a collision shape.
-        rest_offset (Optional[float], optional): Rest offset of a collision shape.
+        contact_offset (Optional[float], optional): Contact offset of a collision shape (in m).
+        rest_offset (Optional[float], optional): Rest offset of a collision shape (in m).
         torsional_patch_radius (Optional[float], optional): Defines the radius of the contact patch
-            used to apply torsional friction.
+            used to apply torsional friction (in m).
         min_torsional_patch_radius (Optional[float], optional): Defines the minimum radius of the
-            contact patch used to apply torsional friction.
+            contact patch used to apply torsional friction (in m).
 
     Raises:
         ValueError:  When no collision schema found at specified prim path.
@@ -536,14 +536,14 @@ def set_nested_rigid_body_properties(prim_path: str, **kwargs):
         solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
         linear_damping (Optional[float]): Linear damping coefficient.
         angular_damping (Optional[float]): Angular damping coefficient.
-        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body.
-        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body.
+        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body (in m/s).
+        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body (in rad/s).
         sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an actor
             may go to sleep.
         stabilization_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which
             an actor may participate in stabilization.
         max_depenetration_velocity (Optional[float]): The maximum depenetration velocity permitted to
-            be introduced by the solver.
+            be introduced by the solver (in m/s).
         max_contact_impulse (Optional[float]): The limit on the impulse that may be applied at a contact.
         enable_gyroscopic_forces (Optional[bool]): Enables computation of gyroscopic forces on the
             rigid body.
@@ -575,12 +575,12 @@ def set_nested_collision_properties(prim_path: str, **kwargs):
 
     Keyword Args:
         collision_enabled (Optional[bool], optional): Whether to enable/disable collider.
-        contact_offset (Optional[float], optional): Contact offset of a collision shape.
-        rest_offset (Optional[float], optional): Rest offset of a collision shape.
+        contact_offset (Optional[float], optional): Contact offset of a collision shape (in m).
+        rest_offset (Optional[float], optional): Rest offset of a collision shape (in m).
         torsional_patch_radius (Optional[float], optional): Defines the radius of the contact patch
-            used to apply torsional friction.
+            used to apply torsional friction (in m).
         min_torsional_patch_radius (Optional[float], optional): Defines the minimum radius of the
-            contact patch used to apply torsional friction.
+            contact patch used to apply torsional friction (in m).
     """
     # get USD prim
     prim = prim_utils.get_prim_at_path(prim_path)

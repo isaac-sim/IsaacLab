@@ -33,15 +33,31 @@ class ArticulatedObjectCfg:
         angular_damping: Optional[float] = None
         """Angular damping coefficient."""
         max_linear_velocity: Optional[float] = 1000.0
-        """Maximum linear velocity for rigid bodies. Defaults to 1000.0."""
+        """Maximum linear velocity for rigid bodies (in m/s). Defaults to 1000.0."""
         max_angular_velocity: Optional[float] = 1000.0
-        """Maximum angular velocity for rigid bodies. Defaults to 1000.0."""
+        """Maximum angular velocity for rigid bodies (in rad/s). Defaults to 1000.0."""
         max_depenetration_velocity: Optional[float] = 10.0
-        """Maximum depenetration velocity permitted to be introduced by the solver. Defaults to 10.0."""
+        """Maximum depenetration velocity permitted to be introduced by the solver (in m/s).
+        Defaults to 10.0."""
         disable_gravity: Optional[bool] = False
         """Disable gravity for the actor. Defaults to False."""
         retain_accelerations: Optional[bool] = None
         """Carries over forces/accelerations over sub-steps."""
+
+    @configclass
+    class CollisionPropertiesCfg:
+        """Properties to apply to all collisions in the articulation."""
+
+        collision_enabled: Optional[bool] = None
+        """Whether to enable or disable collisions."""
+        contact_offset: Optional[float] = None
+        """Contact offset for the collision shape."""
+        rest_offset: Optional[float] = None
+        """Rest offset for the collision shape."""
+        torsional_patch_radius: Optional[float] = None
+        """Radius of the contact patch for applying torsional friction."""
+        min_torsional_patch_radius: Optional[float] = None
+        """Minimum radius of the contact patch for applying torsional friction."""
 
     @configclass
     class ArticulationRootPropertiesCfg:
@@ -85,5 +101,7 @@ class ArticulatedObjectCfg:
     """Initial state of the articulated object."""
     rigid_props: RigidBodyPropertiesCfg = RigidBodyPropertiesCfg()
     """Properties to apply to all rigid bodies in the articulation."""
+    collision_props: CollisionPropertiesCfg = CollisionPropertiesCfg()
+    """Properties to apply to all collisions in the articulation."""
     articulation_props: ArticulationRootPropertiesCfg = ArticulationRootPropertiesCfg()
     """Properties to apply to articulation."""

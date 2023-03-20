@@ -26,14 +26,34 @@ class RigidObjectCfg:
     class RigidBodyPropertiesCfg:
         """Properties to apply to the rigid body."""
 
+        solver_position_iteration_count: Optional[int] = None
+        """Solver position iteration counts for the body."""
+        solver_velocity_iteration_count: Optional[int] = None
+        """Solver position iteration counts for the body."""
         max_linear_velocity: Optional[float] = 1000.0
-        """Maximum linear velocity for rigid bodies. Defaults to 1000.0."""
+        """Maximum linear velocity for rigid bodies (in m/s). Defaults to 1000.0."""
         max_angular_velocity: Optional[float] = 1000.0
-        """Maximum angular velocity for rigid bodies. Defaults to 1000.0."""
+        """Maximum angular velocity for rigid bodies (in rad/s). Defaults to 1000.0."""
         max_depenetration_velocity: Optional[float] = 10.0
-        """Maximum depenetration velocity permitted to be introduced by the solver. Defaults to 10.0."""
+        """Maximum depenetration velocity permitted to be introduced by the solver (in m/s).
+        Defaults to 10.0."""
         disable_gravity: Optional[bool] = False
         """Disable gravity for the actor. Defaults to False."""
+
+    @configclass
+    class CollisionPropertiesCfg:
+        """Properties to apply to all collisions in the articulation."""
+
+        collision_enabled: Optional[bool] = None
+        """Whether to enable or disable collisions."""
+        contact_offset: Optional[float] = None
+        """Contact offset for the collision shape."""
+        rest_offset: Optional[float] = None
+        """Rest offset for the collision shape."""
+        torsional_patch_radius: Optional[float] = None
+        """Radius of the contact patch for applying torsional friction."""
+        min_torsional_patch_radius: Optional[float] = None
+        """Minimum radius of the contact patch for applying torsional friction."""
 
     @configclass
     class PhysicsMaterialCfg:
@@ -79,6 +99,8 @@ class RigidObjectCfg:
     """Initial state of the rigid object."""
     rigid_props: RigidBodyPropertiesCfg = RigidBodyPropertiesCfg()
     """Properties to apply to all rigid bodies in the object."""
+    collision_props: CollisionPropertiesCfg = CollisionPropertiesCfg()
+    """Properties to apply to all collisions in the articulation."""
     physics_material: Optional[PhysicsMaterialCfg] = PhysicsMaterialCfg()
     """Settings for the physics material to apply to the rigid object.
 
