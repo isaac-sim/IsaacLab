@@ -182,12 +182,12 @@ use the following command:
 
 
 .. note::
-   
+
       If you are using ``conda`` to create a virtual environment, make sure to
       activate the environment before running any scripts. For example:
-   
+
       .. code:: bash
-   
+
          conda activate orbit
 
 
