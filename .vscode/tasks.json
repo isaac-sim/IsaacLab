@@ -4,6 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
+            // setup python env
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
@@ -11,6 +12,15 @@
             }
         },
         {
+            // setup python env with conda
+            "label": "setup_python_env_conda",
+            "type": "shell",
+            "linux": {
+                "command": "source $(conda info --base)/etc/profile.d/conda.sh && conda activate orbit && printenv >${workspaceFolder}/.vscode/.python.env && python3 ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+            }
+        },
+        {
+            // run formatter
             "label": "run_formatter",
             "type": "shell",
             "linux": {
