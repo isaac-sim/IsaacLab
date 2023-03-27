@@ -29,8 +29,14 @@ extract_isaacsim_python() {
         # Use TeamCity build
         build_path=${ORBIT_PATH}/_isaac_sim
     fi
-    # python executable to use
-    local python_exe=${build_path}/python.sh
+    # check if using conda
+    if ! [[ -z "${CONDA_PREFIX}" ]]; then
+        # use conda python
+        local python_exe=${CONDA_PREFIX}/bin/python
+    else
+        # use python from kit
+        local python_exe=${build_path}/kit/python/bin/python3
+    fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
         echo "[ERROR] No python executable found at path: ${build_path}" >&2
@@ -75,6 +81,75 @@ install_orbit_extension() {
     fi
 }
 
+# setup anaconda environment for orbit
+setup_conda_env() {
+    # get environment name from input
+    local env_name=$1
+    # check conda is installed
+    if ! command -v conda &> /dev/null
+    then
+        echo "[ERROR] Conda could not be found. Please install conda and try again."
+        exit 1
+    fi
+    # Check if IsaacSim directory manually specified
+    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
+    if [ ! -z ${ISAACSIM_PATH} ];
+    then
+        # Use local build
+        build_path=${ISAACSIM_PATH}
+    else
+        # Use TeamCity build
+        build_path=${ORBIT_PATH}/_isaac_sim
+    fi
+    # check if the environment exists
+    if { conda env list | grep ${env_name}; } >/dev/null 2>&1; then
+        echo -e "[INFO] Conda environment named '${env_name}' already exists."
+    else
+        echo -e "[INFO] Creating conda environment named '${env_name}'..."
+        conda env create --name ${env_name} -f ${build_path}/environment.yml
+    fi
+    # cache current paths for later
+    cache_pythonpath=$PYTHONPATH
+    cache_ld_library_path=$LD_LIBRARY_PATH
+    # clear any existing files
+    rm -f ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    rm -f ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    # activate the environment
+    source $(conda info --base)/etc/profile.d/conda.sh
+    conda activate ${env_name}
+    # setup directories to load isaac-sim variables
+    mkdir -p ${CONDA_PREFIX}/etc/conda/activate.d
+    mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
+    # add variables to environment during activation
+    local isaacsim_setup_conda_env_script=${ORBIT_PATH}/_isaac_sim/setup_conda_env.sh
+    printf '%s\n' '#!/bin/bash' '' \
+        '# for isaac-sim' \
+        'source '${isaacsim_setup_conda_env_script}'' \
+        '' \
+        '# for orbit' \
+        'alias orbit='${ORBIT_PATH}'/orbit.sh' \
+        '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    # reactivate the environment to load the variables
+    # needed because deactivate complains about orbit alias since it otherwise doens't exist
+    conda activate ${env_name}
+    # remove variables from environment during deactivation
+    printf '%s\n' '#!/bin/bash' '' \
+        '# for orbit' \
+        'unalias orbit' \
+        '' \
+        '# for isaac-sim' \
+        'unset CARB_APP_PATH' \
+        'unset EXP_PATH' \
+        'unset ISAAC_PATH' \
+        '' \
+        '# restore paths' \
+        'export PYTHONPATH='${cache_pythonpath}'' \
+        'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
+        '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    # deactivate the environment
+    conda deactivate
+}
+
 # update the vscode settings from template and isaac sim settings
 update_vscode_settings() {
     echo "[INFO] Setting up vscode settings..."
@@ -86,15 +161,16 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] -- Utility to manage extensions in Isaac Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-c] -- Utility to manage extensions in Orbit."
     echo -e "\noptional arguments:"
-    echo -e "\t-h, --help       Display the help content."
-    echo -e "\t-i, --install    Install the extensions inside Isaac Orbit."
-    echo -e "\t-e, --extra      Install extra dependencies such as the learning frameworks."
-    echo -e "\t-f, --format     Run pre-commit to format the code and check lints."
-    echo -e "\t-p, --python     Run the python executable (python.sh) provided by Isaac Sim."
-    echo -e "\t-s, --sim        Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
-    echo -e "\t-v, --vscode     Generate the VSCode settings file from template."
+    echo -e "\t-h, --help           Display the help content."
+    echo -e "\t-i, --install        Install the extensions inside Isaac Orbit."
+    echo -e "\t-e, --extra          Install extra dependencies such as the learning frameworks."
+    echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
+    echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
+    echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
+    echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
+    echo -e "\t-c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'."
     echo -e "\n" >&2
 }
 
@@ -135,6 +211,20 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_isaacsim_python)
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
+            shift # past argument
+            ;;
+        -c|--conda)
+            # use default name if not provided
+            if [ -z "$2" ]; then
+                echo "[INFO] Using default conda environment name: orbit"
+                conda_env_name="orbit"
+            else
+                echo "[INFO] Using conda environment name: $2"
+                conda_env_name=$2
+                shift # past argument
+            fi
+            # setup the conda environment for orbit
+            setup_conda_env ${conda_env_name}
             shift # past argument
             ;;
         -f|--format)

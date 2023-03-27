@@ -130,43 +130,69 @@ Organizing the workspace
       # create a symbolic link
       ln -s ${ISAACSIM_PATH} _isaac_sim
 
-Building extensions
-~~~~~~~~~~~~~~~~~~~
-
-We provide a helper executable ```orbit.sh`` <orbit.sh>`__ that provides
+We provide a helper executable `orbit.sh <https://github.com/NVIDIA-Omniverse/Orbit/blob/main/orbit.sh>`_ that provides
 utilities to manage extensions:
 
-.. code:: bash
+.. code:: text
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-v] -- Utility to manage extensions in Isaac Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-c] -- Utility to manage extensions in Orbit.
 
    optional arguments:
-       -h, --help       Display the help content.
-       -i, --install    Install the extensions inside Isaac Orbit.
-       -e, --extra      Install extra dependencies such as the learning frameworks.
-       -f, --format     Run pre-commit to format the code and check lints.
-       -p, --python     Run the python executable (python.sh) provided by Isaac Sim.
-       -s, --sim        Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
-       -v, --vscode     Generate the VSCode settings file from template.
+      -h, --help           Display the help content.
+      -i, --install        Install the extensions inside Isaac Orbit.
+      -e, --extra          Install extra dependencies such as the learning frameworks.
+      -f, --format         Run pre-commit to format the code and check lints.
+      -p, --python         Run the python executable (python.sh) provided by Isaac Sim.
+      -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
+      -v, --vscode         Generate the VSCode settings file from template.
+      -c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'.
 
-The executable automatically fetches the python bundled with Isaac
-Sim, using ``./orbit.sh -p`` command. To not restrict running commands
-only from the top of this repository (where the README.md is located),
-we recommend adding the executable to your environment variables in
-your ``.bashrc`` or ``.zshrc`` file as an alias command. This can be
-achieved running the following on your terminal:
-
+To not restrict running commands only from the top of this repository
+(where the README.md is located), we recommend adding the executable to your environment
+variables in your ``.bashrc`` or ``.zshrc`` file as an alias command. This can be achieved
+running the following on your terminal:
 
 .. code:: bash
 
    # note: execute the command from where the `orbit.sh` executable exists
-   # for bash users
+   # option1: for bash users
    echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.bashrc
-   # for zshell users
+   # option2: for zshell users
    echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.zshrc
 
+Setting up the environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The executable ``orbit.sh`` automatically fetches the python bundled with Isaac
+Sim, using ``./orbit.sh -p`` command (unless inside a virtual environment). This executable
+behaves like a python executable, and can be used to run any python script or
+module with the simulator. For more information, please refer to the
+`documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_python.html>`__.
+
+Although using a virtual environment is optional, we recommend using ``conda``. To install
+``conda``, please follow the instructions `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__.
+In case you want to use ``conda`` to create a virtual environment, you can
+use the following command:
+
+.. code:: bash
+
+   ./orbit.sh --conda  # or `./orbit.sh -c`
+
+
+.. note::
+   
+      If you are using ``conda`` to create a virtual environment, make sure to
+      activate the environment before running any scripts. For example:
+   
+      .. code:: bash
+   
+         conda activate orbit
+
+
+Building extensions
+~~~~~~~~~~~~~~~~~~~
 
 To build all the extensions, run the following commands:
 
