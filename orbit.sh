@@ -134,7 +134,7 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             python_exe=$(extract_isaacsim_python)
             # install the rl-frameworks specified
-            ${python_exe} ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
+            ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
             shift # past argument
             ;;
         -f|--format)
