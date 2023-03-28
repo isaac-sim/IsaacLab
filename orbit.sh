@@ -18,7 +18,7 @@ export ORBIT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd 
 #==
 
 # extract the python from isaacsim
-extract_isaacsim_python() {
+extract_python_exe() {
     # Check if IsaacSim directory manually specified
     # Note: for manually build isaacsim, this: _build/linux-x86_64/release
     if [ ! -z ${ISAACSIM_PATH} ];
@@ -72,7 +72,7 @@ extract_isaacsim_exe() {
 # check if input directory is a python extension and install the module
 install_orbit_extension() {
     # retrieve the python executable
-    python_exe=$(extract_isaacsim_python)
+    python_exe=$(extract_python_exe)
     # if the directory contains setup.py then install the python module
     if [ -f "$1/setup.py" ];
     then
@@ -135,7 +135,7 @@ setup_conda_env() {
     # remove variables from environment during deactivation
     printf '%s\n' '#!/bin/bash' '' \
         '# for orbit' \
-        'unalias orbit' \
+        'unalias orbit &>/dev/null' \
         '' \
         '# for isaac-sim' \
         'unset CARB_APP_PATH' \
@@ -154,7 +154,7 @@ setup_conda_env() {
 update_vscode_settings() {
     echo "[INFO] Setting up vscode settings..."
     # retrieve the python executable
-    python_exe=$(extract_isaacsim_python)
+    python_exe=$(extract_python_exe)
     # run the setup script
     ${python_exe} ${ORBIT_PATH}/.vscode/tools/setup_vscode.py
 }
@@ -195,7 +195,7 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Installing extensions inside orbit repository..."
             # recursively look into directories and install them
             # this does not check dependencies between extensions
-            export -f extract_isaacsim_python
+            export -f extract_python_exe
             export -f install_orbit_extension
             # source directory
             find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
@@ -208,7 +208,7 @@ while [[ $# -gt 0 ]]; do
         -e|--extra)
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
-            python_exe=$(extract_isaacsim_python)
+            python_exe=$(extract_python_exe)
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_envs[all]
             shift # past argument
@@ -228,24 +228,35 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             ;;
         -f|--format)
+            # reset the python path to avoid conflicts with pre-commit
+            # this is needed because the pre-commit hooks are installed in a separate virtual environment
+            # and it uses the system python to run the hooks
+            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+                cache_pythonpath=${PYTHONPATH}
+                export PYTHONPATH=""
+            fi
             # run the formatter over the repository
             # check if pre-commit is installed
             if ! command -v pre-commit &>/dev/null; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
             fi
-            echo "[INFO] Formatting the repository..."
             # always execute inside the Orbit directory
-            cd "${ORBIT_PATH}"
+            echo "[INFO] Formatting the repository..."
+            cd ${ORBIT_PATH}
             pre-commit run --all-files
-            cd -
+            cd - > /dev/null
+            # set the python path back to the original value
+            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+                export PYTHONPATH=${cache_pythonpath}
+            fi
             shift # past argument
             # exit neatly
             break
             ;;
         -p|--python)
             # run the python provided by isaacsim
-            python_exe=$(extract_isaacsim_python)
+            python_exe=$(extract_python_exe)
             echo "[INFO] Using python from: ${python_exe}"
             shift # past argument
             ${python_exe} $@
