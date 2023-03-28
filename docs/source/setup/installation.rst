@@ -137,7 +137,7 @@ utilities to manage extensions:
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-c] -- Utility to manage extensions in Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage extensions in Orbit.
 
    optional arguments:
       -h, --help           Display the help content.
@@ -147,6 +147,7 @@ utilities to manage extensions:
       -p, --python         Run the python executable (python.sh) provided by Isaac Sim.
       -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
       -v, --vscode         Generate the VSCode settings file from template.
+      -d, --docs           Build the documentation from source using sphinx.
       -c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'.
 
 To not restrict running commands only from the top of this repository

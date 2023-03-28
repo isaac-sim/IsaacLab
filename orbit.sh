@@ -181,7 +181,7 @@ print_help () {
     echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
-    echo -e "\t-d, --docs           Build documentation from source and open it on a browser."
+    echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'."
     echo -e "\n" >&2
 }
