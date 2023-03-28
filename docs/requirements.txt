@@ -1,4 +1,5 @@
 # for building the docs
+importlib-metadata==4.11.3
 Jinja2==3.0.3
 Sphinx==4.5.0
 sphinx-book-theme==0.3.3

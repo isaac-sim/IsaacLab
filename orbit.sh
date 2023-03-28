@@ -172,7 +172,7 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-c] -- Utility to manage extensions in Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install        Install the extensions inside Isaac Orbit."
@@ -181,6 +181,7 @@ print_help () {
     echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
+    echo -e "\t-d, --docs           Build documentation from source and open it on a browser."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'."
     echo -e "\n" >&2
 }
@@ -286,6 +287,25 @@ while [[ $# -gt 0 ]]; do
         -v|--vscode)
             # update the vscode settings
             update_vscode_settings
+            shift # past argument
+            # exit neatly
+            break
+            ;;
+        -d|--docs)
+            # build the documentation
+            echo "[INFO] Building documentation..."
+            # retrieve the python executable
+            python_exe=$(extract_python_exe)
+            # install pip packages
+            cd ${ORBIT_PATH}/docs
+            ${python_exe} -m pip install -r requirements.txt > /dev/null
+            # build the documentation
+            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html > /dev/null
+            # open the documentation
+            echo -e "[INFO] To open documentation on default browser, run:"
+            echo -e "\n\t\txdg-open $(pwd)/_build/html/index.html\n"
+            # exit neatly
+            cd - > /dev/null
             shift # past argument
             # exit neatly
             break
