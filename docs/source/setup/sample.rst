@@ -73,6 +73,20 @@ useful to ensure that the environments are configured correctly.
 
       ./orbit.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
+
+State machine
+~~~~~~~~~~~~~
+
+We include examples on hand-crafted state machines for the environments. These
+help in understanding the environment and how to use the provided interfaces.
+The state machines are written in `warp <https://github.com/NVIDIA/warp>`__ which
+allows efficient execution for large number of environments using CUDA kernels.
+
+.. code:: bash
+
+   ./orbit.sh -p source/standalone/environments/state_machine/play_lift.py --num_envs 32
+
+
 Teleoperation
 ~~~~~~~~~~~~~
 
