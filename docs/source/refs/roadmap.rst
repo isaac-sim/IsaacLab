@@ -41,9 +41,20 @@ If you have any questions or suggestions, let us know on
 
 **February 2023**
 
+* |check_| Bug fixes and improvements to the functional API
+* |check_| Support for `skrl <https://github.com/Toni-SM/skrl>`_ (a library for reinforcement learning)
+
+**March 2023**
+
+* |check_| Support for conda virtual environment
+* |check_| Example of using warp-based state machine for task-space manipulation
+* |uncheck| Example on using the APIs in an Omniverse extension
+
+**April or May 2023**
+
 * |uncheck| Add APIs for rough terrain generation
 * |uncheck| Extend MDP manager classes to use sensor observations
-* |uncheck| Example on using the APIs in an Omniverse extension
+
 * Supported motion generators
 
   * |uncheck| Operational-space control
@@ -65,9 +76,9 @@ If you have any questions or suggestions, let us know on
   * |uncheck| rigid-object manipulation: in-hand manipulation, hockey puck pushing, peg-in-hole, stacking
   * |uncheck| deformable-object manipulation: cloth folding, cloth lifting
 
-**March or April 2023**
+**May 2023**
 
-* |uncheck| Add functional versions of all environments
+* Update environments to use `gym.Env` interface from `Gymnasium <https://github.com/Farama-Foundation/Gymnasium>`_
 * Supported sensors
 
   * |uncheck| Cameras (parallelized)
@@ -76,7 +87,7 @@ If you have any questions or suggestions, let us know on
 
   * |uncheck| deformable-object manipulation: fluid transfer, fluid pouring, soft object lifting
 
-**May 2023**
+**June 2023**
 
 * |uncheck| Stabilize APIs and release 1.0
 
