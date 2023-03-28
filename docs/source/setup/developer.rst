@@ -29,7 +29,7 @@ To setup the IDE, please follow these instructions:
 1. Open the ``orbit`` directory on Visual Studio Code IDE
 2. Run VSCode
    `Tasks <https://code.visualstudio.com/docs/editor/tasks>`__, by
-   pressing **``Ctrl+Shift+P``**, selecting ``Tasks: Run Task`` and
+   pressing ``Ctrl+Shift+P``, selecting ``Tasks: Run Task`` and
    running the ``setup_python_env`` in the drop down menu.
 
    .. image:: ../_static/vscode_tasks.png
@@ -50,19 +50,27 @@ following links:
 * `Debugging with VSCode <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_advanced_python_debugging.html>`__
 
 
-.. note::
+Configuring the python interpreter
+----------------------------------
 
-   In the provided configuration, we set the default python interpreter to use the
-   python executable provided by Omniverse. This is specified in the
-   ``.vscode/settings.json`` file:
+In the provided configuration, we set the default python interpreter to use the
+python executable provided by Omniverse. This is specified in the
+``.vscode/settings.json`` file:
 
-   .. code-block:: json
+.. code-block:: json
 
-      {
-         "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
-         "python.envFile": "${workspaceFolder}/.vscode/.python.env",
-      }
+   {
+      "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
+      "python.envFile": "${workspaceFolder}/.vscode/.python.env",
+   }
 
+If you want to use a different python interpreter (for instance, from your conda environment),
+you need to change the python interpreter used by selecting and activating the python interpreter
+of your choice in the bottom left corner of VSCode, or opening the command palette (``Ctrl+Shift+P``)
+and selecting ``Python: Select Interpreter``.
+
+For more information on how to set python interpreter for VSCode, please
+refer to the `VSCode documentation <https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters>`_.
 
 Repository organization
 -----------------------

@@ -107,7 +107,8 @@ def main():
     # overwrite the python.analysis.extraPaths in the orbit settings file with the path names
     orbit_settings = overwrite_python_analysis_extra_paths(orbit_template_settings)
     # overwrite the default python interpreter in the orbit settings file
-    orbit_settings = overwrite_default_python_interpreter(orbit_settings)
+    # NOTE: thisis disabled since we don't need it. The default interpreter should always be the one from isaac-sim
+    # orbit_settings = overwrite_default_python_interpreter(orbit_settings)
 
     # add template notice to the top of the file
     header_message = (
