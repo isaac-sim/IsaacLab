@@ -146,8 +146,19 @@ setup_conda_env() {
         'export PYTHONPATH='${cache_pythonpath}'' \
         'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
         '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    # install some extra dependencies
+    conda install -c conda-forge -y importlib_metadata &> /dev/null
     # deactivate the environment
     conda deactivate
+    # add information to the user about alias
+    echo -e "[INFO] Added 'orbit' alias to conda environment for 'orbit.sh' script."
+    echo -e "[INFO] Created conda environment named '${env_name}'.\n"
+    echo -e "\t\t1. To activate the enviornment, run:                conda activate ${env_name}"
+    echo -e "\t\t2. To install orbit extensions, run:                orbit -i"
+    echo -e "\t\t3. To install learning-related dependencies, run:   orbit -e"
+    echo -e "\t\t4. To perform formatting, run:                      orbit -f"
+    echo -e "\t\t5. To deactivate the environment, run:              conda deactivate"
+    echo -e "\n"
 }
 
 # update the vscode settings from template and isaac sim settings
