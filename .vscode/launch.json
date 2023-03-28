@@ -14,7 +14,6 @@
                 "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
                 "RESOURCE_NAME": "IsaacSim"
             },
-            "python": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
             "envFile": "${workspaceFolder}/.vscode/.python.env",
             "preLaunchTask": "setup_python_env"
         },
