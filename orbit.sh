@@ -35,7 +35,7 @@ extract_python_exe() {
         local python_exe=${CONDA_PREFIX}/bin/python
     else
         # use python from kit
-        local python_exe=${build_path}/kit/python/bin/python3
+        local python_exe=${build_path}/python.sh
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
