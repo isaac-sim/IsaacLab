@@ -128,6 +128,9 @@ setup_conda_env() {
         '' \
         '# for orbit' \
         'alias orbit='${ORBIT_PATH}'/orbit.sh' \
+        '' \
+        '# show icon if not runninng headless' \
+        'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
     # reactivate the environment to load the variables
     # needed because deactivate complains about orbit alias since it otherwise doens't exist
@@ -141,6 +144,7 @@ setup_conda_env() {
         'unset CARB_APP_PATH' \
         'unset EXP_PATH' \
         'unset ISAAC_PATH' \
+        'unset RESOURCE_NAME' \
         '' \
         '# restore paths' \
         'export PYTHONPATH='${cache_pythonpath}'' \
