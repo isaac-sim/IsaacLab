@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.2.7 (2023-04-07)
+
+Fixed
+^^^^^
+
+* Fixed repetition in applying mimic multiplier for "p_abs" in the :class:`GripperActuatorGroup` class.
+* Fixed bugs in :meth:`reset_buffers` in the :class:`RobotBase` and :class:`LeggedRobot` classes.
+
 0.2.6 (2023-03-16)
 ~~~~~~~~~~~~~~~~~~
 
