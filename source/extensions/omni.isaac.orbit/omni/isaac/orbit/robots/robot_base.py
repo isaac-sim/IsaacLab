@@ -192,7 +192,7 @@ class RobotBase:
         # reset history
         self._previous_dof_vel[env_ids] = 0
         # TODO: Reset other cached variables.
-        self.articulations.set_joint_efforts(self._ZERO_JOINT_EFFORT, indices=self._ALL_INDICES)
+        self.articulations.set_joint_efforts(self._ZERO_JOINT_EFFORT[env_ids], indices=env_ids)
         # reset actuators
         for group in self.actuator_groups.values():
             group.reset(env_ids)
