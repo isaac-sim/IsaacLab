@@ -100,9 +100,12 @@ class LeggedRobot(RobotBase):
     def reset_buffers(self, env_ids: Optional[Sequence[int]] = None):
         # reset parent buffers
         super().reset_buffers(env_ids)
+        # use ellipses object to skip initial indices.
+        if env_ids is None:
+            env_ids = ...
         # reset timers
-        self._ongoing_feet_air_time[:] = 0.0
-        self._data.feet_air_time[:] = 0.0
+        self._ongoing_feet_air_time[env_ids] = 0.0
+        self._data.feet_air_time[env_ids] = 0.0
 
     def update_buffers(self, dt: float):
         # update parent buffers
