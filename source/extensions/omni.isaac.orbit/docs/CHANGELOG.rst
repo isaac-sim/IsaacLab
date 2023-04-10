@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.2.8 (2023-04-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed bugs in :meth:`axis_angle_from_quat` in the ``omni.isaac.orbit.core.utils.math``.
+* Fixed bugs in :meth:`subtract_frame_transforms` in the ``omni.isaac.orbit.core.utils.math``.
+
+
 0.2.7 (2023-04-07)
 
 Fixed
