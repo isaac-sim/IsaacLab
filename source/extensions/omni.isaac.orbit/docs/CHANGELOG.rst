@@ -7,8 +7,8 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed bugs in :meth:`axis_angle_from_quat` in the ``omni.isaac.orbit.core.utils.math``.
-* Fixed bugs in :meth:`subtract_frame_transforms` in the ``omni.isaac.orbit.core.utils.math``.
+* Fixed bugs in :meth:`axis_angle_from_quat` in the ``omni.isaac.orbit.core.utils.math`` to handle quaternion with negative w component.
+* Fixed bugs in :meth:`subtract_frame_transforms` in the ``omni.isaac.orbit.core.utils.math`` by adding the missing final rotation.
 
 
 0.2.7 (2023-04-07)

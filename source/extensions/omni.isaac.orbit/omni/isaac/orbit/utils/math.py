@@ -398,10 +398,10 @@ def subtract_frame_transforms(
             frame 2 w.r.t. frame 1.
     """
     # compute orientation
-    q01_inv = quat_inv(q01)
-    q12 = quat_mul(q01_inv, q02)
+    q10 = quat_inv(q01)
+    q12 = quat_mul(q10, q02)
     # compute translation
-    t12 = quat_apply(q01_inv, t02 - t01)
+    t12 = quat_apply(q10, t02 - t01)
 
     return t12, q12
 
