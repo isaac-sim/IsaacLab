@@ -29,6 +29,7 @@
 
 # Outputs
 **/output/*
+**/outputs/*
 *.tmp
 
 # Isaac-Sim packman
