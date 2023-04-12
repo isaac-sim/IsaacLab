@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
 
 from omni.isaac.orbit.utils import configclass
 

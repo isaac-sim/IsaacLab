@@ -11,8 +11,8 @@ import importlib
 import inspect
 import os
 import yaml
-from typing import Any, Union
 from hydra.core.config_store import ConfigStore
+from typing import Any, Union
 
 from omni.isaac.orbit.utils import update_class_from_dict, update_dict
 

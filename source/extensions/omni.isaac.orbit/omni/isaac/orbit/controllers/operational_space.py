@@ -5,7 +5,7 @@
 
 import torch
 from dataclasses import MISSING
-from typing import Optional, List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.math import apply_delta_pose, compute_pose_error

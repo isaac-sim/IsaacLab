@@ -8,8 +8,8 @@
 """Launch Isaac Sim Simulator first."""
 
 
-import sys
 import argparse
+import sys
 
 from omni.isaac.kit import SimulationApp
 
@@ -30,9 +30,8 @@ simulation_app = SimulationApp(config)
 
 
 import gym
-import torch
-
 import hydra
+import torch
 from omegaconf import OmegaConf
 
 import omni.isaac.contrib_envs  # noqa: F401
