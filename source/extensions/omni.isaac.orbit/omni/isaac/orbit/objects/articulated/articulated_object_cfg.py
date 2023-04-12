@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, List, Tuple
 
 from omni.isaac.orbit.utils import configclass
 
@@ -21,7 +21,7 @@ class ArticulatedObjectCfg:
         """USD file to spawn asset from."""
         scale: Tuple[float] = (1.0, 1.0, 1.0)
         """Scale of the object. Default to (1.0, 1.0, 1.0)."""
-        sites_names: Optional[Sequence[str]] = None
+        sites_names: Optional[List[str]] = None
         """Name of the sites to track (added to :obj:`data`). Defaults to :obj:`None`."""
 
     @configclass

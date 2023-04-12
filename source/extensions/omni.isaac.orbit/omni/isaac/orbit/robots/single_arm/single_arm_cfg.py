@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Optional, Sequence, Tuple
+from typing import Optional, List, Tuple
 
 from omni.isaac.orbit.utils import configclass
 
@@ -23,7 +23,7 @@ class SingleArmManipulatorCfg(RobotBaseCfg):
         """Number of degrees of freedom of arm."""
         tool_num_dof: int = MISSING
         """Number of degrees of freedom of tool."""
-        tool_sites_names: Optional[Sequence[str]] = None
+        tool_sites_names: Optional[List[str]] = None
         """Name of the tool sites to track (added to :obj:`data`). Defaults to :obj:`None`.
 
         If :obj:`None`, then no tool sites are tracked. The returned tensor for tool sites state
@@ -41,6 +41,7 @@ class SingleArmManipulatorCfg(RobotBaseCfg):
         rot_offset: Tuple[float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Additional rotation offset ``(w, x, y, z)`` from the body frame. Defaults to (1, 0, 0, 0)."""
 
+    @configclass
     class DataInfoCfg:
         """Information about what all data to read from simulator.
 

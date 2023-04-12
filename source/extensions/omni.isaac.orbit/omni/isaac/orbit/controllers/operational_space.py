@@ -5,7 +5,7 @@
 
 import torch
 from dataclasses import MISSING
-from typing import Optional, Sequence, Tuple, Union
+from typing import Optional, List, Tuple, Union
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.math import apply_delta_pose, compute_pose_error
@@ -15,7 +15,7 @@ from omni.isaac.orbit.utils.math import apply_delta_pose, compute_pose_error
 class OperationSpaceControllerCfg:
     """Configuration for operation-space controller."""
 
-    command_types: Sequence[str] = MISSING
+    command_types: List[str] = MISSING
     """Type of command.
 
     It has two sub-strings joined by underscore:
@@ -29,9 +29,9 @@ class OperationSpaceControllerCfg:
     uncouple_motion_wrench: bool = False
     """Whether to decouple the wrench computation from task-space pose (motion) error."""
 
-    motion_control_axes: Sequence[int] = (1, 1, 1, 1, 1, 1)
+    motion_control_axes: List[int] = (1, 1, 1, 1, 1, 1)
     """Motion direction to control. Mark as 0/1 for each axis."""
-    force_control_axes: Sequence[int] = (0, 0, 0, 0, 0, 0)
+    force_control_axes: List[int] = (0, 0, 0, 0, 0, 0)
     """Force direction to control. Mark as 0/1 for each axis."""
 
     inertial_compensation: bool = False
@@ -40,10 +40,10 @@ class OperationSpaceControllerCfg:
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 
-    stiffness: Union[float, Sequence[float]] = MISSING
+    stiffness: Union[float, List[float]] = MISSING
     """The positional gain for determining wrenches based on task-space pose error."""
 
-    damping_ratio: Optional[Union[float, Sequence[float]]] = None
+    damping_ratio: Optional[Union[float, List[float]]] = None
     """The damping ratio is used in-conjunction with positional gain to compute wrenches
     based on task-space velocity error.
 
@@ -63,7 +63,7 @@ class OperationSpaceControllerCfg:
     Note: Used only when :obj:`impedance_mode` is "variable".
     """
 
-    force_stiffness: Union[float, Sequence[float]] = None
+    force_stiffness: Union[float, List[float]] = None
     """The positional gain for determining wrenches for closed-loop force control.
 
     If obj:`None`, then open-loop control of desired forces is performed.
