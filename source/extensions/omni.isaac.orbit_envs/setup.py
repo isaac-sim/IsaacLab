@@ -28,6 +28,8 @@ INSTALL_REQUIRES = [
     "importlib-metadata~=4.13.0",
     # data collection
     "h5py",
+    # config management
+    "hydra-core",
 ]
 
 # Extra dependencies for RL agents

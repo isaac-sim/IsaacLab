@@ -9,9 +9,9 @@
 import os
 
 # submodules
-from .parse_cfg import load_default_env_cfg, parse_env_cfg
+from .parse_cfg import load_default_env_cfg, parse_env_cfg, register_cfg_to_hydra
 
-__all__ = ["load_default_env_cfg", "parse_env_cfg", "get_checkpoint_path"]
+__all__ = ["load_default_env_cfg", "parse_env_cfg", "register_cfg_to_hydra", "get_checkpoint_path"]
 
 
 def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = None) -> str:

@@ -12,6 +12,7 @@ import inspect
 import os
 import yaml
 from typing import Any, Union
+from hydra.core.config_store import ConfigStore
 
 from omni.isaac.orbit.utils import update_class_from_dict, update_dict
 
@@ -111,3 +112,32 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
     print("[INFO]: Simulation device  : ", "GPU" if args_cfg["sim"]["physx"]["use_gpu"] else "CPU")
 
     return cfg
+
+
+def register_cfg_to_hydra(task_name: str):
+    """Register environment configuration to Hydra configuration store.
+
+    This function resolves the configuration file for environment based on its name.
+    It then registers the configuration to Hydra configuration store.
+
+    Args:
+        task_name (str): The name of the environment.
+    """
+    # retrieve the configuration file to load
+    cfg_entry_point: str = gym.spec(task_name)._kwargs.pop("cfg_entry_point")
+
+    # parse the default config file
+    if callable(cfg_entry_point):
+        # load the configuration
+        cfg_cls = cfg_entry_point()
+    else:
+        # resolve path to the module location
+        mod_name, attr_name = cfg_entry_point.split(":")
+        mod = importlib.import_module(mod_name)
+        cfg_cls = getattr(mod, attr_name)
+    # load the configuration
+    print(f"[INFO]: Parsing default environment configuration from: {inspect.getfile(cfg_cls)}")
+
+    # register as hydra config
+    cs = ConfigStore.instance()
+    cs.store(name=task_name, node=cfg_cls)
