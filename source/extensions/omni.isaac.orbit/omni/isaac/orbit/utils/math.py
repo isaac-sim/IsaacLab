@@ -329,7 +329,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     # Thus, axis-angle is [q_x, q_y, q_z] / (sin(theta/2) / theta)
     # When theta = 0, (sin(theta/2) / theta) is undefined
     # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
-    quat = quat * (1.0 - 2. * (quat[..., 0:1] < 0.0))
+    quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
     mag = torch.linalg.norm(quat[..., 1:], dim=1)
     half_angle = torch.atan2(mag, quat[..., 0])
     angle = 2.0 * half_angle
