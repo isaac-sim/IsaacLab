@@ -24,5 +24,19 @@
             "port": 3000,
             "host": "localhost"
         },
+        {
+            "name": "Python: Run Environment",
+            "type": "python",
+            "request": "launch",
+            "args" : ["--task", "Isaac-Reach-Franka-v0"],
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {
+                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
+                "RESOURCE_NAME": "IsaacSim"
+            },
+            "envFile": "${workspaceFolder}/.vscode/.python.env",
+            "preLaunchTask": "setup_python_env"
+        },
     ]
 }
