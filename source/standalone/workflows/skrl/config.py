@@ -48,7 +48,7 @@ def parse_skrl_cfg(task_name) -> dict:
         raise ValueError(f"Task not found: {task_name}")
 
     # parse agent configuration
-    with open(config_file) as f:
+    with open(config_file, encoding="utf-8") as f:
         cfg = yaml.load(f, Loader=yaml.Loader)
 
     return cfg

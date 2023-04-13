@@ -1,7 +1,8 @@
 # Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L32
-# 512×1500×64
 seed: 42
-n_timesteps: !!float 49152000
+
+# 512×1500×64
+n_timesteps: 49152000
 policy: 'MlpPolicy'
 n_steps: 64
 batch_size: 4096
