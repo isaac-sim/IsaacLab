@@ -20,7 +20,7 @@ The tutorial corresponds to the ``zero_agent.py`` script in the ``orbit/source/s
 
 .. literalinclude:: ../../../source/standalone/environments/zero_agent.py
    :language: python
-   :emphasize-lines: 35-36,42-45,50-57
+   :emphasize-lines: 34-35,41-44,49-55
    :linenos:
 
 The Code Explained
@@ -53,9 +53,9 @@ we must import the module at the start of the script.
 
 .. literalinclude:: ../../../source/standalone/environments/zero_agent.py
    :language: python
-   :lines: 32-36
+   :lines: 33-35
    :linenos:
-   :lineno-start: 32
+   :lineno-start: 33
 
 .. note::
 
@@ -83,18 +83,18 @@ Once creating the environment, the rest of the execution follows the standard re
 
 .. literalinclude:: ../../../source/standalone/environments/zero_agent.py
    :language: python
-   :lines: 47-54
+   :lines: 45-55
    :linenos:
-   :lineno-start: 47
+   :lineno-start: 45
 
 Similar to previous tutorials, to ensure a safe exit when running the script, we need to add checks
 for whether the simulation is stopped or not.
 
 .. literalinclude:: ../../../source/standalone/environments/zero_agent.py
    :language: python
-   :lines: 55-57
+   :lines: 57-59
    :linenos:
-   :lineno-start: 55
+   :lineno-start: 57
 
 
 The Code Execution
