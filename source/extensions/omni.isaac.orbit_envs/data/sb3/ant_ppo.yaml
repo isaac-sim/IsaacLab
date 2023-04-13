@@ -1,4 +1,5 @@
 # Reference: https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml#L161
+seed: 42
 
 n_timesteps: !!float 2e6
 policy: 'MlpPolicy'
