@@ -10,7 +10,7 @@ import os
 from omni.isaac.kit import SimulationApp
 
 # launch the simulator
-app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.render.kit"
 config = {"headless": True}
 simulation_app = SimulationApp(config, experience=app_experience)
 
@@ -65,7 +65,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
             # parse configuration
             env_cfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
             # create environment
-            env = gym.make(task_name, cfg=env_cfg, headless=True, viewport=True)
+            env = gym.make(task_name, cfg=env_cfg, headless=self.headless, viewport=True)
 
             # directory to save videos
             videos_dir = os.path.join(self.videos_dir, task_name)
@@ -77,7 +77,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
             # reset environment
             env.reset()
             # simulate environment
-            for _ in range(600):
+            for _ in range(500):
                 # compute zero actions
                 actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
                 # apply actions
