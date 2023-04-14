@@ -79,7 +79,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
             # simulate environment
             for _ in range(600):
                 # compute zero actions
-                actions = torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device)
+                actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
                 # apply actions
                 _, _, _, _ = env.step(actions)
                 # render environment
