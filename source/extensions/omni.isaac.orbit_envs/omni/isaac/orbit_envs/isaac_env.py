@@ -441,7 +441,7 @@ class IsaacEnv(gym.Env):
     """
 
     def _configure_simulation_flags(self, sim_params: dict = None):
-        """Configure various simulation flags for performance improvements at load and run time."""
+        """Configure simulation flags and extensions at load and run time."""
         # acquire settings interface
         carb_settings_iface = carb.settings.get_settings()
         # enable hydra scene-graph instancing
@@ -478,10 +478,7 @@ class IsaacEnv(gym.Env):
         enable_extension("omni.replicator.isaac")
 
     def _create_viewport_render_product(self):
-        """Create a render product of the viewport for rendering.
-
-        The created render product can be used to record videos of the simulation.
-        """
+        """Create a render product of the viewport for rendering."""
         # set camera view for "/OmniverseKit_Persp" camera
         set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
 
