@@ -16,6 +16,7 @@ from omni.isaac.kit import SimulationApp
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -76,7 +77,11 @@ def main():
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
+    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless, viewport=args_cli.video)
+    # wrap for video recording
+    if args_cli.video:
+        videos_dir = os.path.join(log_dir, "videos")
+        env = gym.wrappers.RecordVideo(env, videos_dir, step_trigger=lambda step: step % 1500 == 0, video_length=200)
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
