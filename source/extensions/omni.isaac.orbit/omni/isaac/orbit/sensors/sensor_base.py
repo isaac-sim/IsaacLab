@@ -13,6 +13,8 @@ Each sensor class should inherit from this class and implement the abstract meth
 from abc import abstractmethod
 from typing import Any
 
+from omni.isaac.core.simulation_context import SimulationContext
+
 
 class SensorBase:
     """The base class for implementing a sensor.
@@ -38,6 +40,14 @@ class SensorBase:
         self._timestamp_last_update: float = 0.0
         # Frame number when the measurement is taken
         self._frame: int = 0
+        # get simulation context
+        self.sim = SimulationContext.instance()
+        if self.sim is not None:
+            self.backend = self.sim.backend
+            self.device = self.sim.device
+        else:
+            self.backend = "numpy"
+            self.device = "cpu"
 
     """
     Properties
