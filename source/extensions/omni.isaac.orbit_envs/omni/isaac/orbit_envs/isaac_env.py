@@ -288,7 +288,7 @@ class IsaacEnv(gym.Env):
         # return observations, rewards, resets and extras
         return self._last_obs_buf, self.reward_buf, self.reset_buf, self.extras
 
-    def render(self, mode: str = "rgb_array") -> Optional[np.ndarray]:
+    def render(self, mode: str = "human") -> Optional[np.ndarray]:
         """Run rendering without stepping through the physics.
 
         By convention, if mode is:
@@ -298,7 +298,7 @@ class IsaacEnv(gym.Env):
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
-            mode (str, optional): The mode to render with. Defaults to "rgb_array".
+            mode (str, optional): The mode to render with. Defaults to "human".
         """
         # render the scene only if rendering at every step is disabled
         # this is because we do not want to render the scene twice
@@ -456,12 +456,23 @@ class IsaacEnv(gym.Env):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
 
         # set flags based on whether rendering is enabled or not
+        # note: enabling extensions is order-sensitive. please do not change the order.
         if self.enable_render or self.enable_viewport:
             # enable scene querying if rendering is enabled
             # this is needed for some GUI features
             sim_params["enable_scene_query_support"] = True
+            # load extra viewport extensions if requested
+            if self.enable_viewport:
+                # extension to make RTX realtime and path-traced renderers
+                enable_extension("omni.kit.viewport.rtx")
+                # extension to make HydraDelegate renderers
+                enable_extension("omni.kit.viewport.pxr")
             # enable viewport extension if not running in headless mode
             enable_extension("omni.kit.viewport.bundle")
+            # load extra render extensions if requested
+            if self.enable_viewport:
+                # extension for window status bar
+                enable_extension("omni.kit.window.status_bar")
         # enable isaac replicator extension
         # note: moved here since it requires to have the viewport extension to be enabled first.
         enable_extension("omni.replicator.isaac")
@@ -490,7 +501,7 @@ class IsaacEnv(gym.Env):
             # create render product
             self._render_product = rep.create.render_product("/OmniverseKit_Persp", self.cfg.viewer.resolution)
             # create rgb annotator -- used to read data from the render product
-            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._render_product])
         else:
             carb.log_info("Viewport is disabled. Skipping creation of render product.")
