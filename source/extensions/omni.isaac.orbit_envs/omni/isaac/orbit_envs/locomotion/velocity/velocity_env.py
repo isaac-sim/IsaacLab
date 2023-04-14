@@ -29,7 +29,7 @@ from .velocity_cfg import VelocityEnvCfg
 class VelocityEnv(IsaacEnv):
     """Environment for tracking a base SE(2) velocity command for a legged robot."""
 
-    def __init__(self, cfg: VelocityEnvCfg = None, headless: bool = False):
+    def __init__(self, cfg: VelocityEnvCfg = None, **kwargs):
         # copy configuration
         self.cfg = cfg
 
@@ -37,7 +37,7 @@ class VelocityEnv(IsaacEnv):
         self.robot = LeggedRobot(cfg=self.cfg.robot)
 
         # initialize the base class to setup the scene.
-        super().__init__(self.cfg, headless=headless)
+        super().__init__(self.cfg, **kwargs)
         # parse the configuration for information
         self._process_cfg()
         # initialize views for the cloned scenes

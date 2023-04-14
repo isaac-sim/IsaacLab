@@ -26,12 +26,12 @@ class HumanoidEnv(IsaacEnv):
         https://github.com/openai/gym/blob/master/gym/envs/mujoco/humanoid_v3.py
     """
 
-    def __init__(self, cfg: dict, headless: bool = False):
+    def __init__(self, cfg: dict, **kwargs):
         """Initializes the environment.
 
         Args:
             cfg (dict): The configuration dictionary.
-            headless (bool, optional): Whether to enable rendering or not. Defaults to False.
+            kwargs (dict): Additional keyword arguments. See IsaacEnv for more details.
         """
         # copy configuration
         self.cfg_dict = cfg.copy()
@@ -41,7 +41,7 @@ class HumanoidEnv(IsaacEnv):
         )
         isaac_cfg.sim.from_dict(self.cfg_dict["sim"])
         # initialize the base class to setup the scene.
-        super().__init__(isaac_cfg, headless=headless)
+        super().__init__(isaac_cfg, **kwargs)
 
         # define views over instances
         self.humanoids = ArticulationView(
