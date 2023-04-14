@@ -94,7 +94,7 @@ class IsaacEnv(gym.Env):
         # store inputs to class
         self.cfg = cfg
         self.enable_render = not headless
-        self.enable_viewport = viewport
+        self.enable_viewport = viewport or self.enable_render
         # extract commonly used parameters
         self.num_envs = self.cfg.env.num_envs
         self.device = self.cfg.sim.device

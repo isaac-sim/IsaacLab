@@ -67,10 +67,9 @@ class TestRecordVideoWrapper(unittest.TestCase):
             # create environment
             env = gym.make(task_name, cfg=env_cfg, headless=True, viewport=True)
 
-            # wrap environment to record videos
             # directory to save videos
             videos_dir = os.path.join(self.videos_dir, task_name)
-            # we use step trigger to record videos every 1500 steps and video length of 200 steps
+            # wrap environment to record videos
             env = gym.wrappers.RecordVideo(
                 env, videos_dir, step_trigger=self.step_trigger, video_length=self.video_length
             )
