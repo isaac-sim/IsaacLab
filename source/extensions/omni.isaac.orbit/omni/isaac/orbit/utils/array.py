@@ -13,6 +13,12 @@ import warp as wp
 
 __all__ = ["TENSOR_TYPES", "TENSOR_TYPE_CONVERSIONS", "convert_to_torch"]
 
+TensorData = Union[np.ndarray, torch.Tensor, wp.array]
+"""Type definition for a tensor data.
+
+Union of numpy, torch, and warp arrays.
+"""
+
 TENSOR_TYPES = {
     "numpy": np.ndarray,
     "torch": torch.Tensor,

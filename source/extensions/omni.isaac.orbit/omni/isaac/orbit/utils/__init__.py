@@ -14,7 +14,7 @@ Sub-module containing utilities for the Orbit framework.
 * `timer`: Provides a timer class (uses contextlib) for benchmarking.
 """
 
-from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES, convert_to_torch
+from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES, convert_to_torch, TensorData
 from .configclass import configclass
 from .dict import class_to_dict, convert_dict_to_backend, print_dict, update_class_from_dict, update_dict
 from .string import to_camel_case, to_snake_case
@@ -22,6 +22,7 @@ from .timer import Timer
 
 __all__ = [
     # arrays
+    "TensorData",
     "TENSOR_TYPES",
     "TENSOR_TYPE_CONVERSIONS",
     "convert_to_torch",
