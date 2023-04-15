@@ -34,8 +34,8 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.height_scanner import HeightScanner, HeightScannerCfg
-from omni.isaac.orbit.sensors.height_scanner.utils import create_points_from_grid, plot_height_grid
+from omni.isaac.orbit.sensors.compat.height_scanner import HeightScanner, HeightScannerCfg
+from omni.isaac.orbit.sensors.compat.height_scanner.utils import create_points_from_grid, plot_height_grid
 from omni.isaac.orbit.utils.math import convert_quat
 from omni.isaac.orbit.utils.timer import Timer
 

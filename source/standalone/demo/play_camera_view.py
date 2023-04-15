@@ -44,8 +44,7 @@ from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.camera import PinholeCameraCfg
-from omni.isaac.orbit.sensors.camera.camera_view import CameraView
+from omni.isaac.orbit.sensors.camera import PinholeCameraCfg, Camera
 from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
 from omni.isaac.orbit.utils import convert_dict_to_backend
 
@@ -126,7 +125,7 @@ def main():
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = CameraView(cfg=camera_cfg)
+    camera = Camera(cfg=camera_cfg)
 
     # Spawn camera
     camera.spawn("/World/CameraSensor/Cam_00")
