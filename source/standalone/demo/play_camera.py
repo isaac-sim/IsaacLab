@@ -44,7 +44,7 @@ from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.compat.camera import Camera, PinholeCameraCfg
+from omni.isaac.orbit.sensors.camera import PinholeCameraCfg, Camera
 from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
 from omni.isaac.orbit.utils import convert_dict_to_backend
 
@@ -106,7 +106,8 @@ def main():
     """Runs a camera sensor from orbit."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch")
+    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu")
+    # sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="numpy")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Acquire draw interface
@@ -124,10 +125,11 @@ def main():
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = Camera(cfg=camera_cfg, device="cuda" if args_cli.gpu else "cpu")
+    camera = Camera(cfg=camera_cfg)
 
     # Spawn camera
-    camera.spawn("/World/CameraSensor")
+    camera.spawn("/World/CameraSensor/Cam_00")
+    camera.spawn("/World/CameraSensor/Cam_01")
 
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
@@ -136,15 +138,17 @@ def main():
     # Play simulator
     sim.play()
     # Initialize camera
-    camera.initialize()
+    camera.initialize("/World/CameraSensor/Cam_*")
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
-    # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    eyes = [[2.5, 2.5, 2.5], [-2.5, -2.5, 2.5]]
+    targets = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    camera.set_world_poses_from_view(eyes, targets)
     # -- Option-2: Set pose using ROS
-    position = [2.5, 2.5, 2.5]
-    orientation = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
-    camera.set_world_pose_ros(position, orientation)
+    # position = [[2.5, 2.5, 2.5]]
+    # orientation = [[-0.17591989, 0.33985114, 0.82047325, -0.42470819]]
+    # camera.set_world_pose_ros(position, orientation, indices=[0])
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -164,7 +168,7 @@ def main():
         # Step simulation
         sim.step()
         # Update camera data
-        camera.update(dt=0.0)
+        camera.update_buffers(dt=0.0)
 
         # Print camera info
         print(camera)
@@ -172,17 +176,29 @@ def main():
         print("Received shape of depth image: ", camera.data.output["distance_to_image_plane"].shape)
         print("-------------------------------")
 
+        # Extract camera data
+        camera_index = 1
+        # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
+        if sim.backend == "torch":
+            # tensordict allows easy indexing of tensors in the dictionary
+            single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
+        else:
+            # for numpy, we need to manually index the data
+            single_cam_data = dict()
+            for key, value in camera.data.output.items():
+                single_cam_data[key] = value[camera_index]
+
         # Save images
-        # note: BasicWriter only supports saving data in numpy format
-        rep_writer.write(convert_dict_to_backend(camera.data.output, backend="numpy"))
+        single_cam_data["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+        rep_writer.write(single_cam_data)
 
         # Pointcloud in world frame
         pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
-            camera.data.intrinsic_matrix,
-            depth=camera.data.output["distance_to_image_plane"],
-            rgb=camera.data.output["rgb"],
-            position=camera.data.position,
-            orientation=camera.data.orientation,
+            camera.data.intrinsic_matrices[0],
+            depth=single_cam_data["distance_to_image_plane"],
+            rgb=single_cam_data["rgb"],
+            position=camera.data.position[camera_index],
+            orientation=camera.data.orientation[camera_index],
             normalize_rgb=True,
             num_channels=4,
         )
