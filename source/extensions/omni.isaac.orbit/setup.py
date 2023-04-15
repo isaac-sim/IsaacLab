@@ -21,6 +21,7 @@ INSTALL_REQUIRES = [
     "numpy",
     "torch",
     "prettytable==3.3.0",
+    "tensordict",
     # devices
     "hidapi",
 ]
