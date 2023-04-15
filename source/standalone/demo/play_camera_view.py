@@ -107,7 +107,8 @@ def main():
     """Runs a camera sensor from orbit."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch")
+    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu")
+    # sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="numpy")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Acquire draw interface
@@ -125,14 +126,14 @@ def main():
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = CameraView(cfg=camera_cfg, device="cuda" if args_cli.gpu else "cpu")
+    camera = CameraView(cfg=camera_cfg)
 
     # Spawn camera
     camera.spawn("/World/CameraSensor/Cam_00")
     camera.spawn("/World/CameraSensor/Cam_01")
 
     # Create replicator writer
-    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera_view")
     rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
 
     # Play simulator
@@ -142,7 +143,9 @@ def main():
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
-    # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    eyes = [[2.5, 2.5, 2.5], [-2.5, -2.5, 2.5]]
+    targets = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    camera.set_world_poses_from_view(eyes, targets)
     # -- Option-2: Set pose using ROS
     # position = [2.5, 2.5, 2.5]
     # orientation = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
@@ -166,7 +169,7 @@ def main():
         # Step simulation
         sim.step()
         # Update camera data
-        camera.buffer()
+        camera.update_buffers(dt=0.0)
 
         # Print camera info
         print(camera)
@@ -176,32 +179,34 @@ def main():
 
         # Save images
         # note: BasicWriter only supports saving data in numpy format
-        # rep_writer.write(convert_dict_to_backend(camera.data.output, backend="numpy"))
+        cam_data_np = convert_dict_to_backend(camera.data.output[0], backend="numpy")
+        cam_data_np["trigger_outputs"] = {"on_time": camera.frame[0]}
+        rep_writer.write(cam_data_np)
 
         # Pointcloud in world frame
-        # pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
-        #     camera.data.intrinsic_matrix[0],
-        #     depth=camera.data.output["distance_to_image_plane"][0],
-        #     rgb=camera.data.output["rgb"],
-        #     position=camera.data.position,
-        #     orientation=camera.data.orientation,
-        #     normalize_rgb=True,
-        #     num_channels=4,
-        # )
+        pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
+            camera.data.intrinsic_matrices[0],
+            depth=cam_data_np["distance_to_image_plane"],
+            rgb=cam_data_np["rgb"],
+            position=camera.data.position[0],
+            orientation=camera.data.orientation[0],
+            normalize_rgb=True,
+            num_channels=4,
+        )
 
-        # # Draw pointcloud
-        # if not args_cli.headless and args_cli.draw:
-        #     # Convert to numpy for visualization
-        #     if not isinstance(pointcloud_w, np.ndarray):
-        #         pointcloud_w = pointcloud_w.cpu().numpy()
-        #     if not isinstance(pointcloud_rgb, np.ndarray):
-        #         pointcloud_rgb = pointcloud_rgb.cpu().numpy()
-        #     # Visualize the points
-        #     num_points = pointcloud_w.shape[0]
-        #     points_size = [1.25] * num_points
-        #     points_color = pointcloud_rgb
-        #     draw_interface.clear_points()
-        #     draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
+        # Draw pointcloud
+        if not args_cli.headless and args_cli.draw:
+            # Convert to numpy for visualization
+            if not isinstance(pointcloud_w, np.ndarray):
+                pointcloud_w = pointcloud_w.cpu().numpy()
+            if not isinstance(pointcloud_rgb, np.ndarray):
+                pointcloud_rgb = pointcloud_rgb.cpu().numpy()
+            # Visualize the points
+            num_points = pointcloud_w.shape[0]
+            points_size = [1.25] * num_points
+            points_color = pointcloud_rgb
+            draw_interface.clear_points()
+            draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
 
 
 if __name__ == "__main__":

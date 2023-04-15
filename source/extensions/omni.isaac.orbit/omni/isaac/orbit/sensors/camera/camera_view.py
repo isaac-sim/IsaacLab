@@ -13,18 +13,20 @@ import torch
 from tensordict import TensorDict
 import scipy.spatial.transform as tf
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, Tuple, Union, List
+from typing import Dict, Sequence, Tuple, Union, List, Optional, Iterable
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
+from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.rotations import gf_quat_to_np_array
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import class_to_dict, to_camel_case
+from omni.isaac.orbit.utils.array import convert_to_torch, TensorData
 from omni.isaac.orbit.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
@@ -37,15 +39,15 @@ __all__ = ["CameraView", "CameraData"]
 class CameraData:
     """Data container for the camera sensor."""
 
-    position: Union[np.ndarray, torch.Tensor] = None
+    position: TensorData = None
     """Position of the sensor origin in world frame, following ROS convention. Shape: (N, 3)."""
-    orientation: Union[np.ndarray, torch.Tensor] = None
+    orientation: TensorData = None
     """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention. Shape: (N, 4)."""
-    intrinsic_matrices: Union[np.ndarray, torch.Tensor] = None
+    intrinsic_matrices: TensorData = None
     """The intrinsic matrices for the camera. Shape: (N, 3, 3)."""
     image_shape: Tuple[int, int] = None
     """A tuple containing (height, width) of the camera sensor."""
-    output: Union[Dict[str, Any], TensorDict] = None
+    output: Union[Dict[str, np.ndarray], TensorDict] = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_.
@@ -54,7 +56,7 @@ class CameraData:
     """
 
 
-class CameraView:
+class CameraView(SensorBase):
     r"""The camera sensor for acquiring visual data.
 
     This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.
@@ -96,15 +98,14 @@ class CameraView:
         """
         # store inputs
         self.cfg = cfg
-
         # initialize base class
-        # super().__init__(self.cfg.sensor_tick)
+        super().__init__(self.cfg.sensor_tick)
         # change the default rendering settings
         # TODO: Should this be done here or maybe inside the app config file?
         rep.settings.set_render_rtx_realtime(antialiasing="FXAA")
 
         # Xform prim for handling transforms
-        self._xform_view: XFormPrimView = None
+        self.xforms: XFormPrimView = None
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: List[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
@@ -131,16 +132,6 @@ class CameraView:
     """
 
     @property
-    def count(self) -> int:
-        """Number of prims encapsulated."""
-        return self._xform_view.count
-
-    @property
-    def prim_paths(self) -> List[str]:
-        """The path to the camera prim."""
-        return self._xform_view.prim_paths
-
-    @property
     def render_product_paths(self) -> List[str]:
         """The path of the render products for the cameras.
 
@@ -162,22 +153,7 @@ class CameraView:
     Configuration
     """
 
-    def set_visibility(self, visible: bool):
-        """Set visibility of the instance in the scene.
-
-        Args:
-            visible (bool): Whether to make instance visible or invisible.
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
-        """
-        # check camera prim
-        if len(self._sensor_prims) == 0:
-            raise RuntimeError("Camera prims are None. Please call 'initialize(...)' first.")
-        # set visibility
-        self._xform_view.set_visibilities([visible] * self.count)
-
-    def set_intrinsic_matrix(self, matrix: np.ndarray, focal_length: float = 1.0):
+    def set_intrinsic_matrix(self, matrices: TensorData, focal_length: float = 1.0, indices: Optional[Sequence[int]] = None):
         """Set parameters of the USD camera from its intrinsic matrix.
 
         The intrinsic matrix and focal length are used to set the following parameters to the USD camera:
@@ -195,29 +171,39 @@ class CameraView:
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
-            intrinsic_matrix (np.ndarray): The intrinsic matrix for the camera. Shape should be (3, 3).
+            matrices (TensorData): The intrinsic matrices for the camera. Shape: :math:`(N, 3, 3)`.
             focal_length (float, optional): Focal length to use when computing aperture values. Defaults to 1.0.
+            indices (Sequence[int], optional): A list of indices of length :obj:`N` to specify the prims to manipulate.
+                Defaults to None, which means all prims will be manipulated.
         """
-        # convert to numpy for sanity
-        intrinsic_matrix = np.asarray(matrix, dtype=float)
-        # extract parameters from matrix
-        f_x = intrinsic_matrix[0, 0]
-        c_x = intrinsic_matrix[0, 2]
-        f_y = intrinsic_matrix[1, 1]
-        c_y = intrinsic_matrix[1, 2]
-        # get viewport parameters
-        height, width = self.image_shape
-        height, width = float(height), float(width)
-        # resolve parameters for usd camera
-        params = {
-            "focal_length": focal_length,
-            "horizontal_aperture": width * focal_length / f_x,
-            "vertical_aperture": height * focal_length / f_y,
-            "horizontal_aperture_offset": (c_x - width / 2) / f_x,
-            "vertical_aperture_offset": (c_y - height / 2) / f_y,
-        }
-        # iterate over all cameras
-        for sensor_prim in self._sensor_prims:
+        # resolve indices
+        # check camera prim exists
+        if not self._is_initialized:
+            raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
+        # resolve indices
+        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        # iterate over indices
+        for i, matrix in zip(indices, matrices):
+            # convert to numpy for sanity
+            intrinsic_matrix = np.asarray(matrix, dtype=float)
+            # extract parameters from matrix
+            f_x = intrinsic_matrix[0, 0]
+            c_x = intrinsic_matrix[0, 2]
+            f_y = intrinsic_matrix[1, 1]
+            c_y = intrinsic_matrix[1, 2]
+            # get viewport parameters
+            height, width = self.image_shape
+            height, width = float(height), float(width)
+            # resolve parameters for usd camera
+            params = {
+                "focal_length": focal_length,
+                "horizontal_aperture": width * focal_length / f_x,
+                "vertical_aperture": height * focal_length / f_y,
+                "horizontal_aperture_offset": (c_x - width / 2) / f_x,
+                "vertical_aperture_offset": (c_y - height / 2) / f_y,
+            }
+            # change data for corresponding camera index
+            sensor_prim = self._sensor_prims[i]
             # set parameters for camera
             for param_name, param_value in params.items():
                 # convert to camel case (CC)
@@ -233,7 +219,7 @@ class CameraView:
     Operations - Set pose.
     """
 
-    def set_world_pose_ros(self, pos: Sequence[float] = None, quat: Sequence[float] = None):
+    def set_world_poses_ros(self, positions: TensorData = None, orientations: TensorData = None, indices: Optional[Sequence[int]] = None):
         r"""Set the pose of the camera w.r.t. world frame using ROS convention.
 
         In USD, the camera is always in **Y up** convention. This means that the camera is looking down the -Z axis
@@ -246,79 +232,100 @@ class CameraView:
             T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
 
         Args:
-            pos (Sequence[float], optional): The cartesian coordinates (in meters). Defaults to None.
-            quat (Sequence[float], optional): The quaternion orientation in (w, x, y, z). Defaults to None.
+            positions (TensorData, optional): The cartesian coordinates (in meters). Shape: :math:`(N, 3)`. Defaults to None.
+            orientations (TensorData, optional): The quaternion orientation in (w, x, y, z). Shape: :math:`(N, 4)`. Defaults to None.
+            indices (Sequence[int], optional): A list of indices of length :obj:`N` to specify the prims to manipulate.
+                Defaults to None, which means all prims will be manipulated.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         # check camera prim exists
-        if len(self._sensor_prims) == 0:
-            raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
-        # convert from meters to stage units
-        if pos is not None:
-            pos = np.asarray(pos)
+        if not self._is_initialized:
+            raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
+        # resolve indices
+        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        # convert to backend tensor
+        if positions is not None:
+            positions = self._backend_utils.convert(positions, self._device)
         # convert rotation matrix from ROS convention to OpenGL
-        if quat is not None:
-            rotm = tf.Rotation.from_quat(convert_quat(quat, "xyzw")).as_matrix()
-            rotm[:, 2] = -rotm[:, 2]
-            rotm[:, 1] = -rotm[:, 1]
-            # convert to isaac-sim convention
-            quat_gl = tf.Rotation.from_matrix(rotm).as_quat()
-            quat_gl = convert_quat(quat_gl, "wxyz")
+        if orientations is not None:
+            # TODO: Make this more efficient
+            for index, quat in enumerate(orientations):
+                rotm = tf.Rotation.from_quat(convert_quat(quat, "xyzw")).as_matrix()
+                rotm[:, 2] = -rotm[:, 2]
+                rotm[:, 1] = -rotm[:, 1]
+                # convert to isaac-sim convention
+                quat_gl = tf.Rotation.from_matrix(rotm).as_quat()
+                orientations[index] = convert_quat(quat_gl, "wxyz")
+            # convert to backend tensor
+            orientations = self._backend_utils.convert(orientations, self._device)
         else:
-            quat_gl = None
+            orientations = None
         # set the pose
-        self._sensor_xform.set_world_pose(pos, quat_gl)
+        self._view.set_world_poses(positions, orientations, indices)
 
-    def set_world_pose_from_view(self, eye: Sequence[float], target: Sequence[float] = [0, 0, 0]):
-        """Set the pose of the camera from the eye position and look-at target position.
+    def set_world_poses_from_view(self, eyes: TensorData, targets: TensorData, indices: Optional[Sequence[int]] = None):
+        """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eye (Sequence[float]): The position of the camera's eye.
-            target (Sequence[float], optional): The target location to look at. Defaults to [0, 0, 0].
+            eyes (TensorData): The positions of the camera's eye. Shape: :math:`(N, 3)`.
+            targets (TensorData, optional): The target locations to look at. Shape: :math:`(N, 3)`.
+            indices (Sequence[int], optional): A list of indices of length :obj:`N` to specify the prims to manipulate.
+                Defaults to None, which means all prims will be manipulated.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
         # check camera prim exists
-        if len(self._sensor_prims) == 0:
-            raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
-        # compute camera's eye pose
-        eye_position = Gf.Vec3d(np.asarray(eye).tolist())
-        target_position = Gf.Vec3d(np.asarray(target).tolist())
-        # compute forward direction
-        forward_dir = (eye_position - target_position).GetNormalized()
-        # get up axis
-        up_axis_token = stage_utils.get_stage_up_axis()
-        if up_axis_token == UsdGeom.Tokens.y:
-            # deal with degenerate case
-            if forward_dir == Gf.Vec3d(0, 1, 0):
-                up_axis = Gf.Vec3d(0, 0, 1)
-            elif forward_dir == Gf.Vec3d(0, -1, 0):
-                up_axis = Gf.Vec3d(0, 0, -1)
+        if not self._is_initialized:
+            raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
+        # resolve indices
+        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        # create tensors for storing poses
+        positions = self._backend_utils.create_zeros_tensor((len(indices), 3), "float32", self._device)
+        orientations = self._backend_utils.create_zeros_tensor((len(indices), 4), "float32", self._device)
+        # check if targets are provided
+        if targets is None:
+            targets = np.zeros_like(eyes)
+        # iterate over all indices
+        # TODO: Can we do this in parallel?
+        for i, eye, target in zip(indices, eyes, targets):
+            # compute camera's eye pose
+            eye_position = Gf.Vec3d(np.asarray(eye).tolist())
+            target_position = Gf.Vec3d(np.asarray(target).tolist())
+            # compute forward direction
+            forward_dir = (eye_position - target_position).GetNormalized()
+            # get up axis
+            up_axis_token = stage_utils.get_stage_up_axis()
+            if up_axis_token == UsdGeom.Tokens.y:
+                # deal with degenerate case
+                if forward_dir == Gf.Vec3d(0, 1, 0):
+                    up_axis = Gf.Vec3d(0, 0, 1)
+                elif forward_dir == Gf.Vec3d(0, -1, 0):
+                    up_axis = Gf.Vec3d(0, 0, -1)
+                else:
+                    up_axis = Gf.Vec3d(0, 1, 0)
+            elif up_axis_token == UsdGeom.Tokens.z:
+                # deal with degenerate case
+                if forward_dir == Gf.Vec3d(0, 0, 1):
+                    up_axis = Gf.Vec3d(0, 1, 0)
+                elif forward_dir == Gf.Vec3d(0, 0, -1):
+                    up_axis = Gf.Vec3d(0, -1, 0)
+                else:
+                    up_axis = Gf.Vec3d(0, 0, 1)
             else:
-                up_axis = Gf.Vec3d(0, 1, 0)
-        elif up_axis_token == UsdGeom.Tokens.z:
-            # deal with degenerate case
-            if forward_dir == Gf.Vec3d(0, 0, 1):
-                up_axis = Gf.Vec3d(0, 1, 0)
-            elif forward_dir == Gf.Vec3d(0, 0, -1):
-                up_axis = Gf.Vec3d(0, -1, 0)
-            else:
-                up_axis = Gf.Vec3d(0, 0, 1)
-        else:
-            raise NotImplementedError(f"This method is not supported for up-axis '{up_axis_token}'.")
-        # compute matrix transformation
-        # view matrix: camera_T_world
-        matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
-        # camera position and rotation in world frame
-        matrix_gf = matrix_gf.GetInverse()
-        cam_pos = np.array(matrix_gf.ExtractTranslation())
-        cam_quat = gf_quat_to_np_array(matrix_gf.ExtractRotationQuat())
-        # set camera pose
-        self._sensor_xform.set_world_pose(cam_pos, cam_quat)
+                raise NotImplementedError(f"This method is not supported for up-axis '{up_axis_token}'.")
+            # compute matrix transformation
+            # view matrix: camera_T_world
+            matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
+            # camera position and rotation in world frame
+            matrix_gf = matrix_gf.GetInverse()
+            positions[i] = self._backend_utils.convert(np.asarray(matrix_gf.ExtractTranslation()), self._device)
+            orientations[i] = self._backend_utils.convert(gf_quat_to_np_array(matrix_gf.ExtractRotationQuat()), self._device)
+        # set camera poses using the view
+        self._view.set_world_poses(positions, orientations, indices)
 
     """
     Operations
@@ -335,16 +342,20 @@ class CameraView:
             translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
             orientation (Sequence[float], optional): The local rotation offset in ``(w, x, y, z)`` w.r.t.
                 parent prim. Defaults to None.
+
+        Raises:
+            RuntimeError: If a prim already exists at the path.
         """
         # Create sensor prim
         if not prim_utils.is_prim_path_valid(prim_path):
             prim_utils.create_prim(prim_path, "Camera", translation=translation, orientation=orientation)
         else:
-            raise RuntimeError(f"Prim already exists at path '{prim_path}'.")
+            raise RuntimeError(f"Unable to spawn camera. A prim already exists at path '{prim_path}'.")
         # Add replicator camera attributes
         self._define_usd_camera_attributes(prim_path)
+        # Save prim path for later use
+        self._spawn_prim_path = prim_path
         # Set spawning to true
-        self._sensor_prim_path = prim_path
         self._is_spawned = True
 
     def initialize(self, prim_paths_expr: str = None):
@@ -370,15 +381,20 @@ class CameraView:
             if not self._is_spawned:
                 raise RuntimeError("Initialize the camera failed! Please provide a valid argument for `prim_paths_expr`.")
             else:
-                prim_paths_expr = self._sensor_prim_path
-        # Initialize prim view
-        self._xform_view = XFormPrimView(prim_paths_expr, "camera_view")
+                prim_paths_expr = self._spawn_prim_path
+        # Initialize parent class
+        super().initialize(prim_paths_expr)
+
         # Attach the sensor data types to render node
         self._render_product_paths: List[str] = list()
         self._rep_registry: Dict[str, List[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
-
+        # Resolve device name
+        if self._backend != "numpy":
+            device_name = self._device.split(":")[0]
+        else:
+            device_name = "cpu"
         # Convert all encapsulated prims to Camera
-        for cam_prim_path in self._xform_view.prim_paths:
+        for cam_prim_path in self._view.prim_paths:
             # Get camera prim
             cam_prim = prim_utils.get_prim_at_path(cam_prim_path)
             # Check if prim is a camera
@@ -409,55 +425,59 @@ class CameraView:
                 else:
                     init_params = None
                 # create annotator node
-                rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params, device=self.device)
+                rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params, device=device_name)
                 rep_annotator.attach(render_prod_path)
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
-        # Reset internal buffers
-        self.reset()
+        # Create internal buffers
+        self._create_buffers()
         # When running in standalone mode, need to render a few times to fill all the buffers
         # FIXME: Check with simulation team to get rid of this. What if someone has render or other callbacks?
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
+            # acquire simulation context
+            sim = SimulationContext.instance()
             # render a few times
-            for _ in range(4):
-                self.sim.render()
+            if sim is not None:
+                for _ in range(4):
+                    sim.render()
 
-    def reset_buffers(self):
-        # reset the timestamp
-        # super().reset()
-        # reset the buffer
-        self._data.position = None
-        self._data.orientation = None
-        self._data.intrinsic_matrix = self._compute_intrinsic_matrices()
-        self._data.image_shape = self.image_shape
-        self._data.output = {name: list() for name in self.cfg.data_types}
+    def reset_buffers(self, sensor_ids: Optional[Sequence[int]] = None):
+        # reset the timestamps
+        super().reset_buffers(sensor_ids)
+        # reset the data
+        # note: this recomputation is useful if one performs randomization on the camera poses.
+        self._update_ros_poses(sensor_ids)
+        self._update_intrinsic_matrices(sensor_ids)
 
-    def buffer(self):
-        """Updates the internal buffer with the latest data from the sensor.
-
-        This function reads the intrinsic matrix and pose of the camera. It also reads the data from
-        the annotator registry and updates the internal buffer.
-
-        Note:
-            When running in standalone mode, the function renders the scene a few times to fill all the buffers.
-            During this time, the physics simulation is paused. This is a known issue with Isaac Sim.
-        """
+    def buffer(self, sensor_ids: Optional[Sequence[int]] = None):
+        # check camera prim exists
+        if not self._is_initialized:
+            raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
+        # Resolve sensor ids
+        if sensor_ids is None:
+            sensor_ids = self._ALL_INDICES
         # -- intrinsic matrix
-        self._data.intrinsic_matrix = self._compute_intrinsic_matrices()
+        self._update_intrinsic_matrices(sensor_ids)
         # -- pose
-        self._data.position, self._data.orientation = self._compute_ros_poses()
+        self._update_ros_poses(sensor_ids)
         # -- read the data from annotator registry
-        for name in self._rep_registry:
-            # create a list to store the data
-            self._data.output[name] = list()
-            # iterate over all the annotators
-            for index in range(self.count):
-                data = self._rep_registry[name][index].get_data()
-                self._data.output[name].append(data)
-            # concatenate the data
-            self._data.output[name] = np.stack(self._data.output[name], axis=0)
-        # -- update the trigger call data (needed by replicator BasicWriter method)
-        self._data.output["trigger_outputs"] = {"on_time": 1}
+        # check if buffer is called for the first time. If so then, allocate the memory
+        if self._data.output is None:
+            # this is the first time buffer is called
+            # it allocates memory for all the sensors
+            self._create_annotator_data()
+        else:
+            # iterate over all the data types
+            for name, annotators in self._rep_registry.items():
+                # iterate over all the annotators
+                for index in sensor_ids:
+                    # get the data
+                    data = annotators[index].get_data()
+                    # convert data to torch tensor
+                    if self._backend == "torch":
+                        data = convert_to_torch(data, device=self.device)
+                    # add data to output
+                    self._data.output[name][index] = data
 
     """
     Private Helpers
@@ -465,46 +485,17 @@ class CameraView:
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # history buffers
-        self._previous_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-        # constants
-        self._ALL_INDICES = torch.arange(self.count, dtype=torch.long, device=self.device)
-        self._ZERO_JOINT_EFFORT = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-
-        # -- frame states
-        self._data.root_state_w = torch.zeros(self.count, 13, dtype=torch.float, device=self.device)
-        # -- dof states
-        self._data.dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-        self._data.dof_vel = torch.zeros_like(self._data.dof_pos)
-        self._data.dof_acc = torch.zeros_like(self._data.dof_pos)
-        # -- dof commands
-        self._data.dof_pos_targets = torch.zeros_like(self._data.dof_pos)
-        self._data.dof_vel_targets = torch.zeros_like(self._data.dof_pos)
-        self._data.dof_effort_targets = torch.zeros_like(self._data.dof_pos)
-        # -- dof commands (explicit)
-        self._data.computed_torques = torch.zeros_like(self._data.dof_pos)
-        self._data.applied_torques = torch.zeros_like(self._data.dof_pos)
-        # -- default actuator offset
-        self._data.actuator_pos_offset = torch.zeros_like(self._data.dof_pos)
-        self._data.actuator_vel_offset = torch.zeros_like(self._data.dof_pos)
-        # -- other data
-        self._data.soft_dof_pos_limits = torch.zeros(self.count, self.num_dof, 2, dtype=torch.float, device=self.device)
-        self._data.soft_dof_vel_limits = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-        self._data.gear_ratio = torch.ones(self.count, self.num_dof, dtype=torch.float, device=self.device)
-
-        # soft dof position limits (recommended not to be too close to limits).
-        dof_pos_limits = self.articulations.get_dof_limits()
-        dof_pos_mean = (dof_pos_limits[..., 0] + dof_pos_limits[..., 1]) / 2
-        dof_pos_range = dof_pos_limits[..., 1] - dof_pos_limits[..., 0]
-        soft_limit_factor = self.cfg.meta_info.soft_dof_pos_limit_factor
-        # add to data
-        self._data.soft_dof_pos_limits[..., 0] = dof_pos_mean - 0.5 * dof_pos_range * soft_limit_factor
-        self._data.soft_dof_pos_limits[..., 1] = dof_pos_mean + 0.5 * dof_pos_range * soft_limit_factor
-
-        # store the offset amounts from actuator groups
-        for group in self.actuator_groups.values():
-            self._data.actuator_pos_offset[:, group.dof_indices] = group.dof_pos_offset
-
+        # create the data object
+        # -- pose of the cameras
+        self._data.position = self._backend_utils.create_zeros_tensor((self.count, 3), dtype="float32", device=self.device)
+        self._data.orientation = self._backend_utils.create_zeros_tensor((self.count, 4), dtype="float32", device=self.device)
+        # -- intrinsic matrix
+        self._data.intrinsic_matrices = self._backend_utils.create_zeros_tensor((self.count, 3, 3), dtype="float32", device=self.device)
+        self._data.image_shape = self.image_shape
+        # -- output data
+        # since the size of the output data is not known in advance, we leave it as None
+        # the memory will be allocated when the buffer() function is called for the first time.
+        self._data.output = None
 
     def _define_usd_camera_attributes(self, prim_path: str):
         """Creates and sets USD camera attributes.
@@ -555,7 +546,7 @@ class CameraView:
             # get attribute from the class
             prim.GetAttribute(param).Set(param_value)
 
-    def _compute_intrinsic_matrices(self) -> np.ndarray:
+    def _update_intrinsic_matrices(self, sensor_ids: Iterable[int]):
         """Compute camera's matrix of intrinsic parameters.
 
         Also called calibration matrix. This matrix works for linear depth images. We assume square pixels.
@@ -563,21 +554,11 @@ class CameraView:
         Note:
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
-
-        Returns:
-            np.ndarray: A (N, 3, 3) numpy array containing the intrinsic parameters for the camera,
-                where N is the number of cameras.
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
         """
-        # check camera prim exists
-        if len(self._sensor_prims) == 0:
-            raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
-        # create buffer for intrinsic matrices
-        intrinsic_matrices = np.zeros((self.count, 3, 3), dtype=float)
         # iterate over all cameras
-        for i, sensor_prim in enumerate(self._sensor_prims):
+        for i in sensor_ids:
+            # Get corresponding sensor prim
+            sensor_prim = self._sensor_prims[i]
             # get camera parameters
             focal_length = sensor_prim.GetFocalLengthAttr().Get()
             horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
@@ -588,15 +569,13 @@ class CameraView:
             # calculate the focal length in pixels
             focal_px = width * 0.5 / math.tan(fov / 2)
             # create intrinsic matrix for depth linear
-            intrinsic_matrices[i, 0, 0] = focal_px
-            intrinsic_matrices[i, 0, 2] = width * 0.5
-            intrinsic_matrices[i, 1, 1] = focal_px
-            intrinsic_matrices[i, 1, 2] = height * 0.5
-            intrinsic_matrices[i, 2, 2] = 1
-        # return the matrix
-        return intrinsic_matrices
+            self._data.intrinsic_matrices[i, 0, 0] = focal_px
+            self._data.intrinsic_matrices[i, 0, 2] = width * 0.5
+            self._data.intrinsic_matrices[i, 1, 1] = focal_px
+            self._data.intrinsic_matrices[i, 1, 2] = height * 0.5
+            self._data.intrinsic_matrices[i, 2, 2] = 1
 
-    def _compute_ros_poses(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _update_ros_poses(self, sensor_ids: Iterable[int]):
         """Computes the pose of the camera in the world frame with ROS convention.
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
@@ -608,11 +587,10 @@ class CameraView:
         # check camera prim exists
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
-        # create buffer for poses
-        positions = np.zeros((self.count, 3), dtype=float)
-        quaternions = np.zeros((self.count, 4), dtype=float)
         # iterate over all cameras
-        for i, sensor_prim in enumerate(self._sensor_prims):
+        for i in sensor_ids:
+            # obtain corresponding sensor prim
+            sensor_prim = self._sensor_prims[i]
             # get camera's location in world space
             prim_tf = sensor_prim.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
             # GfVec datatypes are row vectors that post-multiply matrices to effect transformations,
@@ -620,7 +598,7 @@ class CameraView:
             # the translation of the transformation. Thus, we take transpose here to make it post multiply.
             prim_tf = np.transpose(prim_tf)
             # extract the position (convert it to SI units-- assumed that stage units is 1.0)
-            positions[i] = prim_tf[0:3, 3]
+            self._data.position[i] = self._backend_utils.convert(prim_tf[0:3, 3], device=self._device)
             # extract rotation
             # Note: OpenGL camera transform is such that camera faces along -z axis and +y is up.
             #   In robotics, we need to rotate it such that the camera is along +z axis and -y is up.
@@ -631,6 +609,40 @@ class CameraView:
             cam_rotm[:, 1] = -cam_rotm[:, 1]
             # convert rotation to quaternion
             quat = tf.Rotation.from_matrix(cam_rotm).as_quat()
-            quaternions[i] = convert_quat(quat, "wxyz")
+            self._data.orientation[i] = self._backend_utils.convert(convert_quat(quat, "wxyz"), device=self._device)
 
-        return positions, quaternions
+    def _create_annotator_data(self):
+        """Create the buffers to store the annotator data.
+
+        We create a buffer for each annotator and store the data in a dictionary. Since the data
+        shape is not known beforehand, we create a list of buffers and concatenate them later.
+
+        This is an expensive operation and should be called only once.
+        """
+        # lazy allocation of data dictionary
+        if self._backend == "numpy":
+            self._data.output = {name: None for name in self.cfg.data_types}
+        elif self._backend == "torch":
+            self._data.output = TensorDict({}, batch_size=self.count, device=self.device)
+        else:
+            raise ValueError(f"Unknown backend: {self._backend}. Supported backends: ['numpy', 'torch']")
+        # add data from the annotators
+        for name, annotators in self._rep_registry.items():
+            # create a list to store the data for each annotator
+            data_all_cameras = list()
+            # iterate over all the annotators
+            for index in self._ALL_INDICES:
+                # get the data
+                data = annotators[index].get_data()
+                # convert data to torch tensor
+                if self._backend == "torch":
+                    data = convert_to_torch(data, device=self.device)
+                # append the data
+                data_all_cameras.append(data)
+            # concatenate the data along the batch dimension
+            if self._backend == "numpy":
+                self._data.output[name] = np.stack(data_all_cameras, axis=0)
+            elif self._backend == "torch":
+                self._data.output[name] = torch.stack(data_all_cameras, dim=0)
+            else:
+                raise ValueError(f"Unsupported backend: {self._backend}")
