@@ -11,7 +11,7 @@ from typing import Optional, Sequence, Tuple, Union
 
 import warp as wp
 
-from omni.isaac.orbit.utils.array import convert_to_torch, TensorData
+from omni.isaac.orbit.utils.array import TensorData, convert_to_torch
 from omni.isaac.orbit.utils.math import transform_points as _transform_points_jit
 from omni.isaac.orbit.utils.math import unproject_depth as _unproject_depth_jit
 

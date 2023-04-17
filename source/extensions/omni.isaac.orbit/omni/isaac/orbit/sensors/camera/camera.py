@@ -9,11 +9,11 @@
 import builtins
 import math
 import numpy as np
-import torch
-from tensordict import TensorDict
 import scipy.spatial.transform as tf
+import torch
 from dataclasses import dataclass
-from typing import Dict, Sequence, Tuple, Union, List, Optional, Iterable
+from tensordict import TensorDict
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
@@ -27,7 +27,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import class_to_dict, to_camel_case
-from omni.isaac.orbit.utils.array import convert_to_torch, TensorData
+from omni.isaac.orbit.utils.array import TensorData, convert_to_torch
 from omni.isaac.orbit.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
@@ -150,7 +150,9 @@ class Camera(SensorBase):
     Configuration
     """
 
-    def set_intrinsic_matrix(self, matrices: TensorData, focal_length: float = 1.0, indices: Optional[Sequence[int]] = None):
+    def set_intrinsic_matrices(
+        self, matrices: TensorData, focal_length: float = 1.0, indices: Optional[Sequence[int]] = None
+    ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
         The intrinsic matrix and focal length are used to set the following parameters to the USD camera:
@@ -216,7 +218,9 @@ class Camera(SensorBase):
     Operations - Set pose.
     """
 
-    def set_world_poses_ros(self, positions: TensorData = None, orientations: TensorData = None, indices: Optional[Sequence[int]] = None):
+    def set_world_poses_ros(
+        self, positions: TensorData = None, orientations: TensorData = None, indices: Optional[Sequence[int]] = None
+    ):
         r"""Set the pose of the camera w.r.t. world frame using ROS convention.
 
         In USD, the camera is always in **Y up** convention. This means that the camera is looking down the -Z axis
@@ -320,7 +324,9 @@ class Camera(SensorBase):
             # camera position and rotation in world frame
             matrix_gf = matrix_gf.GetInverse()
             positions[i] = self._backend_utils.convert(np.asarray(matrix_gf.ExtractTranslation()), self._device)
-            orientations[i] = self._backend_utils.convert(gf_quat_to_np_array(matrix_gf.ExtractRotationQuat()), self._device)
+            orientations[i] = self._backend_utils.convert(
+                gf_quat_to_np_array(matrix_gf.ExtractRotationQuat()), self._device
+            )
         # set camera poses using the view
         self._view.set_world_poses(positions, orientations, indices)
 
@@ -376,9 +382,11 @@ class Camera(SensorBase):
         # Check that sensor has been spawned
         if prim_paths_expr is None:
             if not self._is_spawned:
-                raise RuntimeError("Initialize the camera failed! Please provide a valid argument for `prim_paths_expr`.")
-            else:
-                prim_paths_expr = self._spawn_prim_path
+                raise RuntimeError(
+                    "Initialize the camera failed! Please provide a valid argument for `prim_paths_expr`."
+                )
+            # use the prim path from spawning
+            prim_paths_expr = self._spawn_prim_path
         # Initialize parent class
         super().initialize(prim_paths_expr)
 
@@ -397,13 +405,11 @@ class Camera(SensorBase):
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
-            else:
-                sensor_prim = UsdGeom.Camera(cam_prim)
-                self._sensor_prims.append(sensor_prim)
+            # Add to list
+            sensor_prim = UsdGeom.Camera(cam_prim)
+            self._sensor_prims.append(sensor_prim)
             # Get render product
-            render_prod_path = rep.create.render_product(
-                cam_prim_path, resolution=(self.cfg.width, self.cfg.height)
-            )
+            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
             self._render_product_paths.append(render_prod_path)
             # Iterate over each data type and create annotator
             # TODO: This will move out of the loop once Replicator supports multiple render products within a single
@@ -484,10 +490,16 @@ class Camera(SensorBase):
         """Create buffers for storing data."""
         # create the data object
         # -- pose of the cameras
-        self._data.position = self._backend_utils.create_zeros_tensor((self.count, 3), dtype="float32", device=self.device)
-        self._data.orientation = self._backend_utils.create_zeros_tensor((self.count, 4), dtype="float32", device=self.device)
+        self._data.position = self._backend_utils.create_zeros_tensor(
+            (self.count, 3), dtype="float32", device=self.device
+        )
+        self._data.orientation = self._backend_utils.create_zeros_tensor(
+            (self.count, 4), dtype="float32", device=self.device
+        )
         # -- intrinsic matrix
-        self._data.intrinsic_matrices = self._backend_utils.create_zeros_tensor((self.count, 3, 3), dtype="float32", device=self.device)
+        self._data.intrinsic_matrices = self._backend_utils.create_zeros_tensor(
+            (self.count, 3, 3), dtype="float32", device=self.device
+        )
         self._data.image_shape = self.image_shape
         # -- output data
         # since the size of the output data is not known in advance, we leave it as None

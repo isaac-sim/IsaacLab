@@ -11,20 +11,16 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 
 from abc import abstractmethod
-from typing import Any, Sequence, Optional, List
+from typing import Any, List, Optional, Sequence
 
-from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.prims import XFormPrimView
+from omni.isaac.core.simulation_context import SimulationContext
 
 from omni.isaac.orbit.utils import TensorData
 
 
 class SensorBase:
-    """The base class for implementing a sensor.
-
-    Note:
-        These sensors are not vectorized yet.
-    """
+    """The base class for implementing a sensor."""
 
     def __init__(self, sensor_tick: float = 0.0):
         """Initialize the sensor class.

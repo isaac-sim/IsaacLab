@@ -44,8 +44,8 @@ from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.compat.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
+from omni.isaac.orbit.sensors.compat.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
 
 """

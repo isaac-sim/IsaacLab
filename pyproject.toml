@@ -24,6 +24,7 @@ extra_standard_library = [
     "h5py",
     "open3d",
     "torch",
+    "tensordict",
     "bpy",
     "matplotlib",
     "gym",

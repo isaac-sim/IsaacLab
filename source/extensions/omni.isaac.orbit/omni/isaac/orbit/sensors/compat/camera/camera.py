@@ -22,10 +22,9 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.rotations import gf_quat_to_np_array
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-# omni-isaac-orbit
+from omni.isaac.orbit.sensors.camera import FisheyeCameraCfg, PinholeCameraCfg
 from omni.isaac.orbit.utils import class_to_dict, to_camel_case
 from omni.isaac.orbit.utils.math import convert_quat
-from omni.isaac.orbit.sensors.camera import FisheyeCameraCfg, PinholeCameraCfg
 
 from ..sensor_base import SensorBase
 

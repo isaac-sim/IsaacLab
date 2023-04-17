@@ -488,7 +488,9 @@ def apply_delta_pose(
 
 
 @torch.jit.script
-def transform_points(points: torch.Tensor, pos: Optional[torch.Tensor] = None, quat: Optional[torch.Tensor] = None) -> torch.Tensor:
+def transform_points(
+    points: torch.Tensor, pos: Optional[torch.Tensor] = None, quat: Optional[torch.Tensor] = None
+) -> torch.Tensor:
     r"""Transform input points in a given frame to a target frame.
 
     This function transform points from a source frame to a target frame. The transformation is defined by the
@@ -562,10 +564,7 @@ Projection operations.
 
 
 @torch.jit.script
-def unproject_depth(
-    depth: torch.Tensor,
-    intrinsics: torch.Tensor
-) -> torch.Tensor:
+def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
     r"""Unproject depth image into a pointcloud.
 
     This function converts depth images into points given the calibration matrix of the camera.

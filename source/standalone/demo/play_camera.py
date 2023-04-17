@@ -32,9 +32,9 @@ simulation_app = SimulationApp(config)
 
 
 import numpy as np
-import torch
 import os
 import random
+import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
@@ -45,9 +45,9 @@ from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.camera import PinholeCameraCfg, Camera
-from omni.isaac.orbit.utils.math import unproject_depth, transform_points, project_points
+from omni.isaac.orbit.sensors.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
+from omni.isaac.orbit.utils.math import project_points, transform_points, unproject_depth
 
 """
 Helpers
@@ -107,7 +107,9 @@ def main():
     """Runs a camera sensor from orbit."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu")
+    sim = SimulationContext(
+        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu"
+    )
     # sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="numpy")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
@@ -222,7 +224,9 @@ def main():
             for index in range(num_batch):
                 # generate random color
                 color = [random.random() for _ in range(3)]
-                color += [1, ]
+                color += [
+                    1,
+                ]
                 # plain color for points
                 points_color = [color] * num_points
                 draw_interface.draw_points(points_3d_world[index].tolist(), points_color, points_size)
