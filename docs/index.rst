@@ -44,13 +44,20 @@ using the following BibTeX entry:
 
 .. toctree::
    :maxdepth: 1
-   :caption: Tutorials (beginner)
+   :caption: Tutorials (Core)
 
    source/tutorials/00_empty
    source/tutorials/01_arms
    source/tutorials/02_cloner
    source/tutorials/03_ik_controller
-   source/tutorials/04_gym_env
+
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+   :caption: Tutorials (Environments)
+
+   source/tutorials_envs/00_gym_env
+   source/tutorials_envs/01_create_env
 
 .. toctree::
    :maxdepth: 2

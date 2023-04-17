@@ -30,6 +30,7 @@ Usage:
 
 import gym  # noqa: F401
 import os
+import toml
 
 # Conveniences to other module directories via relative paths
 ORBIT_CONTRIB_ENVS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
@@ -37,3 +38,9 @@ ORBIT_CONTRIB_ENVS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file
 
 ORBIT_CONTRIB_ENVS_DATA_DIR = os.path.join(ORBIT_CONTRIB_ENVS_EXT_DIR, "data")
 """Path to the extension data directory."""
+
+ORBIT_CONTRIB_ENVS_METADATA = toml.load(os.path.join(ORBIT_CONTRIB_ENVS_EXT_DIR, "config", "extension.toml"))
+"""Extension metadata dictionary parsed from the extension.toml file."""
+
+# Configure the module-level variables
+__version__ = ORBIT_CONTRIB_ENVS_METADATA["package"]["version"]

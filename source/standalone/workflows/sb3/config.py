@@ -40,7 +40,7 @@ def parse_sb3_cfg(task_name) -> dict:
         raise ValueError(f"Task not found: {task_name}. Configurations exist for {SB3_PPO_CONFIG_FILE.keys()}")
 
     # parse agent configuration
-    with open(config_file) as f:
+    with open(config_file, encoding="utf-8") as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
     # check config is valid
     if cfg is None:
