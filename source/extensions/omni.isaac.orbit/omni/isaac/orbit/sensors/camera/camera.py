@@ -17,6 +17,7 @@ from typing import Dict, Sequence, Tuple, Union, List, Optional, Iterable
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
+import omni.kit.commands
 import omni.replicator.core as rep
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
@@ -502,6 +503,15 @@ class Camera(SensorBase):
         Args:
             prim_path (str): The prim path to the camera.
         """
+        # lock camera from viewport (this disables viewport movement for camera)
+        kwargs = {
+            "prop_path": Sdf.Path(f"{prim_path}.omni:kit:cameraLock"),
+            "value": True,
+            "prev": None,
+            "type_to_create_if_not_exist": Sdf.ValueTypeNames.Bool,
+        }
+        omni.kit.commands.execute("ChangePropertyCommand", **kwargs)
+
         # camera attributes
         # reference: omni.replicator.core.scripts.create.py: camera()
         attribute_types = {
