@@ -179,7 +179,7 @@
                 "low_dim": [
                     "tool_dof_pos_scaled",
                     "tool_positions",
-                    "object_positions",
+                    "object_relative_tool_positions",
                     "object_desired_positions"
                 ],
                 "rgb": [],
