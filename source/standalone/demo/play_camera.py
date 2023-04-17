@@ -32,6 +32,7 @@ simulation_app = SimulationApp(config)
 
 
 import numpy as np
+import torch
 import os
 import random
 
@@ -45,7 +46,7 @@ from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.sensors.camera import PinholeCameraCfg, Camera
-from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
+from omni.isaac.orbit.utils.math import unproject_depth, transform_points, project_points
 from omni.isaac.orbit.utils import convert_dict_to_backend
 
 """
@@ -153,8 +154,8 @@ def main():
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
     #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(14):
-        sim.render()
+    for _ in range(3):
+        sim.step()
 
     # Simulate physics
     while simulation_app.is_running():
@@ -193,29 +194,38 @@ def main():
         rep_writer.write(single_cam_data)
 
         # Pointcloud in world frame
-        pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
-            camera.data.intrinsic_matrices[0],
-            depth=single_cam_data["distance_to_image_plane"],
-            rgb=single_cam_data["rgb"],
-            position=camera.data.position[camera_index],
-            orientation=camera.data.orientation[camera_index],
-            normalize_rgb=True,
-            num_channels=4,
-        )
+        points_3d_cam = unproject_depth(camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices)
+        points_3d_world = transform_points(points_3d_cam, camera.data.position, camera.data.orientation)
+
+        # Check methods are valid
+        im_height, im_width = camera.image_shape
+        # -- project points to (u, v, d)
+        reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
+        reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
+        sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
+        torch.testing.assert_allclose(reproj_depths, sim_depths)
 
         # Draw pointcloud
         if not args_cli.headless and args_cli.draw:
             # Convert to numpy for visualization
-            if not isinstance(pointcloud_w, np.ndarray):
-                pointcloud_w = pointcloud_w.cpu().numpy()
-            if not isinstance(pointcloud_rgb, np.ndarray):
-                pointcloud_rgb = pointcloud_rgb.cpu().numpy()
-            # Visualize the points
-            num_points = pointcloud_w.shape[0]
-            points_size = [1.25] * num_points
-            points_color = pointcloud_rgb
+            if not isinstance(points_3d_world, np.ndarray):
+                points_3d_world = points_3d_world.cpu().numpy()
+            # Clear any existing points
             draw_interface.clear_points()
-            draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
+            # Obtain drawing settings
+            num_batch = points_3d_world.shape[0]
+            num_points = points_3d_world.shape[1]
+            points_size = [1.25] * num_points
+            # Fix random seed
+            random.seed(0)
+            # Visualize the points
+            for index in range(num_batch):
+                # generate random color
+                color = [random.random() for _ in range(3)]
+                color += [1, ]
+                # plain color for points
+                points_color = [color] * num_points
+                draw_interface.draw_points(points_3d_world[index].tolist(), points_color, points_size)
 
 
 if __name__ == "__main__":

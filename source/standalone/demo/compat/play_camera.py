@@ -149,8 +149,8 @@ def main():
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
     #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(14):
-        sim.render()
+    for _ in range(3):
+        sim.step()
 
     # Simulate physics
     while simulation_app.is_running():
