@@ -11,8 +11,9 @@ from typing import Optional, Sequence, Tuple, Union
 
 import warp as wp
 
-from omni.isaac.orbit.utils.array import convert_to_torch
-from omni.isaac.orbit.utils.math import matrix_from_quat
+from omni.isaac.orbit.utils.array import convert_to_torch, TensorData
+from omni.isaac.orbit.utils.math import transform_points as _transform_points_jit
+from omni.isaac.orbit.utils.math import unproject_depth as _unproject_depth_jit
 
 __all__ = ["transform_points", "create_pointcloud_from_depth", "create_pointcloud_from_rgbd"]
 
@@ -23,15 +24,15 @@ Depth <-> Pointcloud conversions.
 
 
 def transform_points(
-    points: Union[np.ndarray, torch.Tensor, wp.array],
+    points: TensorData,
     position: Optional[Sequence[float]] = None,
     orientation: Optional[Sequence[float]] = None,
     device: Union[torch.device, str, None] = None,
 ) -> Union[np.ndarray, torch.Tensor]:
     r"""Transform input points in a given frame to a target frame.
 
-    This function uses torch operations to transform points from a source frame to a target frame. The
-    transformation is defined by the position ``t`` and orientation ``R`` of the target frame in the source frame.
+    This function transform points from a source frame to a target frame. The transformation is defined by the
+    position ``t`` and orientation ``R`` of the target frame in the source frame.
 
     .. math::
         p_{target} = R_{target} \times p_{source} + t_{target}
@@ -39,7 +40,7 @@ def transform_points(
     If either the inputs `position` and `orientation` are :obj:`None`, the corresponding transformation is not applied.
 
     Args:
-        points (Union[np.ndarray, torch.Tensor, wp.array]): An array of shape (N, 3) comprising of 3D points in source frame.
+        points (Union[np.ndarray, torch.Tensor, wp.array]): A tensor of shape (P, 3) or (N, P, 3) comprising of 3D points in source frame.
         position (Optional[Sequence[float]], optional): The position of source frame in target frame. Defaults to None.
         orientation (Optional[Sequence[float]], optional): The orientation ``(w, x, y, z)`` of source frame in target frame.
             Defaults to None.
@@ -147,7 +148,12 @@ def create_pointcloud_from_depth(
     if orientation is not None:
         orientation = convert_to_torch(orientation, dtype=torch.float32, device=device)
     # compute pointcloud
-    depth_cloud = _create_pointcloud_from_depth_jit(intrinsic_matrix, depth, keep_invalid, position, orientation)
+    depth_cloud = _unproject_depth_jit(depth, intrinsic_matrix)
+    # convert 3D points to world frame
+    depth_cloud = _transform_points_jit(depth_cloud, position, orientation)
+    # keep only valid entries
+    pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(depth_cloud), ~torch.isinf(depth_cloud)), dim=1)
+    depth_cloud = depth_cloud[pts_idx_to_keep, ...]
 
     # return everything according to input type
     if is_numpy:
@@ -264,96 +270,3 @@ def create_pointcloud_from_rgbd(
         return points_xyz.cpu().numpy(), points_rgb.cpu().numpy()
     else:
         return points_xyz, points_rgb
-
-
-"""
-Helper functions -- Internal
-"""
-
-
-@torch.jit.script
-def _transform_points_jit(
-    points: torch.Tensor,
-    position: Optional[torch.Tensor] = None,
-    orientation: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Transform input points in a given frame to a target frame.
-
-    Args:
-        points (torch.Tensor): An array of shape (N, 3) comprising of 3D points in source frame.
-        position (Optional[torch.Tensor], optional): The position of source frame in target frame. Defaults to None.
-        orientation (Optional[torch.Tensor], optional): The orientation ``(w, x, y, z)`` of source frame in target frame.
-            Defaults to None.
-
-    Returns:
-        torch.Tensor: A tensor of shape (N, 3) comprising of 3D points in target frame.
-    """
-    # -- apply rotation
-    if orientation is not None:
-        points = torch.matmul(matrix_from_quat(orientation), points.T).T
-    # -- apply translation
-    if position is not None:
-        points += position
-
-    return points
-
-
-@torch.jit.script
-def _create_pointcloud_from_depth_jit(
-    intrinsic_matrix: torch.Tensor,
-    depth: torch.Tensor,
-    keep_invalid: bool = False,
-    position: Optional[torch.Tensor] = None,
-    orientation: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Creates pointcloud from input depth image and camera intrinsic matrix.
-
-    Args:
-        intrinsic_matrix (torch.Tensor): A (3, 3) python tensor providing camera's calibration matrix.
-        depth (torch.tensor): An tensor of shape (H, W) with values encoding the depth measurement.
-        keep_invalid (bool, optional): Whether to keep invalid points in the cloud or not. Invalid points
-            correspond to pixels with depth values 0.0 or NaN. Defaults to False.
-        position (torch.Tensor, optional): The position of the camera in a target frame. Defaults to None.
-        orientation (torch.Tensor, optional): The orientation ``(w, x, y, z)`` of the camera in a target frame.
-            Defaults to None.
-
-    Raises:
-        ValueError: When intrinsic matrix is not of shape (3, 3).
-        ValueError: When depth image is not of shape (H, W) or (H, W, 1).
-
-    Returns:
-        torch.Tensor: A tensor of shape (N, 3) comprising of 3D coordinates of points.
-
-    """
-    # squeeze out excess dimension
-    if len(depth.shape) == 3:
-        depth = depth.squeeze(dim=2)
-    # check shape of inputs
-    if intrinsic_matrix.shape != (3, 3):
-        raise ValueError(f"Input intrinsic matrix of invalid shape: {intrinsic_matrix.shape} != (3, 3).")
-    if len(depth.shape) != 2:
-        raise ValueError(f"Input depth image not two-dimensional. Received shape: {depth.shape}.")
-    # get image height and width
-    im_height, im_width = depth.shape
-
-    # convert image points into list of shape (3, H x W)
-    indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
-    indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
-    img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
-    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
-
-    # convert into 3D points
-    points = torch.matmul(torch.inverse(intrinsic_matrix), pixels)
-    points = points / points[-1, :]
-    points_xyz = points * depth.T.reshape(-1)
-    # convert it to (H x W , 3)
-    points_xyz = torch.transpose(points_xyz, dim0=0, dim1=1)
-    # convert 3D points to world frame
-    points_xyz = _transform_points_jit(points_xyz, position, orientation)
-
-    # remove points that have invalid depth
-    if not keep_invalid:
-        pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(points_xyz), ~torch.isinf(points_xyz)), dim=1)
-        points_xyz = points_xyz[pts_idx_to_keep, ...]
-
-    return points_xyz  # noqa: D504

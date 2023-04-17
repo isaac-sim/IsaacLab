@@ -53,6 +53,10 @@ __all__ = [
     "subtract_frame_transforms",
     "compute_pose_error",
     "apply_delta_pose",
+    "transform_points",
+    # Projection
+    "unproject_depth",
+    "project_points",
     # Sampling
     "default_orientation",
     "random_orientation",
@@ -455,7 +459,7 @@ def apply_delta_pose(
 
     Args:
         frame_pos (torch.Tensor): Position of source frame. Shape: [N, 3]
-        frame_rot (torch.Tensor): Quaternion orientation of source frame in (w, x, y,z).
+        frame_rot (torch.Tensor): Quaternion orientation of source frame in (w, x, y, z). Shape [N, 4].
         delta_pose (torch.Tensor): Position and orientation displacements. Shape [N, 6].
         eps (float): The tolerance to consider orientation displacement as zero.
 
@@ -481,6 +485,212 @@ def apply_delta_pose(
     target_rot = quat_mul(rot_delta_quat, source_rot)
 
     return target_pos, target_rot
+
+
+@torch.jit.script
+def transform_points(points: torch.Tensor, pos: Optional[torch.Tensor] = None, quat: Optional[torch.Tensor] = None) -> torch.Tensor:
+    r"""Transform input points in a given frame to a target frame.
+
+    This function transform points from a source frame to a target frame. The transformation is defined by the
+    position :math:`t` and orientation :math:`R` of the target frame in the source frame.
+
+    .. math::
+        p_{target} = R_{target} \times p_{source} + t_{target}
+
+    If the input `points` is a batch of points, the inputs `pos` and `quat` must be either a batch of
+    positions and quaternions or a single position and quaternion. If the inputs `pos` and `quat` are
+    a single position and quaternion, the same transformation is applied to all points in the batch.
+
+    If either the inputs `pos` and `quat` are :obj:`None`, the corresponding transformation is not applied.
+
+    Args:
+        points (torch.Tensor): Points to transform. Shape: (N, P, 3) or (P, 3).
+        pos (torch.Tensor): Position of the target frame. Shape: (N, 3) or (3,).
+        quat (torch.Tensor): Quaternion orientation of the target frame in (w, x, y, z).
+            Shape: (N, 4) or (4,).
+
+    Returns:
+        torch.Tensor: Transformed points in the target frame. Shape: (N, P, 3) or (P, 3).
+
+    Raises:
+        ValueError: If the inputs `points` is not of shape (N, P, 3) or (P, 3).
+        ValueError: If the inputs `pos` is not of shape (N, 3) or (3,).
+        ValueError: If the inputs `quat` is not of shape (N, 4) or (4,).
+    """
+    points_batch = points.clone()
+    # check if inputs are batched
+    is_batched = points_batch.dim() == 3
+    # -- check inputs
+    if points_batch.dim() == 2:
+        points_batch = points_batch[None]  # (P, 3) -> (1, P, 3)
+    if points_batch.dim() != 3:
+        raise ValueError(f"Expected points to have dim = 2 or dim = 3: got shape {points.shape}")
+    if not (pos is None or pos.dim() == 1 or pos.dim() == 2):
+        raise ValueError(f"Expected pos to have dim = 1 or dim = 2: got shape {pos.shape}")
+    if not (quat is None or quat.dim() == 1 or quat.dim() == 2):
+        raise ValueError(f"Expected quat to have dim = 1 or dim = 2: got shape {quat.shape}")
+    # -- rotation
+    if quat is not None:
+        # convert to batched rotation matrix
+        rot_mat = matrix_from_quat(quat)
+        if rot_mat.dim() == 2:
+            rot_mat = rot_mat[None]  # (3, 3) -> (1, 3, 3)
+        # convert points to matching batch size (N, P, 3) -> (N, 3, P)
+        # and apply rotation
+        points_batch = torch.matmul(rot_mat, points_batch.transpose_(1, 2))
+        # (N, 3, P) -> (N, P, 3)
+        points_batch = points_batch.transpose_(1, 2)
+    # -- translation
+    if pos is not None:
+        # convert to batched translation vector
+        if pos.dim() == 1:
+            pos = pos[None, None, :]  # (3,) -> (1, 1, 3)
+        else:
+            pos = pos[:, None, :]  # (N, 3) -> (N, 1, 3)
+        # apply translation
+        points_batch += pos
+    # -- return points in same shape as input
+    if not is_batched:
+        points_batch = points_batch.squeeze(0)  # (1, P, 3) -> (P, 3)
+
+    return points_batch
+
+
+"""
+Projection operations.
+"""
+
+
+@torch.jit.script
+def unproject_depth(
+    depth: torch.Tensor,
+    intrinsics: torch.Tensor
+) -> torch.Tensor:
+    r"""Unproject depth image into a pointcloud.
+
+    This function converts depth images into points given the calibration matrix of the camera.
+
+    .. math::
+        p_{3D} = K^{-1} \times [u, v, 1]^T \times d
+
+    where :math:`p_{3D}` is the 3D point, :math:`d` is the depth value, :math:`u` and :math:`v` are
+    the pixel coordinates and :math:`K` is the intrinsic matrix.
+
+    If `depth` is a batch of depth images and `intrinsics` is a single intrinsic matrix, the same
+    calibration matrix is applied to all depth images in the batch.
+
+    The function assumes that the width and height are both greater than 1. This makes the function
+    deal with many possible shapes of depth images and intrinsics matrices.
+
+    Args:
+        depth (torch.tensor): The depth measurement. Shape: (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics (torch.Tensor): A tensor providing camera's calibration matrix. Shape: (3, 3) or (N, 3, 3).
+
+    Returns:
+        torch.Tensor: The 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
+
+    Raises:
+        ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        ValueError: When intrinsics is not of shape (3, 3) or (N, 3, 3).
+
+    """
+    depth_batch = depth.clone()
+    intrinsics_batch = intrinsics.clone()
+    # check if inputs are batched
+    is_batched = depth_batch.dim() == 4 or (depth_batch.dim() == 3 and depth_batch.shape[-1] != 1)
+    # make sure inputs are batched
+    if depth_batch.dim() == 3 and depth_batch.shape[-1] == 1:
+        depth_batch = depth_batch.squeeze(dim=2)  # (H, W, 1) -> (H, W)
+    if depth_batch.dim() == 2:
+        depth_batch = depth_batch[None]  # (H, W) -> (1, H, W)
+    if depth_batch.dim() == 4 and depth_batch.shape[-1] == 1:
+        depth_batch = depth_batch.squeeze(dim=3)  # (N, H, W, 1) -> (N, H, W)
+    if intrinsics_batch.dim() == 2:
+        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
+    # check shape of inputs
+    if depth_batch.dim() != 3:
+        raise ValueError(f"Expected depth images to have dim = 2 or 3 or 4: got shape {depth.shape}")
+    if intrinsics_batch.dim() != 3:
+        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}")
+
+    # get image height and width
+    im_height, im_width = depth_batch.shape[1:]
+    # create image points in homogenous coordinates (3, H x W)
+    indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
+    indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
+    img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
+    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
+    pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
+
+    # unproject points into 3D space
+    points = torch.matmul(torch.inverse(intrinsics_batch), pixels)  # (N, 3, H x W)
+    points = points / points[:, -1, :].unsqueeze(1)  # normalize by last coordinate
+    # flatten depth image (N, H, W) -> (N, H x W)
+    depth_batch = depth_batch.transpose_(1, 2).reshape(depth_batch.shape[0], -1).unsqueeze(2)
+    depth_batch = depth_batch.expand(-1, -1, 3)
+    # scale points by depth
+    points_xyz = points.transpose_(1, 2) * depth_batch  # (N, H x W, 3)
+
+    # return points in same shape as input
+    if not is_batched:
+        points_xyz = points_xyz.squeeze(0)
+
+    return points_xyz
+
+
+@torch.jit.script
+def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tensor:
+    r"""Projects 3D points into 2D image plane.
+
+    This project 3D points into a 2D image plane. The transformation is defined by the intrinsic
+    matrix of the camera.
+
+    .. math::
+
+        \begin{align}
+            p &= K \times p_{3D}  = \\
+            p_{2D} &= \begin{pmatrix} u \\ v \\  d \end{pmatrix}
+                    = \begin{pmatrix} p[0] / p[2] \\  p[1] / p[2] \\ Z \end{pmatrix}
+        \end{align}
+
+    where :math:`p_{2D} = (u, v, d)` is the projected 3D point, :math:`p_{3D} = (X, Y, Z)` is the
+    3D point and :math:`K \in \mathbb{R}^{3 \times 3}` is the intrinsic matrix.
+
+    If `points` is a batch of 3D points and `intrinsics` is a single intrinsic matrix, the same
+    calibration matrix is applied to all points in the batch.
+
+    Args:
+        points (torch.Tensor): The 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
+        intrinsics (torch.Tensor): Camera's calibration matrix. Shape: (3, 3) or (N, 3, 3).
+
+    Returns:
+        torch.Tensor: Projected 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
+    """
+    points_batch = points.clone()
+    intrinsics_batch = intrinsics.clone()
+    # check if inputs are batched
+    is_batched = points_batch.dim() == 2
+    # make sure inputs are batched
+    if points_batch.dim() == 2:
+        points_batch = points_batch[None]  # (P, 3) -> (1, P, 3)
+    if intrinsics_batch.dim() == 2:
+        intrinsics_batch = intrinsics_batch[None]  # (3, 3) -> (1, 3, 3)
+    # check shape of inputs
+    if points_batch.dim() != 3:
+        raise ValueError(f"Expected points to have dim = 3: got shape {points.shape}.")
+    if intrinsics_batch.dim() != 3:
+        raise ValueError(f"Expected intrinsics to have shape (3, 3) or (N, 3, 3): got shape {intrinsics.shape}.")
+    # project points into 2D image plane
+    points_2d = torch.matmul(intrinsics_batch, points_batch.transpose(1, 2))
+    points_2d = points_2d / points_2d[:, -1, :].unsqueeze(1)  # normalize by last coordinate
+    points_2d = points_2d.transpose_(1, 2)  # (N, 3, P) -> (N, P, 3)
+    # replace last coordinate with depth
+    points_2d[:, :, -1] = points_batch[:, :, -1]
+    # return points in same shape as input
+    if not is_batched:
+        points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
+
+    return points_2d
 
 
 """
