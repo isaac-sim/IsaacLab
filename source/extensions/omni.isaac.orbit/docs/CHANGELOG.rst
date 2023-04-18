@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.2.9 (2023-04-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`Se2Gamepad` and :class:`Se3Gamepad` for gamepad teleoperation support.
+
+
 0.2.8 (2023-04-10)
 ~~~~~~~~~~~~~~~~~~
 
