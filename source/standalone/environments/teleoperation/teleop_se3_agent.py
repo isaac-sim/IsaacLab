@@ -34,7 +34,7 @@ import torch
 
 import carb
 
-from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse, Se3Gamepad
+from omni.isaac.orbit.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401

@@ -37,7 +37,13 @@ class Se2Gamepad(DeviceBase):
         https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Gamepad
     """
 
-    def __init__(self, v_x_sensitivity: float = 2, v_y_sensitivity: float = 1, omega_z_sensitivity: float = 1.0, deadzone: float = 0.01):
+    def __init__(
+        self,
+        v_x_sensitivity: float = 2,
+        v_y_sensitivity: float = 1,
+        omega_z_sensitivity: float = 1.0,
+        deadzone: float = 0.01,
+    ):
         """Initialize the keyboard layer.
 
         Args:
@@ -109,7 +115,7 @@ class Se2Gamepad(DeviceBase):
         Reference:
             https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput
         """
-        self.reset() # the base command depend only on the current gamepad status
+        self.reset()  # the base command depend only on the current gamepad status
 
         cur_val = event.value
         absval = abs(event.value)
@@ -121,7 +127,7 @@ class Se2Gamepad(DeviceBase):
         if absval < self.deadzone:
             cur_val = 0
 
-        if event.input in self._INPUT_KEY_VALUE_MAPPING.keys():
+        if event.input in self._INPUT_KEY_VALUE_MAPPING:
             self._base_command += self._INPUT_KEY_VALUE_MAPPING[event.input] * cur_val
         # remove the command when un-pressed
         else:
@@ -135,21 +141,15 @@ class Se2Gamepad(DeviceBase):
         """Creates default key binding."""
         self._INPUT_KEY_VALUE_MAPPING = {
             # forward command
-            carb.input.GamepadInput.LEFT_STICK_UP:
-                np.asarray([1.0, 0.0, 0.0]) * self.v_x_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_UP: np.asarray([1.0, 0.0, 0.0]) * self.v_x_sensitivity,
             # backward command
-            carb.input.GamepadInput.LEFT_STICK_DOWN:
-                np.asarray([-1.0, 0.0, 0.0]) * self.v_x_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_DOWN: np.asarray([-1.0, 0.0, 0.0]) * self.v_x_sensitivity,
             # right command
-            carb.input.GamepadInput.LEFT_STICK_RIGHT:
-                np.asarray([0.0, 1.0, 0.0]) * self.v_y_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_RIGHT: np.asarray([0.0, 1.0, 0.0]) * self.v_y_sensitivity,
             # left command
-            carb.input.GamepadInput.LEFT_STICK_LEFT:
-                np.asarray([0.0, -1.0, 0.0]) * self.v_y_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_LEFT: np.asarray([0.0, -1.0, 0.0]) * self.v_y_sensitivity,
             # yaw command (positive)
-            carb.input.GamepadInput.RIGHT_STICK_RIGHT:
-                np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
+            carb.input.GamepadInput.RIGHT_STICK_RIGHT: np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
             # yaw command (negative)
-            carb.input.GamepadInput.RIGHT_STICK_LEFT:
-                np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity
+            carb.input.GamepadInput.RIGHT_STICK_LEFT: np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
         }

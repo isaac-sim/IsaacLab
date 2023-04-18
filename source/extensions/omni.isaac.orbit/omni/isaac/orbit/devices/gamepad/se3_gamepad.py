@@ -91,8 +91,8 @@ class Se3Gamepad(DeviceBase):
     def reset(self):
         # default flags
         self._close_gripper = False
-        self._delta_pos = np.zeros([2,3])  # (pos, neg) (x, y, z)
-        self._delta_rot = np.zeros([2,3])  # (pos, neg) (roll, pitch, yaw)
+        self._delta_pos = np.zeros([2, 3])  # (pos, neg) (x, y, z)
+        self._delta_rot = np.zeros([2, 3])  # (pos, neg) (roll, pitch, yaw)
 
     def add_callback(self, key: str, func: Callable):
         """Add additional functions to bind gamepad.
@@ -114,10 +114,10 @@ class Se3Gamepad(DeviceBase):
         Returns:
             Tuple[np.ndarray, bool] -- A tuple containing the delta pose command and gripper commands.
         """
-        delta_rot_sgn = self._delta_rot[0,:] > self._delta_rot[1,:]
-        delta_rot = self._delta_rot.max(axis=0) 
+        delta_rot_sgn = self._delta_rot[0, :] > self._delta_rot[1, :]
+        delta_rot = self._delta_rot.max(axis=0)
         delta_rot[~delta_rot_sgn] *= -1
-        delta_pos_sgn = self._delta_pos[0,:] > self._delta_pos[1,:]
+        delta_pos_sgn = self._delta_pos[0, :] > self._delta_pos[1, :]
         delta_pos = self._delta_pos.max(axis=0)
         delta_pos[~delta_pos_sgn] *= -1
 
@@ -140,10 +140,9 @@ class Se3Gamepad(DeviceBase):
         cur_val = event.value
         absval = abs(event.value)
 
-
         # Ignore 0 since it signifies the movement  of the stick has stopped,
         # but doesn't mean it's at center...could be being held steady
-   
+
         if absval < self.deadzone:
             cur_val = 0
 
@@ -153,66 +152,53 @@ class Se3Gamepad(DeviceBase):
         elif event.input == carb.input.GamepadInput.B:
             if cur_val > 0.5:
                 self._close_gripper = False
-        elif event.input in self._INPUT_KEY_POS_VALUE_MAPPING.keys():
-            i,j,v = self._INPUT_KEY_POS_VALUE_MAPPING[event.input]
-            self._delta_pos[i,j] = v * cur_val
-        elif event.input in self._INPUT_KEY_ROT_VALUE_MAPPING.keys():
-            i,j,v = self._INPUT_KEY_ROT_VALUE_MAPPING[event.input]
-            self._delta_rot[i,j] = v * cur_val
-        elif event.input in self._INPUT_KEY_ROT_BOOL_MAPPING.keys():
-            i,j,v = self._INPUT_KEY_ROT_BOOL_MAPPING[event.input]
+        elif event.input in self._INPUT_KEY_POS_VALUE_MAPPING:
+            i, j, v = self._INPUT_KEY_POS_VALUE_MAPPING[event.input]
+            self._delta_pos[i, j] = v * cur_val
+        elif event.input in self._INPUT_KEY_ROT_VALUE_MAPPING:
+            i, j, v = self._INPUT_KEY_ROT_VALUE_MAPPING[event.input]
+            self._delta_rot[i, j] = v * cur_val
+        elif event.input in self._INPUT_KEY_ROT_BOOL_MAPPING:
+            i, j, v = self._INPUT_KEY_ROT_BOOL_MAPPING[event.input]
             if cur_val > 0.5:
-                self._delta_rot[i,j] = v
+                self._delta_rot[i, j] = v
             else:
-                self._delta_rot[:,j] = 0  
+                self._delta_rot[:, j] = 0
         elif event.input.name in self._additional_callbacks:
             self._additional_callbacks[event.input.name]()
         return True
-
 
     def _create_key_bindings(self):
         """Creates default key binding."""
         self._INPUT_KEY_POS_VALUE_MAPPING = {
             # forward command
-            carb.input.GamepadInput.LEFT_STICK_UP:
-                (0,0,self.pos_sensitivity),
+            carb.input.GamepadInput.LEFT_STICK_UP: (0, 0, self.pos_sensitivity),
             # backward command
-            carb.input.GamepadInput.LEFT_STICK_DOWN:
-                (1,0,self.pos_sensitivity),
+            carb.input.GamepadInput.LEFT_STICK_DOWN: (1, 0, self.pos_sensitivity),
             # right command
-            carb.input.GamepadInput.LEFT_STICK_RIGHT:
-                (0,1,self.pos_sensitivity),
+            carb.input.GamepadInput.LEFT_STICK_RIGHT: (0, 1, self.pos_sensitivity),
             # left command
-            carb.input.GamepadInput.LEFT_STICK_LEFT:
-                (1,1,self.pos_sensitivity),
+            carb.input.GamepadInput.LEFT_STICK_LEFT: (1, 1, self.pos_sensitivity),
             # upward command
-            carb.input.GamepadInput.RIGHT_STICK_UP:
-                (0,2,self.pos_sensitivity),
+            carb.input.GamepadInput.RIGHT_STICK_UP: (0, 2, self.pos_sensitivity),
             # downward command
-            carb.input.GamepadInput.RIGHT_STICK_DOWN:
-                (1,2,self.pos_sensitivity)
+            carb.input.GamepadInput.RIGHT_STICK_DOWN: (1, 2, self.pos_sensitivity),
         }
 
         self._INPUT_KEY_ROT_BOOL_MAPPING = {
             # forward command
-            carb.input.GamepadInput.DPAD_UP:
-                (0,1, self.rot_sensitivity * 0.8),
+            carb.input.GamepadInput.DPAD_UP: (0, 1, self.rot_sensitivity * 0.8),
             # backward command
-            carb.input.GamepadInput.DPAD_DOWN:
-                (1,1, self.rot_sensitivity * 0.8),
+            carb.input.GamepadInput.DPAD_DOWN: (1, 1, self.rot_sensitivity * 0.8),
             # right command
-            carb.input.GamepadInput.DPAD_RIGHT:
-                (0,0, self.rot_sensitivity * 0.8),
+            carb.input.GamepadInput.DPAD_RIGHT: (0, 0, self.rot_sensitivity * 0.8),
             # left command
-            carb.input.GamepadInput.DPAD_LEFT:
-                (1,0, self.rot_sensitivity * 0.8),
+            carb.input.GamepadInput.DPAD_LEFT: (1, 0, self.rot_sensitivity * 0.8),
         }
 
         self._INPUT_KEY_ROT_VALUE_MAPPING = {
             # yaw command (positive)
-            carb.input.GamepadInput.RIGHT_STICK_RIGHT:
-                (0, 2, self.rot_sensitivity),
+            carb.input.GamepadInput.RIGHT_STICK_RIGHT: (0, 2, self.rot_sensitivity),
             # yaw command (negative)
-            carb.input.GamepadInput.RIGHT_STICK_LEFT:
-                (1, 2, self.rot_sensitivity)
+            carb.input.GamepadInput.RIGHT_STICK_LEFT: (1, 2, self.rot_sensitivity),
         }
