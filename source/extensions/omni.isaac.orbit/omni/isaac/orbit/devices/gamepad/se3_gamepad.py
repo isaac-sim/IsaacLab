@@ -135,7 +135,6 @@ class Se3Gamepad(DeviceBase):
         Reference:
             https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=gamepadeventtype#carb.input.Gamepad
         """
-        print("Gamepad event: ", event.input, event.value)
 
         cur_val = event.value
         absval = abs(event.value)
