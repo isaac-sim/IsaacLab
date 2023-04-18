@@ -70,7 +70,8 @@ Example usage showing the keyboard interface:
 
 """
 
+from .gamepad import Se2Gamepad, Se3Gamepad
 from .keyboard import Se2Keyboard, Se3Keyboard
 from .spacemouse import Se2SpaceMouse, Se3SpaceMouse
 
-__all__ = ["Se2Keyboard", "Se3Keyboard", "Se2SpaceMouse", "Se3SpaceMouse"]
+__all__ = ["Se2Keyboard", "Se3Keyboard", "Se2SpaceMouse", "Se3SpaceMouse", "Se2Gamepad", "Se3Gamepad"]
