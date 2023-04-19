@@ -23,7 +23,7 @@ class Se2Gamepad(DeviceBase):
     task-space commands.
 
     The command comprises of the base linear and angular velocity: :math:`(v_x, v_y, \omega_z)`.
-    TODO
+
     Key bindings:
         ====================== ========================= ========================
         Command                Key (+ve axis)            Key (-ve axis)
@@ -118,18 +118,11 @@ class Se2Gamepad(DeviceBase):
         self.reset()  # the base command depend only on the current gamepad status
 
         cur_val = event.value
-        absval = abs(event.value)
-
-        # Ignore 0 since it signifies the movement  of the stick has stopped,
-        # but doesn't mean it's at center...could be being held steady
-        if absval == 0:
-            return True
-        if absval < self.deadzone:
+        if abs(cur_val) < self.deadzone:
             cur_val = 0
 
         if event.input in self._INPUT_KEY_VALUE_MAPPING:
             self._base_command += self._INPUT_KEY_VALUE_MAPPING[event.input] * cur_val
-        # remove the command when un-pressed
         else:
             if event.input.name in self._additional_callbacks:
                 self._additional_callbacks[event.input.name]()
