@@ -41,4 +41,3 @@ Gamepad
 .. autoclass:: omni.isaac.orbit.devices.Se3Gamepad
    :members:
    :show-inheritance:
-
