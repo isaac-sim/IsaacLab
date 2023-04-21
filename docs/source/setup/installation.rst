@@ -70,7 +70,7 @@ tutorials on their `website <https://docs.omniverse.nvidia.com/app_isaacsim/app_
 For completeness, we specify the commands here to check that everything is configured correctly.
 On a new terminal (**``Ctrl+Alt+T``**), run the following:
 
--  Check that the simulator is runs:
+-  Check that the simulator runs as expected:
 
    .. code:: bash
 

@@ -123,6 +123,7 @@ autodoc_mock_imports = [
     "hid",
     "prettytable",
     "tqdm",
+    "toml",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
