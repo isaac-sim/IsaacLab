@@ -71,6 +71,11 @@ class Se2Gamepad(DeviceBase):
         # dictionary for additional callbacks
         self._additional_callbacks = dict()
 
+    def __del__(self):
+        """Unsubscribe from gamepad events."""
+        self._input.unsubscribe_from_gamepad_events(self._gamepad, self._gamepad_sub)
+        self._gamepad_sub = None
+
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Gamepad Controller for SE(2): {self.__class__.__name__}\n"

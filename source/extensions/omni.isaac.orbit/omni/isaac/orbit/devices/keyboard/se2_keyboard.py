@@ -63,6 +63,11 @@ class Se2Keyboard(DeviceBase):
         # dictionary for additional callbacks
         self._additional_callbacks = dict()
 
+    def __del__(self):
+        """Release the keyboard interface."""
+        self._input.unsubscribe_from_keyboard_events(self._keyboard, self._keyboard_sub)
+        self._keyboard_sub = None
+
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Keyboard Controller for SE(2): {self.__class__.__name__}\n"
