@@ -92,7 +92,7 @@ class Se2SpaceMouse(DeviceBase):
         """Provides the result from spacemouse event state.
 
         Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

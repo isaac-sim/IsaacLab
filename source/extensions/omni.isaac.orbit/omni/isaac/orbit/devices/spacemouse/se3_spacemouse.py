@@ -103,7 +103,7 @@ class Se3SpaceMouse(DeviceBase):
         """Provides the result from spacemouse event state.
 
         Returns:
-            Tuple[np.ndarray, bool] -- A tuple containing the delta pose command and gripper commands.
+            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # if new command received, reset event flag to False until keyboard updated.

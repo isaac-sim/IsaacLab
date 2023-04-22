@@ -28,27 +28,29 @@ class Se2Gamepad(DeviceBase):
         ====================== ========================= ========================
         Command                Key (+ve axis)            Key (-ve axis)
         ====================== ========================= ========================
-        Move along x-axis      left stick up            left stick down
-        Move along y-axis      left stick right         left stick left
-        Rotate along z-axis    right stick right        right stick left
+        Move along x-axis      left stick up             left stick down
+        Move along y-axis      left stick right          left stick left
+        Rotate along z-axis    right stick right         right stick left
         ====================== ========================= ========================
 
-    Reference:
-        https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Gamepad
+    .. seealso::
+
+        The official documentation for the gamepad interface: `Carb Gamepad Interface <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Gamepad>`__.
+
     """
 
     def __init__(
         self,
-        v_x_sensitivity: float = 2,
-        v_y_sensitivity: float = 1,
+        v_x_sensitivity: float = 1.0,
+        v_y_sensitivity: float = 1.0,
         omega_z_sensitivity: float = 1.0,
         deadzone: float = 0.01,
     ):
         """Initialize the keyboard layer.
 
         Args:
-            v_x_sensitivity (float): Magnitude of linear velocity along x-direction scaling. Defaults to 2.
-            v_y_sensitivity (float): Magnitude of linear velocity along y-direction scaling. Defaults to 1.
+            v_x_sensitivity (float): Magnitude of linear velocity along x-direction scaling. Defaults to 1.0.
+            v_y_sensitivity (float): Magnitude of linear velocity along y-direction scaling. Defaults to 1.0.
             omega_z_sensitivity (float): Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
             deadzone (float): Magnitude of deadzone for gamepad. Defaults to 0.01.
         """
@@ -56,6 +58,7 @@ class Se2Gamepad(DeviceBase):
         self.v_x_sensitivity = v_x_sensitivity
         self.v_y_sensitivity = v_y_sensitivity
         self.omega_z_sensitivity = omega_z_sensitivity
+        self.deadzone = deadzone
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
@@ -71,6 +74,8 @@ class Se2Gamepad(DeviceBase):
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Gamepad Controller for SE(2): {self.__class__.__name__}\n"
+        msg += f"\tDevice name: {self._input.get_gamepad_name(self._gamepad)}\n"
+        msg += "----------------------------------------------\n"
         msg += "\tMove in X-Y plane: left stick\n"
         msg += "\tRotate in Z-axis: right stick\n"
         return msg
@@ -83,16 +88,16 @@ class Se2Gamepad(DeviceBase):
         # default flags
         self._base_command.fill(0.0)
 
-    def add_callback(self, key: str, func: Callable):
+    def add_callback(self, key: carb.input.GamepadInput, func: Callable):
         """Add additional functions to bind gamepad.
 
-        A list of available keys are present in the
-        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput>`.
+        A list of available gamepad keys are present in the
+        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput>`__.
 
         The callback function should not take any arguments.
 
         Args:
-            key (str): The gamepad button to check against.
+            key (carb.input.GamepadInput): The gamepad button to check against.
             func (Callable): The function to call when key is pressed.
         """
         self._additional_callbacks[key] = func
@@ -101,7 +106,7 @@ class Se2Gamepad(DeviceBase):
         """Provides the result from keyboard event state.
 
         Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 
@@ -115,24 +120,26 @@ class Se2Gamepad(DeviceBase):
         Reference:
             https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput
         """
-        self.reset()  # the base command depend only on the current gamepad status
-
+        # the base command depend only on the current gamepad status
+        # so we reset it every time
+        self.reset()
+        # check if the event is valid
         cur_val = event.value
         if abs(cur_val) < self.deadzone:
             cur_val = 0
-
-        if event.input in self._INPUT_KEY_VALUE_MAPPING:
-            self._base_command += self._INPUT_KEY_VALUE_MAPPING[event.input] * cur_val
-        else:
-            if event.input.name in self._additional_callbacks:
-                self._additional_callbacks[event.input.name]()
+        # apply the command based on the event
+        if event.input in self._INPUT_STICK_VALUE_MAPPING:
+            self._base_command += self._INPUT_STICK_VALUE_MAPPING[event.input] * cur_val
+        # additional callbacks
+        if event.input.name in self._additional_callbacks:
+            self._additional_callbacks[event.input.name]()
 
         # since no error, we are fine :)
         return True
 
     def _create_key_bindings(self):
         """Creates default key binding."""
-        self._INPUT_KEY_VALUE_MAPPING = {
+        self._INPUT_STICK_VALUE_MAPPING = {
             # forward command
             carb.input.GamepadInput.LEFT_STICK_UP: np.asarray([1.0, 0.0, 0.0]) * self.v_x_sensitivity,
             # backward command

@@ -33,8 +33,10 @@ class Se2Keyboard(DeviceBase):
         Rotate along z-axis    Numpad 7 / X              Numpad 9 / Y
         ====================== ========================= ========================
 
-    Reference:
-        https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.Keyboard
+    .. seealso::
+
+        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Keyboard>`__.
+
     """
 
     def __init__(self, v_x_sensitivity: float = 0.8, v_y_sensitivity: float = 0.4, omega_z_sensitivity: float = 1.0):
@@ -64,6 +66,8 @@ class Se2Keyboard(DeviceBase):
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Keyboard Controller for SE(2): {self.__class__.__name__}\n"
+        msg += f"\tKeyboard name: {self._input.get_keyboard_name(self._keyboard)}\n"
+        msg += "----------------------------------------------\n"
         msg += "\tReset all commands: L\n"
         msg += "\tMove forward   (along x-axis): Numpad 8 / Arrow Up\n"
         msg += "\tMove backward  (along x-axis): Numpad 2 / Arrow Down\n"
@@ -85,7 +89,7 @@ class Se2Keyboard(DeviceBase):
         """Add additional functions to bind keyboard.
 
         A list of available keys are present in the
-        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`_.
+        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
 
         The callback function should not take any arguments.
 
@@ -99,7 +103,7 @@ class Se2Keyboard(DeviceBase):
         """Provides the result from keyboard event state.
 
         Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

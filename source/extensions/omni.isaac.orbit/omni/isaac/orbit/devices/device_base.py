@@ -31,11 +31,11 @@ class DeviceBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_callback(self, key: str, func: Callable):
+    def add_callback(self, key: Any, func: Callable):
         """Add additional functions to bind keyboard.
 
         Args:
-            key (str): The keyboard button to check against.
+            key (Any): The button to check against.
             func (Callable): The function to call when key is pressed.
         """
         raise NotImplementedError

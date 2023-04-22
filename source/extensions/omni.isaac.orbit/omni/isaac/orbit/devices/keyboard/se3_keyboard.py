@@ -41,8 +41,10 @@ class Se3Keyboard(DeviceBase):
         Rotate along z-axis            C                 V
         ============================== ================= =================
 
-    Reference:
-        https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.Keyboard
+    .. seealso::
+
+        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Keyboard>`__.
+
     """
 
     def __init__(self, pos_sensitivity: float = 0.4, rot_sensitivity: float = 0.8):
@@ -72,6 +74,8 @@ class Se3Keyboard(DeviceBase):
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
         msg = f"Keyboard Controller for SE(3): {self.__class__.__name__}\n"
+        msg += f"\tKeyboard name: {self._input.get_keyboard_name(self._keyboard)}\n"
+        msg += "----------------------------------------------\n"
         msg += "\tToggle gripper (open/close): K\n"
         msg += "\tMove arm along x-axis: W/S\n"
         msg += "\tMove arm along y-axis: A/D\n"
@@ -95,7 +99,7 @@ class Se3Keyboard(DeviceBase):
         """Add additional functions to bind keyboard.
 
         A list of available keys are present in the
-        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`_.
+        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
 
         The callback function should not take any arguments.
 
@@ -109,10 +113,11 @@ class Se3Keyboard(DeviceBase):
         """Provides the result from keyboard event state.
 
         Returns:
-            Tuple[np.ndarray, bool] -- A tuple containing the delta pose command and gripper commands.
+            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
         """
+        # convert to rotation vector
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
-        # if new command received, reset event flag to False until keyboard updated.
+        # return the command and gripper state
         return np.concatenate([self._delta_pos, rot_vec]), self._close_gripper
 
     """
