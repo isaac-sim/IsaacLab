@@ -4,6 +4,11 @@ Changelog
 0.3.0 (2023-04-20)
 ~~~~~~~~~~~~~~~~~~
 
+Fixed
+^^^^^
+
+* Added the destructor to the keyboard devices to unsubscribe from carb.
+
 Added
 ^^^^^
 
