@@ -67,7 +67,13 @@ class Se2Gamepad(DeviceBase):
         # bindings for gamepad to command
         self._create_key_bindings()
         # command buffers
-        self._base_command = np.zeros(3)
+        # When using the gamepad, two values are provided for each axis.
+        # For example: when the left stick is moved down, there are two evens: `left_stick_down = 0.8`
+        #   and `left_stick_up = 0.0`. If only the value of left_stick_up is used, the value will be 0.0,
+        #   which is not the desired behavior. Therefore, we save both the values into the buffer and use
+        #   the maximum value.
+        # (positive, negative), (x, y, yaw)
+        self._base_command_raw = np.zeros([2, 3])
         # dictionary for additional callbacks
         self._additional_callbacks = dict()
 
@@ -91,7 +97,7 @@ class Se2Gamepad(DeviceBase):
 
     def reset(self):
         # default flags
-        self._base_command.fill(0.0)
+        self._base_command_raw.fill(0.0)
 
     def add_callback(self, key: carb.input.GamepadInput, func: Callable):
         """Add additional functions to bind gamepad.
@@ -112,7 +118,7 @@ class Se2Gamepad(DeviceBase):
         Returns:
             np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
         """
-        return self._base_command
+        return self._resolve_command_buffer(self._base_command_raw)
 
     """
     Internal helpers.
@@ -124,16 +130,18 @@ class Se2Gamepad(DeviceBase):
         Reference:
             https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput
         """
-        # the base command depend only on the current gamepad status
-        # so we reset it every time
-        self.reset()
-        # check if the event is valid
+
+        # check if the event is a button press
         cur_val = event.value
         if abs(cur_val) < self.deadzone:
             cur_val = 0
-        # apply the command based on the event
+
+        # -- left and right stick
         if event.input in self._INPUT_STICK_VALUE_MAPPING:
-            self._base_command += self._INPUT_STICK_VALUE_MAPPING[event.input] * cur_val
+            direction, axis, value = self._INPUT_STICK_VALUE_MAPPING[event.input]
+            # change the value only if the stick is moved (soft press)
+            self._base_command_raw[direction, axis] = value * cur_val
+
         # additional callbacks
         if event.input in self._additional_callbacks:
             self._additional_callbacks[event.input]()
@@ -145,15 +153,40 @@ class Se2Gamepad(DeviceBase):
         """Creates default key binding."""
         self._INPUT_STICK_VALUE_MAPPING = {
             # forward command
-            carb.input.GamepadInput.LEFT_STICK_UP: np.asarray([1.0, 0.0, 0.0]) * self.v_x_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_UP: (0, 0, self.v_x_sensitivity),
             # backward command
-            carb.input.GamepadInput.LEFT_STICK_DOWN: np.asarray([-1.0, 0.0, 0.0]) * self.v_x_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_DOWN: (1, 0, self.v_x_sensitivity),
             # right command
-            carb.input.GamepadInput.LEFT_STICK_RIGHT: np.asarray([0.0, 1.0, 0.0]) * self.v_y_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_RIGHT: (0, 1, self.v_y_sensitivity),
             # left command
-            carb.input.GamepadInput.LEFT_STICK_LEFT: np.asarray([0.0, -1.0, 0.0]) * self.v_y_sensitivity,
+            carb.input.GamepadInput.LEFT_STICK_LEFT: (1, 1, self.v_y_sensitivity),
             # yaw command (positive)
-            carb.input.GamepadInput.RIGHT_STICK_RIGHT: np.asarray([0.0, 0.0, 1.0]) * self.omega_z_sensitivity,
+            carb.input.GamepadInput.RIGHT_STICK_RIGHT: (0, 2, self.omega_z_sensitivity),
             # yaw command (negative)
-            carb.input.GamepadInput.RIGHT_STICK_LEFT: np.asarray([0.0, 0.0, -1.0]) * self.omega_z_sensitivity,
+            carb.input.GamepadInput.RIGHT_STICK_LEFT: (1, 2, self.omega_z_sensitivity),
         }
+
+    def _resolve_command_buffer(self, raw_command: np.ndarray) -> np.ndarray:
+        """Resolves the command buffer.
+
+        Args:
+            raw_command (np.ndarray): The raw command from the gamepad. Shape: (2, 3)
+                This is a 2D array since gamepad dpad/stick returns two values corresponding to
+                the positive and negative direction. The first index is the direction (0: positive, 1: negative)
+                and the second index is value (absolute) of the command.
+
+        Returns:
+            np.ndarray: resolved command. Shape: (3,)
+        """
+        # compare the positive and negative value decide the sign of the value
+        #   if the positive value is larger, the sign is positive (i.e. False, 0)
+        #   if the negative value is larger, the sign is positive (i.e. True, 1)
+        command_sign = raw_command[1, :] > raw_command[0, :]
+        # extract the command value
+        command = raw_command.max(axis=0)
+        # apply the sign
+        #  if the sign is positive, the value is already positive.
+        #  if the sign is negative, the value is negative after applying the sign.
+        command[command_sign] *= -1
+
+        return command
