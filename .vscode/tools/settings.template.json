@@ -39,7 +39,10 @@
         "robomimic",
         "teleoperation",
         "xform",
-        "numpy"
+        "numpy",
+        "deadzone",
+        "dpad",
+        "gamepad"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",

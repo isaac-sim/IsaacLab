@@ -80,7 +80,7 @@ class Se2Gamepad(DeviceBase):
         """Returns: A string containing the information of joystick."""
         msg = f"Gamepad Controller for SE(2): {self.__class__.__name__}\n"
         msg += f"\tDevice name: {self._input.get_gamepad_name(self._gamepad)}\n"
-        msg += "----------------------------------------------\n"
+        msg += "\t----------------------------------------------\n"
         msg += "\tMove in X-Y plane: left stick\n"
         msg += "\tRotate in Z-axis: right stick\n"
         return msg
@@ -99,11 +99,10 @@ class Se2Gamepad(DeviceBase):
         A list of available gamepad keys are present in the
         `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.GamepadInput>`__.
 
-        The callback function should not take any arguments.
-
         Args:
             key (carb.input.GamepadInput): The gamepad button to check against.
-            func (Callable): The function to call when key is pressed.
+            func (Callable): The function to call when key is pressed. The callback function should not
+                take any arguments.
         """
         self._additional_callbacks[key] = func
 
@@ -136,8 +135,8 @@ class Se2Gamepad(DeviceBase):
         if event.input in self._INPUT_STICK_VALUE_MAPPING:
             self._base_command += self._INPUT_STICK_VALUE_MAPPING[event.input] * cur_val
         # additional callbacks
-        if event.input.name in self._additional_callbacks:
-            self._additional_callbacks[event.input.name]()
+        if event.input in self._additional_callbacks:
+            self._additional_callbacks[event.input]()
 
         # since no error, we are fine :)
         return True

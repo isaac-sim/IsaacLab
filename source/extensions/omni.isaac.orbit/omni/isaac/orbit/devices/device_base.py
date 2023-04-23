@@ -36,7 +36,8 @@ class DeviceBase(ABC):
 
         Args:
             key (Any): The button to check against.
-            func (Callable): The function to call when key is pressed.
+            func (Callable): The function to call when key is pressed. The callback function should not
+                take any arguments.
         """
         raise NotImplementedError
 

@@ -80,7 +80,7 @@ class Se3Keyboard(DeviceBase):
         """Returns: A string containing the information of joystick."""
         msg = f"Keyboard Controller for SE(3): {self.__class__.__name__}\n"
         msg += f"\tKeyboard name: {self._input.get_keyboard_name(self._keyboard)}\n"
-        msg += "----------------------------------------------\n"
+        msg += "\t----------------------------------------------\n"
         msg += "\tToggle gripper (open/close): K\n"
         msg += "\tMove arm along x-axis: W/S\n"
         msg += "\tMove arm along y-axis: A/D\n"
@@ -106,11 +106,10 @@ class Se3Keyboard(DeviceBase):
         A list of available keys are present in the
         `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
 
-        The callback function should not take any arguments.
-
         Args:
             key (str): The keyboard button to check against.
-            func (Callable): The function to call when key is pressed.
+            func (Callable): The function to call when key is pressed. The callback function should not
+                take any arguments.
         """
         self._additional_callbacks[key] = func
 

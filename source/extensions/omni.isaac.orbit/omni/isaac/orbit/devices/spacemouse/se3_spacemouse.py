@@ -74,7 +74,7 @@ class Se3SpaceMouse(DeviceBase):
         msg = f"Spacemouse Controller for SE(3): {self.__class__.__name__}\n"
         msg += f"\tManufacturer: {self._device.get_manufacturer_string()}\n"
         msg += f"\tProduct: {self._device.get_product_string()}\n"
-        msg += "----------------------------------------------\n"
+        msg += "\t----------------------------------------------\n"
         msg += "\tRight button: reset command\n"
         msg += "\tLeft button: toggle gripper command (open/close)\n"
         msg += "\tMove mouse laterally: move arm horizontally in x-y plane\n"
