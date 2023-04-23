@@ -39,7 +39,7 @@ are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_
 are the desired joint positions, velocities and torques commands. The parameters :math:`\gamma` and
 :math:`\tau_{motor, max}`  are the gear box ratio and the maximum motor effort possible.
 
-.. note::
+.. seealso::
 
     We provide implementations for various explicit actuator models. These are detailed in
     `omni.isaac.orbit.actuators.model <../api/orbit.actuators.model.html>`_ sub-package.
@@ -70,7 +70,7 @@ can employ the gripper mimic group which processes binary open/close command int
     :alt: Actuator groups for a legged mobile manipulator
 
 
-.. note::
+.. seealso::
 
     For more information on the actuator groups, please refer to the documentation of the
     `omni.isaac.orbit.actuators.group <../api/orbit.actuators.group.html>`_ subpackage.

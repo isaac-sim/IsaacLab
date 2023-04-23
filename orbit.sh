@@ -151,6 +151,7 @@ setup_conda_env() {
         'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
         '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     # install some extra dependencies
+    echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
     conda install -c conda-forge -y importlib_metadata &> /dev/null
     # deactivate the environment
     conda deactivate
@@ -304,7 +305,7 @@ while [[ $# -gt 0 ]]; do
             cd ${ORBIT_PATH}/docs
             ${python_exe} -m pip install -r requirements.txt > /dev/null
             # build the documentation
-            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html > /dev/null
+            ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html
             # open the documentation
             echo -e "[INFO] To open documentation on default browser, run:"
             echo -e "\n\t\txdg-open $(pwd)/_build/html/index.html\n"

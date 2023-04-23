@@ -14,7 +14,7 @@ and useful for everyone. These may happen in forms of:
   * Tutorials and tutorial improvements
 
 
-.. note::
+.. attention::
 
    We prefer GitHub `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`_ for discussing ideas,
    asking questions, conversations and requests for new features.
@@ -213,7 +213,8 @@ a Nucleus server.
 Please check the `Isaac Sim documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#assets-and-nucleus>`__
 for more information on how to download the assets.
 
-.. note::
+.. attention::
+
   We are currently working on a better way to contribute assets. We will update this section once we
   have a solution. In the meantime, please follow the steps mentioned below.
 

@@ -41,6 +41,7 @@ class SingleArmManipulatorCfg(RobotBaseCfg):
         rot_offset: Tuple[float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Additional rotation offset ``(w, x, y, z)`` from the body frame. Defaults to (1, 0, 0, 0)."""
 
+    @configclass
     class DataInfoCfg:
         """Information about what all data to read from simulator.
 

@@ -41,7 +41,9 @@
         "xform",
         "numpy",
         "flatcache",
-        "physx"
+        "physx",
+        "dpad",
+        "gamepad"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",

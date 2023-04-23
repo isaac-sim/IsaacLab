@@ -307,19 +307,19 @@ class ActuatorGroup:
         # pre-processing of commands based on group.
         group_actions = self._format_command(group_actions)
         # reshape actions for sub-groups
-        group_actions = group_actions.view(self.num_articulation, self.num_actuators, -1)
+        group_actions = group_actions.split([self.num_actuators] * len(self.command_types), dim=-1)
         # pre-process relative commands
-        for index, command_type in enumerate(self.command_types):
+        for command_type, command_value in zip(self.command_types, group_actions):
             if command_type == "p_rel":
-                group_des_dof_pos = self.dof_pos_scale * group_actions[..., index] + self._dof_pos
+                group_des_dof_pos = self.dof_pos_scale * command_value + self._dof_pos
             elif command_type == "p_abs":
-                group_des_dof_pos = self.dof_pos_scale * group_actions[..., index] + self.dof_pos_offset
+                group_des_dof_pos = self.dof_pos_scale * command_value + self.dof_pos_offset
             elif command_type == "v_rel":
-                group_des_dof_vel = self.dof_vel_scale * group_actions[..., index] + self._dof_vel
+                group_des_dof_vel = self.dof_vel_scale * command_value + self._dof_vel
             elif command_type == "v_abs":
-                group_des_dof_vel = self.dof_vel_scale * group_actions[..., index]  # offset = 0
+                group_des_dof_vel = self.dof_vel_scale * command_value  # offset = 0
             elif command_type == "t_abs":
-                group_des_dof_torque = self.dof_torque_scale * group_actions[..., index]  # offset = 0
+                group_des_dof_torque = self.dof_torque_scale * command_value  # offset = 0
             else:
                 raise ValueError(f"Invalid action command type for actuators: '{command_type}'.")
 

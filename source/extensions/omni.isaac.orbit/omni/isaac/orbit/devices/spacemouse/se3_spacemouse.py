@@ -74,7 +74,7 @@ class Se3SpaceMouse(DeviceBase):
         msg = f"Spacemouse Controller for SE(3): {self.__class__.__name__}\n"
         msg += f"\tManufacturer: {self._device.get_manufacturer_string()}\n"
         msg += f"\tProduct: {self._device.get_product_string()}\n"
-        msg += "----------------------------------------------\n"
+        msg += "\t----------------------------------------------\n"
         msg += "\tRight button: reset command\n"
         msg += "\tLeft button: toggle gripper command (open/close)\n"
         msg += "\tMove mouse laterally: move arm horizontally in x-y plane\n"
@@ -103,7 +103,7 @@ class Se3SpaceMouse(DeviceBase):
         """Provides the result from spacemouse event state.
 
         Returns:
-            Tuple[np.ndarray, bool] -- A tuple containing the delta pose command and gripper commands.
+            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # if new command received, reset event flag to False until keyboard updated.

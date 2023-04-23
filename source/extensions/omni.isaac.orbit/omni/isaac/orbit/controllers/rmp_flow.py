@@ -11,7 +11,7 @@ import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.articulations import Articulation
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.motion_generation import ArticulationMotionPolicy
-from omni.isaac.motion_generation.lula import RmpFlow
+from omni.isaac.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
 from omni.isaac.orbit.utils import configclass
 
@@ -20,6 +20,8 @@ from omni.isaac.orbit.utils import configclass
 class RmpFlowControllerCfg:
     """Configuration for RMP-Flow controller (provided through LULA library)."""
 
+    name: str = "rmp_flow"
+    """Name of the controller. Supported: "rmp_flow", "rmp_flow_smoothed". Defaults to "rmp_flow"."""
     config_file: str = MISSING
     """Path to the configuration file for the controller."""
     urdf_file: str = MISSING
@@ -28,36 +30,59 @@ class RmpFlowControllerCfg:
     """Path to collision model description of the robot."""
     frame_name: str = MISSING
     """Name of the robot frame for task space (must be present in the URDF)."""
-    evaluations_per_frame: int = MISSING
+    evaluations_per_frame: float = MISSING
     """Number of substeps during Euler integration inside LULA world model."""
     ignore_robot_state_updates: bool = False
-    """If true, then state of the world model inside controller is rolled out. (default: False)."""
+    """If true, then state of the world model inside controller is rolled out. Defaults to False."""
 
 
 class RmpFlowController:
-    """Wraps around RMP-Flow from IsaacSim for batched environments."""
+    """Wraps around RMPFlow from IsaacSim for batched environments."""
 
-    def __init__(self, cfg: RmpFlowControllerCfg, prim_paths_expr: str, device: str):
+    def __init__(self, cfg: RmpFlowControllerCfg, device: str):
         """Initialize the controller.
 
         Args:
             cfg (RmpFlowControllerCfg): The configuration for the controller.
-            prim_paths_expr (str): The expression to find the articulation prim paths.
             device (str): The device to use for computation.
-
-        Raises:
-            NotImplementedError: When the robot name is not supported.
         """
         # store input
         self.cfg = cfg
         self._device = device
+        # display info
+        print(f"[INFO]: Loading RMPFlow controller URDF from: {self.cfg.urdf_file}")
 
-        print(f"[INFO]: Loading controller URDF from: {self.cfg.urdf_file}")
+    """
+    Properties.
+    """
+
+    @property
+    def num_actions(self) -> int:
+        """Dimension of the action space of controller."""
+        return 7
+
+    """
+    Operations.
+    """
+
+    def initialize(self, prim_paths_expr: str):
+        """Initialize the controller.
+
+        Args:
+            prim_paths_expr (str): The expression to find the articulation prim paths.
+        """
         # obtain the simulation time
         physics_dt = SimulationContext.instance().get_physics_dt()
         # find all prims
         self._prim_paths = prim_utils.find_matching_prim_paths(prim_paths_expr)
         self.num_robots = len(self._prim_paths)
+        # resolve controller
+        if self.cfg.name == "rmp_flow":
+            controller_cls = RmpFlow
+        elif self.cfg.name == "rmp_flow_smoothed":
+            controller_cls = RmpFlowSmoothed
+        else:
+            raise ValueError(f"Unsupported controller in Lula library: {self.cfg.name}")
         # create all franka robots references and their controllers
         self.articulation_policies = list()
         for prim_path in self._prim_paths:
@@ -65,12 +90,12 @@ class RmpFlowController:
             robot = Articulation(prim_path)
             robot.initialize()
             # add controller
-            rmpflow = RmpFlow(
-                rmpflow_config_path=self.cfg.config_file,
-                urdf_path=self.cfg.urdf_file,
+            rmpflow = controller_cls(
                 robot_description_path=self.cfg.collision_file,
+                urdf_path=self.cfg.urdf_file,
+                rmpflow_config_path=self.cfg.config_file,
                 end_effector_frame_name=self.cfg.frame_name,
-                evaluations_per_frame=self.cfg.evaluations_per_frame,
+                maximum_substep_size=physics_dt / self.cfg.evaluations_per_frame,
                 ignore_robot_state_updates=self.cfg.ignore_robot_state_updates,
             )
             # wrap rmpflow to connect to the Franka robot articulation
@@ -86,22 +111,14 @@ class RmpFlowController:
         self.dof_pos_target = torch.zeros((self.num_robots, self.num_dof), device=self._device)
         self.dof_vel_target = torch.zeros((self.num_robots, self.num_dof), device=self._device)
 
-    """
-    Properties.
-    """
-
-    @property
-    def num_actions(self) -> int:
-        """Dimension of the action space of controller."""
-        return 7
-
-    """
-    Operations.
-    """
-
     def reset_idx(self, robot_ids: torch.Tensor = None):
         """Reset the internals."""
-        pass
+        # if no robot ids are provided, then reset all robots
+        if robot_ids is None:
+            robot_ids = torch.arange(self.num_robots, device=self._device)
+        # reset policies for specified robots
+        for index in robot_ids:
+            self.articulation_policies[index].motion_policy.reset()
 
     def set_command(self, command: torch.Tensor):
         """Set target end-effector pose command."""
@@ -127,9 +144,7 @@ class RmpFlowController:
             # apply action on the robot
             action = policy.get_next_articulation_action()
             # copy actions into buffer
-            # TODO: Make this more efficient?
-            for dof_index in range(self.num_dof):
-                self.dof_pos_target[i, dof_index] = action.joint_positions[dof_index]
-                self.dof_vel_target[i, dof_index] = action.joint_velocities[dof_index]
+            self.dof_pos_target[i, :] = torch.from_numpy(action.joint_positions[:]).to(self.dof_pos_target)
+            self.dof_vel_target[i, :] = torch.from_numpy(action.joint_velocities[:]).to(self.dof_vel_target)
 
         return self.dof_pos_target, self.dof_vel_target

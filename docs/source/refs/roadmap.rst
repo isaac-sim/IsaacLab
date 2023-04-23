@@ -20,7 +20,7 @@ If you have any questions or suggestions, let us know on
 
   * |check_| Joint-space control
   * |check_| Differential inverse kinematics control
-  * |uncheck| Riemannian Motion Policies (RMPs)
+  * |check_| Riemannian Motion Policies (RMPs)
 
 * Supported robots
 

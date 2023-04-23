@@ -8,7 +8,7 @@ class. This is done using the function :meth:`load_default_env_cfg` in the sub-m
 :mod:`omni.isaac.orbit.utils.parse_cfg`.
 
 
-.. note::
+.. attention::
 
     There is a slight abuse of kwargs since they are meant to be directly passed into the environment class.
     Instead, we remove the key :obj:`cfg_file` from the "kwargs" dictionary and the user needs to provide

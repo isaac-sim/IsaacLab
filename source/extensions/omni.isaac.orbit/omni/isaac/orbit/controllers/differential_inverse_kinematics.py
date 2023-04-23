@@ -146,6 +146,10 @@ class DifferentialInverseKinematics:
     Operations.
     """
 
+    def initialize(self):
+        """Initialize the internals."""
+        pass
+
     def reset_idx(self, robot_ids: torch.Tensor = None):
         """Reset the internals."""
         pass
