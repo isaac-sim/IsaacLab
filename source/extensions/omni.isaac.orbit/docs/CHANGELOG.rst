@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.3.1 (2023-04-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a modified version of ``lula_franka_gen.urdf`` which includes an end-effector frame.
+* Added a standalone script ``play_rmpflow.py`` to show RMPFlow controller.
+
+Fixed
+^^^^^
+
+* Fixed the splitting of commands in the :meth:`ActuatorGroup.compute` method. Earlier it was reshaping the
+  commands to the shape ``(num_actuators, num_commands)`` which was causing the commands to be split incorrectly.
+* Fixed the processing of actuator command in the :meth:`RobotBase._process_actuators_cfg` to deal with multiple
+  command types when using "implicit" actuator group.
+
 0.3.0 (2023-04-20)
 ~~~~~~~~~~~~~~~~~~
 
@@ -26,6 +43,7 @@ Fixed
 
 
 0.2.7 (2023-04-07)
+~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

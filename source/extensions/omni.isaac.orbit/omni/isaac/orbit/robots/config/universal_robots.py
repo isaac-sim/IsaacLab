@@ -41,7 +41,7 @@ UR10_CFG = SingleArmManipulatorCfg(
         },
         dof_vel={".*": 0.0},
     ),
-    ee_info=SingleArmManipulatorCfg.EndEffectorFrameCfg(body_name="wrist_3_link"),
+    ee_info=SingleArmManipulatorCfg.EndEffectorFrameCfg(body_name="ee_link"),
     actuator_groups={
         "arm": ActuatorGroupCfg(
             dof_names=[".*"],

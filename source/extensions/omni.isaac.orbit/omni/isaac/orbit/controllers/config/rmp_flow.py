@@ -12,12 +12,14 @@ from omni.isaac.orbit.controllers.rmp_flow import RmpFlowControllerCfg
 # Note: RMP-Flow config files for supported robots are stored in the motion_generation extension
 _RMP_CONFIG_DIR = os.path.join(get_extension_path_from_name("omni.isaac.motion_generation"), "motion_policy_configs")
 
+# Path to current directory
+_CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 FRANKA_RMPFLOW_CFG = RmpFlowControllerCfg(
     config_file=os.path.join(_RMP_CONFIG_DIR, "franka", "rmpflow", "franka_rmpflow_common.yaml"),
-    urdf_file=os.path.join(_RMP_CONFIG_DIR, "franka", "lula_franka_gen.urdf"),
+    urdf_file=os.path.join(_CUR_DIR, "data", "lula_franka_gen.urdf"),
     collision_file=os.path.join(_RMP_CONFIG_DIR, "franka", "rmpflow", "robot_descriptor.yaml"),
-    frame_name="right_gripper",
+    frame_name="panda_end_effector",
     evaluations_per_frame=5,
 )
 """Configuration of RMPFlow for Franka arm (default from `omni.isaac.motion_generation`)."""

@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to use the inverse kinematics controller with the simulator.
+This script demonstrates how to use the RMPFlow controller with the simulator.
 
-The differential IK controller can be configured in different modes. It uses the Jacobians computed by
-PhysX. This helps perform parallelized computation of the inverse kinematics.
+The RMP-Flow can be configured in different modes. It uses the LULA library for motion generation.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -20,8 +19,8 @@ from omni.isaac.kit import SimulationApp
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
-parser.add_argument("--robot", type=str, default="franka_panda", help="Name of the robot.")
-parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to spawn.")
+parser.add_argument("--robot", type=str, default="ur10", help="Name of the robot. Options: franka_panda, ur10.")
+parser.add_argument("--num_envs", type=int, default=5, help="Number of environments to spawn.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
@@ -41,10 +40,8 @@ from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.controllers.differential_inverse_kinematics import (
-    DifferentialInverseKinematics,
-    DifferentialInverseKinematicsCfg,
-)
+from omni.isaac.orbit.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG, UR10_RMPFLOW_CFG
+from omni.isaac.orbit.controllers.rmp_flow import RmpFlowController
 from omni.isaac.orbit.markers import StaticMarker
 from omni.isaac.orbit.robots.config.franka import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
 from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
@@ -57,7 +54,7 @@ Main
 
 
 def main():
-    """Spawns a single-arm manipulator and applies commands through inverse kinematics control."""
+    """Spawns a single-arm manipulator and applies commands through RMPFlow kinematics control."""
 
     # Load kit helper
     sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")
@@ -101,9 +98,18 @@ def main():
     # -- Robot
     # resolve robot config from command-line arguments
     if args_cli.robot == "franka_panda":
+        # robot config
         robot_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
+        robot_cfg.actuator_groups["panda_shoulder"].control_cfg.command_types = ["p_abs", "v_abs"]
+        robot_cfg.actuator_groups["panda_forearm"].control_cfg.command_types = ["p_abs", "v_abs"]
+        # rmpflow controller config
+        rmpflow_cfg = FRANKA_RMPFLOW_CFG
     elif args_cli.robot == "ur10":
+        # robot config
         robot_cfg = UR10_CFG
+        robot_cfg.actuator_groups["arm"].control_cfg.command_types = ["p_abs", "v_abs"]
+        # rmpflow controller config
+        rmpflow_cfg = UR10_RMPFLOW_CFG
     else:
         raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
     # configure robot settings to use IK controller
@@ -127,30 +133,25 @@ def main():
 
     # Create controller
     # the controller takes as command type: {position/pose}_{abs/rel}
-    ik_control_cfg = DifferentialInverseKinematicsCfg(
-        command_type="pose_abs",
-        ik_method="dls",
-        position_offset=robot.cfg.ee_info.pos_offset,
-        rotation_offset=robot.cfg.ee_info.rot_offset,
-    )
-    ik_controller = DifferentialInverseKinematics(ik_control_cfg, num_envs, sim.device)
+    rmp_controller = RmpFlowController(cfg=rmpflow_cfg, device=sim.device)
 
     # Play the simulator
     sim.reset()
     # Acquire handles
     # Initialize handles
     robot.initialize("/World/envs/env_.*/Robot")
-    ik_controller.initialize()
+    rmp_controller.initialize("/World/envs/env_.*/Robot")
     # Reset states
     robot.reset_buffers()
-    ik_controller.reset_idx()
+    rmp_controller.reset_idx()
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
     # Create buffers to store actions
-    ik_commands = torch.zeros(robot.count, ik_controller.num_actions, device=robot.device)
+    rmp_commands = torch.zeros(robot.count, rmp_controller.num_actions, device=robot.device)
     robot_actions = torch.ones(robot.count, robot.num_actions, device=robot.device)
+    has_gripper = robot.cfg.meta_info.tool_num_dof > 0
 
     # Set end effector goals
     # Define goals for the arm
@@ -162,7 +163,7 @@ def main():
     ee_goals = torch.tensor(ee_goals, device=sim.device)
     # Track the given command
     current_goal_idx = 0
-    ik_commands[:] = ee_goals[current_goal_idx]
+    rmp_commands[:] = ee_goals[current_goal_idx]
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -173,7 +174,6 @@ def main():
     robot.update_buffers(sim_dt)
 
     # Simulate physics
-    # Simulate physics
     while simulation_app.is_running():
         # If simulation is stopped, then exit.
         if sim.is_stopped():
@@ -183,7 +183,7 @@ def main():
             sim.step(render=not args_cli.headless)
             continue
         # reset
-        if count % 150 == 0:
+        if count % 350 == 0:
             # reset time
             count = 0
             sim_time = 0.0
@@ -192,30 +192,47 @@ def main():
             robot.set_dof_state(dof_pos, dof_vel)
             robot.reset_buffers()
             # reset controller
-            ik_controller.reset_idx()
+            rmp_controller.reset_idx()
             # reset actions
-            ik_commands[:] = ee_goals[current_goal_idx]
+            rmp_commands[:] = ee_goals[current_goal_idx]
             # change goal
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
+            # step simulation
+            # FIXME: this is needed for lula to update the buffers!
+            # the bug has been reported to the lula team
+            sim.step(render=not args_cli.headless)
         # set the controller commands
-        ik_controller.set_command(ik_commands)
+        rmp_controller.set_command(rmp_commands)
         # compute the joint commands
-        robot_actions[:, : robot.arm_num_dof] = ik_controller.compute(
-            robot.data.ee_state_w[:, 0:3] - envs_positions,
-            robot.data.ee_state_w[:, 3:7],
-            robot.data.ee_jacobian,
-            robot.data.arm_dof_pos,
-        )
+        desired_joint_pos, desired_joint_vel = rmp_controller.compute()
         # in some cases the zero action correspond to offset in actuators
         # so we need to subtract these over here so that they can be added later on
         arm_command_offset = robot.data.actuator_pos_offset[:, : robot.arm_num_dof]
         # offset actuator command with position offsets
         # note: valid only when doing position control of the robot
-        robot_actions[:, : robot.arm_num_dof] -= arm_command_offset
+        desired_joint_pos -= arm_command_offset
+        # set the desired joint position and velocity into buffers
+        # note: this is a hack for now to deal with the fact that the robot has two different
+        #   command types. We need to split and interleave the commands for the robot.
+        #   This will be fixed in the future.
+        # get all the actuator groups
+        group_num_actuators = [group.num_actuators for group in robot.actuator_groups.values()]
+        if has_gripper:
+            # remove gripper from the list
+            group_num_actuators = group_num_actuators[:-1]
+        # set command for the arm
+        group_desired_joint_pos = desired_joint_pos.split(group_num_actuators, dim=-1)
+        group_desired_joint_vel = desired_joint_vel.split(group_num_actuators, dim=-1)
+        # interleave the commands
+        robot_actions_list = [None] * (len(group_desired_joint_pos) + len(group_desired_joint_vel))
+        robot_actions_list[::2] = group_desired_joint_pos
+        robot_actions_list[1::2] = group_desired_joint_vel
+        # concatenate the list
+        robot_actions[:, : 2 * sum(group_num_actuators)] = torch.cat(robot_actions_list, dim=-1)
         # apply actions
         robot.apply_action(robot_actions)
         # perform step
-        sim.step(render=not args_cli.headless)
+        sim.step(not args_cli.headless)
         # update sim-time
         sim_time += sim_dt
         count += 1
@@ -225,7 +242,7 @@ def main():
             robot.update_buffers(sim_dt)
             # update marker positions
             ee_marker.set_world_poses(robot.data.ee_state_w[:, 0:3], robot.data.ee_state_w[:, 3:7])
-            goal_marker.set_world_poses(ik_commands[:, 0:3] + envs_positions, ik_commands[:, 3:7])
+            goal_marker.set_world_poses(rmp_commands[:, 0:3] + envs_positions, rmp_commands[:, 3:7])
 
 
 if __name__ == "__main__":
