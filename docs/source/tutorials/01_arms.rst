@@ -86,7 +86,7 @@ robot when it is spawned in the scene. The default state is a tuple of two tenso
 the other for the joint velocities. It is used to reset the robot to its initial state at a pre-defined interval of
 steps.
 
-.. note::
+.. danger::
     Since the underlying physics engine in Isaac Sim does not separate the kinematics forwarding and dynamics stepping,
     the robot's state does not take into affect until after stepping the simulation.
 

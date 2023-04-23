@@ -70,7 +70,7 @@ where :math:`k_d` are the gains parsed from configuration.
 This control mode is achievable by setting the command type for the actuator group, via
 the :class:`ActuatorControlCfg` class, to `"v_abs"` or `"v_rel"`.
 
-.. note::
+.. attention::
 
     While performing velocity control, in many cases, gravity compensation is required to ensure better
     tracking of the command. In this case, we suggest disabling gravity for the links in the articulation

@@ -33,6 +33,7 @@ class RewardManager:
     as kernel parameters.
 
     .. note::
+
         The reward manager multiplies the reward terms by the ``weight`` key in the configuration
         dictionary with the time-step interval ``dt`` of the environment. This is done to ensure
         that the computed reward terms are balanced with respect to the chosen time-step interval.

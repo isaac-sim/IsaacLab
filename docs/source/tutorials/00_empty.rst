@@ -71,7 +71,7 @@ stepping, or stopping the simulator), configures the stage (such as stage units 
 prim (which provides physics simulation parameters such as gravity direction and magnitude, the simulation
 time-step size, and advanced solver algorithm settings).
 
-.. note::
+.. attention::
 
     The :class:`SimulationContext` class also takes in the ``backend`` parameter which specifies the tensor library
     (such as ``"numpy"`` and ``"torch"``) in which the returned physics tensors are casted in. Currently, ``orbit``
