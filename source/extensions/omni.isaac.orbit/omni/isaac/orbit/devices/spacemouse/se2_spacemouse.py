@@ -67,7 +67,7 @@ class Se2SpaceMouse(DeviceBase):
         msg = f"Spacemouse Controller for SE(2): {self.__class__.__name__}\n"
         msg += f"\tManufacturer: {self._device.get_manufacturer_string()}\n"
         msg += f"\tProduct: {self._device.get_product_string()}\n"
-        msg += "----------------------------------------------\n"
+        msg += "\t----------------------------------------------\n"
         msg += "\tRight button: reset command\n"
         msg += "\tMove mouse laterally: move base horizontally in x-y plane\n"
         msg += "\tTwist mouse about z-axis: yaw base about a corresponding axis"
@@ -92,7 +92,7 @@ class Se2SpaceMouse(DeviceBase):
         """Provides the result from spacemouse event state.
 
         Returns:
-            np.ndarray -- A 3D array containing the linear (x,y) and angular velocity (z).
+            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

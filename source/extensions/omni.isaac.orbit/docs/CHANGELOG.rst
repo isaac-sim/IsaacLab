@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.3.0 (2023-04-20)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the destructor to the keyboard devices to unsubscribe from carb.
+
+Added
+^^^^^
+
+* Added the :class:`Se2Gamepad` and :class:`Se3Gamepad` for gamepad teleoperation support.
+
+
 0.2.8 (2023-04-10)
 ~~~~~~~~~~~~~~~~~~
 
