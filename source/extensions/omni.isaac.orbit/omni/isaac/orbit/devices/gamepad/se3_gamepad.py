@@ -56,6 +56,9 @@ class Se3Gamepad(DeviceBase):
             dead_zone (float): Magnitude of dead zone for gamepad. An event value from the gamepad less than
                 this value will be ignored. Defaults to 0.01.
         """
+        # turn off simulator gamepad control
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.pos_sensitivity = pos_sensitivity
         self.rot_sensitivity = rot_sensitivity
