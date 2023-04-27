@@ -463,6 +463,8 @@ class IsaacEnv(gym.Env):
             sim_params["enable_scene_query_support"] = True
             # load extra viewport extensions if requested
             if self.enable_viewport:
+                # extension to enable UI buttons (otherwise we get attribute errors)
+                enable_extension("omni.kit.window.toolbar")
                 # extension to make RTX realtime and path-traced renderers
                 enable_extension("omni.kit.viewport.rtx")
                 # extension to make HydraDelegate renderers
