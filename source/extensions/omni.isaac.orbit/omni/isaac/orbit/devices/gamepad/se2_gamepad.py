@@ -55,6 +55,9 @@ class Se2Gamepad(DeviceBase):
             dead_zone (float): Magnitude of dead zone for gamepad. An event value from the gamepad less than
                 this value will be ignored. Defaults to 0.01.
         """
+        # turn off simulator gamepad control
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.v_x_sensitivity = v_x_sensitivity
         self.v_y_sensitivity = v_y_sensitivity
@@ -136,7 +139,7 @@ class Se2Gamepad(DeviceBase):
         cur_val = event.value
         if abs(cur_val) < self.dead_zone:
             cur_val = 0
-
+        print(event)
         # -- left and right stick
         if event.input in self._INPUT_STICK_VALUE_MAPPING:
             direction, axis, value = self._INPUT_STICK_VALUE_MAPPING[event.input]

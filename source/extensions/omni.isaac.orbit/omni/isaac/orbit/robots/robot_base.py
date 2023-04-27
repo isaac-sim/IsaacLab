@@ -461,7 +461,7 @@ class RobotBase:
                     self.sim_dof_control_modes[command_name].extend(actuator_group.dof_indices)
             else:
                 # in explicit mode, we always use the "effort" control mode
-                self.sim.dof_control_mode["effort"].extend(actuator_group.dof_indices)
+                self.sim_dof_control_modes["effort"].extend(actuator_group.dof_indices)
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_dof = sum(group.num_actuators for group in self.actuator_groups.values())
