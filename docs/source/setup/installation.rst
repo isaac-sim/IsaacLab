@@ -190,6 +190,9 @@ use the following command:
       .. code:: bash
 
          conda activate orbit
+      
+      Once you are in the virtual environment, you do not need to use ``./orbit.sh -p``
+      to run python scripts. You can use the default python executable in your environment.
 
 
 Building extensions

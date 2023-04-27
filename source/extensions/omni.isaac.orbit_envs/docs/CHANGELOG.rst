@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+0.3.0 (2023-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new flag ``viewport`` to the :class:`IsaacEnv` class to enable/disable rendering of the viewport.
+  If the flag is set to ``True``, the viewport is enabled and the environment is rendered in the background.
+* Updated the training scripts in the ``source/standalone/workflows`` directory to use the new flag ``viewport``.
+  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos`` directory using the
+  :class:`gym.wrappers.RecordVideo` wrapper.
+
+Changed
+^^^^^^^
+
+* The :class:`IsaacEnv` class supports different rendering mode as referenced in OpenAI Gym's ``render`` method.
+  These modes are:
+
+  * ``rgb_array``: Renders the environment in the background and returns the rendered image as a numpy array.
+  * ``human``: Renders the environment in the background and displays the rendered image in a window.
+
+* Changed the constructor in the classes inheriting from :class:`IsaacEnv` to pass all the keyword arguments to the
+  constructor of :class:`IsaacEnv` class.
+
+Fixed
+^^^^^
+
+* Clarified the documentation of ``headless`` flag in the :class:`IsaacEnv` class. It refers to whether or not
+  to render at every sim step, not whether to render the viewport or not.
+* Fixed the unit tests for running random agent on included environments.
+
 0.2.3 (2023-03-06)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.3.2 (2023-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added safe-printing of functions while using the :meth:`omni.isaac.orbit.utils.dict.print_dict` function.
+
+
 0.3.1 (2023-04-23)
 ~~~~~~~~~~~~~~~~~~
 

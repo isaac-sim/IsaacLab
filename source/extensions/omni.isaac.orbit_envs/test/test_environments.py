@@ -5,12 +5,15 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
 
 from omni.isaac.kit import SimulationApp
 
 # launch the simulator
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = SimulationApp(config, experience=app_experience)
+
 
 """Rest everything follows."""
 
@@ -20,6 +23,8 @@ import gym.envs
 import torch
 import unittest
 from typing import Dict, Union
+
+import omni.usd
 
 import omni.isaac.orbit_envs  # noqa: F401
 from omni.isaac.orbit_envs.utils.parse_cfg import parse_env_cfg
@@ -34,14 +39,15 @@ class TestEnvironments(unittest.TestCase):
         simulation_app.close()
 
     def setUp(self) -> None:
-        self.use_gpu = False
-        self.num_envs = 20
+        self.num_envs = 512
         self.headless = simulation_app.config["headless"]
         # acquire all Isaac environments names
         self.registered_tasks = list()
         for task_spec in gym.envs.registry.all():
             if "Isaac" in task_spec.id:
                 self.registered_tasks.append(task_spec.id)
+        # sort environments by name
+        self.registered_tasks.sort()
         # print all existing task names
         print(">>> All registered environments:", self.registered_tasks)
 
@@ -50,8 +56,10 @@ class TestEnvironments(unittest.TestCase):
 
         for task_name in self.registered_tasks:
             print(f">>> Running test for environment: {task_name}")
+            # create a new stage
+            omni.usd.get_context().new_stage()
             # parse configuration
-            env_cfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            env_cfg = parse_env_cfg(task_name, use_gpu=True, num_envs=self.num_envs)
             # create environment
             env = gym.make(task_name, cfg=env_cfg, headless=self.headless)
 

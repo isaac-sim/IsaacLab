@@ -44,6 +44,12 @@ class ViewerCfg:
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
     lookat: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
+    resolution: Tuple[int, int] = (1280, 720)
+    """The resolution (width, height) of the default viewport (in pixels). Default is (1280, 720).
+
+    This is the resolution of the camera "/OmniverseKit_Persp", that is used in default viewport.
+    The camera is also used for rendering RGB images of the simulation.
+    """
 
 
 ##

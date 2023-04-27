@@ -58,6 +58,7 @@ using the following BibTeX entry:
 
    source/tutorials_envs/00_gym_env
    source/tutorials_envs/01_create_env
+   source/tutorials_envs/02_wrappers
 
 .. toctree::
    :maxdepth: 2

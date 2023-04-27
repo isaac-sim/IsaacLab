@@ -27,7 +27,13 @@ def load_default_env_cfg(task_name: str) -> Union[dict, Any]:
 
     Returns:
         Union[dict, Any]: The parsed configuration object.
+
+    Raises:
+        ValueError: If the task name is not provided, i.e. None.
     """
+    # check if a task name is provided
+    if task_name is None:
+        raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
     # retrieve the configuration file to load
     cfg_entry_point: str = gym.spec(task_name)._kwargs.pop("cfg_entry_point")
 
@@ -74,7 +80,13 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
 
     Returns:
         Union[dict, Any]: The parsed configuration object.
+
+    Raises:
+        ValueError: If the task name is not provided, i.e. None.
     """
+    # check if a task name is provided
+    if task_name is None:
+        raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
     # create a dictionary to update from
     args_cfg = {"sim": {"physx": dict()}, "env": dict()}
     # resolve pipeline to use (based on input)

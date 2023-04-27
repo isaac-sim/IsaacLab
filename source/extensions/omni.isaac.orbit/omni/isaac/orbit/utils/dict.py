@@ -8,6 +8,7 @@
 
 import collections.abc
 import importlib
+import inspect
 from typing import Any, Callable, Dict, Iterable, Mapping
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
@@ -223,7 +224,13 @@ def print_dict(val, nesting: int = -4, start: bool = True):
             print(k, end=": ")
             print_dict(val[k], nesting, start=False)
     else:
-        print(val)
+        # deal with functions in print statements
+        if callable(val) and val.__name__ == "<lambda>":
+            print("lambda", inspect.getsourcelines(val)[0][0].strip().split("lambda")[1].strip()[:-1])
+        elif callable(val):
+            print(f"{val.__module__}:{val.__name__}")
+        else:
+            print(val)
 
 
 """

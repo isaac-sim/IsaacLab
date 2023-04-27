@@ -25,7 +25,7 @@ from .reach_cfg import RandomizationCfg, ReachEnvCfg
 class ReachEnv(IsaacEnv):
     """Environment for reaching to desired pose for a single-arm manipulator."""
 
-    def __init__(self, cfg: ReachEnvCfg = None, headless: bool = False):
+    def __init__(self, cfg: ReachEnvCfg = None, **kwargs):
         # copy configuration
         self.cfg = cfg
         # parse the configuration for controller configuration
@@ -35,7 +35,7 @@ class ReachEnv(IsaacEnv):
         self.robot = SingleArmManipulator(cfg=self.cfg.robot)
 
         # initialize the base class to setup the scene.
-        super().__init__(self.cfg, headless=headless)
+        super().__init__(self.cfg, **kwargs)
         # parse the configuration for information
         self._process_cfg()
         # initialize views for the cloned scenes

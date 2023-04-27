@@ -223,17 +223,17 @@ As examples of this in the ``omni.isaac.orbit_envs`` package, we have the follow
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/__init__.py
       :language: python
-      :lines: 45-49
+      :lines: 52-56
       :linenos:
-      :lineno-start: 45
+      :lineno-start: 52
 
 .. dropdown:: :fa:`eye,mr-1` Registering an environment with a Python dataclass configuration file
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/__init__.py
       :language: python
-      :lines: 83-87
+      :lines: 84-88
       :linenos:
-      :lineno-start: 83
+      :lineno-start: 84
 
 
 The Code Execution

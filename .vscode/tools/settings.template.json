@@ -40,6 +40,8 @@
         "teleoperation",
         "xform",
         "numpy",
+        "flatcache",
+        "physx",
         "dpad",
         "gamepad"
     ],

@@ -52,6 +52,7 @@ Base Environment
    :undoc-members:
    :show-inheritance:
    :private-members:
+   :exclude-members: _configure_simulation_flags, _create_viewport_render_product, _last_obs_buf
 
 Base Configuration
 ---------------------

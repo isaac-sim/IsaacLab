@@ -8,8 +8,9 @@
 
 import abc
 import gym
+import numpy as np
 import torch
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, Iterable, List, Optional, Tuple, Union
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
@@ -65,15 +66,27 @@ class IsaacEnv(gym.Env):
     environment for their agents.
     """
 
-    def __init__(self, cfg: IsaacEnvCfg, headless: bool = False):
+    is_vector_env: ClassVar[bool] = True
+    """Whether the environment is a vectorized environment."""
+    metadata: ClassVar[Dict[str, Any]] = {"render.modes": ["human", "rgb_array"]}
+    """Metadata for the environment."""
+
+    def __init__(self, cfg: IsaacEnvCfg, headless: bool = False, viewport: bool = False, **kwargs):
         """Initialize the environment.
 
         We currently support only PyTorch backend for the environment. In the future, we plan to extend this to use
         other backends such as Warp.
 
+        If the environment is not headless and viewport is enabled, then the viewport will be rendered in the GUI.
+        This allows us to render the environment even in the headless mode. However, it will significantly slow
+        down the simulation. Thus, it is recommended to set both ``headless`` and ``viewport``
+        to ``False`` when training an environment (unless it uses perception sensors).
+
         Args:
             cfg (IsaacEnvCfg): Instance of the environment configuration.
-            headless (bool, optional): Whether to run with GUI or without GUI. Defaults to False.
+            headless (bool, optional): Whether to render at every simulation step. Defaults to False.
+            viewport (bool, optional): Whether to enable the GUI viewport. If True, then the viewport
+                will be rendered in the GUI (even in the headless mode). Defaults to False.
 
         Raises:
             RuntimeError: No stage is found in the simulation.
@@ -81,6 +94,7 @@ class IsaacEnv(gym.Env):
         # store inputs to class
         self.cfg = cfg
         self.enable_render = not headless
+        self.enable_viewport = viewport or self.enable_render
         # extract commonly used parameters
         self.num_envs = self.cfg.env.num_envs
         self.device = self.cfg.sim.device
@@ -115,6 +129,8 @@ class IsaacEnv(gym.Env):
             physics_prim_path="/physicsScene",
             device=self.device,
         )
+        # create renderer and set camera view
+        self._create_viewport_render_product()
         # add flag for checking closing status
         self._is_closed = False
 
@@ -129,8 +145,6 @@ class IsaacEnv(gym.Env):
         #   physics handles become invalid. So it is not possible to call :meth:`_get_observations()`
         self._last_obs_buf: VecEnvObs = None
 
-        # set camera view
-        set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
         # create cloner for duplicating the scenes
         cloner = GridCloner(spacing=self.cfg.env.env_spacing)
         cloner.define_base_env(self.env_ns)
@@ -274,9 +288,46 @@ class IsaacEnv(gym.Env):
         # return observations, rewards, resets and extras
         return self._last_obs_buf, self.reward_buf, self.reset_buf, self.extras
 
-    def render(self):
-        """Run rendering without stepping through the physics."""
-        self.sim.render()
+    def render(self, mode: str = "human") -> Optional[np.ndarray]:
+        """Run rendering without stepping through the physics.
+
+        By convention, if mode is:
+
+        - **human**: render to the current display and return nothing. Usually for human consumption.
+        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
+          x-by-y pixel image, suitable for turning into a video.
+
+        Args:
+            mode (str, optional): The mode to render with. Defaults to "human".
+        """
+        # render the scene only if rendering at every step is disabled
+        # this is because we do not want to render the scene twice
+        if not self.enable_render:
+            # manually flush the flatcache data to update Hydra textures
+            if self.sim.get_physics_context().use_flatcache:
+                self._flatcache_iface.update(0.0, 0.0)
+            # render the scene
+            self.sim.render()
+        # decide the rendering mode
+        if mode == "human":
+            return None
+        elif mode == "rgb_array":
+            # check if viewport is enabled -- if not, then complain because we won't get any data
+            if not self.enable_viewport:
+                raise RuntimeError(
+                    f"Cannot render '{mode}' when enable viewport is False. Please check the provided"
+                    "arguments to the environment class at initialization."
+                )
+            # obtain the rgb data
+            rgb_data = self._rgb_annotator.get_data()
+            # convert to numpy array
+            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
+            # return the rgb data
+            return rgb_data[:, :, :3]
+        else:
+            raise NotImplementedError(
+                f"Render mode '{mode}' is not supported. Please use: {self.metadata['render.modes']}."
+            )
 
     def close(self):
         """Cleanup for the environment."""
@@ -390,7 +441,7 @@ class IsaacEnv(gym.Env):
     """
 
     def _configure_simulation_flags(self, sim_params: dict = None):
-        """Configure various simulation flags for performance improvements at load and run time."""
+        """Configure simulation flags and extensions at load and run time."""
         # acquire settings interface
         carb_settings_iface = carb.settings.get_settings()
         # enable hydra scene-graph instancing
@@ -405,12 +456,51 @@ class IsaacEnv(gym.Env):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
 
         # set flags based on whether rendering is enabled or not
-        if self.enable_render:
+        # note: enabling extensions is order-sensitive. please do not change the order.
+        if self.enable_render or self.enable_viewport:
             # enable scene querying if rendering is enabled
             # this is needed for some GUI features
             sim_params["enable_scene_query_support"] = True
+            # load extra viewport extensions if requested
+            if self.enable_viewport:
+                # extension to enable UI buttons (otherwise we get attribute errors)
+                enable_extension("omni.kit.window.toolbar")
+                # extension to make RTX realtime and path-traced renderers
+                enable_extension("omni.kit.viewport.rtx")
+                # extension to make HydraDelegate renderers
+                enable_extension("omni.kit.viewport.pxr")
             # enable viewport extension if not running in headless mode
             enable_extension("omni.kit.viewport.bundle")
+            # load extra render extensions if requested
+            if self.enable_viewport:
+                # extension for window status bar
+                enable_extension("omni.kit.window.status_bar")
         # enable isaac replicator extension
         # note: moved here since it requires to have the viewport extension to be enabled first.
         enable_extension("omni.replicator.isaac")
+
+    def _create_viewport_render_product(self):
+        """Create a render product of the viewport for rendering."""
+        # set camera view for "/OmniverseKit_Persp" camera
+        set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
+
+        # check if flatcache is enabled
+        # this is needed to flush the flatcache data into Hydra manually when calling `env.render()`
+        # ref: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html
+        if not self.enable_render and self.sim.get_physics_context().use_flatcache:
+            from omni.physxflatcache import get_physx_flatcache_interface
+
+            # acquire flatcache interface
+            self._flatcache_iface = get_physx_flatcache_interface()
+
+        # check if viewport is enabled before creating render product
+        if self.enable_viewport:
+            import omni.replicator.core as rep
+
+            # create render product
+            self._render_product = rep.create.render_product("/OmniverseKit_Persp", self.cfg.viewer.resolution)
+            # create rgb annotator -- used to read data from the render product
+            self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+            self._rgb_annotator.attach([self._render_product])
+        else:
+            carb.log_info("Viewport is disabled. Skipping creation of render product.")
