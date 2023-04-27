@@ -41,6 +41,7 @@ from datetime import datetime
 
 from rsl_rl.runners import OnPolicyRunner
 
+from omni.isaac.orbit.utils.dict import print_dict
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.contrib_envs  # noqa: F401
@@ -80,8 +81,14 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless, viewport=args_cli.video)
     # wrap for video recording
     if args_cli.video:
-        videos_dir = os.path.join(log_dir, "videos")
-        env = gym.wrappers.RecordVideo(env, videos_dir, step_trigger=lambda step: step % 1500 == 0, video_length=200)
+        video_kwargs = {
+            "video_folder": os.path.join(log_dir, "videos"),
+            "step_trigger": lambda step: step % 1500 == 0,
+            "video_length": 200,
+        }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 

@@ -81,8 +81,12 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless, viewport=args_cli.video)
     # wrap for video recording
     if args_cli.video:
-        videos_dir = os.path.join(log_dir, "videos")
-        env = gym.wrappers.RecordVideo(env, videos_dir, step_trigger=lambda step: step % 1500 == 0, video_length=200)
+        video_kwargs = {
+            "video_folder": os.path.join(log_dir, "videos"),
+            "step_trigger": lambda step: step % 1500 == 0,
+            "video_length": 200,
+        }
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
     # set the seed
