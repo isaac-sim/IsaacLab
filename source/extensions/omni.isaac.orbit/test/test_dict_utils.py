@@ -19,7 +19,7 @@ class TestDictUtilities(unittest.TestCase):
             "b": 2,
             "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
             "i": 7,
-            "j": lambda x: x ** 2,
+            "j": lambda x: x**2,
             "k": dict_utils.class_to_dict,
         }
         # print the dictionary
