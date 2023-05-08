@@ -116,7 +116,7 @@ Wrapper for learning frameworks
 Every learning framework has its own API for interacting with environments. For example, the
 `Stable Baselines3 <https://stable-baselines3.readthedocs.io/en/master/>`__ library uses the
 `gym.Env <https://gymnasium.farama.org/api/env/>`__ interface to interact with environments.
-However, libraries like `RL-Games <https://github.com/Denys88/rl_games>`__ or 
+However, libraries like `RL-Games <https://github.com/Denys88/rl_games>`__ or
 `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ use their own API for interfacing with a
 learning environments. Since there is no one-size-fits-all solution, we do not base the :class:`IsaacEnv`
 class on any particular learning framework's environment definition. Instead, we implement

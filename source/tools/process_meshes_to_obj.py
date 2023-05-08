@@ -46,7 +46,6 @@ def run_blender_convert2obj(in_file: str, out_file: str):
     Args:
         in_file (str): Input mesh file.
         out_file (str): Output obj file.
-        format (str): The file type to import.
     """
     # resolve for python file
     tools_dirname = os.path.dirname(os.path.abspath(__file__))
@@ -93,4 +92,4 @@ if __name__ == "__main__":
     # Parse command line arguments
     args = parse_cli_args()
     # Run conversion
-    convert_meshes(args.input_dir, args.output_dir)
+    convert_meshes([args.input_dir], [args.output_dir])
