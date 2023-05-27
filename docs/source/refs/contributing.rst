@@ -63,6 +63,10 @@ for code comments and layout,
 `PEP-585 <https://www.python.org/dev/peps/pep-0585/>`__ for
 type-hinting.
 
+For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html>`__
+for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
+Please make sure that your code is well-documented and follows the guidelines.
+
 We use the following tools for maintaining code quality:
 
 * `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
@@ -77,6 +81,88 @@ following command in the terminal:
 .. code:: bash
 
    ./orbit.sh --format  # or `./orbit.sh -f`
+
+Contributing Documentation
+--------------------------
+
+Contributing to the documentation is as easy as contributing to the codebase. All the source files
+for the documentation are located in the ``orbit/docs`` directory. The documentation is written in
+`reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
+
+We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
+`Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
+for maintaining the documentation.
+
+Sending a pull request for the documentation is the same as sending a pull request for the codebase.
+Please follow the steps mentioned in the `Contributing Code`_ section.
+
+.. caution::
+
+  To build the documentation, we recommend creating a `virtual environment <https://docs.python.org/3/library/venv.html>`__
+  to install the dependencies. This can also be a `conda environment <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html>`__.
+
+
+To build the documentation, run the following command in the terminal which installs the required python packages and
+builds the documentation using the ``docs/Makefile``:
+
+.. code:: bash
+
+   ./orbit.sh --docs  # or `./orbit.sh -d`
+
+The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
+the ``index.html`` file in the ``html`` directory. This can be done by running the following command
+in the terminal:
+
+.. code:: bash
+
+   xdg-open docs/_build/html/index.html
+
+.. hint::
+
+   The ``xdg-open`` command is used to open the ``index.html`` file in the default browser. If you are
+   using a different operating system, you can use the appropriate command to open the file in the browser.
+
+
+To do a clean build, run the following command in the terminal:
+
+.. code:: bash
+
+   rm -rf docs/_build && ./orbit.sh --docs
+
+
+Contributing assets
+-------------------
+
+Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/prod_nucleus/prod_nucleus/overview.html>`__.
+Nucleus is a cloud-based storage service that allows users to store and share large files. It is
+integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omniverse>`__.
+
+Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
+we need to include the links to the assets in the documentation.
+
+The included assets are part of the `Isaac Sim Content <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/reference_assets.html>`__.
+To use this content, you need to download the files to a Nucleus server or create an **Isaac** Mount on
+a Nucleus server.
+
+Please check the `Isaac Sim documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#assets-and-nucleus>`__
+for more information on how to download the assets.
+
+.. attention::
+
+  We are currently working on a better way to contribute assets. We will update this section once we
+  have a solution. In the meantime, please follow the steps mentioned below.
+
+To host your own assets, the current solution is:
+
+1. Create a separate repository for the assets and add it over there
+2. Make sure the assets are licensed for use and distribution
+3. Include images of the assets in the README file of the repository
+4. Send a pull request with a link to the repository
+
+We will then verify the assets, its licensing, and include the assets into the Nucleus server for hosting.
+In case you have any questions, please feel free to reach out to us through e-mail or by opening an issue
+in the repository.
+
 
 Maintaining a changelog
 -----------------------
@@ -146,85 +232,3 @@ For example, the following is a sample changelog:
     ^^^^^
 
     * Added a new feature.
-
-
-Contributing Documentation
---------------------------
-
-Contributing to the documentation is as easy as contributing to the codebase. All the source files
-for the documentation are located in the ``orbit/docs`` directory. The documentation is written in
-`reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
-
-We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
-`Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
-for maintaining the documentation.
-
-Sending a pull request for the documentation is the same as sending a pull request for the codebase.
-Please follow the steps mentioned in the `Contributing Code`_ section.
-
-To build the documentation, we recommend creating a `virtual environment <https://docs.python.org/3/library/venv.html>`__
-to install the dependencies. This can also be a `conda environment <https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html>`__.
-
-Execute the following commands in the terminal:
-
-1. Enter the ``orbit/docs`` directory.
-
-   .. code:: bash
-
-     # enter the location of the docs directory (relative to the root of the repository)
-     cd docs
-
-2. Install the dependencies (preferably in a virtual/conda environment).
-
-   .. code:: bash
-
-     # install the dependencies
-     pip install -r requirements.txt
-
-3. Build the documentation.
-
-   .. code:: bash
-
-     # build the documentation
-     make html
-
-4. Open the documentation in a browser.
-
-   .. code:: bash
-
-     # open the documentation in a browser
-     xdg-open _build/html/index.html
-
-
-Contributing assets
--------------------
-
-Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/prod_nucleus/prod_nucleus/overview.html>`__.
-Nucleus is a cloud-based storage service that allows users to store and share large files. It is
-integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omniverse>`__.
-
-Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
-we need to include the links to the assets in the documentation.
-
-The included assets are part of the `Isaac Sim Content <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/reference_assets.html>`__.
-To use this content, you need to download the files to a Nucleus server or create an **Isaac** Mount on
-a Nucleus server.
-
-Please check the `Isaac Sim documentation <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#assets-and-nucleus>`__
-for more information on how to download the assets.
-
-.. attention::
-
-  We are currently working on a better way to contribute assets. We will update this section once we
-  have a solution. In the meantime, please follow the steps mentioned below.
-
-To host your own assets, the current solution is:
-
-1. Create a separate repository for the assets and add it over there
-2. Make sure the assets are licensed for use and distribution
-3. Include images of the assets in the README file of the repository
-4. Send a pull request with a link to the repository
-
-We will then verify the assets, its licensing, and include the assets into the Nucleus server for hosting.
-In case you have any questions, please feel free to reach out to us through e-mail or by opening an issue
-in the repository.

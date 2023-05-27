@@ -17,6 +17,12 @@ Installation Guide
 Installing Isaac Sim
 --------------------
 
+
+.. caution::
+
+   We have observed a few issues with the Isaac Sim 2022.2.1 release. We recommend using the
+   Isaac Sim 2022.2.0 release. For more information, please check the :doc:`/source/refs/issues` page.
+
 Downloading pre-built binaries
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -28,7 +34,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/requirements.html>`__.
 
 .. note::
-	We have tested ORBIT with Isaac Sim 2022.2 release on Ubuntu
+	We have tested ORBIT with Isaac Sim 2022.2.0 release on Ubuntu
 	20.04LTS with NVIDIA driver 515.76.
 
 Configuring the environment variables
@@ -109,6 +115,16 @@ Installing Orbit
 Organizing the workspace
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. note::
+
+   We recommend making a `fork <https://github.com/NVIDIA-Omniverse/Orbit/fork>`_ of the ``orbit`` repository to contribute
+   to the project. This is not mandatory to use the framework. If you
+   make a fork, please replace ``NVIDIA-Omniverse`` with your username
+   in the following instructions.
+
+   If you are not familiar with git, we recommend following the `git
+   tutorial <https://git-scm.com/book/en/v2/Getting-Started-Git-Basics>`__.
+
 -  Clone the ``orbit`` repository into your workspace:
 
    .. code:: bash
@@ -179,21 +195,27 @@ use the following command:
 
 .. code:: bash
 
+   # Option 1: Default name for conda environment is 'orbit'
    ./orbit.sh --conda  # or `./orbit.sh -c`
+   # Option 2: Custom name for conda environment
+   ./orbit.sh --conda my_env  # or `./orbit.sh -c my_env`
 
+If you are using ``conda`` to create a virtual environment, make sure to
+activate the environment before running any scripts. For example:
 
-.. note::
+.. code:: bash
 
-      If you are using ``conda`` to create a virtual environment, make sure to
-      activate the environment before running any scripts. For example:
+   conda activate orbit  # or `conda activate my_env`
 
-      .. code:: bash
+Once you are in the virtual environment, you do not need to use ``./orbit.sh -p``
+to run python scripts. You can use the default python executable in your environment.
 
-         conda activate orbit
+As an example, you can run the following command to check if the virtual environment is
+set up correctly:
 
-      Once you are in the virtual environment, you do not need to use ``./orbit.sh -p``
-      to run python scripts. You can use the default python executable in your environment.
+.. code:: bash
 
+   python -c "import omni.isaac.orbit; print('Orbit configuration is now complete.')"
 
 Building extensions
 ~~~~~~~~~~~~~~~~~~~
