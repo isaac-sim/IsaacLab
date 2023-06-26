@@ -79,3 +79,10 @@ reportMissingModuleSource = "none" # -> most common: prettytable in mdp managers
 reportGeneralTypeIssues = "none"       # -> raises 218 errors (usage of literal MISSING in dataclasses)
 reportOptionalMemberAccess = "warning" # -> raises 8 errors
 reportPrivateUsage = "warning"
+
+
+[tool.codespell]
+skip = '*.usd,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
+quiet-level = 0
+# the world list should always have words in lower case
+ignore-words-list = "haa,slq"

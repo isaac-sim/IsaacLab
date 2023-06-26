@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration fo the ANYbotics robots.
+"""Configuration for the ANYbotics robots.
 
 The following configuration parameters are available:
 * :obj:`ANYMAL_B_CFG`: The ANYmal-B robot with ANYdrives 3.0

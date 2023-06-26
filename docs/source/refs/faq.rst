@@ -50,7 +50,7 @@ motion planning). The main goals of the framework are summarized as follows:
 
 - **Modularity**: It is possible to easily add new environments, sensors, and tasks. It is also possible
   to easily swap out different components to suit the needs of the user.
-- **Agility**: While still dependant on Isaac Sim, the framework includes pre-release features that
+- **Agility**: While still dependent on Isaac Sim, the framework includes pre-release features that
   are not yet available in Isaac Sim. This allows the framework to be more agile and adapt to the
   changing needs of the community.
 - **Openness**: The framework is designed to be open-sourced. This makes it possible to easily

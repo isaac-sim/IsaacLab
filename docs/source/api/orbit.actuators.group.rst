@@ -19,7 +19,7 @@ Each string has two sub-strings joined by underscore:
 For instance, the command type ``"p_abs"`` defines a position command in absolute mode, while ``"v_rel"``
 defines a velocity command in relative mode.
 
-To facilitate easier composibility, the actuator group handles the offsets and scalings applied to
+To facilitate easier composability, the actuator group handles the offsets and scalings applied to
 the input commands. These are set through the :class:`ActuatorControlCfg` and by default are set to zero
 and one, respectively. Based on these, the input commands are processed as follows:
 
