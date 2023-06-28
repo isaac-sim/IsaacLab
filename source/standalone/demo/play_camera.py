@@ -14,7 +14,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 import argparse
 
 # omni-isaac-orbit
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -24,9 +24,8 @@ parser.add_argument("--draw", action="store_true", default=False, help="Draw the
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -159,10 +158,10 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=app_launcher.RENDER)
             continue
         # Step simulation
-        sim.step()
+        sim.step(render=app_launcher.RENDER)
         # Update camera data
         camera.update(dt=0.0)
 

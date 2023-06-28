@@ -10,7 +10,7 @@
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -26,9 +26,9 @@ parser.add_argument(
 )
 args_cli = parser.parse_args()
 
-# launch the simulator
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+# launch omniverse app
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -61,7 +61,7 @@ def main():
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
+    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
     # wrap around environment for rl-games
     env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
 

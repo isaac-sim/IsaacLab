@@ -21,7 +21,7 @@ The tutorial corresponds to the ``play_empty.py`` script in the ``orbit/source/s
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :emphasize-lines: 20-22,42-43,65-66,70-80,86-87
+   :emphasize-lines: 20-22,41-42,64-65,69-79,85-86
    :linenos:
 
 
@@ -54,9 +54,9 @@ we will be using in the script.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 28-32
+   :lines: 27-31
    :linenos:
-   :lineno-start: 28
+   :lineno-start: 27
 
 
 Designing the simulation scene
@@ -83,9 +83,9 @@ existing UI elements.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 42-45
+   :lines: 41-44
    :linenos:
-   :lineno-start: 42
+   :lineno-start: 41
 
 Next, we add a ground plane and some lights into the scene. These objects are referred to as primitives or prims in
 the USD definition. More concretely, prims are the basic building blocks of a USD scene. They can be considered
@@ -107,9 +107,9 @@ property of a ``"SphereLight"`` prim is set to ``2.5``.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 50-63
+   :lines: 49-62
    :linenos:
-   :lineno-start: 50
+   :lineno-start: 49
 
 
 Running the simulation loop
@@ -131,17 +131,17 @@ iteration of the loop.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 65-80
+   :lines: 64-79
    :linenos:
-   :lineno-start: 65
+   :lineno-start: 64
 
-Lastly, we call the :meth:`simulation_app.stop()` method to stop the simulation application and close the window.
+Lastly, we call the :meth:`simulation_app.close()` method to stop the simulation application and close the window.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 86-87
+   :lines: 85-86
    :linenos:
-   :lineno-start: 86
+   :lineno-start: 85
 
 The Code Execution
 ~~~~~~~~~~~~~~~~~~

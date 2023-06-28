@@ -11,7 +11,7 @@
 import argparse
 import os
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -32,9 +32,9 @@ if args_cli.headless:
     app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
 else:
     app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.kit"
-# launch the simulator
-simulation_app = SimulationApp(config, experience=app_experience)
-
+# launch omniverse app
+app_launcher = AppLauncher(headless=args_cli.headless, experience=app_experience)
+simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
@@ -93,7 +93,7 @@ def main():
     clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless, viewport=args_cli.video)
+    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {

@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.4.1 (2023-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.orbit.app.AppLauncher` class to allow controlled instantiation of
+  the `SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html>`_
+  and extension loading for remote deployment and ROS bridges.
+
+Changed
+^^^^^^^
+
+* Modified all standalone scripts to use the :class:`omni.isaac.orbit.app.AppLauncher` class.
+
+
 0.4.0 (2023-05-27)
 ~~~~~~~~~~~~~~~~~~
 
@@ -163,7 +179,7 @@ Added
 Fixed
 ^^^^^
 
-* Fixed setting of physics material on the ground plane when using :meth:``omni.isaac.orbit.utils.kit.create_ground_plane`` function.
+* Fixed setting of physics material on the ground plane when using :meth:`omni.isaac.orbit.utils.kit.create_ground_plane` function.
 
 
 0.1.0 (2023-01-17)

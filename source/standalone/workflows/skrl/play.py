@@ -16,7 +16,7 @@ a more user-friendly way.
 import argparse
 import os
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -27,9 +27,9 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 args_cli = parser.parse_args()
 
-# launch the simulator
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+# launch omniverse app
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -54,7 +54,7 @@ def main():
     experiment_cfg = parse_skrl_cfg(args_cli.task)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
+    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
 

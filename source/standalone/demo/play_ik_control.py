@@ -15,7 +15,7 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -25,12 +25,10 @@ parser.add_argument("--num_envs", type=int, default=128, help="Number of environ
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
-
 
 import torch
 
@@ -180,7 +178,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=app_launcher.RENDER)
             continue
         # reset
         if count % 150 == 0:
@@ -215,7 +213,7 @@ def main():
         # apply actions
         robot.apply_action(robot_actions)
         # perform step
-        sim.step(render=not args_cli.headless)
+        sim.step(render=app_launcher.RENDER)
         # update sim-time
         sim_time += sim_dt
         count += 1

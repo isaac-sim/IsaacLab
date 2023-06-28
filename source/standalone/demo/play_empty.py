@@ -10,7 +10,7 @@
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -18,9 +18,8 @@ parser.add_argument("--headless", action="store_true", default=False, help="Forc
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -74,10 +73,10 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=app_launcher.RENDER)
             continue
         # perform step
-        sim.step()
+        sim.step(render=app_launcher.RENDER)
 
 
 if __name__ == "__main__":

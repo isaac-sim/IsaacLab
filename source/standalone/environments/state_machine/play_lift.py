@@ -12,7 +12,7 @@ Usage:
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -21,9 +21,9 @@ parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU p
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 args_cli = parser.parse_args()
 
-# launch the simulator
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+# launch omniverse app
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything else."""
 
@@ -240,7 +240,7 @@ def main():
     # -- robot configuration
     env_cfg.robot.robot_type = "franka"
     # create environment
-    env = gym.make("Isaac-Lift-Franka-v0", cfg=env_cfg, headless=args_cli.headless)
+    env = gym.make("Isaac-Lift-Franka-v0", cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
 
     # create action buffers
     actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)

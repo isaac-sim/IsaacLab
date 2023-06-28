@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.3.1 (2023-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the argument ``headless`` in :class:`IsaacEnv` class to ``render``, in order to cause less confusion
+  about rendering and headless-ness, i.e. that you can render while headless.
+
+
 0.3.0 (2023-04-14)
 ~~~~~~~~~~~~~~~~~~
 

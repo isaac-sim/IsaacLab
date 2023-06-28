@@ -14,7 +14,7 @@ The RMP-Flow can be configured in different modes. It uses the LULA library for 
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -24,9 +24,8 @@ parser.add_argument("--num_envs", type=int, default=5, help="Number of environme
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(headless=args_cli.headless)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -180,7 +179,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=app_launcher.RENDER)
             continue
         # reset
         if count % 350 == 0:
@@ -200,7 +199,7 @@ def main():
             # step simulation
             # FIXME: this is needed for lula to update the buffers!
             # the bug has been reported to the lula team
-            sim.step(render=not args_cli.headless)
+            sim.step(render=app_launcher.RENDER)
         # set the controller commands
         rmp_controller.set_command(rmp_commands)
         # compute the joint commands
@@ -232,7 +231,7 @@ def main():
         # apply actions
         robot.apply_action(robot_actions)
         # perform step
-        sim.step(not args_cli.headless)
+        sim.step(render=app_launcher.RENDER)
         # update sim-time
         sim_time += sim_dt
         count += 1

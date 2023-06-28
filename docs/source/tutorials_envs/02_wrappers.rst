@@ -22,7 +22,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     # create base environment
     cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
-    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, headless=True)
+    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, render=True)
     # wrap environment to enforce that reset is called before step
     env = gym.wrappers.OrderEnforcing(env)
 
@@ -55,7 +55,7 @@ is enabled. This can be done by setting the ``viewport`` argument to ``True`` wh
 
     # create base environment
     cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
-    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, headless=True, viewport=True)
+    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, render=True, viewport=True)
     # wrap environment to enforce that reset is called before step
     env = gym.wrappers.OrderEnforcing(env)
 
@@ -100,7 +100,7 @@ records a video of the ``Isaac-Reach-Franka-v0`` environment for 200 steps, and 
     env_cfg.viewer.eye = (1.0, 1.0, 1.0)
     env_cfg.viewer.lookat = (0.0, 0.0, 0.0)
     # create isaac-env instance
-    env = gym.make(task_name, cfg=env_cfg, headless=headless, viewport=True)
+    env = gym.make(task_name, cfg=env_cfg, render=headless, viewport=True)
     # wrap for video recording
     video_kwargs = {
         "video_folder": "videos",
@@ -129,7 +129,7 @@ As an example of how to use the :class:`IsaacEnv` with Stable-Baselines3:
     from omni.isaac.orbit_envs.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
-    env = gym.make(task_name, cfg=env_cfg, headless=headless)
+    env = gym.make(task_name, cfg=env_cfg, render=headless)
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 

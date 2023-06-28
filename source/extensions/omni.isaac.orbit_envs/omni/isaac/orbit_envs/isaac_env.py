@@ -71,29 +71,31 @@ class IsaacEnv(gym.Env):
     metadata: ClassVar[Dict[str, Any]] = {"render.modes": ["human", "rgb_array"]}
     """Metadata for the environment."""
 
-    def __init__(self, cfg: IsaacEnvCfg, headless: bool = False, viewport: bool = False, **kwargs):
+    def __init__(self, cfg: IsaacEnvCfg, render: bool = False, viewport: bool = False, **kwargs):
         """Initialize the environment.
 
         We currently support only PyTorch backend for the environment. In the future, we plan to extend this to use
         other backends such as Warp.
 
-        If the environment is not headless and viewport is enabled, then the viewport will be rendered in the GUI.
-        This allows us to render the environment even in the headless mode. However, it will significantly slow
-        down the simulation. Thus, it is recommended to set both ``headless`` and ``viewport``
-        to ``False`` when training an environment (unless it uses perception sensors).
+        If render is True, then viewport is True, and the full rendering process will take place with
+        an interactive GUI available via local machine or streaming. If :obj:`render` is False and :obj:`viewport`
+        is True, then only the lighter-weight viewport elements will be rendered in the GUI. However, either of these
+        modes will significantly slow down the simulation compared to a non-rendering configuration. Thus, it
+        is recommended to set both :obj:`render` and :obj:`viewport` to False when training an environment (unless
+        it uses perception sensors).
 
         Args:
             cfg (IsaacEnvCfg): Instance of the environment configuration.
-            headless (bool, optional): Whether to render at every simulation step. Defaults to False.
-            viewport (bool, optional): Whether to enable the GUI viewport. If True, then the viewport
-                will be rendered in the GUI (even in the headless mode). Defaults to False.
+            render (bool, optional): Whether to render at every simulation step. Defaults to False.
+            viewport (bool, optional): Whether to enable the viewport/camera rendering. If True, then the viewport
+                will be rendered even if the GUI is disabled or :obj:`render` is False. Defaults to False.
 
         Raises:
             RuntimeError: No stage is found in the simulation.
         """
         # store inputs to class
         self.cfg = cfg
-        self.enable_render = not headless
+        self.enable_render = render
         self.enable_viewport = viewport or self.enable_render
         # extract commonly used parameters
         self.num_envs = self.cfg.env.num_envs
@@ -469,7 +471,7 @@ class IsaacEnv(gym.Env):
                 enable_extension("omni.kit.viewport.rtx")
                 # extension to make HydraDelegate renderers
                 enable_extension("omni.kit.viewport.pxr")
-            # enable viewport extension if not running in headless mode
+            # enable viewport extension if full rendering is enabled
             enable_extension("omni.kit.viewport.bundle")
             # load extra render extensions if requested
             if self.enable_viewport:

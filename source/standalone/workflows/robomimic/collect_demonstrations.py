@@ -10,7 +10,7 @@
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -24,8 +24,8 @@ parser.add_argument("--filename", type=str, default="hdf_dataset", help="Basenam
 args_cli = parser.parse_args()
 
 # launch the simulator
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+app_launcher = AppLauncher()
+simulation_app = app_launcher.create_app(headless=args_cli.headless)
 
 """Rest everything follows."""
 
@@ -71,7 +71,7 @@ def main():
     env_cfg.observations.return_dict_obs_in_group = True
 
     # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg, headless=args_cli.headless)
+    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
 
     # create controller
     if args_cli.device.lower() == "keyboard":
