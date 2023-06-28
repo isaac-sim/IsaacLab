@@ -1,10 +1,20 @@
 Changelog
 ---------
 
-0.3.2 (2023-04-27)
+0.4.0 (2023-05-27)
 ~~~~~~~~~~~~~~~~~~
 
 Added
+^^^^^
+
+* Added a helper class :class:`omni.isaac.orbit.asset_loader.UrdfLoader` that coverts a URDF file to instanceable USD
+  file based on the input configuration object.
+
+
+0.3.2 (2023-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
 ^^^^^
 
 * Added safe-printing of functions while using the :meth:`omni.isaac.orbit.utils.dict.print_dict` function.

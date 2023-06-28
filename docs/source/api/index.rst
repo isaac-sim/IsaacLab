@@ -9,6 +9,7 @@ omni.isaac.orbit extension
 
    orbit.actuators.group
    orbit.actuators.model
+   orbit.asset_loader
    orbit.devices
    orbit.markers
    orbit.objects.articulated
