@@ -6,14 +6,14 @@ omni.isaac.orbit.terrains
    :undoc-members:
    :show-inheritance:
 
-Terrain manager
----------------
+Terrain importer
+----------------
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_cfg.TerrainManagerCfg
+.. autoclass:: omni.isaac.orbit.terrains.terrain_cfg.TerrainImporterCfg
     :members:
     :show-inheritance:
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_manager.TerrainManager
+.. autoclass:: omni.isaac.orbit.terrains.terrain_importer.TerrainImporter
     :members:
     :show-inheritance:
 
