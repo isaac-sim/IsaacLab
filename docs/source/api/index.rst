@@ -17,6 +17,7 @@ omni.isaac.orbit extension
    orbit.objects.rigid
    orbit.robots
    orbit.sensors
+   orbit.terrains
    orbit.utils
    orbit.utils.assets
    orbit.utils.kit

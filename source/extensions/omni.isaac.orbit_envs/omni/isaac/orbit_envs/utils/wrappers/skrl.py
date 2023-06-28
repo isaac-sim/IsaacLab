@@ -20,9 +20,8 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 import copy
 import torch
-from typing import List, Optional, Union
-
 import tqdm
+from typing import List, Optional, Union
 
 # skrl
 from skrl.agents.torch import Agent

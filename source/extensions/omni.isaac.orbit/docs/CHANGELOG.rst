@@ -1,11 +1,18 @@
 Changelog
 ---------
 
-0.4.1 (2023-06-27)
+0.4.2 (2023-06-28)
 ~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
+
+* Added the sub-module :mod:`omni.isaac.orbit.terrains` to allow procedural generation of terrains and supporting
+  importing of terrains from different sources (meshes, usd files or default ground plane).
+
+
+0.4.1 (2023-06-27)
+~~~~~~~~~~~~~~~~~~
 
 * Added the :class:`omni.isaac.orbit.app.AppLauncher` class to allow controlled instantiation of
   the `SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html>`_

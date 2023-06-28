@@ -7,13 +7,22 @@
 
 
 import collections.abc
+import hashlib
 import importlib
 import inspect
+import json
 from typing import Any, Callable, Dict, Iterable, Mapping
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 
-__all__ = ["class_to_dict", "update_class_from_dict", "convert_dict_to_backend", "update_dict", "print_dict"]
+__all__ = [
+    "class_to_dict",
+    "update_class_from_dict",
+    "dict_to_md5_hash",
+    "convert_dict_to_backend",
+    "update_dict",
+    "print_dict",
+]
 
 """
 Dictionary <-> Class operations.
@@ -113,6 +122,32 @@ def update_class_from_dict(obj, data: Dict[str, Any], _ns: str = "") -> None:
                 )
         else:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
+
+
+"""
+Dictionary <-> Hashable operations.
+"""
+
+
+def dict_to_md5_hash(data: object) -> str:
+    """Convert a dictionary into a hashable key using MD5 hash.
+
+    Args:
+        data (object): Input dictionary or configuration object to convert.
+
+    Returns:
+        str: A string object of double length containing only hexadecimal digits.
+    """
+    # convert to dictionary
+    if isinstance(data, dict):
+        encoded_buffer = json.dumps(data, sort_keys=True).encode()
+    else:
+        encoded_buffer = json.dumps(class_to_dict(data), sort_keys=True).encode()
+    # compute hash using MD5
+    data_hash = hashlib.md5()
+    data_hash.update(encoded_buffer)
+    # return the hash key
+    return data_hash.hexdigest()
 
 
 """

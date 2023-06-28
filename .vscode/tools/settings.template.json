@@ -43,7 +43,13 @@
         "flatcache",
         "physx",
         "dpad",
-        "gamepad"
+        "gamepad",
+        "linspace",
+        "upsampled",
+        "downsampled",
+        "arange",
+        "discretization",
+        "trimesh"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",

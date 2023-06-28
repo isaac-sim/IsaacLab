@@ -124,6 +124,7 @@ autodoc_mock_imports = [
     "hid",
     "prettytable",
     "tqdm",
+    "trimesh",
     "toml",
 ]
 
@@ -179,3 +180,17 @@ html_theme_options = {
 
 html_show_copyright = True
 html_show_sphinx = False
+
+
+# -- Advanced configuration -------------------------------------------------
+
+
+def skip_member(app, what, name, obj, skip, options):
+    exclusions = ["from_dict", "to_dict"]  # List the names of the functions you want to skip here
+    if name in exclusions:
+        return True
+    return None
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip_member)

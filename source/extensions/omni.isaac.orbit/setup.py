@@ -23,6 +23,9 @@ INSTALL_REQUIRES = [
     "prettytable==3.3.0",
     # devices
     "hidapi",
+    # procedural-generation
+    "trimesh",
+    "pyglet==1.5.27",  # pyglet 2.0 requires python 3.8
 ]
 
 # Installation operation
