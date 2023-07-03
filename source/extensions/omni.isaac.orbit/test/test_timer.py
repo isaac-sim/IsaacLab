@@ -26,7 +26,7 @@ class TestTimer(unittest.TestCase):
         timer.stop()
         self.assertAlmostEqual(1, timer.total_run_time, self.precision_places)
 
-    def test_tiemr_as_context_manager(self):
+    def test_timer_as_context_manager(self):
         """Test using a `Timer` as a context manager."""
         with Timer() as timer:
             self.assertAlmostEqual(0, timer.time_elapsed, self.precision_places)

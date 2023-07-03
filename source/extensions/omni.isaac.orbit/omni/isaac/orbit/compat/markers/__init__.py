@@ -6,15 +6,15 @@
 """
 This submodule provides marker utilities for simplifying creation of UI elements in the GUI.
 
-Currently, the module provides the following classes:
+Currently, the module provides two classes:
 
-* :class:`VisualizationMarkers` for creating a group of markers using `UsdGeom.PointInstancer
-  <https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html>`_.
+* :class:`StaticMarker` for creating a group of markers from a single USD file.
+* :class:`PointMarker` for creating a group of spheres.
 
 
 .. note::
 
-    For some simple use-cases, it may be sufficient to use the debug drawing utilities from Isaac Sim.
+    For some simple usecases, it may be sufficient to use the debug drawing utilities from Isaac Sim.
     The debug drawing API is available in the `omni.isaac.debug_drawing`_ module. It allows drawing of
     points and splines efficiently on the UI.
 
@@ -22,6 +22,7 @@ Currently, the module provides the following classes:
 
 """
 
-from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
+from .point_marker import PointMarker
+from .static_marker import StaticMarker
 
-__all__ = ["VisualizationMarkersCfg", "VisualizationMarkers"]
+__all__ = ["StaticMarker", "PointMarker"]

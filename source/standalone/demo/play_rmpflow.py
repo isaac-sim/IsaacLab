@@ -39,9 +39,9 @@ from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.utils.kit as kit_utils
+from omni.isaac.orbit.compat.markers import StaticMarker
 from omni.isaac.orbit.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG, UR10_RMPFLOW_CFG
 from omni.isaac.orbit.controllers.rmp_flow import RmpFlowController
-from omni.isaac.orbit.markers import StaticMarker
 from omni.isaac.orbit.robots.config.franka import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
 from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
 from omni.isaac.orbit.robots.single_arm import SingleArmManipulator

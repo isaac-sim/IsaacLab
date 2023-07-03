@@ -13,7 +13,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import warp
 from pxr import UsdGeom
 
-from omni.isaac.orbit.markers import StaticMarker
+from omni.isaac.orbit.compat.markers import StaticMarker
 from omni.isaac.orbit.utils.kit import create_ground_plane
 
 from .terrain_cfg import TerrainImporterCfg

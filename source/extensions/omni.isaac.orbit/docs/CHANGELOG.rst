@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.4.3 (2023-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.orbit.markers.PointInstancerMarker` class that wraps around
+  `UsdGeom.PointInstancer <https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html>`_
+  to directly work with torch and numpy arrays.
+
+Changed
+^^^^^^^
+
+* Moved the old markers in :mod:`omni.isaac.orbit.markers` to :mod:`omni.isaac.orbit.compat.markers`.
+* Modified the standalone scripts to use the :mod:`omni.isaac.orbit.compat.markers` module.
+
+
 0.4.2 (2023-06-28)
 ~~~~~~~~~~~~~~~~~~
 

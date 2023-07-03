@@ -42,7 +42,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.markers import PointMarker, StaticMarker
+from omni.isaac.orbit.compat.markers import PointMarker, StaticMarker
 from omni.isaac.orbit.robots.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG
 from omni.isaac.orbit.robots.config.unitree import UNITREE_A1_CFG
 from omni.isaac.orbit.robots.legged_robot import LeggedRobot

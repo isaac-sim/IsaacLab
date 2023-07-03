@@ -7,107 +7,123 @@
 
 import numpy as np
 import torch
-from typing import List, Optional, Sequence, Union
+from typing import Optional, Sequence, Tuple, Union
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
+from omni.isaac.core.materials import PreviewSurface
+from omni.isaac.core.prims import GeometryPrim
 from pxr import Gf, UsdGeom
 
+import omni.isaac.orbit.utils.kit as kit_utils
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, check_file_path
 
-class PointMarker:
-    """A class to coordinate groups of visual sphere markers for goal-conditioned tasks.
 
-    This class allows visualization of multiple spheres. These can be used to represent a
-    goal-conditioned task. For instance, if a robot is performing a task of reaching a target, the
-    class can be used to display a red sphere when the target is far away and a green sphere when
-    the target is achieved. Otherwise, the class can be used to display spheres, for example, to
-    mark contact points.
+class StaticMarker:
+    """A class to coordinate groups of visual markers (loaded from USD).
 
-    The class uses `UsdGeom.PointInstancer`_ for efficient handling of multiple markers in the stage.
-    It creates two spherical markers of different colors. Based on the indices provided the referenced
-    marker is activated:
-
-    - :obj:`0` corresponds to unachieved target (red sphere).
-    - :obj:`1` corresponds to achieved target (green sphere).
+    This class allows visualization of different UI elements in the scene, such as points and frames.
+    The class uses `UsdGeom.PointInstancer`_ for efficient handling of the element in the stage
+    via instancing of the marker.
 
     Usage:
-        To create 24 point target markers of radius 0.2 and show them as achieved targets:
+        To create 24 default frame markers with a scale of 0.5:
 
         .. code-block:: python
 
-            from omni.isaac.orbit.utils.markers import PointMarker
+            from omni.isaac.orbit.compat.markers import StaticMarker
 
-            # create a point marker
-            marker = PointMarker("/World/Visuals/goal", 24, radius=0.2)
+            # create a static marker
+            marker = StaticMarker("/World/Visuals/frames", 24, scale=(0.5, 0.5, 0.5))
 
             # set position of the marker
             marker_positions = np.random.uniform(-1.0, 1.0, (24, 3))
             marker.set_world_poses(marker_positions)
-            # set status of the marker to show achieved targets
-            marker.set_status([1] * 24)
 
     .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
 
     """
 
-    def __init__(self, prim_path: str, count: int, radius: float = 1.0):
+    def __init__(
+        self,
+        prim_path: str,
+        count: int,
+        usd_path: Optional[str] = None,
+        scale: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+        color: Optional[Tuple[float, float, float]] = None,
+    ):
         """Initialize the class.
+
+        When the class is initialized, the :class:`UsdGeom.PointInstancer` is created into the stage
+        and the marker prim is registered into it.
 
         Args:
             prim_path (str): The prim path where the PointInstancer will be created.
             count (int): The number of marker duplicates to create.
-            radius (float, optional): The radius of the sphere. Defaults to 1.0.
+            usd_path (Optional[str], optional): The USD file path to the marker. Defaults to the USD path
+                for the RGB frame axis marker.
+            scale (Tuple[float, float, float], optional): The scale of the marker. Defaults to (1.0, 1.0, 1.0).
+            color (Optional[Tuple[float, float, float]], optional): The color of the marker.
+                If provided, it overrides the existing color on all the prims of the marker.
+                Defaults to None.
 
         Raises:
             ValueError: When a prim already exists at the :obj:`prim_path` and it is not a :class:`UsdGeom.PointInstancer`.
+            FileNotFoundError: When the USD file at :obj:`usd_path` does not exist.
         """
-        # check inputs
-        stage = stage_utils.get_current_stage()
+        # resolve default markers in the UI elements
+        # -- USD path
+        if usd_path is None:
+            usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/frame_prim.usd"
+        else:
+            if not check_file_path(usd_path):
+                raise FileNotFoundError(f"USD file for the marker not found at: {usd_path}")
         # -- prim path
+        stage = stage_utils.get_current_stage()
         if prim_utils.is_prim_path_valid(prim_path):
+            # retrieve prim if it exists
             prim = prim_utils.get_prim_at_path(prim_path)
             if not prim.IsA(UsdGeom.PointInstancer):
                 raise ValueError(f"The prim at path {prim_path} cannot be parsed as a `PointInstancer` object")
             self._instancer_manager = UsdGeom.PointInstancer(prim)
         else:
+            # create a new prim
             self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
         # store inputs
         self.prim_path = prim_path
         self.count = count
-        self._radius = radius
+        self._usd_path = usd_path
 
         # create manager for handling instancing of frame markers
         self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
         # create a child prim for the marker
-        # -- target not achieved
-        prim = prim_utils.create_prim(f"{prim_path}/target_far", "Sphere", attributes={"radius": self._radius})
-        geom = UsdGeom.Sphere(prim)
-        geom.GetDisplayColorAttr().Set([(1.0, 0.0, 0.0)])
-        # -- target achieved
-        prim = prim_utils.create_prim(f"{prim_path}/target_close", "Sphere", attributes={"radius": self._radius})
-        geom = UsdGeom.Sphere(prim)
-        geom.GetDisplayColorAttr().Set([(0.0, 1.0, 0.0)])
-        # -- target invisible
-        prim = prim_utils.create_prim(f"{prim_path}/target_invisible", "Sphere", attributes={"radius": self._radius})
-        geom = UsdGeom.Sphere(prim)
-        geom.GetDisplayColorAttr().Set([(0.0, 0.0, 1.0)])
-        prim_utils.set_prim_visibility(prim, visible=False)
+        prim_utils.create_prim(f"{prim_path}/marker", usd_path=self._usd_path)
+        # disable any physics on the marker
+        # FIXME: Also support disabling rigid body properties on the marker.
+        #   Currently, it is not possible on GPU pipeline.
+        # kit_utils.set_nested_rigid_body_properties(f"{prim_path}/marker", rigid_body_enabled=False)
+        kit_utils.set_nested_collision_properties(f"{prim_path}/marker", collision_enabled=False)
+        # apply material to marker
+        if color is not None:
+            prim = GeometryPrim(f"{prim_path}/marker")
+            material = PreviewSurface(f"{prim_path}/markerColor", color=np.asarray(color))
+            prim.apply_visual_material(material, weaker_than_descendants=False)
+
         # add child reference to point instancer
+        # FUTURE: Add support for multiple markers in the same instance manager?
         relation_manager = self._instancer_manager.GetPrototypesRel()
-        relation_manager.AddTarget(f"{prim_path}/target_far")  # target index: 0
-        relation_manager.AddTarget(f"{prim_path}/target_close")  # target index: 1
-        relation_manager.AddTarget(f"{prim_path}/target_invisible")  # target index: 2
+        relation_manager.AddTarget(f"{prim_path}/marker")  # target index: 0
 
         # buffers for storing data in pixar Gf format
         # FUTURE: Make them very far away from the scene?
-        self._proto_indices = [0] * self.count
         self._gf_positions = [Gf.Vec3f() for _ in range(self.count)]
         self._gf_orientations = [Gf.Quath() for _ in range(self.count)]
-        # FUTURE: add option to set scales
+        self._gf_scales = [Gf.Vec3f(*tuple(scale)) for _ in range(self.count)]
 
-        # specify that all initial prims are related to same geometry
-        self._instancer_manager.GetProtoIndicesAttr().Set(self._proto_indices)
+        # specify that all vis prims are related to same geometry
+        self._instancer_manager.GetProtoIndicesAttr().Set([0] * self.count)
         # set initial positions of the targets
+        self._instancer_manager.GetScalesAttr().Set(self._gf_scales)
         self._instancer_manager.GetPositionsAttr().Set(self._gf_positions)
         self._instancer_manager.GetOrientationsAttr().Set(self._gf_orientations)
 
@@ -160,24 +176,21 @@ class PointMarker:
         self._instancer_manager.GetPositionsAttr().Set(self._gf_positions)
         self._instancer_manager.GetOrientationsAttr().Set(self._gf_orientations)
 
-    def set_status(self, status: Union[List[int], np.ndarray, torch.Tensor], indices: Optional[Sequence[int]] = None):
-        """Updates the marker activated by the instance manager.
+    def set_scales(self, scales: Union[np.ndarray, torch.Tensor], indices: Optional[Sequence[int]] = None):
+        """Update marker poses in the simulation world frame.
 
         Args:
-            status (Union[List[int], np.ndarray, torch.Tensor]): Decides which prototype marker to visualize. Shape: (M)
+            scales (Union[np.ndarray, torch.Tensor]): Scale applied before any rotation is applied. Shape: (M, 3).
             indices (Optional[Sequence[int]], optional): Indices to specify which alter poses.
                 Shape: (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
         """
-        # default values
+        # default arguments
         if indices is None:
             indices = range(self.count)
-        # resolve input
-        if status is not list:
-            proto_indices = status.tolist()
-        else:
-            proto_indices = status
+        # resolve inputs
+        scales = scales.tolist()
         # change marker locations
         for i, marker_index in enumerate(indices):
-            self._proto_indices[marker_index] = int(proto_indices[i])
+            self._gf_scales[marker_index][:] = scales[i]
         # apply to instance manager
-        self._instancer_manager.GetProtoIndicesAttr().Set(self._proto_indices)
+        self._instancer_manager.GetScalesAttr().Set(self._gf_scales)
