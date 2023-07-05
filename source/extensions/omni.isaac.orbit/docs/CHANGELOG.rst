@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.4.4 (2023-07-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :attr:`omni.isaac.orbit.terrains.TerrainGeneratorCfg.seed` to make generation of terrains reproducible.
+  The default value is ``None`` which means that the seed is not set.
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.orbit.terrains.trimesh.utils.make_plane` method to handle the case when the
+  plane origin does not need to be centered.
+
+Changed
+^^^^^^^
+
+* Changed the saving of ``origins`` in :class:`omni.isaac.orbit.terrains.TerrainGenerator` class to be in CSV format
+  instead of NPY format.
+
+
 0.4.3 (2023-06-28)
 ~~~~~~~~~~~~~~~~~~
 

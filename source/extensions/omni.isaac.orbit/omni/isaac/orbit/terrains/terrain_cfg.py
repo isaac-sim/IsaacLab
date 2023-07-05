@@ -22,7 +22,13 @@ from omni.isaac.orbit.utils import configclass
 
 @configclass
 class SubTerrainBaseCfg:
-    """Base class for terrain configurations."""
+    """Base class for terrain configurations.
+
+    All the sub-terrain configurations must inherit from this class.
+
+    The :attr:`size` attribute is the size of the generated sub-terrain. Based on this, the terrain must
+    extend from :math:`(0, 0)` to :math:`(size[0], size[1])`.
+    """
 
     function: Callable[[float, "SubTerrainBaseCfg"], Tuple[List[trimesh.Trimesh], np.ndarray]] = MISSING
     """Function to generate the terrain.
@@ -47,6 +53,12 @@ class SubTerrainBaseCfg:
 @configclass
 class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
+
+    seed: Optional[int] = None
+    """The seed for the random number generator. Defaults to :obj:`None`.
+
+    If :obj:`None`, the seed is not set.
+    """
 
     size: Tuple[float, float] = MISSING
     """The width (along x) and length (along y) of each sub-terrain (in m).

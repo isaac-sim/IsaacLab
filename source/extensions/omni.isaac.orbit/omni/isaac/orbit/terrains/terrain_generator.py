@@ -5,6 +5,7 @@
 
 import numpy as np
 import os
+import torch
 import trimesh
 from typing import List, Tuple
 
@@ -74,6 +75,10 @@ class TerrainGenerator:
                 sub_cfg.vertical_scale = self.cfg.vertical_scale
                 sub_cfg.slope_threshold = self.cfg.slope_threshold
 
+        # set the seed for reproducibility
+        if self.cfg.seed is not None:
+            torch.manual_seed(self.cfg.seed)
+            np.random.seed(self.cfg.seed)
         # create a list of all sub-terrains
         self.terrain_meshes = list()
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
@@ -183,15 +188,17 @@ class TerrainGenerator:
         # add mesh to the list
         self.terrain_meshes.append(mesh)
         # add origin to the list
-        self.terrain_origins[row, col, 0] = origin[0] + row * self.cfg.size[0]
-        self.terrain_origins[row, col, 1] = origin[1] + col * self.cfg.size[1]
-        self.terrain_origins[row, col, 2] = origin[2]
+        self.terrain_origins[row, col] = origin + transform[:3, -1]
 
     def _get_terrain_mesh(self, difficulty: float, cfg: SubTerrainBaseCfg) -> Tuple[trimesh.Trimesh, np.ndarray]:
         """Generate a sub-terrain mesh based on the input difficulty parameter.
 
         If caching is enabled, the sub-terrain is cached and loaded from the cache if it exists.
         The cache is stored in the cache directory specified in the configuration.
+
+        .. Note:
+            This function centers the 2D center of the mesh and its specified origin such that the
+            2D center becomes :math:`(0, 0)` instead of :math:`(size[0] / 2, size[1] / 2).
 
         Args:
             difficulty (float): The difficulty parameter.
@@ -202,19 +209,20 @@ class TerrainGenerator:
         """
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)
+        cfg.seed = self.cfg.seed
         # generate hash for the sub-terrain
         sub_terrain_hash = dict_to_md5_hash(cfg.to_dict())
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
-        sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.stl")
-        sub_terrain_np_filename = os.path.join(sub_terrain_cache_dir, "origin.npy")
+        sub_terrain_stl_filename = os.path.join(sub_terrain_cache_dir, "mesh.stl")
+        sub_terrain_csv_filename = os.path.join(sub_terrain_cache_dir, "origin.csv")
         sub_terrain_meta_filename = os.path.join(sub_terrain_cache_dir, "cfg.yaml")
 
         # check if hash exists - if true, load the mesh and origin and return
-        if self.cfg.use_cache and os.path.exists(sub_terrain_obj_filename):
+        if self.cfg.use_cache and os.path.exists(sub_terrain_stl_filename):
             # load existing mesh
-            mesh = trimesh.load_mesh(sub_terrain_obj_filename)
-            origin = np.load(sub_terrain_np_filename)
+            mesh = trimesh.load_mesh(sub_terrain_stl_filename)
+            origin = np.loadtxt(sub_terrain_csv_filename, delimiter=",")
             # return the generated mesh
             return mesh, origin
 
@@ -223,15 +231,18 @@ class TerrainGenerator:
         mesh = trimesh.util.concatenate(meshes)
         # offset mesh such that they are in their center
         transform = np.eye(4)
-        transform[0:2, -1] = -self.cfg.size[0] * 0.5, -self.cfg.size[1] * 0.5
+        transform[0:2, -1] = -cfg.size[0] * 0.5, -cfg.size[1] * 0.5
         mesh.apply_transform(transform)
+        # change origin to be in the center of the sub-terrain
+        origin += transform[0:3, -1]
+
         # if caching is enabled, save the mesh and origin
         if self.cfg.use_cache:
             # create the cache directory
             os.makedirs(sub_terrain_cache_dir, exist_ok=True)
             # save the data
-            mesh.export(sub_terrain_obj_filename)
-            np.save(sub_terrain_np_filename, origin)
+            mesh.export(sub_terrain_stl_filename)
+            np.savetxt(sub_terrain_csv_filename, origin, delimiter=",", header="x,y,z")
             dump_yaml(sub_terrain_meta_filename, cfg)
         # return the generated mesh
         return mesh, origin

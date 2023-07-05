@@ -3,23 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
 
 import numpy as np
 import scipy.spatial.transform as tf
 import trimesh
-from typing import List, Tuple
 
 """
 Primitive functions to generate meshes.
 """
 
 
-def make_plane(size: Tuple[float, float], height: float) -> trimesh.Trimesh:
+def make_plane(size: tuple[float, float], height: float, center_zero: bool = True) -> trimesh.Trimesh:
     """Generate a plane mesh.
+
+    If :obj:`center_zero` is True, the origin is at center of the plane mesh i.e. the mesh extends from
+    :math:`(-size[0] / 2, -size[1] / 2, 0)` to :math:`(size[0] / 2, size[1] / 2, height)`.
+    Otherwise, the origin is :math:`(size[0] / 2, size[1] / 2)` and the mesh extends from
+    :math:`(0, 0, 0)` to :math:`(size[0], size[1], height)`.
 
     Args:
         size (Tuple[float, float]): The length (along x) and width (along y) of the terrain (in m).
         height (float): The height of the plane (in m).
+        center_zero (bool, optional): Whether the 2D origin of the plane is set to the center of mesh.
+            Defaults to True.
 
     Returns:
         trimesh.Trimesh: A trimesh.Trimesh objects for the plane.
@@ -33,14 +40,16 @@ def make_plane(size: Tuple[float, float], height: float) -> trimesh.Trimesh:
     vertices = np.array([x0, x1, x2, x3])
     faces = np.array([[1, 0, 2], [2, 3, 1]])
     plane_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-    plane_mesh.apply_translation(-np.array([size[0] / 2.0, size[1] / 2.0, 0.0]))
+    # center the plane at the origin
+    if center_zero:
+        plane_mesh.apply_translation(-np.array([size[0] / 2.0, size[1] / 2.0, 0.0]))
     # return the tri-mesh and the position
     return plane_mesh
 
 
 def make_border(
-    size: Tuple[float, float], inner_size: Tuple[float, float], height: float, position: Tuple[float, float, float]
-) -> List[trimesh.Trimesh]:
+    size: tuple[float, float], inner_size: tuple[float, float], height: float, position: tuple[float, float, float]
+) -> list[trimesh.Trimesh]:
     """Generate meshes for a rectangular border with a hole in the middle.
 
     .. code:: text
@@ -94,7 +103,7 @@ def make_box(
     length: float,
     width: float,
     height: float,
-    center: Tuple[float, float, float],
+    center: tuple[float, float, float],
     max_yx_angle: float = 0,
     degrees: bool = True,
 ) -> trimesh.Trimesh:
@@ -128,7 +137,7 @@ def make_box(
 
 
 def make_cylinder(
-    radius: float, height: float, center: Tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
+    radius: float, height: float, center: tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
 ) -> trimesh.Trimesh:
     """Generate a cylinder mesh with a random orientation.
 
@@ -158,7 +167,7 @@ def make_cylinder(
 
 
 def make_cone(
-    radius: float, height: float, center: Tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
+    radius: float, height: float, center: tuple[float, float, float], max_yx_angle: float = 0, degrees: bool = True
 ) -> trimesh.Trimesh:
     """Generate a cone mesh with a random orientation.
 

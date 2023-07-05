@@ -77,7 +77,7 @@ class TerrainImporter:
             ValueError: If a terrain with the same key already exists.
         """
         # create a plane
-        mesh = make_plane(size, height=0.0)
+        mesh = make_plane(size, height=0.0, centered=True)
         # store the mesh
         self.meshes[key] = mesh
         # create a warp mesh

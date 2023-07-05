@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from .utils import make_border, make_plane
 
 if TYPE_CHECKING:
-    import omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg as mesh_terrains_cfg
+    from . import mesh_terrains_cfg
 
 
 def flat_terrain(
@@ -40,11 +40,11 @@ def flat_terrain(
             of the terrain (in m).
     """
     # compute the position of the terrain
-    position = (cfg.size[0] / 2.0, cfg.size[1] / 2.0, 0.0)
+    origin = (cfg.size[0] / 2.0, cfg.size[1] / 2.0, 0.0)
     # compute the vertices of the terrain
-    plane_mesh = make_plane(cfg.size, 0.0)
+    plane_mesh = make_plane(cfg.size, 0.0, center_zero=False)
     # return the tri-mesh and the position
-    return [plane_mesh], np.array(position)
+    return [plane_mesh], np.array(origin)
 
 
 def pyramid_stairs_terrain(
@@ -719,7 +719,7 @@ def star_terrain(
     inner_size = (cfg.size[0] - 2 * bar_width, cfg.size[1] - 2 * bar_width)
     meshes_list += make_border(cfg.size, inner_size, bar_height, platform_center)
     # Generate the ground
-    ground = make_plane(cfg.size, -bar_height)
+    ground = make_plane(cfg.size, -bar_height, center_zero=False)
     meshes_list.append(ground)
     # specify the origin of the terrain
     origin = np.asarray([0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.0])
@@ -850,7 +850,7 @@ def repeated_objects_terrain(
             meshes_list.append(object_mesh)
 
     # generate a ground plane for the terrain
-    ground_plane = make_plane(cfg.size, height=0.0)
+    ground_plane = make_plane(cfg.size, height=0.0, center_zero=False)
     meshes_list.append(ground_plane)
     # generate a platform in the middle
     dim = (cfg.platform_width, cfg.platform_width, 0.5 * height)
