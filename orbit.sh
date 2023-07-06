@@ -177,7 +177,7 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install        Install the extensions inside Isaac Orbit."
@@ -185,6 +185,7 @@ print_help () {
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
+    echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
     echo -e "\t-c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'."
@@ -214,6 +215,9 @@ while [[ $# -gt 0 ]]; do
             # this does not check dependencies between extensions
             export -f extract_python_exe
             export -f install_orbit_extension
+            # downgrade setuptools to avoid issues with OpenAI Gym
+            # Check the `Known Issues` section in the documentation
+            $(extract_python_exe) -m pip install --upgrade setuptools==66
             # source directory
             find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
             # unset local variables
@@ -286,6 +290,15 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
             ${isaacsim_exe} --ext-folder ${ORBIT_PATH}/source/extensions $@
+            # exit neatly
+            break
+            ;;
+        -o|--docker)
+            # run the docker container helper script
+            docker_script=${ORBIT_PATH}/docker/container.sh
+            echo "[INFO] Running docker utility script from: ${docker_script}"
+            shift # past argument
+            bash ${docker_script} $@
             # exit neatly
             break
             ;;

@@ -35,6 +35,7 @@ If you use ``orbit`` in your work, please cite the `paper <https://arxiv.org/abs
 
    source/setup/installation
    source/setup/developer
+   source/setup/docker
    source/setup/sample
 
 .. toctree::

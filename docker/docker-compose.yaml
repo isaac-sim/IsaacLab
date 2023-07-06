@@ -1,0 +1,95 @@
+services:
+  # This service is used to build the Docker image
+  # The docker image is built from the root directory
+  orbit:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        - ISAACSIM_VERSION=${ISAACSIM_VERSION}
+        - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+    image: orbit
+    container_name: orbit
+    env_file:
+      - .env
+      # We set DOCKER_ISAACSIM_PATH and then forward it to ISAACSIM_PATH within
+      # the container to avoid collision with pre-existing ISAACSIM_PATH env vars
+      # that could come from installing Orbit on the local machine, causing build errors
+    environment:
+      - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+      - DISPLAY=${DISPLAY}
+    volumes:
+      # These volumes follow from this page
+      # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
+      - type: volume
+        source: isaac-cache
+        target: ${DOCKER_ISAACSIM_PATH}/kit/cache/Kit
+      - type: volume
+        source: isaac-cache
+        target: ${DOCKER_USER_HOME}/.cache/ov
+      - type: volume
+        source: isaac-cache
+        target: ${DOCKER_USER_HOME}/.cache/pip
+      - type: volume
+        source: isaac-cache
+        target: ${DOCKER_USER_HOME}/.cache/nvidia/GLCache
+      - type: volume
+        source: isaac-cache
+        target: ${DOCKER_USER_HOME}/.nv/ComputeCache
+      - type: volume
+        source: isaac-logs
+        target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
+      - type: volume
+        source: isaac-data
+        target: ${DOCKER_USER_HOME}/.local/share/ov/data
+      - type: volume
+        source: isaac-docs
+        target: ${DOCKER_USER_HOME}/Documents
+        # These volumes allow X11 Forwarding
+      - type: bind
+        source: /tmp/.X11-unix
+        target: /tmp/.X11-unix
+      - type: bind
+        source: ${HOME}/.Xauthority
+        target: ${DOCKER_USER_HOME}/.Xauthority
+        # This overlay allows changes on the local files to
+        # be reflected within the container immediately
+      - type: bind
+        source: ../source
+        target: /workspace/orbit/source
+      - type: bind
+        source: ../docs
+        target: /workspace/orbit/docs
+        # The effect of these volumes is twofold:
+        # 1. Prevent root-owned files from flooding the _build and logs dir
+        #    on the host machine
+        # 2. Preserve the artifacts in persistent volumes for later copying
+        #    to the host machine
+      - type: volume
+        source: orbit-docs
+        target: /workspace/orbit/docs/_build/
+      - type: volume
+        source: orbit-logs
+        target: /workspace/orbit/logs
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    # This is the entrypoint for the container
+    entrypoint: bash
+    stdin_open: true
+    tty: true
+
+volumes:
+  # isaac-sim
+  isaac-cache:
+  isaac-logs:
+  isaac-data:
+  isaac-docs:
+  # orbit
+  orbit-docs:
+  orbit-logs:
