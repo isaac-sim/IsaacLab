@@ -194,9 +194,9 @@ class RayCaster(SensorBase):
         """Fills the buffers of the sensor data."""
         # default to all sensors
         if env_ids is None:
-            env_ids = ...
+            env_ids = self._ALL_INDICES
         # obtain the poses of the sensors
-        pos_w, quat_w = self._view.get_world_poses(clone=False)
+        pos_w, quat_w = self._view.get_world_poses(env_ids, clone=False)
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 

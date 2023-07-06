@@ -39,6 +39,7 @@ simulation_app = SimulationApp(config)
 
 
 import numpy as np
+import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
@@ -145,7 +146,7 @@ def main():
     print(ray_caster)
 
     # Get the initial positions of the balls
-    ball_initial_poses = ball_view.get_world_poses()
+    ball_initial_positions, ball_initial_orientations = ball_view.get_world_poses()
     ball_initial_velocities = ball_view.get_velocities()
 
     # Create a counter for resetting the scene
@@ -161,11 +162,15 @@ def main():
             continue
         # Reset the scene
         if step_count % 500 == 0:
+            # sample random indices to reset
+            reset_indices = torch.randint(0, num_envs, (num_envs // 2,))
             # reset the balls
-            ball_view.set_world_poses(*ball_initial_poses)
-            ball_view.set_velocities(ball_initial_velocities)
+            ball_view.set_world_poses(
+                ball_initial_positions[reset_indices], ball_initial_orientations[reset_indices], indices=reset_indices
+            )
+            ball_view.set_velocities(ball_initial_velocities[reset_indices], indices=reset_indices)
             # reset the sensor
-            ray_caster.reset_buffers()
+            ray_caster.reset_buffers(reset_indices)
             # reset the counter
             step_count = 0
         # Step simulation
