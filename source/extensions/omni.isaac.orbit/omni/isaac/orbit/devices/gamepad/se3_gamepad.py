@@ -204,7 +204,7 @@ class Se3Gamepad(DeviceBase):
         }
 
         self._INPUT_DPAD_VALUE_MAPPING = {
-            # pitch command (postive)
+            # pitch command (positive)
             carb.input.GamepadInput.DPAD_UP: (1, 4, self.rot_sensitivity * 0.8),
             # pitch command (negative)
             carb.input.GamepadInput.DPAD_DOWN: (0, 4, self.rot_sensitivity * 0.8),

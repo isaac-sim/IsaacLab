@@ -36,7 +36,7 @@ class NonHolonomicKinematicsGroup(ActuatorGroup):
     the value of the revolute joint along z, i.e., :math:`q_2 = \theta`.
 
     Tip:
-        For velocity control of the base with dummy mechanism, we recommed setting high damping gains to the joints.
+        For velocity control of the base with dummy mechanism, we recommend setting high damping gains to the joints.
         This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
 
     """

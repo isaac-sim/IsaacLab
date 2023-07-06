@@ -133,7 +133,7 @@ setup_conda_env() {
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
     # reactivate the environment to load the variables
-    # needed because deactivate complains about orbit alias since it otherwise doens't exist
+    # needed because deactivate complains about orbit alias since it otherwise doesn't exist
     conda activate ${env_name}
     # remove variables from environment during deactivation
     printf '%s\n' '#!/bin/bash' '' \
@@ -158,7 +158,7 @@ setup_conda_env() {
     # add information to the user about alias
     echo -e "[INFO] Added 'orbit' alias to conda environment for 'orbit.sh' script."
     echo -e "[INFO] Created conda environment named '${env_name}'.\n"
-    echo -e "\t\t1. To activate the enviornment, run:                conda activate ${env_name}"
+    echo -e "\t\t1. To activate the environment, run:                conda activate ${env_name}"
     echo -e "\t\t2. To install orbit extensions, run:                orbit -i"
     echo -e "\t\t3. To install learning-related dependencies, run:   orbit -e"
     echo -e "\t\t4. To perform formatting, run:                      orbit -f"

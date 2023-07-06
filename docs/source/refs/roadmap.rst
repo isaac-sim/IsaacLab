@@ -48,10 +48,17 @@ If you have any questions or suggestions, let us know on
 
 * |check_| Support for conda virtual environment
 * |check_| Example of using warp-based state machine for task-space manipulation
+
+.. attention::
+
+    Unfortunately, due to various deadlines, the development of Orbit has been paused for the months of
+    April and May. One of the many reasons for this is that we are working on a new version of Isaac Sim
+    (2023.1.0) which brings in a lot of new features and improvements. We will resume the development of
+    Orbit in June.
+
+**June 2023**
+
 * |uncheck| Example on using the APIs in an Omniverse extension
-
-**April or May 2023**
-
 * |uncheck| Add APIs for rough terrain generation
 * |uncheck| Extend MDP manager classes to use sensor observations
 
@@ -68,29 +75,27 @@ If you have any questions or suggestions, let us know on
 
   * |uncheck| Quardupeds: Unitree B1, Unitree Go1
   * |uncheck| Arms: Kinova Jaco2, Kinova Gen3, Sawyer, UR10e
-  * |uncheck| Mobile manipulators: Fetch
+  * |uncheck| Mobile manipulators: Fetch, PR2
 
 * Included environments
 
   * |uncheck| locomotion: rough terrain for legged robots
   * |uncheck| rigid-object manipulation: in-hand manipulation, hockey puck pushing, peg-in-hole, stacking
-  * |uncheck| deformable-object manipulation: cloth folding, cloth lifting
 
-**May 2023**
-
-* Update environments to use `gym.Env` interface from `Gymnasium <https://github.com/Farama-Foundation/Gymnasium>`_
-* Supported sensors
-
-  * |uncheck| Cameras (parallelized)
-
-* Included environments
-
-  * |uncheck| deformable-object manipulation: fluid transfer, fluid pouring, soft object lifting
-
-**June 2023**
+**July 2023**
 
 * |uncheck| Stabilize APIs and release 1.0
 
+* Supported sensors (depends on Isaac Sim 2023.1.0 release)
+
+  * |uncheck| Cameras (parallelized)
+
+**August 2023**
+
+* Included environments
+
+  * |uncheck| deformable-object manipulation: cloth folding, cloth lifting
+  * |uncheck| deformable-object manipulation: fluid transfer, fluid pouring, soft object lifting
 
 .. |check| raw:: html
 

@@ -14,17 +14,20 @@ and efficient simulation.
 
 
 If you use ``orbit`` in your work, please cite the `paper <https://arxiv.org/abs/2301.04195>`_
-using the following BibTeX entry:
+:cite:`mittal2023orbit` using the following BibTeX entry:
 
 .. code-block:: bibtex
 
-   @misc{mittal2023orbit,
-      author = {Mayank Mittal and Calvin Yu and Qinxi Yu and Jingzhou Liu and Nikita Rudin and David Hoeller and Jia Lin Yuan and Pooria Poorsarvi Tehrani and Ritvik Singh and Yunrong Guo and Hammad Mazhar and Ajay Mandlekar and Buck Babich and Gavriel State and Marco Hutter and Animesh Garg},
-      title = {ORBIT: A Unified Simulation Framework for Interactive Robot Learning Environments},
-      year = {2023},
-      eprint = {arXiv:2301.04195},
+   @article{mittal2023orbit,
+      author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
+      journal={IEEE Robotics and Automation Letters},
+      title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
+      year={2023},
+      volume={8},
+      number={6},
+      pages={3740-3747},
+      doi={10.1109/LRA.2023.3270034}
    }
-
 
 .. toctree::
    :maxdepth: 2
@@ -70,6 +73,7 @@ using the following BibTeX entry:
    :maxdepth: 1
    :caption: References
 
+   source/refs/faq
    source/refs/contributing
    source/refs/troubleshooting
    source/refs/issues

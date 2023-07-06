@@ -24,7 +24,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
-    python_requires=">=3.7.*",
+    python_requires=">=3.7",
     packages=["omni.isaac.contrib_envs"],
     classifiers=["Natural Language :: English", "Programming Language :: Python :: 3.7"],
     zip_safe=False,
