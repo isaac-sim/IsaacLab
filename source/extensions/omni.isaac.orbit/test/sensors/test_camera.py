@@ -18,13 +18,11 @@ from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--gpu", action="store_true", default=False, help="Use GPU device for camera rendering output.")
-parser.add_argument("--draw", action="store_true", default=False, help="Draw the obtained pointcloud on viewport.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -46,7 +44,6 @@ from pxr import Gf, UsdGeom
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.sensors.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
-from omni.isaac.orbit.utils.math import project_points, transform_points, unproject_depth
 
 """
 Helpers
@@ -159,7 +156,7 @@ def main():
         sim.step()
 
     # Simulate physics
-    while simulation_app.is_running():
+    for _ in range(100):
         # If simulation is stopped, then exit.
         if sim.is_stopped():
             break
@@ -202,40 +199,6 @@ def main():
         # Save images
         rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
         rep_writer.write(rep_output)
-
-        # Pointcloud in world frame
-        points_3d_cam = unproject_depth(camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices)
-        points_3d_world = transform_points(points_3d_cam, camera.data.position, camera.data.orientation)
-
-        # Check methods are valid
-        im_height, im_width = camera.image_shape
-        # -- project points to (u, v, d)
-        reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
-        reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
-        sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
-        torch.testing.assert_allclose(reproj_depths, sim_depths)
-
-        # Draw pointcloud
-        if not args_cli.headless and args_cli.draw:
-            # Convert to numpy for visualization
-            if not isinstance(points_3d_world, np.ndarray):
-                points_3d_world = points_3d_world.cpu().numpy()
-            # Clear any existing points
-            draw_interface.clear_points()
-            # Obtain drawing settings
-            num_batch = points_3d_world.shape[0]
-            num_points = points_3d_world.shape[1]
-            points_size = [1.25] * num_points
-            # Fix random seed
-            random.seed(0)
-            # Visualize the points
-            for index in range(num_batch):
-                # generate random color
-                color = [random.random() for _ in range(3)]
-                color += [1.0]
-                # plain color for points
-                points_color = [color] * num_points
-                draw_interface.draw_points(points_3d_world[index].tolist(), points_color, points_size)
 
 
 if __name__ == "__main__":

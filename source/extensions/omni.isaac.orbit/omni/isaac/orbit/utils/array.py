@@ -7,11 +7,17 @@
 
 import numpy as np
 import torch
-from typing import Optional, Sequence, Union
+from typing import Optional, Union
 
 import warp as wp
 
 __all__ = ["TENSOR_TYPES", "TENSOR_TYPE_CONVERSIONS", "convert_to_torch"]
+
+TensorData = Union[np.ndarray, torch.Tensor, wp.array]
+"""Type definition for a tensor data.
+
+Union of numpy, torch, and warp arrays.
+"""
 
 TENSOR_TYPES = {
     "numpy": np.ndarray,
@@ -37,7 +43,7 @@ inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.
 
 
 def convert_to_torch(
-    array: Sequence[float],
+    array: TensorData,
     dtype: torch.dtype = None,
     device: Optional[Union[torch.device, str]] = None,
 ) -> torch.Tensor:
@@ -51,7 +57,7 @@ def convert_to_torch(
     this defaults to "cpu", for torch tensors it is "cpu" or "cuda", and for warp arrays it is "cuda".
 
     Args:
-        array (Sequence[float]): The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
+        array (TensorData): The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
         dtype (torch.dtype, optional): Target data-type for the tensor.
         device (Optional[Union[torch.device, str]], optional): The target device for the tensor. Defaults to None.
 
@@ -62,6 +68,11 @@ def convert_to_torch(
     if isinstance(array, torch.Tensor):
         tensor = array
     elif isinstance(array, np.ndarray):
+        # if the datatype is not currently supported by torch we need to improvise
+        # supported types are: https://pytorch.org/docs/stable/tensors.html
+        if array.dtype == np.uint32:
+            array = array.astype(np.int64)
+        # need to deal with object arrays (np.void) separatelyWWW
         tensor = torch.from_numpy(array)
     elif isinstance(array, wp.array):
         tensor = wp.to_torch(array)

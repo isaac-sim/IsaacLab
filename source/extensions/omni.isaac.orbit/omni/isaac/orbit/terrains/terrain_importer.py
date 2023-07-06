@@ -15,10 +15,11 @@ from pxr import UsdGeom
 
 from omni.isaac.orbit.compat.markers import StaticMarker
 from omni.isaac.orbit.utils.kit import create_ground_plane
+from omni.isaac.orbit.utils.warp import convert_to_warp_mesh
 
 from .terrain_cfg import TerrainImporterCfg
 from .trimesh.utils import make_plane
-from .utils import convert_to_warp_mesh, create_prim_from_mesh
+from .utils import create_prim_from_mesh
 
 
 class TerrainImporter:

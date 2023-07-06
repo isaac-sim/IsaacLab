@@ -7,8 +7,6 @@ import numpy as np
 import trimesh
 from typing import List
 
-import warp as wp
-
 
 def color_meshes_by_height(meshes: List[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
     """
@@ -125,23 +123,3 @@ def create_prim_from_mesh(prim_path: str, vertices: np.ndarray, triangles: np.nd
     physx_material_api.CreateRestitutionCombineModeAttr().Set(combine_mode)
     # apply physics material to ground plane
     GeometryPrim(f"{prim_path}/mesh", collision=True).apply_physics_material(material)
-
-
-def convert_to_warp_mesh(vertices: np.ndarray, triangles: np.ndarray, device: str) -> wp.Mesh:
-    """Create a warp mesh object with a mesh defined from vertices and triangles.
-
-    Args:
-        vertices (np.ndarray): The vertices of the mesh. Shape is :math:`(N, 3)`, where :math:`N`
-            is the number of vertices.
-        triangles (np.ndarray): The triangles of the mesh as references to vertices for each triangle.
-            Shape is :math:`(M, 3)`, where :math:`M` is the number of triangles / faces.
-        device (str): The device to use for the mesh.
-
-    Returns:
-        wp.Mesh: The warp mesh object.
-    """
-    # create warp mesh
-    return wp.Mesh(
-        points=wp.array(vertices.astype(np.float32), dtype=wp.vec3, device=device),
-        indices=wp.array(triangles.astype(np.int32).flatten(), dtype=int, device=device),
-    )

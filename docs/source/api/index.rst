@@ -23,6 +23,7 @@ omni.isaac.orbit extension
    orbit.utils.kit
    orbit.utils.math
    orbit.utils.mdp
+   orbit.compat
 
 omni.isaac.orbit_envs extension
 -------------------------------

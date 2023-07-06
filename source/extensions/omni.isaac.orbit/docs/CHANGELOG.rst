@@ -1,20 +1,34 @@
 Changelog
 ---------
 
-0.4.4 (2023-07-05)
-~~~~~~~~~~~~~~~~~~
+0.5.0 (2023-07-04)
 
 Added
 ^^^^^
 
-* Added the :attr:`omni.isaac.orbit.terrains.TerrainGeneratorCfg.seed` to make generation of terrains reproducible.
-  The default value is ``None`` which means that the seed is not set.
+* Added a generalized :class:`omni.isaac.orbit.sensors.SensorBase` class that leverages the ideas of views to
+  handle multiple sensors in a single class.
+* Added the classes :class:`omni.isaac.orbit.sensors.RayCaster`, :class:`omni.isaac.orbit.sensors.ContactSensor`,
+  and :class:`omni.isaac.orbit.sensors.Camera` that output a batched tensor of sensor data.
+
+Changed
+^^^^^^^
+
+* Renamed the parameter ``sensor_tick`` to ``update_freq`` to make it more intuitive.
+* Moved the old sensors in :mod:`omni.isaac.orbit.sensors` to :mod:`omni.isaac.orbit.compat.sensors`.
+* Modified the standalone scripts to use the :mod:`omni.isaac.orbit.compat.sensors` module.
+
+
+0.4.4 (2023-07-05)
+~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed the :meth:`omni.isaac.orbit.terrains.trimesh.utils.make_plane` method to handle the case when the
   plane origin does not need to be centered.
+* Added the :attr:`omni.isaac.orbit.terrains.TerrainGeneratorCfg.seed` to make generation of terrains reproducible.
+  The default value is ``None`` which means that the seed is not set.
 
 Changed
 ^^^^^^^

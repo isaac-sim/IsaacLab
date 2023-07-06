@@ -9,15 +9,14 @@
 from dataclasses import MISSING
 from typing import List, Tuple
 
+# omni-isaac-orbit
 from omni.isaac.orbit.utils import configclass
-
-from ..sensor_base_cfg import SensorBaseCfg
 
 __all__ = ["PinholeCameraCfg", "FisheyeCameraCfg"]
 
 
 @configclass
-class PinholeCameraCfg(SensorBaseCfg):
+class PinholeCameraCfg:
     """Configuration for a pinhole camera sensor."""
 
     @configclass
@@ -54,6 +53,8 @@ class PinholeCameraCfg(SensorBaseCfg):
         vertical_aperture_offset: float = None
         """Offsets Resolution/Film gate vertically."""
 
+    sensor_tick: float = 0.0
+    """Simulation seconds between sensor buffers. Defaults to 0.0."""
     data_types: List[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
     width: int = MISSING
@@ -68,15 +69,6 @@ class PinholeCameraCfg(SensorBaseCfg):
 
     More information available at:
         https://docs.omniverse.nvidia.com/app_code/prod_extensions/ext_replicator/semantic_schema_editor.html
-    """
-    colorize: bool = False
-    """whether to output colorized semantic information or non-colorized one. Defaults to False.
-
-    If True, the semantic images will be a 2D array of RGBA values, where each pixel is colored according to
-    the semantic type. Accordingly, the information output will contain mapping from color to semantic labels.
-
-    If False, the semantic images will be a 2D array of integers, where each pixel is an integer representing
-    the semantic ID. Accordingly, the information output will contain mapping from semantic ID to semantic labels.
     """
     projection_type: str = "pinhole"
     """Type of projection to use for the camera. Defaults to "pinhole"."""

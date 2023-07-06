@@ -27,4 +27,4 @@ from .terrain_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg, TerrainImporter
 from .terrain_generator import TerrainGenerator
 from .terrain_importer import TerrainImporter
 from .trimesh import *  # noqa: F401, F403
-from .utils import color_meshes_by_height, convert_to_warp_mesh, create_prim_from_mesh
+from .utils import color_meshes_by_height, create_prim_from_mesh

@@ -34,13 +34,31 @@ POSITION_GOAL_MARKER_CFG = VisualizationMarkersCfg(
 )
 """Configuration for the end-effector tracking marker."""
 
-HEIGHT_SCAN_MARKER_CFG = VisualizationMarkersCfg(
+RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
     markers={
         "hit": VisualizationMarkersCfg.MarkerCfg(
             prim_type="Sphere",
             color=(1.0, 0.0, 0.0),
-            attributes={"radius": 0.01},
+            attributes={"radius": 0.02},
         ),
     },
 )
-"""Configuration for the height scan marker."""
+"""Configuration for the ray-caster marker."""
+
+
+CONTACT_SENSOR_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "contact": VisualizationMarkersCfg.MarkerCfg(
+            prim_type="Sphere",
+            color=(1.0, 0.0, 0.0),
+            attributes={"radius": 0.02},
+        ),
+        "no_contact": VisualizationMarkersCfg.MarkerCfg(
+            visible=False,
+            prim_type="Sphere",
+            color=(0.0, 1.0, 0.0),
+            attributes={"radius": 0.02},
+        ),
+    },
+)
+"""Configuration for the contact sensor marker."""

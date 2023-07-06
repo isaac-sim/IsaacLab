@@ -14,7 +14,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 import argparse
 
 # omni-isaac-orbit
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
@@ -24,8 +24,9 @@ parser.add_argument("--draw", action="store_true", default=False, help="Draw the
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
-simulation_app = app_launcher.app
+config = {"headless": args_cli.headless}
+simulation_app = SimulationApp(config)
+
 
 """Rest everything follows."""
 
@@ -33,7 +34,6 @@ simulation_app = app_launcher.app
 import numpy as np
 import os
 import random
-import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
@@ -44,9 +44,9 @@ from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.camera import Camera, PinholeCameraCfg
+from omni.isaac.orbit.compat.sensors.camera import Camera, PinholeCameraCfg
+from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_rgbd
 from omni.isaac.orbit.utils import convert_dict_to_backend
-from omni.isaac.orbit.utils.math import project_points, transform_points, unproject_depth
 
 """
 Helpers
@@ -106,10 +106,7 @@ def main():
     """Runs a camera sensor from orbit."""
 
     # Load kit helper
-    sim = SimulationContext(
-        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu"
-    )
-    # sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="numpy")
+    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Acquire draw interface
@@ -119,19 +116,18 @@ def main():
     design_scene()
     # Setup camera sensor
     camera_cfg = PinholeCameraCfg(
-        update_freq=0,
+        sensor_tick=0,
         height=480,
         width=640,
-        data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors", "semantic_segmentation"],
+        data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
         usd_params=PinholeCameraCfg.UsdCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = Camera(cfg=camera_cfg)
+    camera = Camera(cfg=camera_cfg, device="cuda" if args_cli.gpu else "cpu")
 
     # Spawn camera
-    camera.spawn("/World/CameraSensor/Cam_00")
-    camera.spawn("/World/CameraSensor/Cam_01")
+    camera.spawn("/World/CameraSensor")
 
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
@@ -140,17 +136,15 @@ def main():
     # Play simulator
     sim.play()
     # Initialize camera
-    camera.initialize("/World/CameraSensor/Cam_*")
+    camera.initialize()
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
-    eyes = [[2.5, 2.5, 2.5], [-2.5, -2.5, 2.5]]
-    targets = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
-    camera.set_world_poses_from_view(eyes, targets)
+    # camera.set_world_pose_from_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # -- Option-2: Set pose using ROS
-    # position = [[2.5, 2.5, 2.5]]
-    # orientation = [[-0.17591989, 0.33985114, 0.82047325, -0.42470819]]
-    # camera.set_world_pose_ros(position, orientation, indices=[0])
+    position = [2.5, 2.5, 2.5]
+    orientation = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
+    camera.set_world_pose_ros(position, orientation)
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -165,12 +159,12 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
+            sim.step(render=not args_cli.headless)
             continue
         # Step simulation
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # Update camera data
-        camera.update_buffers(dt=0.0)
+        camera.update(dt=0.0)
 
         # Print camera info
         print(camera)
@@ -178,64 +172,34 @@ def main():
         print("Received shape of depth image: ", camera.data.output["distance_to_image_plane"].shape)
         print("-------------------------------")
 
-        # Extract camera data
-        camera_index = 1
-        # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
-        if sim.backend == "torch":
-            # tensordict allows easy indexing of tensors in the dictionary
-            single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
-        else:
-            # for numpy, we need to manually index the data
-            single_cam_data = dict()
-            for key, value in camera.data.output.items():
-                single_cam_data[key] = value[camera_index]
-        # Extract the other information
-        single_cam_info = camera.data.info[camera_index]
-
-        # Pack data back into replicator format to save them using its writer
-        rep_output = dict()
-        for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-            if info is not None:
-                rep_output[key] = {"data": data, "info": info}
-            else:
-                rep_output[key] = data
         # Save images
-        rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
-        rep_writer.write(rep_output)
+        # note: BasicWriter only supports saving data in numpy format
+        rep_writer.write(convert_dict_to_backend(camera.data.output, backend="numpy"))
 
         # Pointcloud in world frame
-        points_3d_cam = unproject_depth(camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices)
-        points_3d_world = transform_points(points_3d_cam, camera.data.position, camera.data.orientation)
-
-        # Check methods are valid
-        im_height, im_width = camera.image_shape
-        # -- project points to (u, v, d)
-        reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
-        reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
-        sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
-        torch.testing.assert_allclose(reproj_depths, sim_depths)
+        pointcloud_w, pointcloud_rgb = create_pointcloud_from_rgbd(
+            camera.data.intrinsic_matrix,
+            depth=camera.data.output["distance_to_image_plane"],
+            rgb=camera.data.output["rgb"],
+            position=camera.data.position,
+            orientation=camera.data.orientation,
+            normalize_rgb=True,
+            num_channels=4,
+        )
 
         # Draw pointcloud
         if not args_cli.headless and args_cli.draw:
             # Convert to numpy for visualization
-            if not isinstance(points_3d_world, np.ndarray):
-                points_3d_world = points_3d_world.cpu().numpy()
-            # Clear any existing points
-            draw_interface.clear_points()
-            # Obtain drawing settings
-            num_batch = points_3d_world.shape[0]
-            num_points = points_3d_world.shape[1]
-            points_size = [1.25] * num_points
-            # Fix random seed
-            random.seed(0)
+            if not isinstance(pointcloud_w, np.ndarray):
+                pointcloud_w = pointcloud_w.cpu().numpy()
+            if not isinstance(pointcloud_rgb, np.ndarray):
+                pointcloud_rgb = pointcloud_rgb.cpu().numpy()
             # Visualize the points
-            for index in range(num_batch):
-                # generate random color
-                color = [random.random() for _ in range(3)]
-                color += [1.0]
-                # plain color for points
-                points_color = [color] * num_points
-                draw_interface.draw_points(points_3d_world[index].tolist(), points_color, points_size)
+            num_points = pointcloud_w.shape[0]
+            points_size = [1.25] * num_points
+            points_color = pointcloud_rgb
+            draw_interface.clear_points()
+            draw_interface.draw_points(pointcloud_w.tolist(), points_color, points_size)
 
 
 if __name__ == "__main__":

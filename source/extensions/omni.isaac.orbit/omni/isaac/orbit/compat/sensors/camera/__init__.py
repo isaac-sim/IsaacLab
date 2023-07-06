@@ -7,8 +7,8 @@
 Camera wrapper around USD camera prim to provide an interface that follows the robotics convention.
 """
 
-from .camera import Camera
+
+from .camera import Camera, CameraData
 from .camera_cfg import FisheyeCameraCfg, PinholeCameraCfg
-from .camera_data import CameraData
 
 __all__ = ["Camera", "CameraData", "PinholeCameraCfg", "FisheyeCameraCfg"]
