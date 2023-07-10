@@ -23,9 +23,10 @@
 
 # IDE
 **/.idea/
-**/.vscode/.**
-# Include all but settings.json: auto-generated using the template in .vscode/tools/settings.template.json
-.vscode/settings.json
+**/.vscode/
+# Don't ignore the top-level .vscode directory as it is
+# used to configure VS Code settings
+!.vscode
 
 # Outputs
 **/output/*

@@ -124,6 +124,20 @@ def main():
     with open(orbit_vscode_filename, "w") as f:
         f.write(orbit_settings)
 
+    # copy the launch.json file if it doesn't exist
+    orbit_vscode_launch_filename = os.path.join(ORBIT_DIR, ".vscode", "launch.json")
+    orbit_vscode_template_launch_filename = os.path.join(ORBIT_DIR, ".vscode", "tools", "launch.template.json")
+    if not os.path.exists(orbit_vscode_launch_filename):
+        # read template launch settings
+        with open(orbit_vscode_template_launch_filename) as f:
+            orbit_template_launch_settings = f.read()
+        # add header
+        header_message = header_message.replace(orbit_vscode_template_filename, orbit_vscode_template_launch_filename)
+        orbit_launch_settings = header_message + orbit_template_launch_settings
+        # write the orbit launch settings file
+        with open(orbit_vscode_launch_filename, "w") as f:
+            f.write(orbit_launch_settings)
+
 
 if __name__ == "__main__":
     main()

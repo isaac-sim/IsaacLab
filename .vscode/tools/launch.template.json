@@ -25,11 +25,25 @@
             "host": "localhost"
         },
         {
-            "name": "Python: Run Environment",
+            "name": "Python: Train Environment",
             "type": "python",
             "request": "launch",
-            "args" : ["--task", "Isaac-Reach-Franka-v0"],
-            "program": "${file}",
+            "args" : ["--task", "Isaac-Reach-Franka-v0", "--headless"],
+            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
+                "RESOURCE_NAME": "IsaacSim"
+            },
+            "envFile": "${workspaceFolder}/.vscode/.python.env",
+            "preLaunchTask": "setup_python_env"
+        },
+        {
+            "name": "Python: Play Environment",
+            "type": "python",
+            "request": "launch",
+            "args" : ["--task", "Isaac-Reach-Franka-v0", "--num_envs", "32"],
+            "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/play.py",
             "console": "integratedTerminal",
             "env": {
                 "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
