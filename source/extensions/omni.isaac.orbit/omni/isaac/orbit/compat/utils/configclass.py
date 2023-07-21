@@ -7,7 +7,7 @@
 
 
 from copy import deepcopy
-from dataclasses import MISSING, Field, dataclass, field
+from dataclasses import Field, dataclass, field
 from typing import Any, Callable, ClassVar, Dict
 
 from .dict import class_to_dict, update_class_from_dict
@@ -136,50 +136,23 @@ def _add_annotation_types(cls):
            If the function is NOT used, the following type-error is returned:
            TypeError: 'pos' is a field but has no type annotation
     """
-    # get type hints
-    hints = {}
-    # iterate over class inheritance
-    # we add annotations from base classes first
-    for base in reversed(cls.__mro__):
-        # check if base is object
-        if base is object:
-            continue
-        # get base class annotations
-        ann = base.__dict__.get("__annotations__", {})
-        # directly add all annotations from base class
-        hints.update(ann)
-        # iterate over base class members
-        # Note: Do not change this to dir(base) since it orders the members alphabetically.
-        #   This is not desirable since the order of the members is important in some cases.
-        for key in base.__dict__:
-            # skip dunder members
-            if key.startswith("__"):
-                continue
-            # skip class functions
-            if key in ["from_dict", "to_dict"]:
-                continue
-            # check if key is already present
-            if key in hints:
-                continue
-            # add type annotations for members that don't have explicit type annotations
-            # for these, we deduce the type from the default value
-            value = getattr(base, key)
-            if not isinstance(value, type):
-                if key not in hints:
-                    # check if var type is not MISSING
-                    # we cannot deduce type from MISSING!
-                    if value is MISSING:
-                        raise TypeError(
-                            f"Missing type annotation for '{key}' in class '{cls.__name__}'."
-                            " Please add a type annotation or set a default value."
-                        )
-                    # add type annotation
-                    hints[key] = type(value)
-
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.
     cls.__annotations__ = cls.__dict__.get("__annotations__", {})
-    cls.__annotations__ = hints
+    # cls.__annotations__ = dict()
+
+    for key in dir(cls):
+        # skip dunder members
+        if key.startswith("__"):
+            continue
+        # skip class functions
+        if key in ["from_dict", "to_dict"]:
+            continue
+        # add type annotations for members that are not functions
+        var = getattr(cls, key)
+        if not isinstance(var, type):
+            if key not in cls.__annotations__:
+                cls.__annotations__[key] = type(var)
 
 
 def _process_mutable_types(cls):
@@ -203,64 +176,36 @@ def _process_mutable_types(cls):
            If the function is NOT used, the following value-error is returned:
            ValueError: mutable default <class 'list'> for field pos is not allowed: use default_factory
     """
-    class_members = {}
-    # iterate over all class members and store them in a dictionary
-    for base in reversed(cls.__mro__):
-        # check if base is object
-        if base is object:
-            continue
-        # iterate over base class members
-        for key in base.__dict__:
-            # skip dunder members
-            if key.startswith("__"):
-                continue
-            # skip class functions
-            if key in ["from_dict", "to_dict"]:
-                continue
-            # get class member
-            f = getattr(base, key)
-            # store class member
-            if not isinstance(f, type):
-                class_members[key] = f
-        # iterate over base class data fields
-        # in previous call, things that became a dataclass field were removed from class members
-        for key, f in base.__dict__.get("__dataclass_fields__", {}).items():
-            # store class member
-            class_members[key] = f
 
-    # note: Need to set this up in the same order as annotations. Otherwise, it
-    #   complains about missing positional arguments.
-    ann = cls.__dict__.get("__annotations__", {})
-    # check that all annotations are present in class members
-    # note: mainly for debugging purposes
-    if len(class_members) != len(ann):
-        raise ValueError(
-            f"Number of annotations ({len(ann)}) does not match number of class members ({len(class_members)})."
-            " Please check that all class members have type annotations and a default value."
-            " If you don't want to specify a default value, please use the literal `dataclasses.MISSING`."
-        )
-    # iterate over annotations and add field factory for mutable types
-    for key in ann:
-        # find matching field in class
-        value = class_members.get(key, MISSING)
-        # check if key belongs to ClassVar
-        # in that case, we cannot use default_factory!
-        origin = getattr(ann[key], "__origin__", None)
-        if origin is ClassVar:
+    def _return_f(f: Any) -> Callable[[], Any]:
+        """Returns default function for creating mutable/immutable variables."""
+
+        def _wrap():
+            if isinstance(f, Field):
+                return f.default_factory
+            else:
+                return f
+
+        return _wrap
+
+    for key in dir(cls):
+        # skip dunder members
+        if key.startswith("__"):
             continue
-        # check if f is MISSING
-        # note: commented out for now since it causes issue with inheritance
-        #   of dataclasses when parent have some positional and some keyword arguments.
-        # Ref: https://stackoverflow.com/questions/51575931/class-inheritance-in-python-3-7-dataclasses
-        # TODO: check if this is fixed in Python 3.10
-        # if f is MISSING:
-        #     continue
-        if isinstance(value, Field):
-            setattr(cls, key, value)
-        elif not isinstance(value, type):
-            # create field factory for mutable types
-            value = field(default_factory=_return_f(value))
-            setattr(cls, key, value)
+        # skip class functions
+        if key in ["from_dict", "to_dict"]:
+            continue
+        # do not create field for class variables
+        if key in cls.__annotations__:
+            origin = getattr(cls.__annotations__[key], "__origin__", None)
+            if origin is ClassVar:
+                continue
+        # define explicit field for data members
+        f = getattr(cls, key)
+        # add field for mutable types
+        if not isinstance(f, type):
+            f = field(default_factory=_return_f(f))
+            setattr(cls, key, f)
 
 
 def _custom_post_init(obj):
@@ -274,38 +219,7 @@ def _custom_post_init(obj):
         # skip dunder members
         if key.startswith("__"):
             continue
-        # get data member
-        value = getattr(obj, key)
         # duplicate data members
-        if not callable(value):
-            setattr(obj, key, deepcopy(value))
-
-
-"""
-Helper functions
-"""
-
-
-def _return_f(f: Any) -> Callable[[], Any]:
-    """Returns default factory function for creating mutable/immutable variables.
-
-    This function should be used to create default factory functions for variables.
-
-    Example:
-
-        .. code-block:: python
-
-            value = field(default_factory=_return_f(value))
-            setattr(cls, key, value)
-    """
-
-    def _wrap():
-        if isinstance(f, Field):
-            if f.default_factory is MISSING:
-                return deepcopy(f.default)
-            else:
-                return f.default_factory
-        else:
-            return f
-
-    return _wrap
+        var = getattr(obj, key)
+        if not callable(var):
+            setattr(obj, key, deepcopy(var))

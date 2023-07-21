@@ -4,12 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import copy
+import os
 import unittest
-from dataclasses import asdict, field
+from dataclasses import MISSING, asdict, field
 from functools import wraps
+from typing import List
 
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
+from omni.isaac.orbit.utils.io import dump_yaml, load_yaml
 
 """
 Dummy configuration: Basic
@@ -24,7 +27,7 @@ def double(x):
 @configclass
 class ViewerCfg:
     eye: list = [7.5, 7.5, 7.5]  # field missing on purpose
-    lookat: list = field(default_factory=[0.0, 0.0, 0.0])
+    lookat: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
 
 
 @configclass
@@ -49,6 +52,62 @@ class BasicDemoCfg:
     device_id: int = 0
     env: EnvCfg = EnvCfg()
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
+
+
+"""
+Dummy configuration to check type annotations ordering.
+"""
+
+
+@configclass
+class TypeAnnotationOrderingDemoCfg:
+    """Config class with type annotations."""
+
+    anymal: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    unitree: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    franka: RobotDefaultStateCfg = RobotDefaultStateCfg()
+
+
+@configclass
+class NonTypeAnnotationOrderingDemoCfg:
+    """Config class without type annotations."""
+
+    anymal = RobotDefaultStateCfg()
+    unitree = RobotDefaultStateCfg()
+    franka = RobotDefaultStateCfg()
+
+
+@configclass
+class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg):
+    """Inherited config class without type annotations."""
+
+    pass
+
+
+"""
+Dummy configuration: Inheritance
+"""
+
+
+@configclass
+class ParentDemoCfg:
+    """Dummy parent configuration with missing fields."""
+
+    a: int = MISSING  # add new missing field
+    b = 2  # type annotation missing on purpose
+    c: RobotDefaultStateCfg = MISSING  # add new missing field
+    j: List[str] = MISSING  # add new missing field
+
+
+@configclass
+class ChildDemoCfg(ParentDemoCfg):
+    """Dummy child configuration with missing fields."""
+
+    c = RobotDefaultStateCfg()  # set default value for missing field
+
+    d: int = MISSING  # add new missing field
+    k: List[str] = ["c", "d"]
+    e: ViewerCfg = MISSING  # add new missing field
 
 
 """
@@ -159,6 +218,7 @@ class TestConfigClass(unittest.TestCase):
         print()
         print("Using dataclass function: ", asdict(cfg))
         print("Using internal function: ", cfg.to_dict())
+        self.assertDictEqual(asdict(cfg), cfg.to_dict())
 
     def test_dict_conversion(self):
         """Test dictionary conversion of configclass instance."""
@@ -271,6 +331,18 @@ class TestConfigClass(unittest.TestCase):
         # immutable -- altered variables are different ids
         self.assertNotEqual(id(cfg1.env.num_envs), id(cfg2.env.num_envs))
 
+    def test_configclass_type_ordering(self):
+        """Checks ordering of config objects when no type annotation is provided."""
+
+        cfg_1 = TypeAnnotationOrderingDemoCfg()
+        cfg_2 = NonTypeAnnotationOrderingDemoCfg()
+        cfg_3 = InheritedNonTypeAnnotationOrderingDemoCfg()
+
+        # check ordering
+        self.assertEqual(list(cfg_1.__dict__.keys()), list(cfg_2.__dict__.keys()))
+        self.assertEqual(list(cfg_3.__dict__.keys()), list(cfg_2.__dict__.keys()))
+        self.assertEqual(list(cfg_1.__dict__.keys()), list(cfg_3.__dict__.keys()))
+
     def test_functions_config(self):
         """Tests having functions as values in the configuration instance."""
         cfg = FunctionsDemoCfg()
@@ -298,6 +370,89 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.func(), 2)
         self.assertEqual(cfg.wrapped_func(), 5)
         self.assertEqual(cfg.func_in_dict["func"](), 2)
+
+    def test_missing_type_in_config(self):
+        """Tests missing type annotation in config.
+
+        Should complain that 'c' is missing type annotation since it cannot be inferred
+        from 'MISSING' value.
+        """
+        with self.assertRaises(TypeError):
+
+            @configclass
+            class MissingTypeDemoCfg:
+                a: int = 1
+                b = 2
+                c = MISSING
+
+    def test_missing_default_value_in_config(self):
+        """Tests missing default value in config.
+
+        Should complain that 'a' is missing default value since it cannot be inferred
+        from type annotation.
+        """
+        with self.assertRaises(ValueError):
+
+            @configclass
+            class MissingTypeDemoCfg:
+                a: int
+                b = 2
+
+    def test_required_argument_for_missing_type_in_config(self):
+        """Tests required positional argument for missing type annotation in config creation."""
+
+        @configclass
+        class MissingTypeDemoCfg:
+            a: int = 1
+            b = 2
+            c: int = MISSING
+
+        # should complain that 'c' is missed in positional arguments
+        # TODO: Uncomment this when we move to 3.10.
+        # with self.assertRaises(TypeError):
+        #     cfg = MissingTypeDemoCfg(a=1)
+        # should not complain
+        cfg = MissingTypeDemoCfg(a=1, c=3)
+
+        self.assertEqual(cfg.a, 1)
+        self.assertEqual(cfg.b, 2)
+
+    def test_config_inheritance(self):
+        """Tests that inheritance works properly."""
+        # check variables
+        cfg = ChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+
+        self.assertEqual(cfg.a, 20)
+        self.assertEqual(cfg.b, 2)
+        self.assertEqual(cfg.d, 3)
+        self.assertEqual(cfg.j, ["c", "d"])
+
+    def test_config_dumping(self):
+        """Check that config dumping works properly."""
+
+        # file for dumping
+        dirname = os.path.dirname(os.path.abspath(__file__))
+        filename = os.path.join(dirname, "output", "configclass", "test_config.yaml")
+
+        # create config
+        cfg = ChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+
+        # save config
+        dump_yaml(filename, cfg)
+        # load config
+        cfg_loaded = load_yaml(filename)
+        # check dictionaries are the same
+        self.assertEqual(list(cfg.to_dict().keys()), list(cfg_loaded.keys()))
+        self.assertDictEqual(cfg.to_dict(), cfg_loaded)
+
+        # save config with sorted order won't work!
+        # save config
+        dump_yaml(filename, cfg, sort_keys=True)
+        # load config
+        cfg_loaded = load_yaml(filename)
+        # check dictionaries are the same
+        self.assertNotEqual(list(cfg.to_dict().keys()), list(cfg_loaded.keys()))
+        self.assertDictEqual(cfg.to_dict(), cfg_loaded)
 
 
 if __name__ == "__main__":

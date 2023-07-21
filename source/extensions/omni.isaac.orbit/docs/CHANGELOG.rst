@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.6.0 (2023-07-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the argument :attr:`sort_keys` to the :meth:`omni.isaac.orbit.utils.io.yaml.dump_yaml` method to allow
+  enabling/disabling of sorting of keys in the output yaml file.
+
+Fixed
+^^^^^
+
+* Fixed the ordering of terms in :mod:`omni.isaac.orbit.core.utils.configclass` to be consistent in the order in which
+  they are defined. Previously, the ordering was done alphabetically which made it inconsistent with the order in which
+  the parameters were defined.
+
+Changed
+^^^^^^^
+
+* Changed the default value of the argument :attr:`sort_keys` in the :meth:`omni.isaac.orbit.utils.io.yaml.dump_yaml`
+  method to ``False``.
+* Moved the old config classes in :mod:`omni.isaac.orbit.core.utils.configclass` to
+  :mod:`omni.isaac.orbit.compat.utils.configclass` so that users can still run their old code where alphabetical
+  ordering was used.
+
+
 0.5.0 (2023-07-04)
 
 Added
