@@ -44,9 +44,9 @@ def raycast_mesh(ray_starts: torch.Tensor, ray_directions: torch.Tensor, mesh: w
     ray_hits = torch.full((num_rays, 3), float("inf"), device=mesh_device)
 
     # map the memory to warp arrays
-    ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3, requires_grad=False)
-    ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3, requires_grad=False)
-    ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3, requires_grad=False)
+    ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3)
+    ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3)
+    ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3)
 
     # launch the warp kernel
     wp.launch(

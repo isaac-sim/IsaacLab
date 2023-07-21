@@ -8,12 +8,11 @@
 
 import collections.abc
 import hashlib
-import importlib
-import inspect
 import json
-from typing import Any, Callable, Dict, Iterable, Mapping
+from typing import Any, Dict, Iterable, Mapping
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
+from .string import callable_to_string, string_to_callable
 
 __all__ = [
     "class_to_dict",
@@ -60,7 +59,7 @@ def class_to_dict(obj: object) -> Dict[str, Any]:
             continue
         # check if attribute is callable -- function
         if callable(value):
-            data[key] = f"{value.__module__}:{value.__name__}"
+            data[key] = callable_to_string(value)
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):
             data[key] = class_to_dict(value)
@@ -96,7 +95,7 @@ def update_class_from_dict(obj, data: Dict[str, Any], _ns: str = "") -> None:
                 # iterate over the dictionary to look for callable values
                 for k, v in obj_mem.items():
                     if callable(v):
-                        value[k] = _string_to_callable(value[k])
+                        value[k] = string_to_callable(value[k])
                 setattr(obj, key, value)
             elif isinstance(value, Mapping):
                 # recursively call if it is a dictionary
@@ -111,7 +110,7 @@ def update_class_from_dict(obj, data: Dict[str, Any], _ns: str = "") -> None:
                 setattr(obj, key, value)
             elif callable(obj_mem):
                 # update function name
-                value = _string_to_callable(value)
+                value = string_to_callable(value)
                 setattr(obj, key, value)
             elif isinstance(value, type(obj_mem)):
                 # check that they are type-safe
@@ -260,45 +259,7 @@ def print_dict(val, nesting: int = -4, start: bool = True):
             print_dict(val[k], nesting, start=False)
     else:
         # deal with functions in print statements
-        if callable(val) and val.__name__ == "<lambda>":
-            print("lambda", inspect.getsourcelines(val)[0][0].strip().split("lambda")[1].strip()[:-1])
-        elif callable(val):
-            print(f"{val.__module__}:{val.__name__}")
+        if callable(val):
+            print(callable_to_string(val))
         else:
             print(val)
-
-
-"""
-Private helper functions.
-"""
-
-
-def _string_to_callable(name: str) -> Callable:
-    """Resolves the module and function names to return the function.
-
-    Args:
-        name (str): The function name. The format should be 'module:attribute_name'.
-
-    Raises:
-        ValueError: When the resolved attribute is not a function.
-        ValueError: _description_
-
-    Returns:
-        Callable: The function loaded from the module.
-    """
-    try:
-        mod_name, attr_name = name.split(":")
-        mod = importlib.import_module(mod_name)
-        callable_object = getattr(mod, attr_name)
-        # check if attribute is callable
-        if callable(callable_object):
-            return callable_object
-        else:
-            raise ValueError(f"The imported object is not callable: '{name}'")
-    except AttributeError as e:
-        msg = (
-            "While updating the config from a dictionary, we could not interpret the entry"
-            "as a callable object. The format of input should be 'module:attribute_name'\n"
-            f"While processing input '{name}', received the error:\n {e}."
-        )
-        raise ValueError(msg)

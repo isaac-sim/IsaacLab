@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.6.1 (2023-07-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.orbit.utils.math.quat_apply_yaw` to compute the yaw quaternion correctly.
+
+
+Added
+^^^^^^^
+
+* Added functions to convert string and callable objects in :mod:`omni.isaac.orbit.utils.string`.
+
+
 0.6.0 (2023-07-16)
 ~~~~~~~~~~~~~~~~~~
 

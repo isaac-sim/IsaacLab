@@ -39,6 +39,7 @@ __all__ = [
     "quat_from_euler_xyz",
     "quat_apply_yaw",
     "quat_box_minus",
+    "yaw_quat",
     "euler_xyz_from_quat",
     "axis_angle_from_quat",
     # Rotation-Isaac Sim
@@ -269,7 +270,30 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor,
     cos_yaw = 1 - 2 * (q_y * q_y + q_z * q_z)
     yaw = torch.atan2(sin_yaw, cos_yaw)
 
-    return roll % (2 * np.pi), pitch % (2 * np.pi), yaw % (2 * np.pi)
+    return roll % (2 * np.pi), pitch % (2 * np.pi), yaw % (2 * np.pi)  # TODO: why not wrap_to_pi here ?
+
+
+@torch.jit.script
+def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
+    """Extract the yaw component of a quaternion.
+
+    Args:
+        quat (torch.Tensor): Input orientation to extract yaw from.
+
+    Returns:
+        torch.Tensor: A quaternion with only yaw component.
+    """
+    quat_yaw = quat.clone().view(-1, 4)
+    qw = quat_yaw[:, 0]
+    qx = quat_yaw[:, 1]
+    qy = quat_yaw[:, 2]
+    qz = quat_yaw[:, 3]
+    yaw = torch.atan2(2 * (qw * qz + qx * qy), 1 - 2 * (qy * qy + qz * qz))
+    quat_yaw[:] = 0.0
+    quat_yaw[:, 3] = torch.sin(yaw / 2)
+    quat_yaw[:, 0] = torch.cos(yaw / 2)
+    quat_yaw = normalize(quat_yaw)
+    return quat_yaw
 
 
 @torch.jit.script
@@ -283,9 +307,7 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Rotated vector.
     """
-    quat_yaw = quat.clone().view(-1, 4)
-    quat_yaw[:, 1:3] = 0.0  # set x, y components as zero
-    quat_yaw = normalize(quat_yaw)
+    quat_yaw = yaw_quat(quat)
     return quat_apply(quat_yaw, vec)
 
 
@@ -294,8 +316,8 @@ def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """Implements box-minus operator (quaternion difference).
 
     Args:
-        q1 (torch.Tensor): A (N, 4) tensor for quaternion (x, y, z, w)
-        q2 (torch.Tensor): A (N, 4) tensor for quaternion (x, y, z, w)
+        q1 (torch.Tensor): A (N, 4) tensor for quaternion (w, x, y, z).
+        q2 (torch.Tensor): A (N, 4) tensor for quaternion (w, x, y, z).
 
     Returns:
         torch.Tensor: q1 box-minus q2
