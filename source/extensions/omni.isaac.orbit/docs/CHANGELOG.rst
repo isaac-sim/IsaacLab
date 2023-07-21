@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+
+0.6.2 (2023-07-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :mod:`omni.isaac.orbit.command_generators` to generate different commands based on the desired task.
+  It allows the user to generate commands for different tasks in the same environment without having to write
+  custom code for each task.
+
+
 0.6.1 (2023-07-16)
 ~~~~~~~~~~~~~~~~~~
 

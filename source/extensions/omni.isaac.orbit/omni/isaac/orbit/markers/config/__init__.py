@@ -62,3 +62,23 @@ CONTACT_SENSOR_MARKER_CFG = VisualizationMarkersCfg(
     },
 )
 """Configuration for the contact sensor marker."""
+
+
+ARROW_X_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "arrow": VisualizationMarkersCfg.FileMarkerCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/UIElements/arrow_x.usd",
+            scale=[1.0, 0.1, 0.1],
+        )
+    }
+)
+"""Configuration for the arrow marker (along x-direction)."""
+
+CUBOID_MARKER_CFG = VisualizationMarkersCfg(
+    markers={
+        "cuboid": VisualizationMarkersCfg.MarkerCfg(
+            prim_type="Cube",
+        )
+    }
+)
+"""Configuration for the cuboid marker."""
