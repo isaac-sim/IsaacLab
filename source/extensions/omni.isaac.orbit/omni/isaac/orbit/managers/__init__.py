@@ -33,14 +33,35 @@ Example pseudo-code for a manager:
 
 """
 
-from .manager_cfg import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg
+from .curriculum_manager import CurriculumManager
+from .manager_cfg import (
+    CurriculumTermCfg,
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RandomizationTermCfg,
+    RewardTermCfg,
+    TerminationTermCfg,
+)
 from .observation_manager import ObservationManager
+from .randomization_manager import RandomizationManager
 from .reward_manager import RewardManager
+from .termination_manager import TerminationManager
 
 __all__ = [
+    # curriculum
+    "CurriculumTermCfg",
+    "CurriculumManager",
+    # observation
     "ObservationGroupCfg",
     "ObservationTermCfg",
     "ObservationManager",
+    # reward
     "RewardTermCfg",
     "RewardManager",
+    # randomization
+    "RandomizationTermCfg",
+    "RandomizationManager",
+    # termination
+    "TerminationTermCfg",
+    "TerminationManager",
 ]

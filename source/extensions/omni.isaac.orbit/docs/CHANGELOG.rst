@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.7.1 (2023-07-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`TerminationManager`, :class:`CurriculumManager`, and :class:`RandomizationManager` classes
+  to the :mod:`omni.isaac.orbit.managers` module to handle termination, curriculum, and randomization respectively.
+
+
 0.7.0 (2023-07-10)
 ~~~~~~~~~~~~~~~~~~
 

@@ -53,6 +53,22 @@ class ManagerBaseTermCfg:
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict."""
 
 
+"""Curriculum manager."""
+
+
+@configclass
+class CurriculumTermCfg(ManagerBaseTermCfg):
+    """Configuration for a curriculum term."""
+
+    func: Callable[..., float | dict[str, float]] = MISSING
+    """The name of the function to be called.
+
+    This function should take the environment object, environment indices
+    and any other parameters as input and return the curriculum state for
+    logging purposes.
+    """
+
+
 """Observation manager."""
 
 
@@ -99,6 +115,40 @@ class ObservationGroupCfg:
     """
 
 
+"""Randomization manager."""
+
+
+@configclass
+class RandomizationTermCfg(ManagerBaseTermCfg):
+    """Configuration for a randomization term."""
+
+    func: Callable[..., None] = MISSING
+    """The name of the function to be called.
+
+    This function should take the environment object, environment indices
+    and any other parameters as input.
+    """
+
+    mode: str = MISSING
+    """The mode in which the randomization term is applied.
+
+    Note:
+        The mode name ``"interval"`` is a special mode that is handled by the
+        manager Hence, its name is reserved and cannot be used for other modes.
+    """
+
+    interval_range_s: tuple[float, float] | None = None
+    """The range of time in seconds at which the term is applied.
+
+    Based on this, the interval is sampled uniformly between the specified
+    interval range for each environment instance and the term is applied for
+    the environment instances if the current time hits the interval time.
+
+    Note:
+        This is only used if the mode is ``"interval"``.
+    """
+
+
 """Reward manager."""
 
 
@@ -122,4 +172,27 @@ class RewardTermCfg(ManagerBaseTermCfg):
 
     Note:
         If the weight is zero, the reward term is ignored.
+    """
+
+
+"""Termination manager."""
+
+
+@configclass
+class TerminationTermCfg(ManagerBaseTermCfg):
+    """Configuration for a termination term."""
+
+    func: Callable[..., torch.Tensor] = MISSING
+    """The name of the function to be called.
+
+    This function should take the environment object and any other parameters
+    as input and return the termination signals as torch boolean tensors of
+    shape ``(num_envs,)``.
+    """
+
+    time_out: bool = False
+    """Whether the termination term contributes towards episodic timeouts. Defaults to False.
+
+    Note:
+        These usually correspond to tasks that have a fixed time limit.
     """
