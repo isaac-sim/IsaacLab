@@ -10,7 +10,7 @@ from copy import deepcopy
 from dataclasses import Field, dataclass, field
 from typing import Any, Callable, ClassVar, Dict
 
-from .dict import class_to_dict, update_class_from_dict
+from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
 
 # List of all methods provided by sub-module.
 __all__ = ["configclass"]

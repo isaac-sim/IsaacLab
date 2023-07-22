@@ -7,7 +7,7 @@ import torch
 import unittest
 from collections import namedtuple
 
-from omni.isaac.orbit.utils.mdp.observation_manager import ObservationManager
+from omni.isaac.orbit.compat.utils.mdp.observation_manager import ObservationManager
 
 
 class DefaultObservationManager(ObservationManager):

@@ -8,6 +8,7 @@ omni.isaac.orbit.compat
 
    * :mod:`omni.isaac.orbit.markers`
    * :mod:`omni.isaac.orbit.sensors`
+   * :mod:`omni.isaac.orbit.utils.mdp`
 
 Markers
 -------
@@ -90,6 +91,15 @@ Utilities
 ^^^^^^^^^
 
 .. automodule:: omni.isaac.orbit.compat.sensors.height_scanner.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+MDP Managers
+------------
+
+.. automodule:: omni.isaac.orbit.compat.utils.mdp
    :members:
    :undoc-members:
    :show-inheritance:

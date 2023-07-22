@@ -1,0 +1,194 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import torch
+import unittest
+from collections import namedtuple
+
+from omni.isaac.orbit.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from omni.isaac.orbit.utils import configclass
+
+
+def grilled_chicken(env):
+    return torch.ones(env.num_envs, 4, device=env.device)
+
+
+def grilled_chicken_with_bbq(env, bbq: bool):
+    return bbq * torch.ones(env.num_envs, 1, device=env.device)
+
+
+def grilled_chicken_with_curry(env, hot: bool):
+    return hot * 2 * torch.ones(env.num_envs, 1, device=env.device)
+
+
+def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
+    return hot * bland * torch.ones(env.num_envs, 5, device=env.device)
+
+
+class TestObservationManager(unittest.TestCase):
+    """Test cases for various situations with observation manager."""
+
+    def setUp(self) -> None:
+        self.env = namedtuple("IsaacEnv", ["num_envs", "device"])(20, "cpu")
+
+    def test_str(self):
+        """Test the string representation of the observation manager."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class SampleGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func="__main__:grilled_chicken", scale=10)
+                term_2 = ObservationTermCfg(func=grilled_chicken, scale=2)
+                term_3 = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
+                term_4 = ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
+
+            policy: ObservationGroupCfg = SampleGroupCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        self.assertEqual(len(self.obs_man.active_terms["policy"]), 4)
+        # print the expected string
+        print()
+        print(self.obs_man)
+
+    def test_config_equivalence(self):
+        """Test the equivalence of observation manager created from different config types."""
+
+        # create from config class
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class SampleGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                your_term = ObservationTermCfg(func="__main__:grilled_chicken", scale=10)
+                his_term = ObservationTermCfg(func=grilled_chicken, scale=2)
+                my_term = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
+                her_term = ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
+
+            policy = SampleGroupCfg()
+            critic = SampleGroupCfg(concatenate_terms=False, her_term=None)
+
+        cfg = MyObservationManagerCfg()
+        obs_man_from_cfg = ObservationManager(cfg, self.env)
+
+        # create from config class
+        @configclass
+        class MyObservationManagerAnnotatedCfg:
+            """Test config class for observation manager with annotations on terms."""
+
+            @configclass
+            class SampleGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                your_term: ObservationTermCfg = ObservationTermCfg(func="__main__:grilled_chicken", scale=10)
+                his_term: ObservationTermCfg = ObservationTermCfg(func=grilled_chicken, scale=2)
+                my_term: ObservationTermCfg = ObservationTermCfg(
+                    func=grilled_chicken_with_bbq, scale=5, params={"bbq": True}
+                )
+                her_term: ObservationTermCfg = ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
+
+            policy: ObservationGroupCfg = SampleGroupCfg()
+            critic: ObservationGroupCfg = SampleGroupCfg(concatenate_terms=False, her_term=None)
+
+        cfg = MyObservationManagerAnnotatedCfg()
+        obs_man_from_annotated_cfg = ObservationManager(cfg, self.env)
+
+        # check equivalence
+        # parsed terms
+        self.assertEqual(obs_man_from_cfg.active_terms, obs_man_from_annotated_cfg.active_terms)
+        self.assertEqual(obs_man_from_cfg.group_obs_term_dim, obs_man_from_annotated_cfg.group_obs_term_dim)
+        self.assertEqual(obs_man_from_cfg.group_obs_dim, obs_man_from_annotated_cfg.group_obs_dim)
+        # parsed term configs
+        self.assertEqual(obs_man_from_cfg._group_obs_term_cfgs, obs_man_from_annotated_cfg._group_obs_term_cfgs)
+        self.assertEqual(obs_man_from_cfg._group_obs_concatenate, obs_man_from_annotated_cfg._group_obs_concatenate)
+
+    def test_config_terms(self):
+        """Test the number of terms in the observation manager."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class SampleGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
+                term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
+
+            policy: ObservationGroupCfg = SampleGroupCfg()
+            critic: ObservationGroupCfg = SampleGroupCfg(term_2=None)
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+
+        self.assertEqual(len(self.obs_man.active_terms["policy"]), 2)
+        self.assertEqual(len(self.obs_man.active_terms["critic"]), 1)
+
+    def test_compute(self):
+        """Test the observation computation."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
+                term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+        # check the observation shape
+        self.assertEqual((self.env.num_envs, 5), observations["policy"].shape)
+
+    def test_invalid_observation_config(self):
+        """Test the invalid observation config."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=0.1, params={"hot": False})
+                term_2 = ObservationTermCfg(func=grilled_chicken_with_yoghurt, scale=2.0, params={"hot": False})
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        # check the invalid config
+        with self.assertRaises(ValueError):
+            self.obs_man = ObservationManager(cfg, self.env)
+
+
+if __name__ == "__main__":
+    unittest.main()

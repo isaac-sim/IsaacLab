@@ -11,11 +11,11 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.compat.markers import PointMarker, StaticMarker
+from omni.isaac.orbit.compat.utils.mdp import ObservationManager, RewardManager
 from omni.isaac.orbit.controllers.differential_inverse_kinematics import DifferentialInverseKinematics
 from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
 from omni.isaac.orbit.utils.dict import class_to_dict
 from omni.isaac.orbit.utils.math import random_orientation, sample_uniform, scale_transform
-from omni.isaac.orbit.utils.mdp import ObservationManager, RewardManager
 
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv, VecEnvIndices, VecEnvObs
 

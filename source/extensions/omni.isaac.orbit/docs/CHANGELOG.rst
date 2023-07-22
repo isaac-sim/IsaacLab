@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.7.0 (2023-07-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Created a new :mod:`omni.isaac.orbit.managers` module for all the managers related to the environment / scene.
+  This includes the :class:`omni.isaac.orbit.managers.ObservationManager` and :class:`omni.isaac.orbit.managers.RewardManager`
+  classes that were previously in the :mod:`omni.isaac.orbit.utils.mdp` module.
+* Added the :class:`omni.isaac.orbit.managers.ManagerBase` class to handle the creation of managers.
+* Added configuration classes for :class:`ObservationTermCfg` and :class:`RewardTermCfg` to allow easy creation of
+  observation and reward terms.
+
+Changed
+^^^^^^^
+
+* Changed the behavior of :class:`ObservationManager` and :class:`RewardManager` classes to accept the key ``func``
+  in each configuration term to be a callable. This removes the need to inherit from the base class
+  and allows more reusability of the functions across different environments.
+* Moved the old managers to the :mod:`omni.isaac.orbit.compat.utils.mdp` module.
+* Modified the necessary scripts to use the :mod:`omni.isaac.orbit.compat.utils.mdp` module.
+
 
 0.6.2 (2023-07-21)
 ~~~~~~~~~~~~~~~~~~
@@ -20,7 +42,6 @@ Fixed
 ^^^^^
 
 * Fixed the :meth:`omni.isaac.orbit.utils.math.quat_apply_yaw` to compute the yaw quaternion correctly.
-
 
 Added
 ^^^^^^^
@@ -55,6 +76,7 @@ Changed
 
 
 0.5.0 (2023-07-04)
+~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

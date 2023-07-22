@@ -16,10 +16,10 @@ from omni.isaac.core.utils.types import DynamicsViewState
 
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.compat.markers import PointMarker, StaticMarker
+from omni.isaac.orbit.compat.utils.mdp import ObservationManager, RewardManager
 from omni.isaac.orbit.robots.legged_robot import LeggedRobot
 from omni.isaac.orbit.utils.dict import class_to_dict
 from omni.isaac.orbit.utils.math import quat_apply, quat_from_euler_xyz, sample_uniform, wrap_to_pi
-from omni.isaac.orbit.utils.mdp import ObservationManager, RewardManager
 
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv, VecEnvIndices, VecEnvObs
 
