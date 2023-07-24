@@ -8,11 +8,57 @@ import os
 import unittest
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import List
+from typing import ClassVar, List, Type
 
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
 from omni.isaac.orbit.utils.io import dump_yaml, load_yaml
+
+"""
+Mock classes and functions.
+"""
+
+
+def dummy_function1() -> int:
+    """Dummy function 1."""
+    return 1
+
+
+def dummy_function2() -> int:
+    """Dummy function 2."""
+    return 2
+
+
+def dummy_wrapper(func):
+    """Decorator for wrapping function."""
+
+    @wraps(func)
+    def wrapper():
+        return func() + 1
+
+    return wrapper
+
+
+@dummy_wrapper
+def wrapped_dummy_function3():
+    """Dummy function 3."""
+    return 3
+
+
+@dummy_wrapper
+def wrapped_dummy_function4():
+    """Dummy function 4."""
+    return 4
+
+
+class DummyClass:
+    """Dummy class."""
+
+    def __init__(self):
+        """Initialize dummy class."""
+        self.a = 1
+        self.b = 2
+
 
 """
 Dummy configuration: Basic
@@ -109,42 +155,55 @@ class ChildDemoCfg(ParentDemoCfg):
     k: List[str] = ["c", "d"]
     e: ViewerCfg = MISSING  # add new missing field
 
+    dummy_class = DummyClass
+
+
+"""
+Configuration with class inside.
+"""
+
+
+@configclass
+class DummyClassCfg:
+    """Dummy class configuration with class type."""
+
+    class_name_1: type = DummyClass
+    class_name_2: Type[DummyClass] = DummyClass
+    class_name_3 = DummyClass
+    class_name_4: ClassVar[Type[DummyClass]] = DummyClass
+
+    b: str = "dummy"
+
+
+"""
+Configuration with nested classes.
+"""
+
+
+@configclass
+class OutsideClassCfg:
+    """Outermost dummy configuration."""
+
+    @configclass
+    class InsideClassCfg:
+        """Inner dummy configuration."""
+
+        @configclass
+        class InsideInsideClassCfg:
+            """Dummy configuration with class type."""
+
+            u: List[int] = [1, 2, 3]
+
+        class_name: type = DummyClass
+        b: str = "dummy"
+
+    inside: InsideClassCfg = InsideClassCfg()
+    x: int = 20
+
 
 """
 Dummy configuration: Functions
 """
-
-
-def dummy_function1() -> int:
-    """Dummy function 1."""
-    return 1
-
-
-def dummy_function2() -> int:
-    """Dummy function 2."""
-    return 2
-
-
-def dummy_wrapper(func):
-    """Decorator for wrapping function."""
-
-    @wraps(func)
-    def wrapper():
-        return func() + 1
-
-    return wrapper
-
-
-@dummy_wrapper
-def wrapped_dummy_function3():
-    """Dummy function 3."""
-    return 3
-
-
-@dummy_wrapper
-def wrapped_dummy_function4():
-    """Dummy function 4."""
-    return 4
 
 
 @configclass
@@ -284,7 +343,6 @@ class TestConfigClass(unittest.TestCase):
         cfg = BasicDemoCfg()
         cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
         cfg.from_dict(cfg_dict)
-        print("Updated config: ", cfg.to_dict())
         self.assertDictEqual(cfg.to_dict(), basic_demo_cfg_change_correct)
 
     def test_invalid_update_key(self):
@@ -295,7 +353,7 @@ class TestConfigClass(unittest.TestCase):
             update_class_from_dict(cfg, cfg_dict)
 
     def test_multiple_instances(self):
-        """Test multiple instances of the same configclass."""
+        """Test multiple instances with twice instantiation."""
         # create two config instances
         cfg1 = BasicDemoCfg()
         cfg2 = BasicDemoCfg()
@@ -308,6 +366,11 @@ class TestConfigClass(unittest.TestCase):
         # immutable -- variables are the same
         self.assertEqual(id(cfg1.robot_default_state.dof_pos), id(cfg2.robot_default_state.dof_pos))
         self.assertEqual(id(cfg1.env.num_envs), id(cfg2.env.num_envs))
+        self.assertEqual(id(cfg1.device_id), id(cfg2.device_id))
+
+        # check values
+        self.assertDictEqual(cfg1.env.to_dict(), cfg2.env.to_dict())
+        self.assertDictEqual(cfg1.robot_default_state.to_dict(), cfg2.robot_default_state.to_dict())
 
     def test_alter_values_multiple_instances(self):
         """Test alterations in multiple instances of the same configclass."""
@@ -331,6 +394,48 @@ class TestConfigClass(unittest.TestCase):
         # immutable -- altered variables are different ids
         self.assertNotEqual(id(cfg1.env.num_envs), id(cfg2.env.num_envs))
 
+    def test_multiple_instances_with_replace(self):
+        """Test multiple instances with creation through replace function."""
+        # create two config instances
+        cfg1 = BasicDemoCfg()
+        cfg2 = cfg1.replace()
+
+        # check variable IDs
+        # mutable -- variables should be different
+        self.assertNotEqual(id(cfg1.env.viewer.eye), id(cfg2.env.viewer.eye))
+        self.assertNotEqual(id(cfg1.env.viewer.lookat), id(cfg2.env.viewer.lookat))
+        self.assertNotEqual(id(cfg1.robot_default_state), id(cfg2.robot_default_state))
+        # immutable -- variables are the same
+        self.assertEqual(id(cfg1.robot_default_state.dof_pos), id(cfg2.robot_default_state.dof_pos))
+        self.assertEqual(id(cfg1.env.num_envs), id(cfg2.env.num_envs))
+        self.assertEqual(id(cfg1.device_id), id(cfg2.device_id))
+
+        # check values
+        self.assertDictEqual(cfg1.to_dict(), cfg2.to_dict())
+
+    def test_alter_values_multiple_instances_wth_replace(self):
+        """Test alterations in multiple instances through replace function."""
+        # create two config instances
+        cfg1 = BasicDemoCfg()
+        cfg2 = cfg1.replace(device_id=1)
+
+        # alter configurations
+        cfg1.env.num_envs = 22  # immutable data: int
+        cfg1.env.viewer.eye[0] = 1.0  # mutable data: list
+        cfg1.env.viewer.lookat[2] = 12.0  # mutable data: list
+
+        # check variables
+        # values should be different
+        self.assertNotEqual(cfg1.env.num_envs, cfg2.env.num_envs)
+        self.assertNotEqual(cfg1.env.viewer.eye, cfg2.env.viewer.eye)
+        self.assertNotEqual(cfg1.env.viewer.lookat, cfg2.env.viewer.lookat)
+        # mutable -- variables are different ids
+        self.assertNotEqual(id(cfg1.env.viewer.eye), id(cfg2.env.viewer.eye))
+        self.assertNotEqual(id(cfg1.env.viewer.lookat), id(cfg2.env.viewer.lookat))
+        # immutable -- altered variables are different ids
+        self.assertNotEqual(id(cfg1.env.num_envs), id(cfg2.env.num_envs))
+        self.assertNotEqual(id(cfg1.device_id), id(cfg2.device_id))
+
     def test_configclass_type_ordering(self):
         """Checks ordering of config objects when no type annotation is provided."""
 
@@ -346,12 +451,14 @@ class TestConfigClass(unittest.TestCase):
     def test_functions_config(self):
         """Tests having functions as values in the configuration instance."""
         cfg = FunctionsDemoCfg()
+        # check types
+        self.assertEqual(cfg.__annotations__["func"], type(dummy_function1))
+        self.assertEqual(cfg.__annotations__["wrapped_func"], type(wrapped_dummy_function3))
+        self.assertEqual(cfg.__annotations__["func_in_dict"], dict)
         # check calling
         self.assertEqual(cfg.func(), 1)
         self.assertEqual(cfg.wrapped_func(), 4)
         self.assertEqual(cfg.func_in_dict["func"](), 1)
-        # print dictionary
-        print(class_to_dict(cfg))
 
     def test_dict_conversion_functions_config(self):
         """Tests conversion of config with functions into dictionary."""
@@ -426,6 +533,38 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.b, 2)
         self.assertEqual(cfg.d, 3)
         self.assertEqual(cfg.j, ["c", "d"])
+
+    def test_config_with_class_type(self):
+        """Tests that configclass works properly with class type."""
+
+        cfg = DummyClassCfg()
+
+        # check types
+        self.assertEqual(cfg.__annotations__["class_name_1"], type)
+        self.assertEqual(cfg.__annotations__["class_name_2"], Type[DummyClass])
+        self.assertEqual(cfg.__annotations__["class_name_3"], Type[DummyClass])
+        self.assertEqual(cfg.__annotations__["class_name_4"], ClassVar[Type[DummyClass]])
+        # check values
+        self.assertEqual(cfg.class_name_1, DummyClass)
+        self.assertEqual(cfg.class_name_2, DummyClass)
+        self.assertEqual(cfg.class_name_3, DummyClass)
+        self.assertEqual(cfg.class_name_4, DummyClass)
+        self.assertEqual(cfg.b, "dummy")
+
+    def test_nested_config_class_declarations(self):
+        """Tests that configclass works properly with nested class class declarations."""
+
+        cfg = OutsideClassCfg()
+
+        # check types
+        self.assertNotIn("InsideClassCfg", cfg.__annotations__)
+        self.assertNotIn("InsideClassCfg", OutsideClassCfg.__annotations__)
+        self.assertNotIn("InsideInsideClassCfg", OutsideClassCfg.InsideClassCfg.__annotations__)
+        self.assertNotIn("InsideInsideClassCfg", cfg.inside.__annotations__)
+        # check values
+        self.assertEqual(cfg.inside.class_name, DummyClass)
+        self.assertEqual(cfg.inside.b, "dummy")
+        self.assertEqual(cfg.x, 20)
 
     def test_config_dumping(self):
         """Check that config dumping works properly."""

@@ -1,7 +1,25 @@
 Changelog
 ---------
 
-0.7.1 (2023-07-10)
+
+0.7.2 (2023-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the method :meth:`replace` to the :class:`omni.isaac.orbit.utils.configclass` decorator to allow
+  creating a new configuration object with values replaced from keyword arguments. This function internally
+  calls the `dataclasses.replace <https://docs.python.org/3/library/dataclasses.html#dataclasses.replace>`_.
+
+Fixed
+^^^^^
+
+* Fixed the handling of class types as member values in the :meth:`omni.isaac.orbit.utils.configclass`. Earlier it was
+  throwing an error since class types were skipped in the if-else block.
+
+
+0.7.1 (2023-07-22)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,7 +29,7 @@ Added
   to the :mod:`omni.isaac.orbit.managers` module to handle termination, curriculum, and randomization respectively.
 
 
-0.7.0 (2023-07-10)
+0.7.0 (2023-07-22)
 ~~~~~~~~~~~~~~~~~~
 
 Added

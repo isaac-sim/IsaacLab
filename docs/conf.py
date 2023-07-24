@@ -187,7 +187,7 @@ html_show_sphinx = False
 
 
 def skip_member(app, what, name, obj, skip, options):
-    exclusions = ["from_dict", "to_dict"]  # List the names of the functions you want to skip here
+    exclusions = ["from_dict", "to_dict", "replace"]  # List the names of the functions you want to skip here
     if name in exclusions:
         return True
     return None

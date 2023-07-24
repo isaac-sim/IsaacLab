@@ -7,14 +7,17 @@
 
 
 from copy import deepcopy
-from dataclasses import MISSING, Field, dataclass, field
-from typing import Any, Callable, ClassVar, Dict
+from dataclasses import MISSING, Field, dataclass, field, replace
+from typing import Any, Callable, ClassVar, Dict, Type
 
 from .dict import class_to_dict, update_class_from_dict
 
 # List of all methods provided by sub-module.
 __all__ = ["configclass"]
 
+
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace"]
+"""List of class methods added at runtime to dataclass."""
 
 """
 Wrapper around dataclass.
@@ -75,6 +78,7 @@ def configclass(cls, **kwargs):
     # add helper functions for dictionary conversion
     setattr(cls, "to_dict", _class_to_dict)
     setattr(cls, "from_dict", _update_class_from_dict)
+    setattr(cls, "replace", _replace_class_with_kwargs)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
@@ -111,6 +115,30 @@ def _update_class_from_dict(obj, data: Dict[str, Any]) -> None:
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
     return update_class_from_dict(obj, data, _ns="")
+
+
+def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
+    """Return a new object replacing specified fields with new values.
+
+    This is especially useful for frozen classes.  Example usage:
+
+      @configclass(frozen=True)
+      class C:
+          x: int
+          y: int
+
+      c = C(1, 2)
+      c1 = c.replace(x=3)
+      assert c1.x == 3 and c1.y == 2
+
+    Args:
+        obj (object): The object to replace.
+        **kwargs: The fields to replace and their new values.
+
+    Returns:
+        object: The new object.
+    """
+    return replace(obj, **kwargs)
 
 
 """
@@ -156,7 +184,7 @@ def _add_annotation_types(cls):
             if key.startswith("__"):
                 continue
             # skip class functions
-            if key in ["from_dict", "to_dict"]:
+            if key in _CONFIGCLASS_METHODS:
                 continue
             # check if key is already present
             if key in hints:
@@ -175,6 +203,10 @@ def _add_annotation_types(cls):
                         )
                     # add type annotation
                     hints[key] = type(value)
+            elif key != value.__name__:
+                # note: we don't want to add type annotations for nested configclass. Thus, we check if
+                #   the name of the type matches the name of the variable.
+                hints[key] = Type[value]
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.
@@ -203,8 +235,12 @@ def _process_mutable_types(cls):
            If the function is NOT used, the following value-error is returned:
            ValueError: mutable default <class 'list'> for field pos is not allowed: use default_factory
     """
-    class_members = {}
+    # note: Need to set this up in the same order as annotations. Otherwise, it
+    #   complains about missing positional arguments.
+    ann = cls.__dict__.get("__annotations__", {})
+
     # iterate over all class members and store them in a dictionary
+    class_members = {}
     for base in reversed(cls.__mro__):
         # check if base is object
         if base is object:
@@ -215,29 +251,27 @@ def _process_mutable_types(cls):
             if key.startswith("__"):
                 continue
             # skip class functions
-            if key in ["from_dict", "to_dict"]:
+            if key in _CONFIGCLASS_METHODS:
                 continue
             # get class member
             f = getattr(base, key)
-            # store class member
-            if not isinstance(f, type):
+            # store class member if it is not a type or if it is already present in annotations
+            if not isinstance(f, type) or key in ann:
                 class_members[key] = f
         # iterate over base class data fields
         # in previous call, things that became a dataclass field were removed from class members
         for key, f in base.__dict__.get("__dataclass_fields__", {}).items():
             # store class member
-            class_members[key] = f
+            if not isinstance(f, type) and key not in class_members:
+                class_members[key] = f
 
-    # note: Need to set this up in the same order as annotations. Otherwise, it
-    #   complains about missing positional arguments.
-    ann = cls.__dict__.get("__annotations__", {})
     # check that all annotations are present in class members
     # note: mainly for debugging purposes
     if len(class_members) != len(ann):
         raise ValueError(
-            f"Number of annotations ({len(ann)}) does not match number of class members ({len(class_members)})."
-            " Please check that all class members have type annotations and a default value."
-            " If you don't want to specify a default value, please use the literal `dataclasses.MISSING`."
+            f"In class '{cls.__name__}', number of annotations ({len(ann)}) does not match number of class "
+            f"members ({len(class_members)}). Please check that all class members have type annotations and/or "
+            "a default value. If you don't want to specify a default value, please use the literal `dataclasses.MISSING`."
         )
     # iterate over annotations and add field factory for mutable types
     for key in ann:
