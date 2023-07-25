@@ -7,6 +7,7 @@
 
 
 import abc
+import enum
 import gym
 import numpy as np
 import torch
@@ -45,6 +46,17 @@ observation term in the group, or a single tensor obtained from concatenating al
 VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, Dict]
 """The environment signals processed at the end of each step. It contains the observation, reward, termination
 signal and additional information for each sub-environment."""
+
+
+class RenderMode(enum.Enum):
+    """Different UI-based rendering modes."""
+
+    HEADLESS = -1
+    """Headless mode."""
+    FULL_RENDERING = 0
+    """Full rendering."""
+    NO_RENDERING = 1
+    """No rendering."""
 
 
 class IsaacEnv(gym.Env):
@@ -136,16 +148,44 @@ class IsaacEnv(gym.Env):
         # add flag for checking closing status
         self._is_closed = False
 
+        # we build the GUI only if we are not headless
+        if self.enable_render:
+            # need to import here to wait for the GUI extension to be loaded
+            from omni.kit.viewport.utility import get_active_viewport
+
+            # acquire viewport context
+            self._viewport_context = get_active_viewport()
+            self._viewport_context.updates_enabled = True
+            # build GUI
+            self._build_ui()
+            # default rendering mode to full
+            self.render_mode = RenderMode.FULL_RENDERING
+            # counter for periodic rendering
+            self._ui_throttle_counter = 0
+            # rendering frequency in terms of environment steps
+            # TODO: Make this configurable.
+            self._ui_throttle_period = 5
+            # disable rendering at every step (we render at environment step frequency)
+            # TODO: Fix the name of this variable to be more intuitive.
+            self.enable_render = False
+        else:
+            # set viewport context to None
+            self._viewport_context = None
+            # default rendering mode to no rendering
+            self.render_mode = RenderMode.HEADLESS
+            # no window made
+            self._orbit_window = None
+            self._viewport_window = None
+        # add timeline event to close the environment
+        self.sim.add_timeline_callback("close_env_on_stop", self._stop_simulation_callback)
+
         # initialize common environment buffers
+        self.obs_buf: VecEnvObs = None
         self.reward_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # allocate dictionary to store metrics
         self.extras = {}
-        # create dictionary for storing last observations
-        # note: Only used for the corner case of when in the UI, the stopped button is pressed. Then the
-        #   physics handles become invalid. So it is not possible to call :meth:`_get_observations()`
-        self._last_obs_buf: VecEnvObs = None
 
         # create cloner for duplicating the scenes
         cloner = GridCloner(spacing=self.cfg.env.env_spacing)
@@ -172,6 +212,10 @@ class IsaacEnv(gym.Env):
         cloner.filter_collisions(
             physics_scene_path, "/World/collisions", prim_paths=self.envs_prim_paths, global_paths=global_prim_paths
         )
+
+    def __del__(self):
+        """Close the environment."""
+        self.close()
 
     """
     Properties
@@ -228,9 +272,9 @@ class IsaacEnv(gym.Env):
         # compute common quantities
         self._cache_common_quantities()
         # compute observations
-        self._last_obs_buf = self._get_observations()
+        self.obs_buf = self._get_observations()
         # return observations
-        return self._last_obs_buf
+        return self.obs_buf
 
     def step(self, actions: torch.Tensor) -> VecEnvStepReturn:
         """Reset any terminated environments and apply actions on the environment.
@@ -240,8 +284,8 @@ class IsaacEnv(gym.Env):
         write operations. The timeline event is only detected after every `sim.step()` call. Hence, at
         every call we need to check the status of the simulator. The logic is as follows:
 
-        1. If the simulation is stopped, we complain about it and return the previous buffers.
-        2. If the simulation is paused, we do not set any actions, but step the simulator.
+        1. If the simulation is stopped, the environment is closed and the simulator is shutdown.
+        2. If the simulation is paused, we step the simulator until it is playing.
         3. If the simulation is playing, we set the actions and step the simulator.
 
         Args:
@@ -259,36 +303,50 @@ class IsaacEnv(gym.Env):
                 - (torch.Tensor) whether the current episode is completed or not
                 - (dict) misc information
         """
-        # check if the simulation timeline is playing
-        # if stopped, we complain about it and return the previous mdp buffers
-        if self.sim.is_stopped():
-            carb.log_warn("Simulation is stopped. Please exit the simulator...")
-        # if paused, we do not set any actions into the simulator, but step
-        elif not self.sim.is_playing():
+        # check if the simulation timeline is paused. in that case keep stepping until it is playing
+        if not self.sim.is_playing():
             # step the simulator (but not the physics) to have UI still active
+            while not self.sim.is_playing():
+                self.sim.render()
+                # meantime if someone stops, break out of the loop
+                if self.sim.is_stopped():
+                    break
+            # need to do one step to refresh the app
+            # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
+            #   without this the app becomes unresponsive.
+            # FIXME: This steps physics as well, which we is not good in general.
+            self.sim.app.update()
+
+        # reset environments that terminated
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            self._reset_idx(reset_env_ids)
+        # increment the number of steps
+        self.episode_length_buf += 1
+        # perform the stepping of simulation
+        self._step_impl(actions)
+        # compute observations
+        self.obs_buf = self._get_observations()
+
+        # periodically update the UI to keep it responsive
+        if self.render_mode == RenderMode.NO_RENDERING:
+            self._ui_throttle_counter += 1
+            if self._ui_throttle_counter % self._ui_throttle_period == 0:
+                self._ui_throttle_counter = 0
+                # here we don't render viewport so don't need to flush flatcache
+                self.sim.render()
+        elif self.render_mode == RenderMode.FULL_RENDERING:
+            # manually flush the flatcache data to update Hydra textures
+            if self._flatcache_iface is not None:
+                self._flatcache_iface.update(0.0, 0.0)
+            # perform debug visualization
+            if self.enable_render and self.cfg.env.debug_vis:
+                self._debug_vis()
+            # render the scene
             self.sim.render()
-            # check if the simulation timeline is stopped, do not update buffers
-            if not self.sim.is_stopped():
-                self._last_obs_buf = self._get_observations()
-            else:
-                carb.log_warn("Simulation is stopped. Please exit the simulator...")
-        # if playing, we set the actions into the simulator and step
-        else:
-            # reset environments that terminated
-            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-            if len(reset_env_ids) > 0:
-                self._reset_idx(reset_env_ids)
-            # increment the number of steps
-            self.episode_length_buf += 1
-            # perform the stepping of simulation
-            self._step_impl(actions)
-            # check if the simulation timeline is stopped, do not update buffers
-            if not self.sim.is_stopped():
-                self._last_obs_buf = self._get_observations()
-            else:
-                carb.log_warn("Simulation is stopped. Please exit the simulator...")
+
         # return observations, rewards, resets and extras
-        return self._last_obs_buf, self.reward_buf, self.reset_buf, self.extras
+        return self.obs_buf, self.reward_buf, self.reset_buf, self.extras
 
     def render(self, mode: str = "human") -> Optional[np.ndarray]:
         """Run rendering without stepping through the physics.
@@ -306,7 +364,7 @@ class IsaacEnv(gym.Env):
         # this is because we do not want to render the scene twice
         if not self.enable_render:
             # manually flush the flatcache data to update Hydra textures
-            if self.sim.get_physics_context().use_flatcache:
+            if self._flatcache_iface is not None:
                 self._flatcache_iface.update(0.0, 0.0)
             # render the scene
             self.sim.render()
@@ -338,9 +396,9 @@ class IsaacEnv(gym.Env):
             self.sim.stop()
             # cleanup the scene and callbacks
             self.sim.clear_all_callbacks()
-            self.sim.clear()
-            # fix warnings at stage close
-            omni.usd.get_context().get_stage().GetRootLayer().Clear()
+            # destroy the orbit window
+            if self._orbit_window is not None:
+                self._orbit_window.destroy()
             # update closing status
             self._is_closed = True
 
@@ -421,6 +479,17 @@ class IsaacEnv(gym.Env):
         """
         raise NotImplementedError
 
+    def _debug_vis(self):
+        """Visualize the environment for debugging purposes.
+
+        This function can be overridden by the environment to perform any additional
+        visualizations such as markers for frames, goals, etc.
+
+        Note:
+            This is called only when the viewport is enabled, i.e, the render mode is FULL_RENDERING.
+        """
+        pass
+
     """
     Helper functions - MDP.
     """
@@ -456,7 +525,6 @@ class IsaacEnv(gym.Env):
         # note: helpful when creating contact reporting over limited number of objects in the scene
         if sim_params["disable_contact_processing"]:
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-
         # set flags based on whether rendering is enabled or not
         # note: enabling extensions is order-sensitive. please do not change the order.
         if self.enable_render or self.enable_viewport:
@@ -489,11 +557,13 @@ class IsaacEnv(gym.Env):
         # check if flatcache is enabled
         # this is needed to flush the flatcache data into Hydra manually when calling `env.render()`
         # ref: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html
-        if not self.enable_render and self.sim.get_physics_context().use_flatcache:
+        if self.sim.get_physics_context().use_flatcache:
             from omni.physxflatcache import get_physx_flatcache_interface
 
             # acquire flatcache interface
             self._flatcache_iface = get_physx_flatcache_interface()
+        else:
+            self._flatcache_iface = None
 
         # check if viewport is enabled before creating render product
         if self.enable_viewport:
@@ -506,3 +576,96 @@ class IsaacEnv(gym.Env):
             self._rgb_annotator.attach([self._render_product])
         else:
             carb.log_info("Viewport is disabled. Skipping creation of render product.")
+
+    def _stop_simulation_callback(self, event: carb.events.IEvent):
+        """Callback for when the simulation is stopped."""
+        # check if the simulation is stopped
+        if event.type == int(omni.timeline.TimelineEventType.STOP):
+            carb.log_warn("Simulation is stopped. Closing the environment. This might take a few seconds.")
+            # close the environment
+            # we do this so that wrappers can clean up
+            self.close()
+            # shutdown the simulator
+            self.sim.app.shutdown()
+
+    """
+    Helper functions - GUI.
+    """
+
+    def _build_ui(self):
+        """Constructs the GUI for the environment."""
+        # need to import here to wait for the GUI extension to be loaded
+        import omni.isaac.ui.ui_utils as ui_utils
+        import omni.ui as ui
+
+        # acquire viewport window
+        self._viewport_window = ui.Workspace.get_window("Viewport")
+        # create window for UI
+        self._orbit_window = omni.ui.Window(
+            "Orbit", width=500, height=0, visible=True, dock_preference=ui.DockPreference.RIGHT_TOP
+        )
+        # dock next to properties window
+        property_window = ui.Workspace.get_window("Property")
+        self._orbit_window.dock_in(property_window, ui.DockPosition.SAME, 1.0)
+
+        # keep a dictionary of stacks so that child environments can add their own UI elements
+        # this can be done by using the `with` context manager
+        self._orbit_window_elements = dict()
+        # create main frame
+        with self._orbit_window.frame:
+            # create main stack
+            self._orbit_window_elements["main_vstack"] = ui.VStack(spacing=5, height=0)
+            with self._orbit_window_elements["main_vstack"]:
+                # create collapsable frame for controls
+                self._orbit_window_elements["control_frame"] = ui.CollapsableFrame(
+                    title="Controls",
+                    width=ui.Fraction(1),
+                    height=0,
+                    collapsed=False,
+                    style=ui_utils.get_style(),
+                    horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+                    vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+                )
+                with self._orbit_window_elements["control_frame"]:
+                    # create stack for controls
+                    self._orbit_window_elements["controls_vstack"] = ui.VStack(spacing=5, height=0)
+                    with self._orbit_window_elements["controls_vstack"]:
+                        # create rendering mode dropdown
+                        render_mode_cfg = {
+                            "label": "Rendering Mode",
+                            "type": "dropdown",
+                            "default_val": 0,
+                            "items": [member.name for member in RenderMode if member.value >= 0],
+                            "tooltip": "Select a rendering mode",
+                            "on_clicked_fn": self._on_render_mode_select,
+                        }
+                        _ = ui_utils.dropdown_builder(**render_mode_cfg)
+                        # create debug visualization checkbox
+                        debug_vis_checkbox = {
+                            "label": "Debug Visualization",
+                            "type": "checkbox",
+                            "default_val": self.cfg.viewer.debug_vis,
+                            "tooltip": "Toggle environment debug visualization",
+                            "on_clicked_fn": self._toggle_debug_visualization_flag,
+                        }
+                        _ = ui_utils.cb_builder(**debug_vis_checkbox)
+
+    def _on_render_mode_select(self, value: str):
+        """Callback for when the rendering mode is selected."""
+        if value == RenderMode.FULL_RENDERING.name:
+            self._viewport_context.updates_enabled = True
+            self._viewport_window.visible = True
+            # update flags for rendering
+            self.render_mode = RenderMode.FULL_RENDERING
+        elif value == RenderMode.NO_RENDERING.name:
+            self._viewport_context.updates_enabled = False
+            self._viewport_window.visible = False  # hide viewport
+            # update flags for rendering
+            self.render_mode = RenderMode.NO_RENDERING
+            self._ui_throttle_counter = 0
+        else:
+            carb.log_error(f"Unknown rendering mode selected: {value}. Please select a valid rendering mode.")
+
+    def _toggle_debug_visualization_flag(self, value: bool):
+        """Toggle environment debug visualization flag."""
+        self.cfg.viewer.debug_vis = value

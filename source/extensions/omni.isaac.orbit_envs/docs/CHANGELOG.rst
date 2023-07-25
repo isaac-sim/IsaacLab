@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+
+0.3.2 (2023-07-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added a UI to the :class:`IsaacEnv` class to enable/disable rendering of the viewport when not running in
+  headless mode.
+
+
+Fixed
+^^^^^
+
+* Fixed the the issue with environment returning transition tuples even when the simulation is paused.
+* Fixed the shutdown of the simulation when the environment is closed.
+
+
 0.3.1 (2023-06-23)
 ~~~~~~~~~~~~~~~~~~
 
