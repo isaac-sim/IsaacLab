@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.7.3 (2023-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with multiple inheritance in the :class:`omni.isaac.orbit.utils.configclass` decorator.
+  Earlier, if the inheritance tree was more than one level deep and the lowest level configuration class was
+  not updating its values from the middle level classes.
+
 
 0.7.2 (2023-07-24)
 ~~~~~~~~~~~~~~~~~~

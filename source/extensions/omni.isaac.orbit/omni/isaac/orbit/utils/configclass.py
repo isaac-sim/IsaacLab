@@ -260,9 +260,10 @@ def _process_mutable_types(cls):
                 class_members[key] = f
         # iterate over base class data fields
         # in previous call, things that became a dataclass field were removed from class members
+        # so we need to add them back here as a dataclass field directly
         for key, f in base.__dict__.get("__dataclass_fields__", {}).items():
             # store class member
-            if not isinstance(f, type) and key not in class_members:
+            if not isinstance(f, type):
                 class_members[key] = f
 
     # check that all annotations are present in class members

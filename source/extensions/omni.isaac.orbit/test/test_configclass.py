@@ -8,7 +8,7 @@ import os
 import unittest
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import ClassVar, List, Type
+from typing import Callable, ClassVar, List, Type
 
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
@@ -143,19 +143,30 @@ class ParentDemoCfg:
     b = 2  # type annotation missing on purpose
     c: RobotDefaultStateCfg = MISSING  # add new missing field
     j: List[str] = MISSING  # add new missing field
+    func: Callable = MISSING  # add new missing field
 
 
 @configclass
 class ChildDemoCfg(ParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
+    func = dummy_function1  # set default value for missing field
     c = RobotDefaultStateCfg()  # set default value for missing field
 
+    func_2: Callable = MISSING  # add new missing field
     d: int = MISSING  # add new missing field
     k: List[str] = ["c", "d"]
     e: ViewerCfg = MISSING  # add new missing field
 
     dummy_class = DummyClass
+
+
+@configclass
+class ChildChildDemoCfg(ChildDemoCfg):
+    """Dummy child configuration with missing fields."""
+
+    func_2 = dummy_function2
+    d = 2  # set default value for missing field
 
 
 """
@@ -529,6 +540,19 @@ class TestConfigClass(unittest.TestCase):
         # check variables
         cfg = ChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
 
+        self.assertEqual(cfg.func, dummy_function1)
+        self.assertEqual(cfg.a, 20)
+        self.assertEqual(cfg.b, 2)
+        self.assertEqual(cfg.d, 3)
+        self.assertEqual(cfg.j, ["c", "d"])
+
+    def test_config_double_inheritance(self):
+        """Tests that inheritance works properly when inheriting twice."""
+        # check variables
+        cfg = ChildChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+
+        self.assertEqual(cfg.func, dummy_function1)
+        self.assertEqual(cfg.func_2, dummy_function2)
         self.assertEqual(cfg.a, 20)
         self.assertEqual(cfg.b, 2)
         self.assertEqual(cfg.d, 3)
