@@ -31,13 +31,13 @@ The environments are then registered in the `omni/isaac/orbit_envs/__init__.py`:
 ```python
 gym.register(
     id="Isaac-Velocity-Anymal-C-v0",
-    entry_point="omni.isaac.orbit_envs.locomotion.velocity:VelocityEnv",
+    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
     kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity.anymal_c.flat_terrain_cfg:FlatTerrainCfg"},
 )
 
 gym.register(
     id="Isaac-Velocity-A1-v0",
-    entry_point="omni.isaac.orbit_envs.locomotion.velocity:VelocityEnv",
+    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
     kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity.a1.flat_terrain_cfg:FlatTerrainCfg"},
 )
 ```

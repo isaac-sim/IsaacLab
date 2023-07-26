@@ -371,7 +371,7 @@ Transformations
 """
 
 
-@torch.jit.script
+# @torch.jit.script
 def combine_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor = None, q12: torch.Tensor = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:

@@ -53,31 +53,3 @@ class ActuatorControlCfg:
 
     If :obj:`None`, these are loaded from the articulation prim.
     """
-
-    dof_pos_offset: Optional[Dict[str, float]] = None
-    """
-    DOF position offsets used for processing commands. Defaults to :obj:`None`.
-
-    If :obj:`None`, these are processed as zero, i.e. absolute commands.
-    """
-
-    dof_pos_scale: Optional[Dict[str, float]] = None
-    """
-    DOF position scaling factor used for processing commands. Defaults to :obj:`None`.
-
-    If :obj:`None`, these are processed as ones, i.e. absolute commands.
-    """
-
-    dof_vel_scale: Optional[Dict[str, float]] = None
-    """
-    DOF velocity scaling factor used for processing commands. Defaults to :obj:`None`.
-
-    If :obj:`None`, these are processed as ones, i.e. absolute commands.
-    """
-
-    dof_torque_scale: Optional[Dict[str, float]] = None
-    """
-    DOF torque scaling factor used for processing commands. Defaults to :obj:`None`.
-
-    If :obj:`None`, these are processed as ones, i.e. absolute commands.
-    """

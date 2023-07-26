@@ -153,6 +153,13 @@ class HumanoidEnv(IsaacEnv):
         self.episode_length_buf[env_ids] = 0
 
     def _step_impl(self, actions: torch.Tensor):
+        # reset environments that terminated
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            self._reset_idx(reset_env_ids)
+        # increment the number of steps
+        self.episode_length_buf += 1
+
         # pre-step: set actions into buffer
         self.actions = actions.clone().to(device=self.device)
         dof_forces = self.actions * self._JOINT_GEARS * self.cfg_dict["env"]["power_scale"]

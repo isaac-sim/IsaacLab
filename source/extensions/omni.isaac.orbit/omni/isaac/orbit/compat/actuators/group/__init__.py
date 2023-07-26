@@ -14,8 +14,6 @@ Module containing different actuator groups.
 from .actuator_control_cfg import ActuatorControlCfg
 from .actuator_group import ActuatorGroup
 from .actuator_group_cfg import ActuatorGroupCfg, GripperActuatorGroupCfg, NonHolonomicKinematicsGroupCfg
-from .gripper_group import GripperActuatorGroup
-from .non_holonomic_group import NonHolonomicKinematicsGroup
 
 __all__ = [
     # control
@@ -23,10 +21,4 @@ __all__ = [
     # default
     "ActuatorGroupCfg",
     "ActuatorGroup",
-    # mimic
-    "GripperActuatorGroupCfg",
-    "GripperActuatorGroup",
-    # non-holonomic
-    "NonHolonomicKinematicsGroupCfg",
-    "NonHolonomicKinematicsGroup",
 ]

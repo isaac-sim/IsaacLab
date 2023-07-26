@@ -5,6 +5,7 @@
 
 import torch
 from dataclasses import dataclass
+from typing import List
 
 
 @dataclass
@@ -12,11 +13,21 @@ class RobotBaseData:
     """Data container for a robot."""
 
     ##
+    # Properties.
+    ##
+
+    dof_names: List[str] = None
+    """DOF names in the order parsed by the simulation view."""
+
+    ##
     # Frame states.
     ##
 
     root_state_w: torch.Tensor = None
     """Root state `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is ``(count, 13)``."""
+
+    body_state_w: torch.Tensor = None
+    """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is ``(count, num_bodies, 13)``."""
 
     ##
     # DOF states <- From simulation.
@@ -30,6 +41,12 @@ class RobotBaseData:
 
     dof_acc: torch.Tensor = None
     """DOF acceleration of all joints. Shape is ``(count, num_dof)``."""
+
+    default_dof_pos: torch.Tensor = None
+    """DOF default positions of all joints. Shape is ``(count, num_dof)``."""
+
+    default_dof_vel: torch.Tensor = None
+    """DOF default velocities of all joints. Shape is ``(count, num_dof)``."""
 
     ##
     # DOF commands -- Set into simulation.
@@ -53,6 +70,12 @@ class RobotBaseData:
     Note: The torques are zero for implicit actuator models without feed-forward torque.
     """
 
+    dof_stiffness: torch.Tensor = None
+    """DOF stiffness provided to simulation. Shape is ``(count, num_dof)``."""
+
+    dof_damping: torch.Tensor = None
+    """DOF damping provided to simulation. Shape is ``(count, num_dof)``."""
+
     ##
     # DOF commands -- Explicit actuators.
     ##
@@ -70,13 +93,6 @@ class RobotBaseData:
 
     Note: The torques are zero for implicit actuator models.
     """
-
-    ##
-    # Default actuator offsets <- From the actuator groups.
-    ##
-
-    actuator_pos_offset: torch.Tensor = None
-    """Joint positions offsets applied by actuators when using "p_abs". Shape is ``(count, num_dof)``."""
 
     ##
     # Other Data.

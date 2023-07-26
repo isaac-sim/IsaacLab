@@ -18,8 +18,8 @@ Reference:
 import math
 from scipy.spatial.transform import Rotation
 
-from omni.isaac.orbit.actuators.config.anydrive import ANYMAL_C_DEFAULT_GROUP_CFG
-from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
+from omni.isaac.orbit.actuators.config.anydrive import Anydrive3LSTMCfg
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
 
 from ..legged_robot import LeggedRobotCfg
 
@@ -47,31 +47,28 @@ def euler_rpy_apply(rpy, xyz, degrees=False):
 ##
 
 _ANYMAL_B_INSTANCEABLE_USD = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmalB/anymal_b_instanceable.usd"
-_ANYMAL_C_INSTANCEABLE_USD = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmalC/anymal_c_minimal_instanceable.usd"
+# _ANYMAL_C_INSTANCEABLE_USD = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmalC/anymal_c_minimal_instanceable.usd"
+_ANYMAL_C_INSTANCEABLE_USD = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
 
 
 ANYMAL_B_CFG = LeggedRobotCfg(
     meta_info=LeggedRobotCfg.MetaInfoCfg(usd_path=_ANYMAL_B_INSTANCEABLE_USD, soft_dof_pos_limit_factor=0.95),
     feet_info={
-        "LF_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="LF_SHANK",
+        "LF_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=(0.1, -0.02, -0.3215),
         ),
-        "RF_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="RF_SHANK",
+        "RF_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=(0.1, 0.02, -0.3215),
         ),
-        "LH_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="LH_SHANK",
+        "LH_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=(-0.1, -0.02, -0.3215),
         ),
-        "RH_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="RH_SHANK",
+        "RH_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=(-0.1, 0.02, -0.3215),
         ),
     },
     init_state=LeggedRobotCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.6),
+        pos=(0.0, 0.0, 0.62),
         dof_pos={
             ".*HAA": 0.0,  # all HAA
             ".*F_HFE": 0.4,  # both front HFE
@@ -95,32 +92,28 @@ ANYMAL_B_CFG = LeggedRobotCfg(
         rest_offset=0.0,
     ),
     articulation_props=LeggedRobotCfg.ArticulationRootPropertiesCfg(
-        enable_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=1
+        enable_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
     ),
-    actuator_groups={"base_legs": ANYMAL_C_DEFAULT_GROUP_CFG},
+    actuators={"legs": Anydrive3LSTMCfg(dof_name_expr=[".*HAA", ".*HFE", ".*KFE"])},
 )
 """Configuration of ANYmal-B robot using actuator-net."""
 
 ANYMAL_C_CFG = LeggedRobotCfg(
     meta_info=LeggedRobotCfg.MetaInfoCfg(usd_path=_ANYMAL_C_INSTANCEABLE_USD, soft_dof_pos_limit_factor=0.95),
     feet_info={
-        "LF_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="LF_SHANK",
+        "LF_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=euler_rpy_apply(rpy=(0, 0, -math.pi / 2), xyz=(0.08795, 0.01305, -0.33797)),
             rot_offset=quat_from_euler_rpy(0, 0, -math.pi / 2),
         ),
-        "RF_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="RF_SHANK",
+        "RF_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=euler_rpy_apply(rpy=(0, 0, math.pi / 2), xyz=(0.08795, -0.01305, -0.33797)),
             rot_offset=quat_from_euler_rpy(0, 0, math.pi / 2),
         ),
-        "LH_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="LH_SHANK",
+        "LH_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=euler_rpy_apply(rpy=(0, 0, -math.pi / 2), xyz=(-0.08795, 0.01305, -0.33797)),
             rot_offset=quat_from_euler_rpy(0, 0, -math.pi / 2),
         ),
-        "RH_FOOT": LeggedRobotCfg.FootFrameCfg(
-            body_name="RH_SHANK",
+        "RH_SHANK": LeggedRobotCfg.FootFrameCfg(
             pos_offset=euler_rpy_apply(rpy=(0, 0, math.pi / 2), xyz=(-0.08795, -0.01305, -0.33797)),
             rot_offset=quat_from_euler_rpy(0, 0, math.pi / 2),
         ),
@@ -152,6 +145,6 @@ ANYMAL_C_CFG = LeggedRobotCfg(
     articulation_props=LeggedRobotCfg.ArticulationRootPropertiesCfg(
         enable_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=1
     ),
-    actuator_groups={"base_legs": ANYMAL_C_DEFAULT_GROUP_CFG},
+    actuators={"legs": Anydrive3LSTMCfg(dof_name_expr=[".*HAA", ".*HFE", ".*KFE"])},
 )
 """Configuration of ANYmal-C robot using actuator-net."""

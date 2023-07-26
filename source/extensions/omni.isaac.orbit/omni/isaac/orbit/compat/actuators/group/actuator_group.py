@@ -37,7 +37,7 @@ class ActuatorGroup:
     """The configuration of the actuator group."""
     view: ArticulationView
     """The simulation articulation view."""
-    num_articulations: int
+    num_articulation: int
     """Number of articulations in the view."""
     device: str
     """Device used for processing."""
@@ -46,19 +46,7 @@ class ActuatorGroup:
     dof_indices: List[int]
     """Articulation's DOF indices that are part of the group."""
     model: Optional[IdealActuator]
-    """Actuator model used by the group.
-
-    If model type is "implicit" (i.e., when :obj:`ActuatorGroupCfg.model_cfg` is instance of
-    :class:`ImplicitActuatorCfg`), then `model` is set to :obj:`None`.
-    """
-    dof_pos_offset: torch.Tensor
-    """DOF position offsets used for processing commands."""
-    dof_pos_scale: torch.Tensor
-    """DOF position scale used for processing commands."""
-    dof_vel_scale: torch.Tensor
-    """DOF velocity scale  used for processing commands."""
-    dof_torque_scale: torch.Tensor
-    """DOF torque scale used for processing commands."""
+    """Actuator model used by the group."""
 
     def __init__(self, cfg: ActuatorGroupCfg, view: ArticulationView):
         """Initialize the actuator group.
@@ -365,7 +353,7 @@ class ActuatorGroup:
 
         Returns:
             torch.Tensor: Desired commands for the DOFs in the group.
-                Shape is ``(num_articulations, num_actuators * len(command_types))``.
+                Shape is ``(num_articulation, num_actuators * len(command_types))``.
         """
         return command
 

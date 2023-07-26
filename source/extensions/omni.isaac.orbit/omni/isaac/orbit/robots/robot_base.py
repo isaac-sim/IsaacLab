@@ -5,16 +5,18 @@
 
 import re
 import torch
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.articulations import ArticulationView
+from omni.isaac.core.prims import RigidPrimView
+from omni.isaac.core.utils.types import ArticulationActions
+from pxr import PhysxSchema
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.actuators.group import *  # noqa: F403, F401
-from omni.isaac.orbit.actuators.group import ActuatorGroup
-from omni.isaac.orbit.utils.math import sample_uniform
+from omni.isaac.orbit.actuators import ActuatorBase, ImplicitActuator
 
 from .robot_base_cfg import RobotBaseCfg
 from .robot_base_data import RobotBaseData
@@ -36,7 +38,7 @@ class RobotBase:
     """Configuration for the robot."""
     articulations: ArticulationView = None
     """Articulation view of the robot."""
-    actuator_groups: Dict[str, ActuatorGroup]
+    actuators: Dict[str, ActuatorBase]
     """Mapping between actuator group names and instance."""
 
     def __init__(self, cfg: RobotBaseCfg):
@@ -53,7 +55,7 @@ class RobotBase:
         # Flag to check that instance is spawned.
         self._is_spawned = False
         # data for storing actuator group
-        self.actuator_groups = dict.fromkeys(self.cfg.actuator_groups.keys())
+        self.actuators = dict.fromkeys(self.cfg.actuators.keys())
 
     """
     Properties
@@ -72,7 +74,8 @@ class RobotBase:
     @property
     def body_names(self) -> List[str]:
         """Ordered names of links/bodies in articulation."""
-        return self.articulations.body_names
+        prim_paths = self._body_view.prim_paths[: self.num_bodies]
+        return [path.split("/")[-1] for path in prim_paths]
 
     @property
     def dof_names(self) -> List[str]:
@@ -85,9 +88,14 @@ class RobotBase:
         return self.articulations.num_dof
 
     @property
+    def num_bodies(self) -> int:
+        """Total number of DOFs in articulation."""
+        return self.articulations.num_bodies
+
+    @property
     def num_actions(self) -> int:
         """Dimension of the actions applied."""
-        return sum(group.control_dim for group in self.actuator_groups.values())
+        return sum(group.control_dim for group in self.actuators.values())
 
     @property
     def data(self) -> RobotBaseData:
@@ -137,6 +145,19 @@ class RobotBase:
         kit_utils.set_nested_collision_properties(prim_path, **self.cfg.collision_props.to_dict())
         # articulation root settings
         kit_utils.set_articulation_properties(prim_path, **self.cfg.articulation_props.to_dict())
+        # -- add contact reporting api
+        contact_sensor_paths = prim_utils.find_matching_prim_paths(prim_path + "/.*")
+        stage = stage_utils.get_current_stage()
+        for sensor_path in contact_sensor_paths:
+            prim = prim_utils.get_prim_at_path(sensor_path)
+            for link_prim in prim.GetChildren() + [prim]:
+                if link_prim.HasAPI(PhysxSchema.PhysxRigidBodyAPI):
+                    # set sleep threshold to zero
+                    rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, link_prim.GetPrimPath())
+                    rb.CreateSleepThresholdAttr().Set(0.0)
+                    # add contact report API with threshold of zero
+                    cr_api = PhysxSchema.PhysxContactReportAPI.Apply(link_prim)
+                    cr_api.CreateThresholdAttr().Set(0)
         # set spawned to true
         self._is_spawned = True
 
@@ -157,27 +178,43 @@ class RobotBase:
         """
         # default prim path if not cloned
         if prim_paths_expr is None:
-            if self._is_spawned is not None:
-                self._prim_paths_expr = self._spawn_prim_path
-            else:
-                raise RuntimeError(
-                    "Initialize the robot failed! Please provide a valid argument for `prim_paths_expr`."
-                )
+            if self._is_spawned is None:
+                raise RuntimeError("Failed to initialize robot. Please provide a valid 'prim_paths_expr'.")
+            # -- use spawn path
+            self._prim_paths_expr = self._spawn_prim_path
         else:
             self._prim_paths_expr = prim_paths_expr
         # create handles
         # -- robot articulation
         self.articulations = ArticulationView(self._prim_paths_expr, reset_xform_properties=False)
         self.articulations.initialize()
+        # -- body view only needed to apply external force
+        self._body_view = RigidPrimView(
+            name="body_view",
+            prim_paths_expr=f"{self._prim_paths_expr}/.*",
+            reset_xform_properties=False,
+            track_contact_forces=False,
+            prepare_contact_sensors=False,
+        )
+        self._body_view.initialize()
         # set the default state
         self.articulations.post_reset()
         # set properties over all instances
+        # create buffers
+        self._create_buffers()
         # -- meta-information
         self._process_info_cfg()
         # -- actuation properties
         self._process_actuators_cfg()
-        # create buffers
-        self._create_buffers()
+
+        # set the default state of the robot (passed from the config)
+        self.articulations.set_default_state(self._default_root_states[:, :3], self._default_root_states[:, 3:7])
+        self.articulations.set_joints_default_state(self._data.default_dof_pos, self._data.default_dof_vel)
+        # buffers for external forces and torque
+        self.has_external_force = False
+        self._external_force = torch.zeros((self.count, self.num_bodies, 3), device=self.device)
+        self._external_torque = torch.zeros((self.count, self.num_bodies, 3), device=self.device)
+        self._external_force_indices = torch.arange(self._body_view.count, dtype=torch.int32, device=self.device)
 
     def reset_buffers(self, env_ids: Optional[Sequence[int]] = None):
         """Resets all internal buffers.
@@ -191,63 +228,103 @@ class RobotBase:
             env_ids = ...
         # reset history
         self._previous_dof_vel[env_ids] = 0
-        # TODO: Reset other cached variables.
-        self.articulations.set_joint_efforts(self._ZERO_JOINT_EFFORT[env_ids], indices=self._ALL_INDICES[env_ids])
         # reset actuators
-        for group in self.actuator_groups.values():
+        for group in self.actuators.values():
             group.reset(env_ids)
 
-    def apply_action(self, actions: torch.Tensor):
-        """Apply the input action for the robot into the simulator.
+    def set_dof_position_targets(self, targets: torch.Tensor, dof_ids: Optional[Sequence[int]] = None) -> None:
+        if dof_ids is None:
+            dof_ids = ...
+        self._data.dof_pos_targets[:, dof_ids] = targets
 
-        The actions are first processed using actuator groups. Depending on the robot configuration,
-        the groups compute the joint level simulation commands and sets them into the PhysX buffers.
+    def set_dof_velocity_targets(self, targets: torch.Tensor, dof_ids: Optional[Sequence[int]] = None) -> None:
+        if dof_ids is None:
+            dof_ids = ...
+        self._data.dof_pos_targets[:, dof_ids] = targets
 
-        Args:
-            actions (torch.Tensor): The input actions to apply.
+    def set_dof_efforts(self, targets: torch.Tensor, dof_ids: Optional[Sequence[int]] = None) -> None:
+        if dof_ids is None:
+            dof_ids = ...
+        self._data.dof_pos_targets[:, dof_ids] = targets
+
+    def write_commands_to_sim(self):
+        self._apply_actuator_model()
+        # self.articulations._physics_sim_view.enable_warnings(False)
+        # apply actions into simluation
+        self.articulations._physics_view.set_dof_actuation_forces(self._data.dof_effort_targets, self._ALL_INDICES)
+        # position and velocity targets only for implicit actuators
+        if self._has_implicit_actuators:
+            self.articulations._physics_view.set_dof_position_targets(self._data.dof_pos_targets, self._ALL_INDICES)
+            self.articulations._physics_view.set_dof_velocity_targets(self._data.dof_vel_targets, self._ALL_INDICES)
+
+        if self.has_external_force:
+            self._body_view._physics_view.apply_forces_and_torques_at_position(
+                force_data=self._external_force,
+                torque_data=self._external_torque,
+                position_data=None,
+                indices=self._external_force_indices,
+                is_global=False,
+            )
+        # enable warnings for other unsafe operations ;)
+        # self.articulations._physics_sim_view.enable_warnings(True)
+
+    def _apply_actuator_model(self):
+        """Processes dof targets of the robot according to the model of actuator.
+
+        The dof targets are first processed using actuator groups. Depending on the robot configuration,
+        the groups compute the joint level simulation commands.
         """
-        # slice actions per actuator group
-        group_actions_dims = [group.control_dim for group in self.actuator_groups.values()]
-        all_group_actions = torch.split(actions, group_actions_dims, dim=-1)
-        # note: we use internal buffers to deal with the resets() as the buffers aren't forwarded
-        #   unit the next simulation step.
-        dof_pos = self._data.dof_pos
-        dof_vel = self._data.dof_vel
         # process actions per group
-        for group, group_actions in zip(self.actuator_groups.values(), all_group_actions):
+        for actuator in self.actuators.values():
+            if isinstance(actuator, ImplicitActuator):
+                # TODO read torque from simulation
+                # self._data.computed_torques[:, actuator.dof_indices] = ???
+                # self._data.applied_torques[:, actuator.dof_indices] = ???
+                continue
             # compute group dof command
-            control_action = group.compute(
-                group_actions, dof_pos=dof_pos[:, group.dof_indices], dof_vel=dof_vel[:, group.dof_indices]
+            control_action = (
+                ArticulationActions(  # TODO : A tensor dict would be nice to do the indexing of all tensors together
+                    joint_positions=self._data.dof_pos_targets[:, actuator.dof_indices],
+                    joint_velocities=self._data.dof_vel_targets[:, actuator.dof_indices],
+                    joint_efforts=self._data.dof_effort_targets[:, actuator.dof_indices],
+                )
+            )
+            control_action = actuator.compute(
+                control_action,
+                dof_pos=self._data.dof_pos[:, actuator.dof_indices],
+                dof_vel=self._data.dof_vel[:, actuator.dof_indices],
             )
             # update targets
             if control_action.joint_positions is not None:
-                self._data.dof_pos_targets[:, group.dof_indices] = control_action.joint_positions
+                self._data.dof_pos_targets[:, actuator.dof_indices] = control_action.joint_positions
             if control_action.joint_velocities is not None:
-                self._data.dof_vel_targets[:, group.dof_indices] = control_action.joint_velocities
+                self._data.dof_vel_targets[:, actuator.dof_indices] = control_action.joint_velocities
             if control_action.joint_efforts is not None:
-                self._data.dof_effort_targets[:, group.dof_indices] = control_action.joint_efforts
+                self._data.dof_effort_targets[:, actuator.dof_indices] = control_action.joint_efforts
             # update state
             # -- torques
-            self._data.computed_torques[:, group.dof_indices] = group.computed_torques
-            self._data.applied_torques[:, group.dof_indices] = group.applied_torques
+            self._data.computed_torques[:, actuator.dof_indices] = actuator.computed_effort
+            self._data.applied_torques[:, actuator.dof_indices] = actuator.applied_effort
             # -- actuator data
-            self._data.gear_ratio[:, group.dof_indices] = group.gear_ratio
-            if group.velocity_limit is not None:
-                self._data.soft_dof_vel_limits[:, group.dof_indices] = group.velocity_limit
-        # silence the physics sim for warnings that make no sense :)
-        # note (18.08.2022): Saw a difference of up to 5 ms per step when using Isaac Sim
-        #   ArticulationView.apply_action() method compared to direct PhysX calls. Thus,
-        #   this function is optimized to apply actions for the whole robot.
-        self.articulations._physics_sim_view.enable_warnings(False)
-        # apply actions into sim
-        if self.sim_dof_control_modes["position"]:
-            self.articulations._physics_view.set_dof_position_targets(self._data.dof_pos_targets, self._ALL_INDICES)
-        if self.sim_dof_control_modes["velocity"]:
-            self.articulations._physics_view.set_dof_velocity_targets(self._data.dof_vel_targets, self._ALL_INDICES)
-        if self.sim_dof_control_modes["effort"]:
-            self.articulations._physics_view.set_dof_actuation_forces(self._data.dof_effort_targets, self._ALL_INDICES)
-        # enable warnings for other unsafe operations ;)
-        self.articulations._physics_sim_view.enable_warnings(True)
+            self._data.soft_dof_vel_limits[:, actuator.dof_indices] = actuator.velocity_limit
+            if hasattr(actuator, "gear_ratio"):  # TODO find a cleaner way to handle this
+                self._data.gear_ratio[:, actuator.dof_indices] = actuator.gear_ratio
+
+    def refresh_sim_data(self, refresh_dofs=True, refresh_bodies=True):
+        """Refreshes the internal buffers from the simulator.
+
+        Args:
+            refresh_dofs (bool, optional): Whether to refresh the DOF states. Defaults to True.
+            refresh_bodies (bool, optional): Whether to refresh the body states. Defaults to True.
+        """
+        if refresh_dofs:
+            self._data.dof_pos[:] = self.articulations._physics_view.get_dof_positions()
+            self._data.dof_vel[:] = self.articulations._physics_view.get_dof_velocities()
+        if refresh_bodies:
+            self._data.body_state_w[:, :, :7] = self._body_view._physics_view.get_transforms().view(self.count, -1, 7)
+            self._data.body_state_w[:, :, 3:7] = self._data.body_state_w[:, :, 3:7].roll(1, dims=-1)
+            self._data.body_state_w[:, :, 7:13] = self._body_view._physics_view.get_velocities().view(self.count, -1, 6)
+            self._data.root_state_w[:] = self._data.body_state_w[:, 0]
 
     def update_buffers(self, dt: float):
         """Update the internal buffers.
@@ -260,17 +337,13 @@ class RobotBase:
         """
         # TODO: Make function independent of `dt` by using internal clocks that check the rate of `apply_action()` call.
         # frame states
-        # -- root frame in world
-        position_w, quat_w = self.articulations.get_world_poses(indices=self._ALL_INDICES, clone=False)
-        self._data.root_state_w[:, 0:3] = position_w
-        self._data.root_state_w[:, 3:7] = quat_w
-        self._data.root_state_w[:, 7:] = self.articulations.get_velocities(indices=self._ALL_INDICES, clone=False)
         # -- dof states
-        self._data.dof_pos[:] = self.articulations.get_joint_positions(indices=self._ALL_INDICES, clone=False)
-        self._data.dof_vel[:] = self.articulations.get_joint_velocities(indices=self._ALL_INDICES, clone=False)
         self._data.dof_acc[:] = (self._data.dof_vel - self._previous_dof_vel) / dt
         # update history buffers
         self._previous_dof_vel[:] = self._data.dof_vel[:]
+
+    def debug_vis(self):
+        pass
 
     """
     Operations - State.
@@ -280,21 +353,27 @@ class RobotBase:
         """Sets the root state (pose and velocity) of the actor over selected environment indices.
 
         Args:
-            root_states (torch.Tensor): Input root state for the actor, shape: (len(env_ids), 13).
+            root_states (torch.Tensor): Input root state for the actor, shape: (len(env_ids), 13), where
+                `root_states = [pos_x, pos_y, pos_z,
+                                quat_w, quat_x, quat_y, quat_z,
+                                vel_x, vel_y, vel_z,
+                                ang_vel_x, ang_vel_y, ang_vel_z]`.
             env_ids (Optional[Sequence[int]]): Environment indices.
                 If :obj:`None`, then all indices are used.
         """
         # resolve all indices
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # set into simulation
-        self.articulations.set_world_poses(root_states[:, 0:3], root_states[:, 3:7], indices=env_ids)
-        self.articulations.set_velocities(root_states[:, 7:], indices=env_ids)
 
-        # TODO: Move these to reset_buffers call.
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.root_state_w[env_ids] = root_states.clone()
+        self._data.root_state_w[env_ids] = root_states
+        # convert between quaternion conventions
+        root_pose_converted = self._data.root_state_w[:, :7].clone()
+        root_pose_converted[:, 3:] = root_pose_converted[:, 3:].roll(-1, dims=-1)
+        # set into simulation
+        self.articulations._physics_view.set_root_transform(root_pose_converted, indices=env_ids)
+        self.articulations._physics_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=env_ids)
 
     def get_default_root_state(self, env_ids: Optional[Sequence[int]] = None, clone=True) -> torch.Tensor:
         """Returns the default/initial root state of actor.
@@ -329,80 +408,90 @@ class RobotBase:
         if env_ids is None:
             env_ids = self._ALL_INDICES
         # set into simulation
-        self.articulations.set_joint_positions(dof_pos, indices=env_ids)
-        self.articulations.set_joint_velocities(dof_vel, indices=env_ids)
 
-        # TODO: Move these to reset_buffers call.
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.dof_pos[env_ids] = dof_pos.clone()
-        self._data.dof_vel[env_ids] = dof_vel.clone()
+        self._data.dof_pos[env_ids] = dof_pos
+        self._data.dof_vel[env_ids] = dof_vel
         self._data.dof_acc[env_ids] = 0.0
 
-    def get_default_dof_state(
-        self, env_ids: Optional[Sequence[int]] = None, clone=True
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Returns the default/initial DOF state (position and velocity) of actor.
+        self.articulations._physics_view.set_dof_positions(self._data.dof_pos, indices=env_ids)
+        self.articulations._physics_view.set_dof_velocities(self._data.dof_vel, indices=env_ids)
 
-        Args:
-            env_ids (Optional[Sequence[int]], optional): Environment indices.
-                Defaults to None (all environment indices).
-            clone (bool, optional): Whether to return a copy or not. Defaults to True.
+    def set_external_force_and_torque(self, forces, torques, env_ids, body_ids):
+        if forces.any() or torques.any():
+            self.has_external_force = True
+            # create global body indices from env_ids and env_body_ids
+            if env_ids is None:
+                env_ids = torch.arange(self.count, device=self.device)
+            bodies_per_env = self._body_view.count // self.count
+            indices = torch.tensor(body_ids, dtype=torch.long, device=self.device).repeat(len(env_ids), 1)
+            indices += env_ids.unsqueeze(1) * bodies_per_env
 
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: The default/initial DOF position and velocity of the actor.
-                Each tensor has shape: (len(env_ids), 1).
-        """
-        # use ellipses object to skip initial indices.
+            self._external_force.flatten(0, 1)[indices] = forces.unsqueeze(1)
+            self._external_torque.flatten(0, 1)[indices] = torques.unsqueeze(1)
+        else:
+            self.has_external_force = False
+
+    def set_dof_stiffness(self, stiffness, env_ids=None, dof_ids=None):
         if env_ids is None:
             env_ids = ...
-        # return copy
-        if clone:
-            return torch.clone(self._default_dof_pos[env_ids]), torch.clone(self._default_dof_vel[env_ids])
-        else:
-            return self._default_dof_pos[env_ids], self._default_dof_vel[env_ids]
+        if dof_ids is None:
+            dof_ids = ...
 
-    def get_random_dof_state(
-        self,
-        env_ids: Optional[Sequence[int]] = None,
-        lower: Union[float, torch.Tensor] = 0.5,
-        upper: Union[float, torch.Tensor] = 1.5,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Returns randomly sampled DOF state (position and velocity) of actor.
-
-        Currently, the following sampling is supported:
-
-        - DOF positions:
-
-          - uniform sampling between `(lower, upper)` times the default DOF position.
-
-        - DOF velocities:
-
-          - zero.
-
-        Args:
-            env_ids (Optional[Sequence[int]], optional): Environment indices.
-                Defaults to None (all environment indices).
-            lower (Union[float, torch.Tensor], optional): Minimum value for uniform sampling. Defaults to 0.5.
-            upper (Union[float, torch.Tensor], optional): Maximum value for uniform sampling. Defaults to 1.5.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: The sampled DOF position and velocity of the actor.
-                Each tensor has shape: (len(env_ids), 1).
-        """
-        # use ellipses object to skip initial indices.
-        if env_ids is None:
-            env_ids = ...
-            actor_count = self.count
-        else:
-            actor_count = len(env_ids)
-        # sample DOF position
-        dof_pos = self._default_dof_pos[env_ids] * sample_uniform(
-            lower, upper, (actor_count, self.num_dof), device=self.device
+        self._data.dof_stiffness[env_ids, dof_ids] = stiffness
+        self.articulations._physics_view.set_dof_stiffnesses(
+            self._data.dof_stiffness.cpu(), indices=self._ALL_INDICES.cpu()
         )
-        dof_vel = self._default_dof_vel[env_ids]
-        # return sampled dof state
-        return dof_pos, dof_vel
+
+    def set_dof_damping(self, damping, env_ids=None, dof_ids=None):
+        if env_ids is None:
+            env_ids = ...
+        if dof_ids is None:
+            dof_ids = ...
+
+        self._data.dof_damping[env_ids, dof_ids] = damping
+        self.articulations._physics_view.set_dof_dampings(self._data.dof_damping.cpu(), indices=self._ALL_INDICES.cpu())
+
+    def set_dof_torque_limit(self, torque_limit, env_ids=None, dof_ids=None):
+        if env_ids is None:
+            env_ids = ...
+        if dof_ids is None:
+            dof_ids = ...
+
+        torque_limit_all = self.articulations._physics_view.get_dof_max_forces()
+        torque_limit_all[env_ids, dof_ids] = torque_limit
+        self.articulations._physics_view.set_dof_max_forces(torque_limit_all.cpu(), self._ALL_INDICES.cpu())
+
+    def find_bodies(self, name_keys):
+        idx_list = []
+        names_list = []
+        if not isinstance(name_keys, list):
+            name_keys = [name_keys]
+        for i, body_name in enumerate(self.body_names):  # TODO check if we need to sort body names
+            for re_name in name_keys:
+                if re.match(re_name, body_name):
+                    idx_list.append(i)
+                    names_list.append(body_name)
+                    continue
+        return idx_list, names_list
+
+    def find_dofs(self, name_keys, dof_subset=None):
+        idx_list = []
+        names_list = []
+        if dof_subset is None:
+            dof_names = self.dof_names
+        else:
+            dof_names = dof_subset
+        if not isinstance(name_keys, list):
+            name_keys = [name_keys]
+        for i, dof_name in enumerate(dof_names):  # TODO check if we need to sort body names
+            for re_name in name_keys:
+                if re.match(re_name, dof_name):
+                    idx_list.append(i)
+                    names_list.append(dof_name)
+                    continue
+        return idx_list, names_list
 
     """
     Internal helper.
@@ -422,49 +511,48 @@ class RobotBase:
         self._default_root_states = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._default_root_states = self._default_root_states.repeat(self.count, 1)
         # -- dof state
-        self._default_dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-        self._default_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         for index, dof_name in enumerate(self.articulations.dof_names):
             # dof pos
             for re_key, value in self.cfg.init_state.dof_pos.items():
                 if re.match(re_key, dof_name):
-                    self._default_dof_pos[:, index] = value
+                    self._data.default_dof_pos[:, index] = value
             # dof vel
             for re_key, value in self.cfg.init_state.dof_vel.items():
                 if re.match(re_key, dof_name):
-                    self._default_dof_vel[:, index] = value
+                    self._data.default_dof_vel[:, index] = value
 
     def _process_actuators_cfg(self):
         """Process and apply articulation DOF properties."""
-        # sim control mode and dof indices (optimization)
-        self.sim_dof_control_modes = {"position": list(), "velocity": list(), "effort": list()}
-        # iterate over all actuator configuration
-        for group_name, group_cfg in self.cfg.actuator_groups.items():
+        self._has_implicit_actuators = False
+        # iterate over all actuator configurations
+        for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # create actuator group
-            actuator_group_cls = eval(group_cfg.cls_name)
-            actuator_group: ActuatorGroup = actuator_group_cls(cfg=group_cfg, view=self.articulations)
+            dof_ids, dof_names = self.find_dofs(actuator_cfg.dof_name_expr)
+            # for efficiency avoid indexing over all indices
+            if len(dof_ids) == self.num_dof:
+                dof_ids = ...
+            actuator_cls = actuator_cfg.cls
+            actuator: ActuatorBase = actuator_cls(
+                cfg=actuator_cfg, dof_names=dof_names, dof_ids=dof_ids, num_envs=self.count, device=self.device
+            )
             # store actuator group
-            self.actuator_groups[group_name] = actuator_group
+            self.actuators[actuator_name] = actuator
             # store the control mode and dof indices (optimization)
-            if actuator_group.model_type == "implicit":
-                for command in actuator_group.command_types:
-                    # resolve name of control mode
-                    if "p" in command:
-                        command_name = "position"
-                    elif "v" in command:
-                        command_name = "velocity"
-                    elif "t" in command:
-                        command_name = "effort"
-                    else:
-                        continue
-                    # store dof indices
-                    self.sim_dof_control_modes[command_name].extend(actuator_group.dof_indices)
+            # if "P" in actuator.sim_command_type or "V" in actuator.sim_command_type:
+            if isinstance(actuator, ImplicitActuator):
+                self._has_implicit_actuators = True
+                self.set_dof_stiffness(actuator.stiffness, dof_ids=actuator.dof_indices)
+                self.set_dof_damping(actuator.damping, dof_ids=actuator.dof_indices)
+                self.set_dof_torque_limit(actuator.effort_limit, dof_ids=actuator.dof_indices)
             else:
-                # in explicit mode, we always use the "effort" control mode
-                self.sim_dof_control_modes["effort"].extend(actuator_group.dof_indices)
+                # the gains and limits are processed by the actuator model
+                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
+                self.set_dof_stiffness(0.0, dof_ids=actuator.dof_indices)
+                self.set_dof_damping(0.0, dof_ids=actuator.dof_indices)
+                self.set_dof_torque_limit(1.0e9, dof_ids=actuator.dof_indices)
 
         # perform some sanity checks to ensure actuators are prepared correctly
-        total_act_dof = sum(group.num_actuators for group in self.actuator_groups.values())
+        total_act_dof = sum(group.num_actuators for group in self.actuators.values())
         if total_act_dof != self.num_dof:
             carb.log_warn(
                 f"Not all actuators are configured through groups! Total number of actuated DOFs not equal to number of DOFs available: {total_act_dof} != {self.num_dof}."
@@ -476,24 +564,26 @@ class RobotBase:
         self._previous_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         # constants
         self._ALL_INDICES = torch.arange(self.count, dtype=torch.long, device=self.device)
-        self._ZERO_JOINT_EFFORT = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-
+        # -- properties
+        self._data.dof_names = self.articulations.dof_names
         # -- frame states
         self._data.root_state_w = torch.zeros(self.count, 13, dtype=torch.float, device=self.device)
+        self._data.body_state_w = torch.zeros(self.count, self.num_bodies, 13, dtype=torch.float, device=self.device)
         # -- dof states
         self._data.dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         self._data.dof_vel = torch.zeros_like(self._data.dof_pos)
         self._data.dof_acc = torch.zeros_like(self._data.dof_pos)
+        self._data.default_dof_pos = torch.zeros_like(self._data.dof_pos)
+        self._data.default_dof_vel = torch.zeros_like(self._data.dof_pos)
         # -- dof commands
         self._data.dof_pos_targets = torch.zeros_like(self._data.dof_pos)
         self._data.dof_vel_targets = torch.zeros_like(self._data.dof_pos)
         self._data.dof_effort_targets = torch.zeros_like(self._data.dof_pos)
+        self._data.dof_stiffness = torch.zeros_like(self._data.dof_pos)
+        self._data.dof_damping = torch.zeros_like(self._data.dof_pos)
         # -- dof commands (explicit)
         self._data.computed_torques = torch.zeros_like(self._data.dof_pos)
         self._data.applied_torques = torch.zeros_like(self._data.dof_pos)
-        # -- default actuator offset
-        self._data.actuator_pos_offset = torch.zeros_like(self._data.dof_pos)
-        self._data.actuator_vel_offset = torch.zeros_like(self._data.dof_pos)
         # -- other data
         self._data.soft_dof_pos_limits = torch.zeros(self.count, self.num_dof, 2, dtype=torch.float, device=self.device)
         self._data.soft_dof_vel_limits = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
@@ -507,7 +597,3 @@ class RobotBase:
         # add to data
         self._data.soft_dof_pos_limits[..., 0] = dof_pos_mean - 0.5 * dof_pos_range * soft_limit_factor
         self._data.soft_dof_pos_limits[..., 1] = dof_pos_mean + 0.5 * dof_pos_range * soft_limit_factor
-
-        # store the offset amounts from actuator groups
-        for group in self.actuator_groups.values():
-            self._data.actuator_pos_offset[:, group.dof_indices] = group.dof_pos_offset

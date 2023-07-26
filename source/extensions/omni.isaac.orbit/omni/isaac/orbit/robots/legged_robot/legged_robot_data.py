@@ -26,18 +26,8 @@ class LeggedRobotData(RobotBaseData):
     feet_state_w: torch.Tensor = None
     """Feet sites frames state `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is ``(count, num_feet, 13)``."""
 
-    feet_state_b: torch.Tensor = None
-    """Feet frames state `[pos, quat, lin_vel, ang_vel]` in base frame. Shape is ``(count, num_feet, 13)``."""
-
-    feet_air_time: torch.Tensor = None
-    """Time spent (in s) during swing phase of each leg since last contact. Shape is ``(count, num_feet)``."""
-
-    ##
-    # Proprioceptive sensors.
-    ##
-
-    feet_contact_forces: torch.Tensor = None
-    """Feet contact wrenches `[force, torque]` in simulation world frame. Shape is ``(count, num_feet, 6)``."""
+    feet_pose_b: torch.Tensor = None
+    """Feet frames pose `[pos, quat]` in base frame. Shape is ``(count, num_feet, 13)``."""
 
     """
     Properties
@@ -52,3 +42,33 @@ class LeggedRobotData(RobotBaseData):
     def root_ang_vel_b(self) -> torch.Tensor:
         """Root angular velocity in simulation world frame. Shape is ``(count, 3)``."""
         return self.root_vel_b[:, 3:6]
+
+    @property
+    def feet_pos_w(self) -> torch.Tensor:
+        """Feet position in simulation world frame. Shape is ``(count, num_feet, 3)``."""
+        return self.feet_state_w[..., :3]
+
+    @property
+    def feet_quat_w(self) -> torch.Tensor:
+        """Feet orientation (w, x, y, z) in simulation world frame. Shape is ``(count, num_feet, 4)``."""
+        return self.feet_state_w[:, 3:7]
+
+    @property
+    def feet_lin_vel_w(self) -> torch.Tensor:
+        """Feet linear velocity in simulation world frame. Shape is ``(count, num_feet, 3)``."""
+        return self.feet_state_w[:, 7:10]
+
+    @property
+    def feet_ang_vel_w(self) -> torch.Tensor:
+        """Feet angular velocity in simulation world frame. Shape is ``(count, num_feet, 3)``."""
+        return self.feet_state_w[:, 10:13]
+
+    @property
+    def feet_pos_b(self) -> torch.Tensor:
+        """Feet position in base frame. Shape is ``(count, num_feet, 3)``."""
+        return self.feet_pose_b[..., :3]
+
+    @property
+    def feet_quat_b(self) -> torch.Tensor:
+        """Feet orientation (w, x, y, z) in base world frame. Shape is ``(count, num_feet, 4)``."""
+        return self.feet_pose_b[:, 3:7]

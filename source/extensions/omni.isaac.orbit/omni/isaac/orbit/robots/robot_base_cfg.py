@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 from typing import Dict, Optional, Tuple
 
-from omni.isaac.orbit.actuators.group import ActuatorGroupCfg
+from omni.isaac.orbit.actuators import ActuatorBaseCfg
 from omni.isaac.orbit.utils import configclass
 
 
@@ -34,7 +34,7 @@ class RobotBaseCfg:
         """Angular damping coefficient."""
         max_linear_velocity: Optional[float] = 1000.0
         """Maximum linear velocity for rigid bodies (in m/s). Defaults to 1000.0."""
-        max_angular_velocity: Optional[float] = 1000.0
+        max_angular_velocity: Optional[float] = 64.0
         """Maximum angular velocity for rigid bodies (in rad/s). Defaults to 1000.0."""
         max_depenetration_velocity: Optional[float] = 10.0
         """Maximum depenetration velocity permitted to be introduced by the solver (in m/s).
@@ -43,6 +43,8 @@ class RobotBaseCfg:
         """Disable gravity for the actor. Defaults to False."""
         retain_accelerations: Optional[bool] = None
         """Carries over forces/accelerations over sub-steps."""
+        sleep_threshold: Optional[float] = 0.0
+        """Sleep threshold for the body. Defaults to 0.0."""
 
     @configclass
     class CollisionPropertiesCfg:
@@ -69,6 +71,8 @@ class RobotBaseCfg:
         """Solver position iteration counts for the body."""
         solver_velocity_iteration_count: Optional[int] = None
         """Solver position iteration counts for the body."""
+        sleep_threshold: Optional[float] = 0.0
+        """Sleep threshold for the body. Defaults to 0.0."""
 
     @configclass
     class InitialStateCfg:
@@ -91,6 +95,24 @@ class RobotBaseCfg:
         dof_vel: Dict[str, float] = MISSING
         """DOF velocities of all joints."""
 
+    @configclass
+    class PhysicsMaterialCfg:
+        """Physics material applied to the feet of the robot."""
+
+        prim_path = "/World/Materials/RobotPhysicsMaterial"
+        """Path to the physics material prim. Defaults to /World/Materials/RobotPhysicsMaterial.
+
+        Note:
+            If the prim path is not absolute, it will be resolved relative to the path specified when spawning
+            the object.
+        """
+        static_friction: float = 1.0
+        """Static friction coefficient. Defaults to 1.0."""
+        dynamic_friction: float = 1.0
+        """Dynamic friction coefficient. Defaults to 1.0."""
+        restitution: float = 0.0
+        """Restitution coefficient. Defaults to 0.0."""
+
     ##
     # Initialize configurations.
     ##
@@ -105,5 +127,10 @@ class RobotBaseCfg:
     """Properties to apply to all collisions in the articulation."""
     articulation_props: ArticulationRootPropertiesCfg = ArticulationRootPropertiesCfg()
     """Properties to apply to articulation."""
-    actuator_groups: Dict[str, ActuatorGroupCfg] = MISSING
-    """Actuator groups for the robot."""
+    actuators: Dict[str, ActuatorBaseCfg] = MISSING
+    """Actuators for the robot with corresponding dof names."""
+    physics_material: Optional[PhysicsMaterialCfg] = PhysicsMaterialCfg()
+    """Settings for the physics material to apply to feet.
+    If set to None, no physics material will be created and applied.
+    """
+    debug_vis: bool = False

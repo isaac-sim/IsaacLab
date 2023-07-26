@@ -15,3 +15,4 @@ from .camera import *  # noqa: F401, F403
 from .contact_sensor import *  # noqa: F401, F403
 from .ray_caster import *  # noqa: F401, F403
 from .sensor_base import SensorBase  # noqa: F401
+from .sensor_base_cfg import SensorBaseCfg  # noqa: F401

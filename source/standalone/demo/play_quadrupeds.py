@@ -191,7 +191,8 @@ def main():
                 contact_marker.set_world_poses(
                     robot.data.feet_state_w[..., 0:3].view(-1, 3), robot.data.feet_state_w[..., 3:7].view(-1, 4)
                 )
-                contact_marker.set_status(torch.where(robot.data.feet_air_time.view(-1) > 0.0, 1, 2))
+                contact_state = robot.data.feet_current_air_time.view(-1) == 0.0
+                contact_marker.set_status(torch.where(contact_state, 1, 2))
 
 
 if __name__ == "__main__":

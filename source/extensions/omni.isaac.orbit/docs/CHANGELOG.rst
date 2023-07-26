@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+
+0.8.0 (2023-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`ActionManager` class to the :mod:`omni.isaac.orbit.managers` module to handle actions in the
+  environment through action terms.
+* Added contact force history to the :class:`omni.isaac.orbit.sensors.ContactSensor` class. The history is stored
+  in the ``net_forces_w_history`` attribute of the sensor data.
+
+Changed
+^^^^^^^
+
+* Implemented lazy update of buffers in the :class:`omni.isaac.orbit.sensors.SensorBase` class. This allows the user
+  to update the sensor data only when required, i.e. when the data is requested by the user. This helps avoid double
+  computation of sensor data when a reset is called in the environment.
+
+Deprecated
+^^^^^^^^^^
+
+* Removed the support for different backends in the sensor class. We only use Pytorch as the backend now.
+* Removed the concept of actuator groups. They are now handled by the :class:`omni.isaac.orbit.managers.ActionManager`
+  class. The actuator models are now directly handled by the robot class itself.
+
+
 0.7.4 (2023-07-26)
 ~~~~~~~~~~~~~~~~~~
 
@@ -99,7 +126,7 @@ Fixed
 * Fixed the :meth:`omni.isaac.orbit.utils.math.quat_apply_yaw` to compute the yaw quaternion correctly.
 
 Added
-^^^^^^^
+^^^^^
 
 * Added functions to convert string and callable objects in :mod:`omni.isaac.orbit.utils.string`.
 

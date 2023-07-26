@@ -33,6 +33,7 @@ simulation_app = SimulationApp(config)
 """Rest everything follows."""
 
 
+import os
 import torch
 
 import carb
@@ -111,6 +112,8 @@ def main():
         usd_path = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmalC/anymal_c_minimal_instanceable.usd"
     elif args_cli.asset == "oige":
         usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
+    elif os.path.exists(args_cli.asset):
+        usd_path = args_cli.asset
     else:
         raise ValueError(f"Invalid asset: {args_cli.asset}. Must be one of: orbit, oige.")
     # add asset

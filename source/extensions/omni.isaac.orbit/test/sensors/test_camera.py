@@ -116,7 +116,7 @@ def main():
     design_scene()
     # Setup camera sensor
     camera_cfg = PinholeCameraCfg(
-        update_freq=0,
+        update_period=0.0,
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors", "semantic_segmentation"],
@@ -167,7 +167,7 @@ def main():
         # Step simulation
         sim.step(render=app_launcher.RENDER)
         # Update camera data
-        camera.update_buffers(dt=0.0)
+        camera.update(dt=0.0)
 
         # Print camera info
         print(camera)
@@ -197,7 +197,7 @@ def main():
             else:
                 rep_output[key] = data
         # Save images
-        rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+        rep_output["trigger_outputs"] = {"on_time": camera.timestamp[camera_index].item()}
         rep_writer.write(rep_output)
 
 

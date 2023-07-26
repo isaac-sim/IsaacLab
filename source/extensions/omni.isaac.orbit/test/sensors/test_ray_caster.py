@@ -51,7 +51,7 @@ from omni.isaac.core.utils.viewports import set_camera_view
 import omni.isaac.orbit.terrains as terrain_gen
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.sensors.ray_caster import GridPatternCfg, RayCaster, RayCasterCfg
-from omni.isaac.orbit.terrains.config.rough import ASSORTED_TERRAINS_CFG
+from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
@@ -113,11 +113,13 @@ def main():
     design_scene(sim=sim, num_envs=num_envs)
     # Handler for terrains importing
     if args_cli.terrain_type == "generated":
-        terrain_importer_cfg = terrain_gen.TerrainImporterCfg(prim_path="/World/ground", max_init_terrain_level=None)
-        terrain_importer = TerrainImporter(terrain_importer_cfg, device=sim.device)
-
-        terrain_generator = terrain_gen.TerrainGenerator(cfg=ASSORTED_TERRAINS_CFG, curriculum=True)
-        terrain_importer.import_mesh(terrain_generator.terrain_mesh, key="rough")
+        terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=ROUGH_TERRAINS_CFG,
+            max_init_terrain_level=None,
+        )
+        terrain_importer = TerrainImporter(terrain_importer_cfg, num_envs=1, device=sim.device)
     elif args_cli.terrain_type == "usd":
         prim_utils.create_prim("/World/ground", usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
     elif args_cli.terrain_type == "plane":
@@ -128,7 +130,11 @@ def main():
     # Create a ray-caster sensor
     pattern_cfg = GridPatternCfg(resolution=0.1, size=(1.6, 1.0))
     ray_caster_cfg = RayCasterCfg(
-        mesh_prim_paths=["/World/ground"], pattern_cfg=pattern_cfg, attach_yaw_only=True, debug_vis=True
+        prim_path_expr="ball",
+        mesh_prim_paths=["/World/ground"],
+        pattern_cfg=pattern_cfg,
+        attach_yaw_only=True,
+        debug_vis=False if args_cli.headless else True,
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
@@ -141,7 +147,7 @@ def main():
     # -- balls
     ball_view.initialize()
     # -- sensors
-    ray_caster.initialize("/World/envs/env_.*/ball")
+    ray_caster.initialize("/World/envs/env_.*")
     # Print the sensor information
     print(ray_caster)
 
@@ -177,7 +183,7 @@ def main():
         sim.step()
         # Update the ray-caster
         with Timer(f"Ray-caster update with {ray_caster.count} x {ray_caster.num_rays} rays"):
-            ray_caster.update_buffers(dt=sim.get_physics_dt())
+            ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Visualize the ray-caster
         if not args_cli.headless:
             with Timer(f"Ray-caster debug visualization\t\t"):

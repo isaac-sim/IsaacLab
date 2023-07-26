@@ -21,11 +21,21 @@ class ContactSensorData:
 
     Shape is (N, 4), where ``N`` is the number of sensors.
     """
+
     net_forces_w: torch.Tensor = None
     """The net contact forces in world frame.
 
     Shape is (N, B, 3), where ``N`` is the number of sensors and ``B`` is the number of bodies in each sensor.
     """
+    net_forces_w_history: torch.Tensor = None
+    """The net contact forces in world frame.
+
+    Shape is (N, T, B, 3), where ``N`` is the number of sensors, ``T`` is the configured history length
+    and ``B`` is the number of bodies in each sensor.
+
+    In the history dimension, the first index is the most recent and the last index is the oldest.
+    """
+
     force_matrix_w: torch.Tensor = None
     """The contact forces filtered between the sensor bodies and filtered bodies in world frame.
 

@@ -91,11 +91,11 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
             if self._base_vel_goal_markers is None:
                 marker_cfg = ARROW_X_MARKER_CFG
                 marker_cfg.markers["arrow"].color = (1.0, 0.0, 0.0)
-                self._base_vel_goal_markers = VisualizationMarkers("/Visuals/base_velocity_goal", marker_cfg)
+                self._base_vel_goal_markers = VisualizationMarkers("/Visuals/Command/velocity_goal", marker_cfg)
             if self._base_vel_markers is None:
                 marker_cfg = ARROW_X_MARKER_CFG
                 marker_cfg.markers["arrow"].color = (0.0, 0.0, 1.0)
-                self._base_vel_markers = VisualizationMarkers("/Visuals/base_velocity_current", marker_cfg)
+                self._base_vel_markers = VisualizationMarkers("/Visuals/Command/velocity_current", marker_cfg)
             # get marker location
             # -- base state
             base_pos_w = self.robot.data.root_pos_w.clone()

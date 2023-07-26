@@ -23,6 +23,9 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.core.utils.viewports import set_camera_view
 
+from omni.isaac.orbit.sensors import *  # noqa: F401, F403
+from omni.isaac.orbit.sensors.sensor_base import SensorBase
+
 from .isaac_env_cfg import IsaacEnvCfg
 
 # Define type aliases here to avoid circular import
@@ -180,13 +183,14 @@ class IsaacEnv(gym.Env):
         self.sim.add_timeline_callback("close_env_on_stop", self._stop_simulation_callback)
 
         # initialize common environment buffers
-        self.obs_buf: VecEnvObs = None
         self.reward_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # allocate dictionary to store metrics
         self.extras = {}
 
+        # create a dictionary to store the sensors
+        self.sensors = dict()
         # create cloner for duplicating the scenes
         cloner = GridCloner(spacing=self.cfg.env.env_spacing)
         cloner.define_base_env(self.env_ns)
@@ -206,7 +210,9 @@ class IsaacEnv(gym.Env):
             replicate_physics=self.cfg.sim.replicate_physics,
         )
         # convert environment positions to torch tensor
-        self.envs_positions = torch.tensor(self.envs_positions, dtype=torch.float, device=self.device)
+        # self.envs_positions = torch.tensor(self.envs_positions, dtype=torch.float, device=self.device)
+        # TODO Move to right position
+        self.envs_positions = self.terrain_importer.env_origins
         # filter collisions within each environment instance
         physics_scene_path = self.sim.get_physics_context().prim_path
         cloner.filter_collisions(
@@ -268,13 +274,11 @@ class IsaacEnv(gym.Env):
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
         # perform one step to have buffers into action
-        self.sim.step(render=False)
+        self.sim.step(render=False)  # TODO why do we need this ?
         # compute common quantities
         self._cache_common_quantities()
-        # compute observations
-        self.obs_buf = self._get_observations()
         # return observations
-        return self.obs_buf
+        return self._get_observations()
 
     def step(self, actions: torch.Tensor) -> VecEnvStepReturn:
         """Reset any terminated environments and apply actions on the environment.
@@ -290,11 +294,6 @@ class IsaacEnv(gym.Env):
 
         Args:
             actions (torch.Tensor): Actions to apply on the simulator.
-
-        Note:
-            We perform resetting of the terminated environments before simulation
-            stepping. This is because the physics buffers are not forwarded until
-            the physics step occurs.
 
         Returns:
             VecEnvStepReturn: A tuple containing:
@@ -317,16 +316,8 @@ class IsaacEnv(gym.Env):
             # FIXME: This steps physics as well, which we is not good in general.
             self.sim.app.update()
 
-        # reset environments that terminated
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(reset_env_ids) > 0:
-            self._reset_idx(reset_env_ids)
-        # increment the number of steps
-        self.episode_length_buf += 1
         # perform the stepping of simulation
         self._step_impl(actions)
-        # compute observations
-        self.obs_buf = self._get_observations()
 
         # periodically update the UI to keep it responsive
         if self.render_mode == RenderMode.NO_RENDERING:
@@ -340,13 +331,13 @@ class IsaacEnv(gym.Env):
             if self._flatcache_iface is not None:
                 self._flatcache_iface.update(0.0, 0.0)
             # perform debug visualization
-            if self.enable_render and self.cfg.env.debug_vis:
+            if self.cfg.viewer.debug_vis:
                 self._debug_vis()
             # render the scene
             self.sim.render()
 
         # return observations, rewards, resets and extras
-        return self.obs_buf, self.reward_buf, self.reset_buf, self.extras
+        return self._get_observations(), self.reward_buf, self.reset_buf, self.extras
 
     def render(self, mode: str = "human") -> Optional[np.ndarray]:
         """Run rendering without stepping through the physics.
@@ -394,13 +385,26 @@ class IsaacEnv(gym.Env):
         if not self._is_closed:
             # stop physics simulation (precautionary)
             self.sim.stop()
-            # cleanup the scene and callbacks
-            self.sim.clear_all_callbacks()
-            # destroy the orbit window
-            if self._orbit_window is not None:
-                self._orbit_window.destroy()
             # update closing status
             self._is_closed = True
+
+    """
+    Operations - Scene
+    """
+
+    def enable_sensor(self, sensor_name: str):
+        """Adds a sensor to the environment.
+
+        Args:
+            sensor_name (str): Name of the sensor to add.
+
+        """
+        sensor_cfg = self.cfg.sensors.__getattribute__(sensor_name)
+        if sensor_name not in self.sensors.keys():
+            sensor: SensorBase = eval(sensor_cfg.cls_name)(sensor_cfg)
+            # sensor.spawn("")  # TODO: do we need to call spawn earlier?
+            sensor.initialize(self.env_ns + "/.*")
+            self.sensors[sensor_name] = sensor
 
     """
     Implementation specifics.
@@ -433,11 +437,11 @@ class IsaacEnv(gym.Env):
 
     @abc.abstractmethod
     def _step_impl(self, actions: torch.Tensor):
-        """Apply actions on the environment and computes MDP signals.
+        """Apply actions on the environment, computes MDP signals and perform resets.
 
         This function sets the simulation buffers for actions to apply, perform
-        stepping of the simulation, and compute the MDP signals for reward and
-        termination.
+        stepping of the simulation, computes the MDP signals for reward and
+        termination, and perform resetting of the environment based on their termination.
 
         Note:
             The environment specific implementation of this function is responsible for also
@@ -598,21 +602,29 @@ class IsaacEnv(gym.Env):
         import omni.isaac.ui.ui_utils as ui_utils
         import omni.ui as ui
 
+        # do a sim update to finish loading
+        for _ in range(10):
+            self.sim.app.update()
         # acquire viewport window
         self._viewport_window = ui.Workspace.get_window("Viewport")
         # create window for UI
         self._orbit_window = omni.ui.Window(
-            "Orbit", width=500, height=0, visible=True, dock_preference=ui.DockPreference.RIGHT_TOP
+            "Orbit", width=400, height=500, visible=True, dock_preference=ui.DockPreference.RIGHT_TOP
         )
         # dock next to properties window
         property_window = ui.Workspace.get_window("Property")
         self._orbit_window.dock_in(property_window, ui.DockPosition.SAME, 1.0)
+        self._orbit_window.focus()
+        # do a sim update to finish loading
+        for _ in range(10):
+            self.sim.app.update()
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
         self._orbit_window_elements = dict()
         # create main frame
-        with self._orbit_window.frame:
+        self._orbit_window_elements["main_frame"] = self._orbit_window.frame
+        with self._orbit_window_elements["main_frame"]:
             # create main stack
             self._orbit_window_elements["main_vstack"] = ui.VStack(spacing=5, height=0)
             with self._orbit_window_elements["main_vstack"]:
@@ -639,7 +651,7 @@ class IsaacEnv(gym.Env):
                             "tooltip": "Select a rendering mode",
                             "on_clicked_fn": self._on_render_mode_select,
                         }
-                        _ = ui_utils.dropdown_builder(**render_mode_cfg)
+                        self._orbit_window_elements["render_dropdown"] = ui_utils.dropdown_builder(**render_mode_cfg)
                         # create debug visualization checkbox
                         debug_vis_checkbox = {
                             "label": "Debug Visualization",
@@ -648,7 +660,7 @@ class IsaacEnv(gym.Env):
                             "tooltip": "Toggle environment debug visualization",
                             "on_clicked_fn": self._toggle_debug_visualization_flag,
                         }
-                        _ = ui_utils.cb_builder(**debug_vis_checkbox)
+                        self._orbit_window_elements["debug_checkbox"] = ui_utils.cb_builder(**debug_vis_checkbox)
 
     def _on_render_mode_select(self, value: str):
         """Callback for when the rendering mode is selected."""

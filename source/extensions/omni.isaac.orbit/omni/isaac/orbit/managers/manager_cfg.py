@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import torch
 from dataclasses import MISSING
-from typing import Any, Callable, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.noise import NoiseCfg
+
+if TYPE_CHECKING:
+    from .action_manager import ActionTerm
 
 
 @configclass
@@ -51,6 +54,20 @@ class ManagerBaseTermCfg:
     """
     params: dict[str, Any] = dict()
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict."""
+
+
+"""Action manager."""
+
+
+@configclass
+class ActionTermCfg:
+    """Configuration for an action term."""
+
+    cls: type[ActionTerm] = MISSING
+    """Class of the action term."""
+
+    asset_name: str = MISSING
+    """Name of the asset (object or robot) on which action is applied."""
 
 
 """Curriculum manager."""

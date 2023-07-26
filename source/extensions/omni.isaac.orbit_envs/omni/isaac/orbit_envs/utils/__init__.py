@@ -28,6 +28,7 @@ def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = Non
 
     Raises:
         ValueError: When no runs are found in the input directory.
+        ValueError: When no checkpoints are found in the input directory.
 
     Returns:
         str: The path to the model checkpoint.
@@ -55,6 +56,9 @@ def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = Non
     if checkpoint is None:
         # list all model checkpoints in the directory
         model_checkpoints = [f for f in os.listdir(run_path) if ".pt" in f]
+        # check if any checkpoints are present
+        if len(model_checkpoints) == 0:
+            raise ValueError(f"No checkpoints present in the directory: {run_path}")
         # sort by date
         model_checkpoints.sort(key=lambda m: f"{m:0>15}")
         # get latest model checkpoint file

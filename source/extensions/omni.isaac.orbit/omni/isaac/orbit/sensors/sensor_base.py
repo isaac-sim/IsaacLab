@@ -10,13 +10,12 @@ Each sensor class should inherit from this class and implement the abstract meth
 """
 
 
+import torch
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Sequence
 
-from omni.isaac.core.prims import XFormPrimView
+import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.simulation_context import SimulationContext
-
-from omni.isaac.orbit.utils.array import TensorData
 
 from .sensor_base_cfg import SensorBaseCfg
 
@@ -33,31 +32,22 @@ class SensorBase(ABC):
         Args:
             cfg (SensorBaseCfg): The configuration parameters for the sensor.
         """
-        # Store the inputs
+        # Store the config
         self.cfg = cfg
-        # Resolve the sensor update period
-        self._update_period = 0.0 if cfg.update_freq == 0.0 else 1.0 / cfg.update_freq
-
-        # Sensor view -- This can be used to access the underlying XFormPrimView
-        # Note: This is not initialized here. It is initialized in the derived class.
-        self._view: XFormPrimView = None
-        # Current timestamp of animation (in seconds)
-        self._timestamp: TensorData
+        # Current timestamp (in seconds)
+        self._timestamp: torch.Tensor
         # Timestamp from last update
-        self._timestamp_last_update: TensorData
-        # Frame number when the measurement is taken
-        self._frame: TensorData
+        self._timestamp_last_update: torch.Tensor
+        # ids of envs with outdated data
+        self._is_outdated: torch.Tensor
         # Flag for whether the sensor is initialized
         self._is_initialized: bool = False
+        # data object
+        self._data: object = None
 
     """
     Properties
     """
-
-    @property
-    def view(self) -> XFormPrimView:
-        """The underlying view of the sensor."""
-        return self._view
 
     @property
     def prim_paths(self) -> List[str]:
@@ -75,39 +65,42 @@ class SensorBase(ABC):
         return self._device
 
     @property
-    def frame(self) -> TensorData:
-        """Frame number when the measurement took place."""
-        return self._frame
-
-    @property
-    def timestamp(self) -> TensorData:
+    def timestamp(self) -> torch.Tensor:
         """Simulation time of the measurement (in seconds)."""
         return self._timestamp
 
     @property
-    @abstractmethod
     def data(self) -> Any:
-        """The data from the simulated sensor."""
-        raise NotImplementedError("The data property is not implemented!")
+        """Gets the data from the simulated sensor after updating it if necessary."""
+        # update sensors if needed
+        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
+        if len(outdated_env_ids) > 0:
+            # obtain new data
+            self._update_buffers(outdated_env_ids)
+            # update the timestamp from last update
+            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
+            # set outdated flag to false for the updated sensors
+            # TODO (from mayank): Why all of them are false? It is unclear. Shouldn't just be the ones that were updated?
+            self._is_outdated[:] = False
+        return self._data
 
     """
     Operations
     """
 
-    @abstractmethod
     def spawn(self, prim_path: str, *args, **kwargs):
         """Spawns the sensor into the stage.
 
         Args:
             prim_path (str): The path of the prim to attach the sensor to.
         """
-        raise NotImplementedError
+        pass
 
-    def initialize(self, prim_paths_expr: str = None):
+    def initialize(self, env_prim_path: str = None):
         """Initializes the sensor handles and internal buffers.
 
         Args:
-            prim_paths_expr (str, optional): The prim path expression for the sensors. Defaults to None.
+            env_prim_path (str, optional): The (templated) prim path expression to the environments where the sensors are created. Defaults to None.
 
         Raises:
             RuntimeError: If the simulation context is not initialized.
@@ -116,26 +109,18 @@ class SensorBase(ABC):
         # Obtain Simulation Context
         sim = SimulationContext.instance()
         if sim is not None:
-            self._backend = sim.backend
             self._device = sim.device
-            self._backend_utils = sim.backend_utils
             self._sim_physics_dt = sim.get_physics_dt()
         else:
             raise RuntimeError("Simulation Context is not initialized!")
-        # Check that view is not None
-        if self._view is None:
-            self._view = XFormPrimView(prim_paths_expr, "sensor_view", reset_xform_properties=False)
-        # Check is prims are found under the given prim path expression
-        if self._view.count == 0:
-            raise RuntimeError(f"No prims found for the given prim path expression: {prim_paths_expr}")
-        # Create constant for the number of sensors
-        self._ALL_INDICES = self._backend_utils.resolve_indices(None, self.count, device=self.device)
-        # Current timestamp of animation (in seconds)
-        self._timestamp = self._backend_utils.create_zeros_tensor((self.count,), "float32", self.device)
+        # Count number of environments
+        self._num_envs = len(prim_utils.find_matching_prim_paths(env_prim_path))
+        # Boolean tensor indicating whether the sensor data has to be refreshed
+        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
+        # Current timestamp (in seconds)
+        self._timestamp = torch.zeros(self._num_envs, device=self._device)
         # Timestamp from last update
-        self._timestamp_last_update = self._backend_utils.create_zeros_tensor((self.count,), "float32", self.device)
-        # Frame number when the measurement is taken
-        self._frame = self._backend_utils.create_zeros_tensor((self.count,), "int64", self.device)
+        self._timestamp_last_update = torch.zeros_like(self._timestamp)
         # Set the initialized flag
         self._is_initialized = True
 
@@ -151,38 +136,20 @@ class SensorBase(ABC):
         # Reset the timestamp for the sensors
         self._timestamp[env_ids] = 0.0
         self._timestamp_last_update[env_ids] = 0.0
-        # Reset the frame count
-        self._frame[env_ids] = 0
+        # Set all reset sensors to outdated so that they are updated when data is called the next time.
+        self._is_outdated[env_ids] = True
 
-    def update_buffers(self, dt: float):
-        """Updates the buffers at sensor frequency.
-
-        This function performs time-based checks and fills the data into the data container. It
-        calls the function :meth:`buffer()` to fill the data. The function :meth:`buffer()` should
-        not be called directly.
-
-        Args:
-            dt (float): The simulation time-step.
-        """
+    def update(self, dt: float, force_recompute: bool = False):
         # Update the timestamp for the sensors
         self._timestamp += dt
-        # Check if the sensor is ready to capture
-        env_ids = self._timestamp - self._timestamp_last_update >= self._update_period
-        # Get the indices of the sensors that are ready to capture
-        if self._backend == "torch":
-            env_ids = env_ids.nonzero(as_tuple=False).squeeze(-1)
-        elif self._backend == "numpy":
-            env_ids = env_ids.nonzero()[0]
-        else:
-            raise NotImplementedError(f"Backend '{self._backend}' is not supported.")
-        # Check if any sensor is ready to capture
-        if len(env_ids) > 0:
-            # Buffer the data
-            self._buffer(env_ids)
-            # Update the frame count
-            self._frame[env_ids] += 1
-            # Update capture time
-            self._timestamp_last_update[env_ids] = self._timestamp[env_ids]
+        self._is_outdated |= self._timestamp - self._timestamp_last_update + 1e-6 >= self.cfg.update_period
+        # Update the buffers
+        # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
+        #   It is only for the contact sensor but there we should redefine the update function IMO.
+        if force_recompute or (self.cfg.history_length > 0):
+            # TODO (from @mayank): Why are we calling an attribute like this!? We should clean this up
+            #   and make a function.
+            self.data
 
     def debug_vis(self):
         """Visualizes the sensor data.
@@ -192,9 +159,6 @@ class SensorBase(ABC):
         Note:
             Visualization of sensor data may add overhead to the simulation. It is recommended to disable
             visualization when running the simulation in headless mode.
-
-        Args:
-            visualize (bool, optional): Whether to visualize the sensor data. Defaults to True.
         """
         pass
 
@@ -203,7 +167,7 @@ class SensorBase(ABC):
     """
 
     @abstractmethod
-    def _buffer(self, env_ids: Optional[Sequence[int]] = None):
+    def _update_buffers(self, env_ids: Optional[Sequence[int]] = None):
         """Fills the buffers of the sensor data.
 
         This function does not perform any time-based checks and directly fills the data into the data container.

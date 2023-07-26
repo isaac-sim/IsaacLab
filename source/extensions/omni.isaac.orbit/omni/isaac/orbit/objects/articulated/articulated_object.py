@@ -5,7 +5,7 @@
 
 import re
 import torch
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
@@ -14,7 +14,7 @@ from omni.isaac.core.prims import RigidPrimView
 
 import omni.isaac.orbit.utils.kit as kit_utils
 from omni.isaac.orbit.actuators.group import *  # noqa: F403, F401
-from omni.isaac.orbit.utils.math import quat_rotate_inverse, sample_uniform, subtract_frame_transforms
+from omni.isaac.orbit.utils.math import quat_rotate_inverse, subtract_frame_transforms
 
 from .articulated_object_cfg import ArticulatedObjectCfg
 from .articulated_object_data import ArticulatedObjectData
@@ -312,68 +312,6 @@ class ArticulatedObject:
         self._data.dof_vel[env_ids] = dof_vel.clone()
         self._data.dof_acc[env_ids] = 0.0
 
-    def get_default_dof_state(
-        self, env_ids: Optional[Sequence[int]] = None, clone=True
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Returns the default/initial DOF state (position and velocity) of actor.
-
-        Args:
-            env_ids (Optional[Sequence[int]], optional): Environment indices.
-                Defaults to None (all environment indices).
-            clone (bool, optional): Whether to return a copy or not. Defaults to True.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: The default/initial DOF position and velocity of the actor.
-                Each tensor has shape: (len(env_ids), 1).
-        """
-        # use ellipses object to skip initial indices.
-        if env_ids is None:
-            env_ids = ...
-        # return copy
-        if clone:
-            return torch.clone(self._default_dof_pos[env_ids]), torch.clone(self._default_dof_vel[env_ids])
-        else:
-            return self._default_dof_pos[env_ids], self._default_dof_vel[env_ids]
-
-    def get_random_dof_state(
-        self, env_ids: Optional[Sequence[int]] = None, lower: float = 0.5, upper: float = 1.5
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Returns randomly sampled DOF state (position and velocity) of actor.
-
-        Currently, the following sampling is supported:
-
-        - DOF positions:
-
-          - uniform sampling between `(lower, upper)` times the default DOF position.
-
-        - DOF velocities:
-
-          - zero.
-
-        Args:
-            env_ids (Optional[Sequence[int]], optional): Environment indices.
-                Defaults to None (all environment indices).
-            lower (float, optional): Minimum value for uniform sampling. Defaults to 0.5.
-            upper (float, optional): Maximum value for uniform sampling. Defaults to 1.5.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: The sampled DOF position and velocity of the actor.
-                Each tensor has shape: (len(env_ids), 1).
-        """
-        # use ellipses object to skip initial indices.
-        if env_ids is None:
-            env_ids = ...
-            actor_count = self.count
-        else:
-            actor_count = len(env_ids)
-        # sample DOF position
-        dof_pos = self._default_dof_pos[env_ids] * sample_uniform(
-            lower, upper, (actor_count, self.num_dof), device=self.device
-        )
-        dof_vel = self._default_dof_vel[env_ids]
-        # return sampled dof state
-        return dof_pos, dof_vel
-
     """
     Internal helper.
     """
@@ -392,17 +330,17 @@ class ArticulatedObject:
         self._default_root_states = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._default_root_states = self._default_root_states.repeat(self.count, 1)
         # -- dof state
-        self._default_dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
-        self._default_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
+        self._data.default_dof_pos = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
+        self._data.default_dof_vel = torch.zeros(self.count, self.num_dof, dtype=torch.float, device=self.device)
         for index, dof_name in enumerate(self.articulations.dof_names):
             # dof pos
             for re_key, value in self.cfg.init_state.dof_pos.items():
                 if re.match(re_key, dof_name):
-                    self._default_dof_pos[:, index] = value
+                    self._data.default_dof_pos[:, index] = value
             # dof vel
             for re_key, value in self.cfg.init_state.dof_vel.items():
                 if re.match(re_key, dof_name):
-                    self._default_dof_vel[:, index] = value
+                    self._data.default_dof_vel[:, index] = value
         # -- tracked sites
         if self.cfg.meta_info.sites_names:
             sites_names = list()

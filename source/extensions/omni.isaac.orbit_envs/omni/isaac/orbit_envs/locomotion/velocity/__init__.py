@@ -5,7 +5,7 @@
 
 """Velocity-based locomotion environments for legged robots."""
 
-from .velocity_cfg import VelocityEnvCfg
-from .velocity_env import VelocityEnv
+from .locomotion_cfg import LocomotionEnvCfg, LocomotionEnvRoughCfg, LocomotionEnvRoughCfg_PLAY
+from .locomotion_env import LocomotionEnv
 
-__all__ = ["VelocityEnv", "VelocityEnvCfg"]
+__all__ = ["LocomotionEnv", "LocomotionEnvRoughCfg", "LocomotionEnvRoughCfg_PLAY"]

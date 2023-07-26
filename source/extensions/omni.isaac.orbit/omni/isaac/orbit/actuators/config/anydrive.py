@@ -15,44 +15,29 @@ The following actuator groups are available:
 * ANYmal-C default actuator group that uses ANYdrive 3.0 with LSTM actuator model.
 """
 
-from omni.isaac.orbit.actuators.group import ActuatorControlCfg, ActuatorGroupCfg
-from omni.isaac.orbit.actuators.model import ActuatorNetLSTMCfg, DCMotorCfg
+from omni.isaac.orbit.actuators import ActuatorNetLSTMCfg, DCMotorCfg
+from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
 
 """
 Actuator Models.
 """
 
-ANYDRIVE_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
-    peak_motor_torque=120.0, motor_torque_limit=80.0, motor_velocity_limit=7.5, gear_ratio=1.0
-)
-"""Configuration for ANYdrive 3.x with DC actuator model."""
 
-ANYDRIVE_3_ACTUATOR_CFG = ActuatorNetLSTMCfg(
-    network_file=f"{ISAAC_ORBIT_NUCLEUS_DIR}/ActuatorNets/anydrive_3_lstm_jit.pt",
-    peak_motor_torque=120.0,
-    motor_torque_limit=89.0,
-    motor_velocity_limit=7.5,
-    gear_ratio=1.0,
-)
-"""Configuration for ANYdrive 3.0 (used on ANYmal-C) with LSTM actuator model."""
+@configclass
+class Anydrive3SimpleCfg(DCMotorCfg):
+    """Simple ANYdrive 3.0 model with only DC Motor limits."""
 
-"""
-Actuator Groups.
-"""
+    saturation_effort: float = 120.0
+    effort_limit: float = 80.0
+    velocity_limit: float = 7.5
 
-ANYMAL_C_DEFAULT_GROUP_CFG = ActuatorGroupCfg(
-    dof_names=[".*HAA", ".*HFE", ".*KFE"],
-    model_cfg=ANYDRIVE_3_ACTUATOR_CFG,
-    control_cfg=ActuatorControlCfg(
-        command_types=["p_abs"],
-        dof_pos_offset={
-            ".*HAA": 0.0,  # all HAA
-            ".*F_HFE": 0.4,  # both front HFE
-            ".*H_HFE": -0.4,  # both hind HFE
-            ".*F_KFE": -0.8,
-            ".*H_KFE": 0.8,
-        },
-    ),
-)
-"""Configuration for default ANYmal-C quadruped with LSTM actuator network."""
+
+@configclass
+class Anydrive3LSTMCfg(ActuatorNetLSTMCfg):
+    """ANYdrive 3 model represented by an LSTM network trained from real data."""
+
+    network_file: str = f"{ISAAC_ORBIT_NUCLEUS_DIR}/ActuatorNets/anydrive_3_lstm_jit.pt"
+    saturation_effort: float = 120.0
+    effort_limit: float = 80.0
+    velocity_limit: float = 7.5

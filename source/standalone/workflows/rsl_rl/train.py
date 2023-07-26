@@ -41,6 +41,7 @@ simulation_app = app_launcher.app
 
 import gym
 import os
+import torch
 from datetime import datetime
 
 from rsl_rl.runners import OnPolicyRunner
@@ -54,6 +55,11 @@ from omni.isaac.orbit_envs.utils import get_checkpoint_path, parse_env_cfg
 from omni.isaac.orbit_envs.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
 
 from config import parse_rslrl_cfg
+
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.deterministic = False
+torch.backends.cudnn.benchmark = False
 
 
 def main():

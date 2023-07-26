@@ -46,6 +46,12 @@ class ArticulatedObjectData:
     dof_acc: torch.Tensor = None
     """DOF acceleration of all joints. Shape is ``(count, num_dof)``."""
 
+    default_dof_pos: torch.Tensor = None
+    """DOF default positions of all joints. Shape is ``(count, num_dof)``."""
+
+    default_dof_vel: torch.Tensor = None
+    """DOF default velocities of all joints. Shape is ``(count, num_dof)``."""
+
     """
     Properties
     """

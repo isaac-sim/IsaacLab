@@ -79,7 +79,7 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
                 marker_cfg = CUBOID_MARKER_CFG
                 marker_cfg.markers["cuboid"].color = (1.0, 0.0, 0.0)
                 marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
-                self._box_goal_marker = VisualizationMarkers("/Visuals/base_position_goal", marker_cfg)
+                self._box_goal_marker = VisualizationMarkers("/Visuals/Command/position_goal", marker_cfg)
             # update the box marker
             self._box_goal_marker.visualize(self.pos_command_w)
 

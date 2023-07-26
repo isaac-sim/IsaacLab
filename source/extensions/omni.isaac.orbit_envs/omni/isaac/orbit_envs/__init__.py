@@ -72,9 +72,15 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Velocity-Anymal-C-v0",
-    entry_point="omni.isaac.orbit_envs.locomotion.velocity:VelocityEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity:VelocityEnvCfg"},
+    id="Isaac-Velocity-Rough-Anymal-C-v0",
+    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
+    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnvRoughCfg"},
+)
+
+gym.register(
+    id="Isaac-Velocity-Rough-Anymal-C-Play-v0",
+    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
+    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnvRoughCfg_PLAY"},
 )
 
 ##

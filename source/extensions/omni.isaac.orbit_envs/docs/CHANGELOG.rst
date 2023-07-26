@@ -2,6 +2,23 @@ Changelog
 ---------
 
 
+0.4.0 (2023-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the resetting of environment indices in the step call of the :class:`IsaacEnv` class.
+  This must be handled in the :math:`_step_impl`` function by the inherited classes.
+* Adapted the wrapper for RSL-RL library its new API.
+
+Fixed
+^^^^^
+
+* Added handling of no checkpoint available error in the :meth:`get_checkpoint_path`.
+* Fixed the locomotion environment for rough terrain locomotion training.
+
+
 0.3.2 (2023-07-22)
 ~~~~~~~~~~~~~~~~~~
 
@@ -10,7 +27,6 @@ Added
 
 * Added a UI to the :class:`IsaacEnv` class to enable/disable rendering of the viewport when not running in
   headless mode.
-
 
 Fixed
 ^^^^^

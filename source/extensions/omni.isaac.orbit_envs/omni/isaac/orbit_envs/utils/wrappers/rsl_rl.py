@@ -23,9 +23,6 @@ import os
 import torch
 from typing import Dict, Optional, Tuple
 
-# rsl-rl
-from rsl_rl.env.vec_env import VecEnv
-
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv
 
 __all__ = ["RslRlVecEnvWrapper", "export_policy_as_jit", "export_policy_as_onnx"]
@@ -43,7 +40,7 @@ VecEnvObs = Tuple[torch.Tensor, Optional[torch.Tensor]]
 VecEnvStepReturn = Tuple[VecEnvObs, VecEnvObs, torch.Tensor, torch.Tensor, Dict]
 
 
-class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
+class RslRlVecEnvWrapper(gym.Wrapper):
     """Wraps around Isaac Orbit environment for RSL-RL.
 
     To use asymmetric actor-critic, the environment instance must have the attributes :attr:`num_states` (int)
@@ -81,9 +78,8 @@ class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
         self.num_envs = self.env.unwrapped.num_envs
         self.num_actions = self.env.action_space.shape[0]
         self.num_obs = self.env.observation_space.shape[0]
-        # information for privileged observations
-        self.privileged_obs_space = getattr(self.env, "state_space", None)
-        self.num_privileged_obs = getattr(self.env, "num_states", None)
+        # reset at the start since the RSL-RL runner does not call reset
+        self.env.reset()
 
     """
     Properties
@@ -91,19 +87,21 @@ class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
 
     def get_observations(self) -> torch.Tensor:
         """Returns the current observations of the environment."""
-        return self.env.unwrapped._get_observations()["policy"]
+        obs_dict = self.env.unwrapped._get_observations()
+        return obs_dict["policy"], {"observations": obs_dict}
 
-    def get_privileged_observations(self) -> Optional[torch.Tensor]:
-        """Returns the current privileged observations of the environment (if available)."""
-        if self.num_privileged_obs is not None:
-            try:
-                privileged_obs = self.env.unwrapped._get_observations()["critic"]
-            except AttributeError:
-                raise NotImplementedError("Environment does not define the key `critic` for privileged observations.")
-        else:
-            privileged_obs = None
+    @property
+    def episode_length_buf(self):
+        """The episode length buffer."""
+        return self.env.unwrapped.episode_length_buf
 
-        return privileged_obs
+    @episode_length_buf.setter
+    def episode_length_buf(self, value):
+        """Set the episode length buffer.
+
+        Note: This is needed to perform random initialization of episode lengths in RSL-RL.
+        """
+        self.env.unwrapped.episode_length_buf = value
 
     """
     Operations - MDP
@@ -113,43 +111,15 @@ class RslRlVecEnvWrapper(gym.Wrapper, VecEnv):
         # reset the environment
         obs_dict = self.env.reset()
         # return observations
-        return self._process_obs(obs_dict)
+        return obs_dict["policy"], {"observations": obs_dict}
 
     def step(self, actions: torch.Tensor) -> VecEnvStepReturn:  # noqa: D102
         # record step information
         obs_dict, rew, dones, extras = self.env.step(actions)
-        # process observations
-        obs, privileged_obs = self._process_obs(obs_dict)
         # return step information
-        return obs, privileged_obs, rew, dones, extras
-
-    """
-    Helper functions
-    """
-
-    def _process_obs(self, obs_dict: dict) -> VecEnvObs:
-        """Processing of the observations from the environment.
-
-        Args:
-            obs (dict): The current observations from environment.
-
-        Returns:
-            Tuple[torch.Tensor, Optional[torch.Tensor]]: The observations for actor and critic. If no
-                privileged observations are available then the critic observations are set to :obj:`None`.
-        """
-        # process policy obs
         obs = obs_dict["policy"]
-        # process critic observations
-        # note: if None then policy observations are used
-        if self.num_privileged_obs is not None:
-            try:
-                privileged_obs = obs_dict["critic"]
-            except AttributeError:
-                raise NotImplementedError("Environment does not define the key `critic` for privileged observations.")
-        else:
-            privileged_obs = None
-        # return observations
-        return obs, privileged_obs
+        extras["observations"] = obs_dict
+        return obs, rew, dones, extras
 
 
 """

@@ -32,6 +32,8 @@ class EnvCfg:
     """Spacing between cloned environments."""
     episode_length_s: float = None
     """Duration of an episode (in seconds). Default is None (no limit)."""
+    send_time_outs: bool = True
+    """Whether to send time-outs to the algorithm. Default is True."""
 
 
 @configclass

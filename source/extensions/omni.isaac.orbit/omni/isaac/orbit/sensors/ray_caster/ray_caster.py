@@ -57,46 +57,31 @@ class RayCaster(SensorBase):
         self._data = RayCasterData()
         # List of meshes to ray-cast
         self.warp_meshes = []
+        # visualization markers
+        self.ray_visualizer = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
             f"Ray-caster @ '{self._view._regex_prim_paths}': \n"
             f"\tview type : {self._view.__class__}\n"
-            f"\tupdate period (s) : {self._update_period}\n"
+            f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of meshes : {len(self.warp_meshes)}\n"
-            f"\tnumber of sensors: {self.view.count}\n"
+            f"\tnumber of sensors: {self._view.count}\n"
             f"\tnumber of rays/sensor : {self.num_rays}\n"
-            f"\ttotal number of rays : {self.num_rays * self.view.count}"
+            f"\ttotal number of rays : {self.num_rays * self._view.count}"
         )
-
-    """
-    Properties
-    """
-
-    @property
-    def data(self) -> RayCasterData:
-        """Data related to ray-caster."""
-        return self._data
 
     """
     Operations
     """
 
-    def spawn(self, prim_path: str, *args, **kwargs):
-        """Spawns the sensor in the scene.
-
-        Note:
-            Ray-caster is a virtual sensor and does not need to be spawned. However,
-            this function is required by the base class.
-        """
-        pass
-
-    def initialize(self, prim_paths_expr: str):
+    def initialize(self, env_prim_path: str):
         # check if the prim at path is a articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
         prim_view_class = None
+        prim_paths_expr = f"{env_prim_path}/{self.cfg.prim_path_expr}"
         for prim_path in prim_utils.find_matching_prim_paths(prim_paths_expr):
             # get prim at path
             prim = prim_utils.get_prim_at_path(prim_path)
@@ -117,10 +102,7 @@ class RayCaster(SensorBase):
         self._view = prim_view_class(prim_paths_expr, reset_xform_properties=False)
         self._view.initialize()
         # initialize the base class
-        super().initialize(prim_paths_expr)
-        # Check that backend is compatible
-        if self._backend != "torch":
-            raise RuntimeError(f"RayCaster only supports PyTorch backend. Received: {self._backend}.")
+        super().initialize(env_prim_path)
 
         # check number of mesh prims provided
         if len(self.cfg.mesh_prim_paths) != 1:
@@ -165,24 +147,12 @@ class RayCaster(SensorBase):
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
 
-        # visualization of the ray-caster
-        prim_path = stage_utils.get_next_free_path("/Visuals/RayCaster")
-        self.ray_visualizer = VisualizationMarkers(prim_path, cfg=RAY_CASTER_MARKER_CFG)
-
-    def reset_buffers(self, env_ids: Sequence[int] | None = None):
-        """Resets the sensor internals.
-
-        Args:
-            env_ids (Sequence[int], optional): The sensor ids to reset. Defaults to None.
-        """
-        # reset the timers and counters
-        super().reset_buffers(env_ids)
-        # force buffer the data -> needed for reset observations
-        self._buffer(env_ids)
-
     def debug_vis(self):
         # visualize the point hits
         if self.cfg.debug_vis:
+            if self.ray_visualizer is None:
+                prim_path = stage_utils.get_next_free_path("/Visuals/RayCaster")
+                self.ray_visualizer = VisualizationMarkers(prim_path, cfg=RAY_CASTER_MARKER_CFG)
             # check if prim is visualized
             self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
 
@@ -190,7 +160,7 @@ class RayCaster(SensorBase):
     Implementation.
     """
 
-    def _buffer(self, env_ids: Sequence[int] | None = None):
+    def _update_buffers(self, env_ids: Sequence[int] | None = None):
         """Fills the buffers of the sensor data."""
         # default to all sensors
         if env_ids is None:

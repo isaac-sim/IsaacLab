@@ -74,7 +74,7 @@ def create_ground_plane(
     improve_patch_friction = kwargs.get("improve_patch_friction", False)
     physx_material_api.CreateImprovePatchFrictionAttr().Set(improve_patch_friction)
     # Set combination mode for coefficients
-    combine_mode = kwargs.get("combine_mode", "average")
+    combine_mode = kwargs.get("friciton_combine_mode", "multiply")
     physx_material_api.CreateFrictionCombineModeAttr().Set(combine_mode)
     physx_material_api.CreateRestitutionCombineModeAttr().Set(combine_mode)
     # Apply physics material to ground plane
@@ -83,7 +83,8 @@ def create_ground_plane(
             prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
         )
     )
-    GeometryPrim(collision_prim_path, collision=True).apply_physics_material(material)
+    geom_prim = GeometryPrim(collision_prim_path, disable_stablization=False, collision=True)
+    geom_prim.apply_physics_material(material)
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if color is not None:

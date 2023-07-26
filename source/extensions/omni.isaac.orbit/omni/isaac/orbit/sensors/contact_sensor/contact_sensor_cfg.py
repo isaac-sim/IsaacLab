@@ -17,6 +17,8 @@ from ..sensor_base_cfg import SensorBaseCfg
 class ContactSensorCfg(SensorBaseCfg):
     """Configuration for the contact sensor."""
 
+    cls_name = "ContactSensor"
+
     filter_prim_paths_expr: list[str] = list()
     """The list of primitive paths to filter contacts with.
 
@@ -27,3 +29,7 @@ class ContactSensorCfg(SensorBaseCfg):
 
     If an empty list is provided, then only net contact forces are reported.
     """
+
+    history_length: int = 0
+    """Number of past frames to store in the sensor buffers. Defaults to 0, which means that only
+    the current data is stored."""

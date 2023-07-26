@@ -17,8 +17,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
-import omni.replicator.core as rep
 import omni.usd
+from omni.isaac.core.prims import XFormPrimView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.rotations import gf_quat_to_np_array
 from pxr import Gf, Sdf, Usd, UsdGeom
@@ -86,9 +86,6 @@ class Camera(SensorBase):
         self.cfg = cfg
         # initialize base class
         super().__init__(cfg)
-        # change the default rendering settings
-        # TODO: Should this be done here or maybe inside the app config file?
-        rep.settings.set_render_rtx_realtime(antialiasing="FXAA")
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: List[UsdGeom.Camera] = list()
@@ -114,8 +111,8 @@ class Camera(SensorBase):
         # message for class
         return (
             f"Camera @ '{self._view._regex_prim_paths}': \n"
-            f"\tdata types   : {list(self._data.output.keys())} \n"
-            f"\tupdate period (s): {self._update_period}\n"
+            f"\tdata types   : {list(self.data.output.keys())} \n"
+            f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self.count}"
         )
@@ -125,17 +122,17 @@ class Camera(SensorBase):
     """
 
     @property
+    def frame(self) -> torch.Tensor:
+        """Frame number when the measurement took place."""
+        return self._frame
+
+    @property
     def render_product_paths(self) -> List[str]:
         """The path of the render products for the cameras.
 
         This can be used via replicator interfaces to attach to writes or external annotator registry.
         """
         return self._render_product_paths
-
-    @property
-    def data(self) -> CameraData:
-        """Data related to Camera sensor."""
-        return self._data
 
     @property
     def image_shape(self) -> Tuple[int, int]:
@@ -176,7 +173,8 @@ class Camera(SensorBase):
         if not self._is_initialized:
             raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
         # resolve indices
-        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        if indices is None:
+            indices = self._ALL_INDICES
         # iterate over indices
         for i, matrix in zip(indices, matrices):
             # convert to numpy for sanity
@@ -241,10 +239,11 @@ class Camera(SensorBase):
         if not self._is_initialized:
             raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
         # resolve indices
-        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        if indices is None:
+            indices = self._ALL_INDICES
         # convert to backend tensor
         if positions is not None:
-            positions = self._backend_utils.convert(positions, self._device)
+            positions = torch.tensor(positions, device=self._device)
         # convert rotation matrix from ROS convention to OpenGL
         if orientations is not None:
             # TODO: Make this more efficient
@@ -256,7 +255,7 @@ class Camera(SensorBase):
                 quat_gl = tf.Rotation.from_matrix(rotm).as_quat()
                 orientations[index] = convert_quat(quat_gl, "wxyz")
             # convert to backend tensor
-            orientations = self._backend_utils.convert(orientations, self._device)
+            orientations = torch.tensor(orientations, device=self._device)
         else:
             orientations = None
         # set the pose
@@ -279,10 +278,11 @@ class Camera(SensorBase):
         if not self._is_initialized:
             raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
         # resolve indices
-        indices = self._backend_utils.resolve_indices(indices, self.count, self._device)
+        if indices is None:
+            indices = self._ALL_INDICES
         # create tensors for storing poses
-        positions = self._backend_utils.create_zeros_tensor((len(indices), 3), "float32", self._device)
-        orientations = self._backend_utils.create_zeros_tensor((len(indices), 4), "float32", self._device)
+        positions = torch.zeros((len(indices), 3), device=self._device)
+        orientations = torch.zeros((len(indices), 4), device=self._device)
         # iterate over all indices
         # TODO: Can we do this in parallel?
         for i, eye, target in zip(indices, eyes, targets):
@@ -316,9 +316,9 @@ class Camera(SensorBase):
             matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
             # camera position and rotation in world frame
             matrix_gf = matrix_gf.GetInverse()
-            positions[i] = self._backend_utils.convert(np.asarray(matrix_gf.ExtractTranslation()), self._device)
-            orientations[i] = self._backend_utils.convert(
-                gf_quat_to_np_array(matrix_gf.ExtractRotationQuat()), self._device
+            positions[i] = torch.from_numpy(np.asarray(matrix_gf.ExtractTranslation())).to(device=self._device)
+            orientations[i] = torch.from_numpy(gf_quat_to_np_array(matrix_gf.ExtractRotationQuat())).to(
+                device=self._device
             )
         # set camera poses using the view
         self._view.set_world_poses(positions, orientations, indices)
@@ -372,6 +372,8 @@ class Camera(SensorBase):
                 camera prim path set when calling the :meth:`spawn` function. In case, the camera was not spawned
                 and no valid `cam_prim_path` is provided, the function throws an error.
         """
+        import omni.replicator.core as rep
+
         # Check that sensor has been spawned
         if prim_paths_expr is None:
             if not self._is_spawned:
@@ -380,14 +382,23 @@ class Camera(SensorBase):
                 )
             # use the prim path from spawning
             prim_paths_expr = self._spawn_prim_path
+        # Create a view for the sensor
+        self._view = XFormPrimView(prim_paths_expr, reset_xform_properties=False)
+        self._view.initialize()
+
         # Initialize parent class
         super().initialize(prim_paths_expr)
+
+        # Create all indices buffer
+        self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
+        # Create frame count buffer
+        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Attach the sensor data types to render node
         self._render_product_paths: List[str] = list()
         self._rep_registry: Dict[str, List[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
         # Resolve device name
-        if self._backend != "numpy":
+        if "cuda" in self._device:
             device_name = self._device.split(":")[0]
         else:
             device_name = "cpu"
@@ -440,22 +451,32 @@ class Camera(SensorBase):
     def reset_buffers(self, env_ids: Optional[Sequence[int]] = None):
         # reset the timestamps
         super().reset_buffers(env_ids)
+        # resolve None
+        # note: cannot do smart indexing here since we do a for loop over data.
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
         # reset the data
         # note: this recomputation is useful if one performs randomization on the camera poses.
         self._update_ros_poses(env_ids)
         self._update_intrinsic_matrices(env_ids)
+        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
+        self._is_outdated[env_ids] = False
+        # Reset the frame count
+        self._frame[env_ids] = 0
 
     """
     Implementation.
     """
 
-    def _buffer(self, env_ids: Optional[Sequence[int]] = None):
+    def _update_buffers(self, env_ids: Optional[Sequence[int]] = None):
         # check camera prim exists
         if not self._is_initialized:
             raise RuntimeError("Camera is not initialized. Please call 'initialize(...)' first.")
         # Resolve sensor ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # Increment frame count
+        self._frame[env_ids] += 1
         # -- intrinsic matrix
         self._update_intrinsic_matrices(env_ids)
         # -- pose
@@ -488,16 +509,10 @@ class Camera(SensorBase):
         """Create buffers for storing data."""
         # create the data object
         # -- pose of the cameras
-        self._data.position = self._backend_utils.create_zeros_tensor(
-            (self.count, 3), dtype="float32", device=self.device
-        )
-        self._data.orientation = self._backend_utils.create_zeros_tensor(
-            (self.count, 4), dtype="float32", device=self.device
-        )
+        self._data.position = torch.zeros((self._num_envs, 3), device=self._device)
+        self._data.orientation = torch.zeros((self._num_envs, 4), device=self._device)
         # -- intrinsic matrix
-        self._data.intrinsic_matrices = self._backend_utils.create_zeros_tensor(
-            (self.count, 3, 3), dtype="float32", device=self.device
-        )
+        self._data.intrinsic_matrices = torch.zeros((self._num_envs, 3, 3), device=self._device)
         self._data.image_shape = self.image_shape
         # -- output data
         # since the size of the output data is not known in advance, we leave it as None
@@ -603,6 +618,7 @@ class Camera(SensorBase):
         # check camera prim exists
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'initialize(...)' first.")
+
         # iterate over all cameras
         for i in env_ids:
             # obtain corresponding sensor prim
@@ -614,7 +630,7 @@ class Camera(SensorBase):
             # the translation of the transformation. Thus, we take transpose here to make it post multiply.
             prim_tf = np.transpose(prim_tf)
             # extract the position (convert it to SI units-- assumed that stage units is 1.0)
-            self._data.position[i] = self._backend_utils.convert(prim_tf[0:3, 3], device=self._device)
+            self._data.position[i] = torch.tensor(prim_tf[0:3, 3], device=self._device)
             # extract rotation
             # Note: OpenGL camera transform is such that camera faces along -z axis and +y is up.
             #   In robotics, we need to rotate it such that the camera is along +z axis and -y is up.
@@ -625,7 +641,7 @@ class Camera(SensorBase):
             cam_rotm[:, 1] = -cam_rotm[:, 1]
             # convert rotation to quaternion
             quat = tf.Rotation.from_matrix(cam_rotm).as_quat()
-            self._data.orientation[i] = self._backend_utils.convert(convert_quat(quat, "wxyz"), device=self._device)
+            self._data.orientation[i] = torch.tensor(convert_quat(quat, "wxyz"), device=self._device)
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.
@@ -636,14 +652,8 @@ class Camera(SensorBase):
         This is an expensive operation and should be called only once.
         """
         # lazy allocation of data dictionary
-        if self._backend == "numpy":
-            self._data.output = {name: None for name in self.cfg.data_types}
-            self._data.info = [{name: None for name in self.cfg.data_types}] * self.count
-        elif self._backend == "torch":
-            self._data.output = TensorDict({}, batch_size=self.count, device=self.device)
-            self._data.info = [{name: None for name in self.cfg.data_types}] * self.count
-        else:
-            raise ValueError(f"Unknown backend: {self._backend}. Supported backends: ['numpy', 'torch']")
+        self._data.output = TensorDict({}, batch_size=self.count, device=self.device)
+        self._data.info = [{name: None for name in self.cfg.data_types}] * self.count
         # add data from the annotators
         for name, annotators in self._rep_registry.items():
             # create a list to store the data for each annotator
@@ -659,12 +669,7 @@ class Camera(SensorBase):
                 # store the info
                 self._data.info[index][name] = info
             # concatenate the data along the batch dimension
-            if self._backend == "numpy":
-                self._data.output[name] = np.stack(data_all_cameras, axis=0)
-            elif self._backend == "torch":
-                self._data.output[name] = torch.stack(data_all_cameras, dim=0)
-            else:
-                raise ValueError(f"Unsupported backend: {self._backend}")
+            self._data.output[name] = torch.stack(data_all_cameras, dim=0)
 
     def _process_annotator_output(self, output: Any) -> Tuple[TensorData, dict]:
         """Process the annotator output.
@@ -678,8 +683,7 @@ class Camera(SensorBase):
         else:
             data = output
             info = None
-        # convert data into torch tensor if backend is torch
-        if self._backend == "torch":
-            data = convert_to_torch(data, device=self.device)
+        # convert data into torch tensor
+        data = convert_to_torch(data, device=self.device)
         # return the data and info
         return data, info

@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Subpackage for handling actuator models and groups."""
+"""Subpackage for handling actuator models."""
 
-from .group import *
-from .model import *
+from .actuator import ActuatorBase, DCMotor, IdealPDActuator, ImplicitActuator
+from .actuator_cfg import ActuatorBaseCfg, ActuatorNetLSTMCfg, ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg
+from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP

@@ -84,13 +84,13 @@ def main():
     export_policy_as_onnx(ppo_runner.alg.actor_critic, export_model_dir, filename="policy.onnx")
 
     # reset environment
-    obs, _ = env.reset()
+    obs, _ = env.get_observations()
     # simulate environment
     while simulation_app.is_running():
         # agent stepping
         actions = policy(obs)
         # env stepping
-        obs, _, _, _, _ = env.step(actions)
+        obs, _, _, _ = env.step(actions)
         # check if simulator is stopped
         if env.unwrapped.sim.is_stopped():
             break

@@ -33,8 +33,10 @@ Example pseudo-code for a manager:
 
 """
 
+from .action_manager import ActionManager, ActionTerm
 from .curriculum_manager import CurriculumManager
 from .manager_cfg import (
+    ActionTermCfg,
     CurriculumTermCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
@@ -48,6 +50,10 @@ from .reward_manager import RewardManager
 from .termination_manager import TerminationManager
 
 __all__ = [
+    # action
+    "ActionTermCfg",
+    "ActionTerm",
+    "ActionManager",
     # curriculum
     "CurriculumTermCfg",
     "CurriculumManager",

@@ -102,9 +102,10 @@ def main():
     robot = LeggedRobot(cfg=ANYMAL_C_CFG)
     robot.spawn("/World/envs/env_0/Robot")
     # Contact sensor
-    contact_sensor_cfg = ContactSensorCfg(debug_vis=True)
+    contact_sensor_cfg = ContactSensorCfg(
+        prim_path_expr="Robot/.*_SHANK", debug_vis=False if args_cli.headless else True
+    )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
-    contact_sensor.spawn("/World/envs/env_0/Robot/.*_SHANK")
     # design props
     design_scene()
 
@@ -128,13 +129,14 @@ def main():
     # Acquire handles
     # Initialize handles
     robot.initialize("/World/envs/env_.*/Robot")
-    contact_sensor.initialize("/World/envs/env_.*/Robot/.*_SHANK")
+    contact_sensor.initialize("/World/envs/env_.*")
+    print(contact_sensor)
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
     # dummy actions
-    actions = torch.zeros(robot.count, robot.num_actions, device=robot.device)
+    actions = robot.data.default_dof_pos
 
     # Define simulation stepping
     decimation = 4
@@ -156,24 +158,29 @@ def main():
             sim_time = 0.0
             count = 0
             # reset dof state
-            dof_pos, dof_vel = robot.get_default_dof_state()
+            dof_pos = robot.data.default_dof_pos
+            dof_vel = robot.data.default_dof_vel
             robot.set_dof_state(dof_pos, dof_vel)
             robot.reset_buffers()
             # reset command
-            actions = torch.zeros(robot.count, robot.num_actions, device=robot.device)
+            actions = robot.data.default_dof_pos
         # perform 4 steps
         for _ in range(decimation):
             # apply actions
-            robot.apply_action(actions)
+            robot.set_dof_position_targets(actions)
+            # write commands to sim
+            robot.write_commands_to_sim()
             # perform step
             sim.step(render=not args_cli.headless)
+            # fetch data
+            robot.refresh_sim_data(refresh_dofs=True)
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update the buffers
         if sim.is_playing():
             robot.update_buffers(sim_dt)
-            contact_sensor.update_buffers(sim_dt)
+            contact_sensor.update(sim_dt, force_recompute=True)
             # update marker visualization
             if not args_cli.headless:
                 contact_sensor.debug_vis()

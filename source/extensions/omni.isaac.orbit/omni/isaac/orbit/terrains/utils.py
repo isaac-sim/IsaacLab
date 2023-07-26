@@ -118,7 +118,7 @@ def create_prim_from_mesh(prim_path: str, vertices: np.ndarray, triangles: np.nd
     improve_patch_friction = kwargs.get("improve_patch_friction", False)
     physx_material_api.CreateImprovePatchFrictionAttr().Set(improve_patch_friction)
     # set combination mode for coefficients
-    combine_mode = kwargs.get("combine_mode", "average")
+    combine_mode = kwargs.get("combine_mode", "multiply")
     physx_material_api.CreateFrictionCombineModeAttr().Set(combine_mode)
     physx_material_api.CreateRestitutionCombineModeAttr().Set(combine_mode)
     # apply physics material to ground plane

@@ -7,13 +7,10 @@
 Submodule containing configuration instances for commonly used robots.
 """
 
-from .anydrive import ANYDRIVE_3_ACTUATOR_CFG, ANYDRIVE_SIMPLE_ACTUATOR_CFG
-from .franka import PANDA_HAND_MIMIC_GROUP_CFG
+from .anydrive import Anydrive3LSTMCfg, Anydrive3SimpleCfg
 
 __all__ = [
     # ANYmal actuators
-    "ANYDRIVE_SIMPLE_ACTUATOR_CFG",
-    "ANYDRIVE_3_ACTUATOR_CFG",
-    # Franka panda actuators
-    "PANDA_HAND_MIMIC_GROUP_CFG",
+    "Anydrive3LSTMCfg",
+    "Anydrive3SimpleCfg",
 ]

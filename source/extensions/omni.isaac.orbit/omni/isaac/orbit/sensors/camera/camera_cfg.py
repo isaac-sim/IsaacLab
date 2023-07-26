@@ -54,6 +54,8 @@ class PinholeCameraCfg(SensorBaseCfg):
         vertical_aperture_offset: float = None
         """Offsets Resolution/Film gate vertically."""
 
+    cls_name = "Camera"
+
     data_types: List[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
     width: int = MISSING

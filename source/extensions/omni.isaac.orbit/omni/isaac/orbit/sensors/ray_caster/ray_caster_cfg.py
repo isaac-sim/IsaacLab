@@ -20,6 +20,8 @@ from .patterns_cfg import PatternBaseCfg
 class RayCasterCfg(SensorBaseCfg):
     """Configuration for the ray-cast sensor."""
 
+    cls_name = "RayCaster"
+
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.
 

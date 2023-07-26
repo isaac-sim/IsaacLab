@@ -32,12 +32,12 @@ def velocity_commands(env: "LocomotionEnv"):
 
 def dof_pos(env: "LocomotionEnv"):
     """DOF positions for legs offset by the drive default positions."""
-    return env.robot.data.dof_pos - env.robot.data.actuator_pos_offset
+    return env.robot.data.dof_pos - env.robot.data.default_dof_pos
 
 
 def dof_vel(env: "LocomotionEnv"):
     """DOF velocity of the legs."""
-    return env.robot.data.dof_vel - env.robot.data.actuator_vel_offset
+    return env.robot.data.dof_vel - env.robot.data.default_dof_vel
 
 
 def actions(env: "LocomotionEnv"):
