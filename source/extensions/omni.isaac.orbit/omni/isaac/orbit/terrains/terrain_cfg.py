@@ -12,10 +12,13 @@ inherit from ``omni.isaac.orbit.terrains.terrains_cfg.TerrainConfig`` and define
   and the configuration parameters and return a `tuple with the `trimesh`` mesh object and terrain origin.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import trimesh
 from dataclasses import MISSING
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable
+from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -30,7 +33,7 @@ class SubTerrainBaseCfg:
     extend from :math:`(0, 0)` to :math:`(size[0], size[1])`.
     """
 
-    function: Callable[[float, "SubTerrainBaseCfg"], Tuple[List[trimesh.Trimesh], np.ndarray]] = MISSING
+    function: Callable[[float, SubTerrainBaseCfg], tuple[list[trimesh.Trimesh], np.ndarray]] = MISSING
     """Function to generate the terrain.
 
     This function must take as input the terrain difficulty and the configuration parameters and
@@ -46,7 +49,7 @@ class SubTerrainBaseCfg:
     is 0.7.
     """
 
-    size: Tuple[float, float] = MISSING
+    size: tuple[float, float] = MISSING
     """The width (along x) and length (along y) of the terrain (in m)."""
 
 
@@ -54,13 +57,20 @@ class SubTerrainBaseCfg:
 class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
-    seed: Optional[int] = None
+    seed: int | None = None
     """The seed for the random number generator. Defaults to :obj:`None`.
 
     If :obj:`None`, the seed is not set.
     """
 
-    size: Tuple[float, float] = MISSING
+    curriculum: bool = False
+    """Whether to use the curriculum mode. Defaults to False.
+
+    If True, the terrains are generated based on their difficulty parameter. Otherwise,
+    they are randomly generated.
+    """
+
+    size: tuple[float, float] = MISSING
     """The width (along x) and length (along y) of each sub-terrain (in m).
 
     Note:
@@ -88,7 +98,7 @@ class TerrainGeneratorCfg:
     This value is passed on to all the height field sub-terrain configurations.
     """
 
-    slope_threshold: Optional[float] = 0.75
+    slope_threshold: float | None = 0.75
     """The slope threshold above which surfaces are made vertical. Defaults to 0.75.
 
     If :obj:`None` no correction is applied.
@@ -96,10 +106,10 @@ class TerrainGeneratorCfg:
     This value is passed on to all the height field sub-terrain configurations.
     """
 
-    sub_terrains: Dict[str, SubTerrainBaseCfg] = MISSING
+    sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING
     """List of sub-terrain configurations."""
 
-    difficulty_choices: List[float] = [0.5, 0.75, 0.9]
+    difficulty_choices: list[float] = [0.5, 0.75, 0.9]
     """List of difficulty choices. Defaults to [0.5, 0.75, 0.9].
 
     The difficulty choices are used to sample the difficulty of the generated terrain. The specified
@@ -126,7 +136,25 @@ class TerrainImporterCfg:
     All sub-terrains are imported relative to this prim path.
     """
 
-    color: Optional[Tuple[float, float, float]] = (0.065, 0.0725, 0.080)
+    terrain_type: Literal["generator", "plane", "usd"] = "generator"
+    """The type of terrain to generate. Defaults to "generator".
+
+    Available options are "plane", "usd", and "generator".
+    """
+
+    terrain_generator: TerrainGeneratorCfg | None = None
+    """The terrain generator configuration.
+
+    Only used if ``terrain_type`` is set to "generator".
+    """
+
+    usd_path: str | None = None
+    """The path to the USD file containing the terrain.
+
+    Only used if ``terrain_type`` is set to "usd".
+    """
+
+    color: tuple[float, float, float] | None = (0.065, 0.0725, 0.080)
     """The color of the terrain. Defaults to (0.065, 0.0725, 0.080).
 
     If :obj:`None`, no color is applied to the prim.
@@ -157,8 +185,8 @@ class TerrainImporterCfg:
       This parameter is used only when no sub-terrain origins are defined.
     """
 
-    max_init_terrain_level: Optional[int] = 5
-    """The maximum initial terrain level for defining environment origins. Defaults to 5.
+    max_init_terrain_level: int | None = None
+    """The maximum initial terrain level for defining environment origins. Defaults to None.
 
     The terrain levels are specified by the number of rows in the grid arrangement of
     sub-terrains. If :obj:`None`, then the initial terrain level is set to the maximum

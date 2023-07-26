@@ -8,7 +8,7 @@ import argparse
 import os
 import shutil
 
-from omni.isaac.orbit.terrains.config.rough import ASSORTED_TERRAINS_CFG
+from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_generator import TerrainGenerator
 
 if __name__ == "__main__":
@@ -21,7 +21,8 @@ if __name__ == "__main__":
     # create directory
     os.makedirs(output_dir, exist_ok=True)
     # modify the config to cache
-    ASSORTED_TERRAINS_CFG.use_cache = True
-    ASSORTED_TERRAINS_CFG.cache_dir = output_dir
+    ROUGH_TERRAINS_CFG.use_cache = True
+    ROUGH_TERRAINS_CFG.cache_dir = output_dir
+    ROUGH_TERRAINS_CFG.curriculum = False
     # generate terrains
-    terrain_generator = TerrainGenerator(cfg=ASSORTED_TERRAINS_CFG, curriculum=False)
+    terrain_generator = TerrainGenerator(cfg=ROUGH_TERRAINS_CFG)

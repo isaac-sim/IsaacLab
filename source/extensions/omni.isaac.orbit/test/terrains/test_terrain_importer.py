@@ -39,7 +39,7 @@ parser.add_argument("--geom_sphere", action="store_true", default=False, help="W
 parser.add_argument(
     "--terrain_type",
     type=str,
-    default="generated",
+    default="generator",
     help="Type of terrain to import. Can be 'generated' or 'usd' or 'plane'.",
 )
 args_cli = parser.parse_args()
@@ -64,7 +64,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.terrains as terrain_gen
-from omni.isaac.orbit.terrains.config.rough import ASSORTED_TERRAINS_CFG
+from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -95,22 +95,14 @@ def main(terrain_type: str):
     prim_utils.define_prim("/World/envs/env_0")
 
     # Handler for terrains importing
-    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(prim_path="/World/ground", max_init_terrain_level=None)
-    terrain_importer = TerrainImporter(terrain_importer_cfg, device=sim.device)
-
-    # Ground-plane
-    if terrain_type == "generated":
-        terrain_generator = terrain_gen.TerrainGenerator(cfg=ASSORTED_TERRAINS_CFG, curriculum=True)
-        terrain_importer.import_mesh(terrain_generator.terrain_mesh, key="rough")
-        terrain_importer.configure_env_origins(num_balls, terrain_generator.terrain_origins)
-    elif terrain_type == "usd":
-        terrain_importer.import_usd(f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd", key="usd")
-        terrain_importer.configure_env_origins(num_balls)
-    elif terrain_type == "plane":
-        terrain_importer.import_ground_plane(key="flat")
-        terrain_importer.configure_env_origins(num_balls)
-    else:
-        raise ValueError(f"Unknown terrain type: {terrain_type}. Valid options are: generated, usd, plane.")
+    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        prim_path="/World/ground",
+        max_init_terrain_level=None,
+        terrain_type=terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True),
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+    )
+    terrain_importer = TerrainImporter(terrain_importer_cfg, num_envs=num_balls, device=sim.device)
 
     # Define the scene
     # -- Light

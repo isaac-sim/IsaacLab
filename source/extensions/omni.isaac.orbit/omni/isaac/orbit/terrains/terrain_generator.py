@@ -11,6 +11,7 @@ from typing import List, Tuple
 
 from omni.isaac.orbit.utils.dict import dict_to_md5_hash
 from omni.isaac.orbit.utils.io import dump_yaml
+from omni.isaac.orbit.utils.timer import Timer
 
 from .height_field import HfTerrainBaseCfg
 from .terrain_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg
@@ -51,20 +52,17 @@ class TerrainGenerator:
     terrain_origins: np.ndarray
     """The origin of each sub-terrain. Shape is (num_rows, num_cols, 3)."""
 
-    def __init__(self, cfg: TerrainGeneratorCfg, curriculum: bool = False):
+    def __init__(self, cfg: TerrainGeneratorCfg):
         """Initialize the terrain generator.
 
         Args:
             cfg (TerrainMeshGeneratorCfg): Configuration for the terrain generator.
-            curriculum (bool, optional): If True, the terrains are generated based on their
-                difficulty parameter. Otherwise, they are randomly generated. Defaults to False.
         """
         # check inputs
         if len(cfg.sub_terrains) == 0:
             raise ValueError("No sub-terrains specified! Please add at least one sub-terrain.")
         # store inputs
         self.cfg = cfg
-        self.enable_curriculum = curriculum
         # set common values to all sub-terrains config
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
@@ -84,10 +82,12 @@ class TerrainGenerator:
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
         # parse configuration and add sub-terrains
         # create terrains based on curriculum or randomly
-        if self.enable_curriculum:
-            self._generate_curriculum_terrains()
+        if self.cfg.curriculum:
+            with Timer("[INFO] Generating terrains based on curriculum took"):
+                self._generate_curriculum_terrains()
         else:
-            self._generate_random_terrains()
+            with Timer("[INFO] Generating terrains randomly took"):
+                self._generate_random_terrains()
         # add a border around the terrains
         self._add_terrain_border()
         # combine all the sub-terrains into a single mesh

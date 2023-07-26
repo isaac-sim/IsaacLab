@@ -13,11 +13,13 @@ import omni.isaac.core.utils.prims as prim_utils
 import warp
 from pxr import UsdGeom
 
-from omni.isaac.orbit.compat.markers import StaticMarker
+from omni.isaac.orbit.markers import VisualizationMarkers
+from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.utils.kit import create_ground_plane
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh
 
 from .terrain_cfg import TerrainImporterCfg
+from .terrain_generator import TerrainGenerator
 from .trimesh.utils import make_plane
 from .utils import create_prim_from_mesh
 
@@ -51,12 +53,18 @@ class TerrainImporter:
     env_origins: torch.Tensor
     """The origins of the environment instances. Shape is (num_envs, 3)."""
 
-    def __init__(self, cfg: TerrainImporterCfg, device: str = "cuda"):
+    def __init__(self, cfg: TerrainImporterCfg, num_envs: int, device: str):
         """Initialize the terrain importer.
 
         Args:
             cfg (TerrainImporterCfg): The configuration for the terrain importer.
-            device (str, optional): The device to use. Defaults to "cuda".
+            num_envs (int): The number of environment origins to configure.
+            device (str, optional): The device to use.
+
+        Raises:
+            ValueError: If input terrain type is not supported.
+            ValueError: If terrain type is 'generator' and no configuration provided for ``terrain_generator``.
+            ValueError: If terrain type is 'usd' and no configuration provided for ``usd_path``.
         """
         # store inputs
         self.cfg = cfg
@@ -65,7 +73,34 @@ class TerrainImporter:
         # create a dict of meshes
         self.meshes = dict()
         self.warp_meshes = dict()
-        self.origins = None
+        self.env_origins = None
+        # marker for visualization
+        self.origin_visualizer = None
+
+        if self.cfg.terrain_type == "generator":
+            # check config is provided
+            if self.cfg.terrain_generator is None:
+                raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
+            # generate the terrain
+            terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator)
+            self.import_mesh(terrain_generator.terrain_mesh, key="terrain")
+            # configure the terrain origins based on the terrain generator
+            self.configure_env_origins(num_envs, terrain_generator.terrain_origins)
+        elif self.cfg.terrain_type == "usd":
+            # check if config is provided
+            if self.cfg.usd_path is None:
+                raise ValueError("Input terrain type is 'usd' but no value provided for 'usd_path'.")
+            # import the terrain
+            self.import_usd(self.cfg.usd_path, key="terrain")
+            # configure the origins in a grid
+            self.configure_env_origins(num_envs)
+        elif self.cfg.terrain_type == "plane":
+            # load the plane
+            self.import_ground_plane(key="terrain")
+            # configure the origins in a grid
+            self.configure_env_origins(num_envs)
+        else:
+            raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
 
     def import_ground_plane(self, size: Tuple[int, int] = (2.0e6, 2.0e6), key: str = "terrain", **kwargs):
         """Add a plane to the terrain importer.
@@ -78,7 +113,7 @@ class TerrainImporter:
             ValueError: If a terrain with the same key already exists.
         """
         # create a plane
-        mesh = make_plane(size, height=0.0, centered=True)
+        mesh = make_plane(size, height=0.0, center_zero=True)
         # store the mesh
         self.meshes[key] = mesh
         # create a warp mesh
@@ -187,6 +222,8 @@ class TerrainImporter:
             num_envs (int): The number of environment origins to define.
             origins (Optional[np.ndarray]): The origins of the sub-terrains. Shape: (num_rows, num_cols, 3).
         """
+        # create markers for the origins
+        markers = VisualizationMarkers(f"{self.cfg.prim_path}/originMarkers", cfg=FRAME_MARKER_CFG)
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
             # convert to numpy
@@ -196,14 +233,14 @@ class TerrainImporter:
             self.terrain_origins = origins.to(self.device, dtype=torch.float)
             # compute environment origins
             self.env_origins = self._compute_env_origins_curriculum(num_envs, self.terrain_origins)
-            # create markers for terrain origins
-            num_rows, num_cols = self.terrain_origins.shape[:2]
-            markers = StaticMarker(f"{self.cfg.prim_path}/originMarkers", count=num_rows * num_cols, scale=[0.5] * 3)
-            markers.set_world_poses(self.terrain_origins.reshape(-1, 3))
+            # put markers on the sub-terrain origins
+            markers.visualize(self.terrain_origins.reshape(-1, 3))
         else:
             self.terrain_origins = None
             # compute environment origins
             self.env_origins = self._compute_env_origins_grid(num_envs, self.cfg.env_spacing)
+            # put markers on the grid origins
+            markers.visualize(self.env_origins.reshape(-1, 3))
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
         """Update the environment origins based on the terrain levels."""

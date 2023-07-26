@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.7.4 (2023-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the behavior of the :class:`omni.isaac.orbit.terrains.TerrainImporter` class. It now expects the terrain
+  type to be specified in the configuration object. This allows the user to specify everything in the configuration
+  object and not have to do an explicit call to import a terrain.
+
+Fixed
+^^^^^
+
+* Fixed setting of quaternion orientations inside the :class:`omni.isaac.orbit.markers.Visualizationmarkers` class.
+  Earlier, the orientation was being set into the point instancer in the wrong order (``wxyz`` instead of ``xyzw``).
+
+
 0.7.3 (2023-07-25)
 ~~~~~~~~~~~~~~~~~~
 

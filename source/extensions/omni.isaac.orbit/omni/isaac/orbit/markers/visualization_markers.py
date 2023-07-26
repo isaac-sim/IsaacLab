@@ -22,13 +22,13 @@ from dataclasses import MISSING
 from typing import Any, Dict, List, Optional, Union
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.kit.commands
 from omni.isaac.core.materials import PreviewSurface
 from omni.isaac.core.prims import GeometryPrim
 from pxr import Gf, UsdGeom, Vt
 
 from omni.isaac.orbit.utils.assets import check_file_path
 from omni.isaac.orbit.utils.configclass import configclass
+from omni.isaac.orbit.utils.math import convert_quat
 
 
 @configclass
@@ -329,6 +329,9 @@ class VisualizationMarkers:
             # check that shape is correct
             if orientations.shape[1] != 4 or len(orientations.shape) != 2:
                 raise ValueError(f"Expected `orientations` to have shape (M, 4). Received: {orientations.shape}.")
+            # roll orientations from (w, x, y, z) to (x, y, z, w)
+            # internally USD expects (x, y, z, w)
+            orientations = convert_quat(orientations, to="xyzw")
             # apply orientations
             self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations))
             # update number of markers
@@ -406,9 +409,6 @@ class VisualizationMarkers:
                 scale=cfg.scale,
                 attributes=cfg.attributes,
             )
-            # remove any physics parameters
-            omni.kit.commands.execute("RemovePhysicsComponentCommand", usd_prim=prim, component="PhysicsRigidBodyAPI")
-            omni.kit.commands.execute("RemovePhysicsComponentCommand", usd_prim=prim, component="PhysicsCollisionAPI")
             # set visibility
             prim_utils.set_prim_visibility(prim, visible=cfg.visible)
             # create color attribute

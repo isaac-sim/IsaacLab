@@ -35,6 +35,7 @@ extra_standard_library = [
     "toml",
     "trimesh",
     "tqdm",
+    "typing_extensions",
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
