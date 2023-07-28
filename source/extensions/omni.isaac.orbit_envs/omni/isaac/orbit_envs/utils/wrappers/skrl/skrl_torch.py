@@ -12,7 +12,7 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 .. code-block:: python
 
-    from skrl.envs.torch.wrappers import wrap_env
+    from skrl.envs.wrappers.torch import wrap_env
 
     env = wrap_env(env, wrapper="isaac-orbit")
 
@@ -26,7 +26,7 @@ import tqdm
 
 # skrl
 from skrl.agents.torch import Agent
-from skrl.envs.torch.wrappers import Wrapper, wrap_env
+from skrl.envs.wrappers.torch import Wrapper, wrap_env
 from skrl.trainers.torch import Trainer
 from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
 
@@ -55,7 +55,7 @@ def SkrlVecEnvWrapper(env: IsaacEnv):
         ValueError: When the environment is not an instance of :class:`IsaacEnv`.
 
     Reference:
-        https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html
+        https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
     if not isinstance(env.unwrapped, IsaacEnv):
