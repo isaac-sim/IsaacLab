@@ -4,15 +4,15 @@ The following example shows how to wrap an environment for skrl:
 
 .. code-block:: python
 
-    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlTorchVecEnvWrapper
+    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlJaxVecEnvWrapper
 
-    env = SkrlTorchVecEnvWrapper(env)
+    env = SkrlJaxVecEnvWrapper(env)
 
 Or, equivalently, by directly calling the skrl library API as follows:
 
 .. code-block:: python
 
-    from skrl.envs.wrappers.torch import wrap_env
+    from skrl.envs.wrappers.jax import wrap_env
 
     env = wrap_env(env, wrapper="isaac-orbit")
 
@@ -24,13 +24,13 @@ from typing import List, Optional, Union
 import tqdm
 
 # skrl
-from skrl.agents.torch import Agent
-from skrl.envs.wrappers.torch import Wrapper, wrap_env
-from skrl.trainers.torch import Trainer
+from skrl.agents.jax import Agent
+from skrl.envs.wrappers.jax import Wrapper, wrap_env
+from skrl.trainers.jax import Trainer
 
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv
 
-__all__ = ["SkrlTorchVecEnvWrapper", "SkrlTorchVecTrainer"]
+__all__ = ["SkrlJaxVecEnvWrapper", "SkrlJaxVecTrainer"]
 
 
 """
@@ -38,8 +38,8 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlTorchVecEnvWrapper(env: IsaacEnv):
-    """Wraps around Isaac Orbit environment for skrl using PyTorch.
+def SkrlJaxVecEnvWrapper(env: IsaacEnv):
+    """Wraps around Isaac Orbit environment for skrl using JAX.
 
     This function wraps around the Isaac Orbit environment. Since the :class:`IsaacEnv` environment
     wrapping functionality is defined within the skrl library itself, this implementation
@@ -67,13 +67,13 @@ Custom trainer for skrl.
 """
 
 
-class SkrlTorchVecTrainer(Trainer):
-    """Custom trainer with logging of episode information using PyTorch.
+class SkrlJaxVecTrainer(Trainer):
+    """Custom trainer with logging of episode information using JAX.
 
-    This trainer inherits from the :class:`skrl.trainers.torch.Trainer` class.
+    This trainer inherits from the :class:`skrl.trainers.jax.Trainer` class.
     It is used to train and evaluate agents in vectorized environments.
 
-    It modifies the :class:`skrl.trainers.torch.Trainer` class with the following differences:
+    It modifies the :class:`skrl.trainers.jax.Trainer` class with the following differences:
 
     * It also log episode information to the agent's logger.
     * It does not close the environment at the end of the training.
@@ -129,24 +129,23 @@ class SkrlTorchVecTrainer(Trainer):
         for timestep in tqdm.tqdm(range(self.timesteps), disable=self.disable_progressbar):
             # pre-interaction
             self.agents.pre_interaction(timestep=timestep, timesteps=self.timesteps)
-            with torch.no_grad():
-                # compute actions
-                actions = self.agents.act(states, timestep=timestep, timesteps=self.timesteps)[0]
-                # step env
-                next_states, rewards, terminated, truncated, infos = self.env.step(actions)
-                # note: here we do not call render scene since it is done in the env.step() method
-                # record transitions
-                self.agents.record_transition(
-                    states=states,
-                    actions=actions,
-                    rewards=rewards,
-                    next_states=next_states,
-                    terminated=terminated,
-                    truncated=truncated,
-                    infos=infos,
-                    timestep=timestep,
-                    timesteps=self.timesteps,
-                )
+            # compute actions
+            actions = self.agents.act(states, timestep=timestep, timesteps=self.timesteps)[0]
+            # step env
+            next_states, rewards, terminated, truncated, infos = self.env.step(actions)
+            # note: here we do not call render scene since it is done in the env.step() method
+            # record transitions
+            self.agents.record_transition(
+                states=states,
+                actions=actions,
+                rewards=rewards,
+                next_states=next_states,
+                terminated=terminated,
+                truncated=truncated,
+                infos=infos,
+                timestep=timestep,
+                timesteps=self.timesteps,
+            )
             # log custom environment data
             if "episode" in infos:
                 for k, v in infos["episode"].items():
@@ -172,32 +171,31 @@ class SkrlTorchVecTrainer(Trainer):
         # reset env
         states, infos = self.env.reset()
         # evaluation loop
-        with torch.no_grad():
-            for timestep in tqdm.tqdm(range(self.timesteps), disable=self.disable_progressbar):
-                # compute actions
-                actions = self.agents.act(states, timestep=timestep, timesteps=self.timesteps)[0]
-                # step env
-                next_states, rewards, terminated, truncated, infos = self.env.step(actions)
-                # note: here we do not call render scene since it is done in the env.step() method
-                # write data to TensorBoard
-                self.agents.record_transition(
-                    states=states,
-                    actions=actions,
-                    rewards=rewards,
-                    next_states=next_states,
-                    terminated=terminated,
-                    truncated=truncated,
-                    infos=infos,
-                    timestep=timestep,
-                    timesteps=self.timesteps
-                )
-                # log custom environment data
-                if "episode" in infos:
-                    for k, v in infos["episode"].items():
-                        if isinstance(v, torch.Tensor) and v.numel() == 1:
-                            self.agents.track_data(f"EpisodeInfo / {k}", v.item())
-                # perform post-interaction
-                super(type(self.agents), self.agents).post_interaction(timestep=timestep, timesteps=self.timesteps)
-                # update states
-                # note: here we do not call reset scene since it is done in the env.step() method
-                states = next_states
+        for timestep in tqdm.tqdm(range(self.timesteps), disable=self.disable_progressbar):
+            # compute actions
+            actions = self.agents.act(states, timestep=timestep, timesteps=self.timesteps)[0]
+            # step env
+            next_states, rewards, terminated, truncated, infos = self.env.step(actions)
+            # note: here we do not call render scene since it is done in the env.step() method
+            # write data to TensorBoard
+            self.agents.record_transition(
+                states=states,
+                actions=actions,
+                rewards=rewards,
+                next_states=next_states,
+                terminated=terminated,
+                truncated=truncated,
+                infos=infos,
+                timestep=timestep,
+                timesteps=self.timesteps
+            )
+            # log custom environment data
+            if "episode" in infos:
+                for k, v in infos["episode"].items():
+                    if isinstance(v, torch.Tensor) and v.numel() == 1:
+                        self.agents.track_data(f"EpisodeInfo / {k}", v.item())
+            # perform post-interaction
+            super(type(self.agents), self.agents).post_interaction(timestep=timestep, timesteps=self.timesteps)
+            # update states
+            # note: here we do not call reset scene since it is done in the env.step() method
+            states = next_states
