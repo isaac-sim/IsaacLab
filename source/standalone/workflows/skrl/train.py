@@ -27,7 +27,14 @@ parser.add_argument("--video_interval", type=int, default=2000, help="Interval b
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
+parser.add_argument(
+    "--framework",
+    type=str,
+    default="torch",
+    choices=["torch", "jax.jax", "jax.numpy"],
+    help="Deep learning framework to use.",
+)
 args_cli = parser.parse_args()
 
 # launch the simulator
@@ -46,10 +53,19 @@ simulation_app = SimulationApp(config, experience=app_experience)
 import gym
 from datetime import datetime
 
-from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
-from skrl.memories.torch import RandomMemory
 from skrl.utils import set_seed
-from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
+
+if args_cli.framework.startswith("torch"):
+    from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
+    from skrl.memories.torch import RandomMemory
+    from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
+elif args_cli.framework.startswith("jax"):
+    import jax  # fmt:skip
+    jax.Device = jax.xla.Device  # for Isaac Sim 2022.2.1 or earlier
+
+    from skrl.agents.jax.ppo import PPO, PPO_DEFAULT_CONFIG
+    from skrl.memories.jax import RandomMemory
+    from skrl.utils.model_instantiators.jax import deterministic_model, gaussian_model
 
 from omni.isaac.orbit.utils.dict import print_dict
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
@@ -57,7 +73,13 @@ from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401
 from omni.isaac.orbit_envs.utils import parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlSequentialLogTrainer, SkrlVecEnvWrapper
+
+if args_cli.framework == "torch":
+    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlTorchVecEnvWrapper as SkrlVecEnvWrapper
+    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlTorchVecTrainer as SkrlVecTrainer
+elif args_cli.framework.startswith("jax"):
+    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlJaxVecEnvWrapper as SkrlVecEnvWrapper
+    from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlJaxVecTrainer as SkrlVecTrainer
 
 from config import convert_skrl_cfg, parse_skrl_cfg
 
@@ -112,19 +134,22 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
     models = {}
+    # force separated models for jax
+    if args_cli.framework.startswith("jax"):
+        experiment_cfg["models"]["separate"] = True
     # non-shared models
     if experiment_cfg["models"]["separate"]:
         models["policy"] = gaussian_model(
             observation_space=env.observation_space,
             action_space=env.action_space,
             device=env.device,
-            **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+            **convert_skrl_cfg(experiment_cfg["models"]["policy"], args_cli.framework),
         )
         models["value"] = deterministic_model(
             observation_space=env.observation_space,
             action_space=env.action_space,
             device=env.device,
-            **convert_skrl_cfg(experiment_cfg["models"]["value"]),
+            **convert_skrl_cfg(experiment_cfg["models"]["value"], args_cli.framework),
         )
     # shared models
     else:
@@ -135,11 +160,15 @@ def main():
             structure=None,
             roles=["policy", "value"],
             parameters=[
-                convert_skrl_cfg(experiment_cfg["models"]["policy"]),
-                convert_skrl_cfg(experiment_cfg["models"]["value"]),
+                convert_skrl_cfg(experiment_cfg["models"]["policy"], args_cli.framework),
+                convert_skrl_cfg(experiment_cfg["models"]["value"], args_cli.framework),
             ],
         )
         models["value"] = models["policy"]
+    # initialize jax models' state dict
+    if args_cli.framework.startswith("jax"):
+        for role, model in models.items():
+            model.init_state_dict(role)
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
     # https://skrl.readthedocs.io/en/latest/modules/skrl.memories.random.html
@@ -150,7 +179,7 @@ def main():
     # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
-    agent_cfg.update(convert_skrl_cfg(experiment_cfg["agent"]))
+    agent_cfg.update(convert_skrl_cfg(experiment_cfg["agent"], args_cli.framework))
 
     agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
     agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})
@@ -166,8 +195,7 @@ def main():
 
     # configure and instantiate a custom RL trainer for logging episode events
     # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html
-    trainer_cfg = experiment_cfg["trainer"]
-    trainer = SkrlSequentialLogTrainer(cfg=trainer_cfg, env=env, agents=agent)
+    trainer = SkrlVecTrainer(cfg=experiment_cfg["trainer"], env=env, agent=agent)
 
     # train the agent
     trainer.train()
