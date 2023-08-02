@@ -73,6 +73,8 @@ Alternatively, one can set the environment variables to the python script direct
 """
 
 import os
+import re
+import sys
 from typing import ClassVar
 
 import carb
@@ -136,10 +138,23 @@ class AppLauncher:
         # Headless is always true for remote deployment
         remote_deployment = int(os.environ.get("REMOTE_DEPLOYMENT", 0))
         # resolve headless execution of simulation app
-        headless = kwargs.get("headless", False)
-        kwargs.update({"headless": headless or remote_deployment})
+        headless = kwargs.get("headless", False) or remote_deployment
+        kwargs.update({"headless": headless})
+        # hack sys module to make sure that the SimulationApp is initialized correctly
+        # this is to avoid the warnings from the simulation app about not ok modules
+        r = re.compile(".*orbit.*")
+        found_modules = list(filter(r.match, list(sys.modules.keys())))
+        found_modules += ["omni.isaac.kit.app_framework"]
+        # remove orbit modules from sys.modules
+        hacked_modules = dict()
+        for key in found_modules:
+            hacked_modules[key] = sys.modules[key]
+            del sys.modules[key]
         # launch simulation app
         self._app = SimulationApp(kwargs)
+        # add orbit modules back to sys.modules
+        for key, value in hacked_modules.items():
+            sys.modules[key] = value
 
         # These have to be loaded after SimulationApp is initialized
         from omni.isaac.core.utils.extensions import enable_extension
@@ -187,8 +202,29 @@ class AppLauncher:
 
         # off-screen rendering
         viewport = int(os.environ.get("VIEWPORT_ENABLED", 0))
+        # enable extensions for off-screen rendering
+        # note: depending on the app file, some extensions might not be available in it.
+        #   Thus, we manually enable these extensions to make sure they are available.
+        if viewport > 0 or not headless:
+            # note: enabling extensions is order-sensitive. please do not change the order!
+            # extension to enable UI buttons (otherwise we get attribute errors)
+            enable_extension("omni.kit.window.toolbar")
+            # extension to make RTX realtime and path-traced renderers
+            enable_extension("omni.kit.viewport.rtx")
+            # extension to make HydraDelegate renderers
+            enable_extension("omni.kit.viewport.pxr")
+            # enable viewport extension if full rendering is enabled
+            enable_extension("omni.kit.viewport.bundle")
+            # extension for window status bar
+            enable_extension("omni.kit.window.status_bar")
+        # enable isaac replicator extension
+        # note: moved here since it requires to have the viewport extension to be enabled first.
+        enable_extension("omni.replicator.isaac")
+        # enable urdf importer
+        enable_extension("omni.isaac.urdf")
 
         # update the global flags
+        # TODO: Remove all these global flags. We don't need it anymore.
         # -- render GUI
         if headless and (remote_deployment < 2):
             self.RENDER = False

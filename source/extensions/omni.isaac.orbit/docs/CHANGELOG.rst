@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.8.1 (2023-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added a hack into :class:`omni.isaac.orbit.app.AppLauncher` class to remove orbit packages from the path before launching
+  the simulation application. This prevents the warning messages that appears when the user launches the ``SimulationApp``.
+
+Added
+^^^^^
+
+* Enabled necessary viewport extensions in the :class:`omni.isaac.orbit.app.AppLauncher` class itself if ``VIEWPORT_ENABLED``
+  flag is true.
+
 
 0.8.0 (2023-07-26)
 ~~~~~~~~~~~~~~~~~~
