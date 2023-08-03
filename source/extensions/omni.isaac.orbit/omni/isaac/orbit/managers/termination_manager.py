@@ -148,6 +148,11 @@ class TerminationManager(ManagerBase):
             # check for non config
             if term_cfg is None:
                 continue
+            # check for valid config type
+            if not isinstance(term_cfg, TerminationTermCfg):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type TerminationTermCfg. Received '{type(term_cfg)}'."
+                )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
             # add function to list

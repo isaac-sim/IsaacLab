@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.8.6 (2023-08-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for callable classes in the :class:`omni.isaac.orbit.managers.ManagerBase`.
+
+
 0.8.5 (2023-08-03)
 ~~~~~~~~~~~~~~~~~~
 

@@ -188,6 +188,10 @@ class ObservationManager(ManagerBase):
                 # check for non config
                 if term_cfg is None:
                     continue
+                if not isinstance(term_cfg, ObservationTermCfg):
+                    raise TypeError(
+                        f"Configuration for the term '{term_name}' is not of type ObservationTermCfg. Received '{type(term_cfg)}'."
+                    )
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
                 # check noise settings

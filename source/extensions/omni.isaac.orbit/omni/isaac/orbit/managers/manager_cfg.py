@@ -27,6 +27,13 @@ class ManagerBaseTermCfg:
     """The function to be called for the term.
 
     The function must take the environment object as the first argument.
+
+    Note:
+        It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
+        method.
+
+    ..`callable objects`: https://docs.python.org/3/reference/datamodel.html#object.__call__
+
     """
     sensor_name: str | None = None
     """The name of the sensor required by the term. Defaults to None.

@@ -27,6 +27,28 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
     return hot * bland * torch.ones(env.num_envs, 5, device=env.device)
 
 
+class complex_function_class:
+    def __init__(self, cfg: ObservationTermCfg, env: object):
+        self.cfg = cfg
+        self.env = env
+        # define some variables
+        self._cost = 2 * self.env.num_envs
+
+    def __call__(self, env: object) -> torch.Tensor:
+        return torch.ones(env.num_envs, 2, device=env.device) * self._cost
+
+
+class non_callable_complex_function_class:
+    def __init__(self, cfg: ObservationTermCfg, env: object):
+        self.cfg = cfg
+        self.env = env
+        # define some variables
+        self._cost = 2 * self.env.num_envs
+
+    def call_me(self, env: object) -> torch.Tensor:
+        return torch.ones(env.num_envs, 2, device=env.device) * self._cost
+
+
 class TestObservationManager(unittest.TestCase):
     """Test cases for various situations with observation manager."""
 
@@ -187,6 +209,53 @@ class TestObservationManager(unittest.TestCase):
         cfg = MyObservationManagerCfg()
         # check the invalid config
         with self.assertRaises(ValueError):
+            self.obs_man = ObservationManager(cfg, self.env)
+
+    def test_callable_class_term(self):
+        """Test the observation computation with callable class term."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
+                term_2 = ObservationTermCfg(func=complex_function_class, scale=0.2)
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+        # check the observation shape
+        self.assertEqual((self.env.num_envs, 6), observations["policy"].shape)
+        self.assertEqual(observations["policy"][0, -1].item(), 2 * self.env.num_envs * 0.2)
+
+    def test_non_callable_class_term(self):
+        """Test the observation computation with non-callable class term."""
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
+                term_2 = ObservationTermCfg(func=non_callable_complex_function_class, scale=0.2)
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager config
+        cfg = MyObservationManagerCfg()
+        # create observation manager
+        with self.assertRaises(AttributeError):
             self.obs_man = ObservationManager(cfg, self.env)
 
 

@@ -130,9 +130,14 @@ class ManagerBase(ABC):
             # acquire the body indices
             body_ids, _ = getattr(self._env, term_cfg.asset_name).find_bodies(term_cfg.body_names)
             term_cfg.params["body_ids"] = body_ids
-        # get the corresponding function
+        # get the corresponding function or functional class
         if isinstance(term_cfg.func, str):
             term_cfg.func = string_to_callable(term_cfg.func)
+        # initialize the term if it is a class
+        if inspect.isclass(term_cfg.func):
+            term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+            # add the "self" argument to the count
+            min_argc += 1
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")

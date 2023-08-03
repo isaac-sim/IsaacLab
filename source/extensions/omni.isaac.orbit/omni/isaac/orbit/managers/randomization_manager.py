@@ -155,6 +155,11 @@ class RandomizationManager(ManagerBase):
             # check for non config
             if term_cfg is None:
                 continue
+            # check for valid config type
+            if not isinstance(term_cfg, RandomizationTermCfg):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type RandomizationTermCfg. Received '{type(term_cfg)}'."
+                )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
             # check if mode is a new mode
