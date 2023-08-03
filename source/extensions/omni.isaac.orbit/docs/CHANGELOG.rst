@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.8.4 (2023-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.orbit.sim.SimulationContext` class to the :mod:`omni.isaac.orbit.sim` module.
+  This class inherits from the :class:`omni.isaac.core.simulation_context.SimulationContext` class and adds
+  the ability to create a simulation context from a configuration object.
+
+
 0.8.3 (2023-08-02)
 ~~~~~~~~~~~~~~~~~~
 

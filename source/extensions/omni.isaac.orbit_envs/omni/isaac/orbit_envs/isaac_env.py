@@ -19,12 +19,11 @@ import omni.isaac.core.utils.stage as stage_utils
 import omni.isaac.core.utils.torch as torch_utils
 import omni.usd
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.core.utils.viewports import set_camera_view
 
 from omni.isaac.orbit.sensors import *  # noqa: F401, F403
 from omni.isaac.orbit.sensors.sensor_base import SensorBase
+from omni.isaac.orbit.sim import SimulationContext
 
 from .isaac_env_cfg import IsaacEnvCfg
 
@@ -128,24 +127,8 @@ class IsaacEnv(gym.Env):
         # check that simulation is running
         if stage_utils.get_current_stage() is None:
             raise RuntimeError("The stage has not been created. Did you run the simulator?")
-        # flatten out the simulation dictionary
-        sim_params = self.cfg.sim.to_dict()
-        if sim_params is not None:
-            if "physx" in sim_params:
-                physx_params = sim_params.pop("physx")
-                sim_params.update(physx_params)
-        # set flags for simulator
-        self._configure_simulation_flags(sim_params)
         # create a simulation context to control the simulator
-        self.sim = SimulationContext(
-            stage_units_in_meters=1.0,
-            physics_dt=self.physics_dt,
-            rendering_dt=self.rendering_dt,
-            backend="torch",
-            sim_params=sim_params,
-            physics_prim_path="/physicsScene",
-            device=self.device,
-        )
+        self.sim = SimulationContext(self.cfg.sim)
         # create renderer and set camera view
         self._create_viewport_render_product()
         # add flag for checking closing status
@@ -207,7 +190,7 @@ class IsaacEnv(gym.Env):
         self.envs_positions = cloner.clone(
             source_prim_path=self.template_env_ns,
             prim_paths=self.envs_prim_paths,
-            replicate_physics=self.cfg.sim.replicate_physics,
+            replicate_physics=self.cfg.env.replicate_physics,
         )
         # convert environment positions to torch tensor
         # self.envs_positions = torch.tensor(self.envs_positions, dtype=torch.float, device=self.device)
@@ -325,11 +308,8 @@ class IsaacEnv(gym.Env):
             if self._ui_throttle_counter % self._ui_throttle_period == 0:
                 self._ui_throttle_counter = 0
                 # here we don't render viewport so don't need to flush flatcache
-                self.sim.render()
+                self.sim.render(flush=False)
         elif self.render_mode == RenderMode.FULL_RENDERING:
-            # manually flush the flatcache data to update Hydra textures
-            if self._flatcache_iface is not None:
-                self._flatcache_iface.update(0.0, 0.0)
             # perform debug visualization
             if self.cfg.viewer.debug_vis:
                 self._debug_vis()
@@ -354,9 +334,6 @@ class IsaacEnv(gym.Env):
         # render the scene only if rendering at every step is disabled
         # this is because we do not want to render the scene twice
         if not self.enable_render:
-            # manually flush the flatcache data to update Hydra textures
-            if self._flatcache_iface is not None:
-                self._flatcache_iface.update(0.0, 0.0)
             # render the scene
             self.sim.render()
         # decide the rendering mode
@@ -515,59 +492,10 @@ class IsaacEnv(gym.Env):
     Helper functions - Simulation.
     """
 
-    def _configure_simulation_flags(self, sim_params: dict = None):
-        """Configure simulation flags and extensions at load and run time."""
-        # acquire settings interface
-        carb_settings_iface = carb.settings.get_settings()
-        # enable hydra scene-graph instancing
-        # note: this allows rendering of instanceable assets on the GUI
-        carb_settings_iface.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
-        # change dispatcher to use the default dispatcher in PhysX SDK instead of carb tasking
-        # note: dispatcher handles how threads are launched for multi-threaded physics
-        carb_settings_iface.set_bool("/physics/physxDispatcher", True)
-        # disable contact processing in omni.physx if requested
-        # note: helpful when creating contact reporting over limited number of objects in the scene
-        if sim_params["disable_contact_processing"]:
-            carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-        # set flags based on whether rendering is enabled or not
-        # note: enabling extensions is order-sensitive. please do not change the order.
-        if self.enable_render or self.enable_viewport:
-            # enable scene querying if rendering is enabled
-            # this is needed for some GUI features
-            sim_params["enable_scene_query_support"] = True
-            # load extra viewport extensions if requested
-            if self.enable_viewport:
-                # extension to enable UI buttons (otherwise we get attribute errors)
-                enable_extension("omni.kit.window.toolbar")
-                # extension to make RTX realtime and path-traced renderers
-                enable_extension("omni.kit.viewport.rtx")
-                # extension to make HydraDelegate renderers
-                enable_extension("omni.kit.viewport.pxr")
-            # enable viewport extension if full rendering is enabled
-            enable_extension("omni.kit.viewport.bundle")
-            # load extra render extensions if requested
-            if self.enable_viewport:
-                # extension for window status bar
-                enable_extension("omni.kit.window.status_bar")
-        # enable isaac replicator extension
-        # note: moved here since it requires to have the viewport extension to be enabled first.
-        enable_extension("omni.replicator.isaac")
-
     def _create_viewport_render_product(self):
         """Create a render product of the viewport for rendering."""
         # set camera view for "/OmniverseKit_Persp" camera
         set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
-
-        # check if flatcache is enabled
-        # this is needed to flush the flatcache data into Hydra manually when calling `env.render()`
-        # ref: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_physics.html
-        if self.sim.get_physics_context().use_flatcache:
-            from omni.physxflatcache import get_physx_flatcache_interface
-
-            # acquire flatcache interface
-            self._flatcache_iface = get_physx_flatcache_interface()
-        else:
-            self._flatcache_iface = None
 
         # check if viewport is enabled before creating render product
         if self.enable_viewport:

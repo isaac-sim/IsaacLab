@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.1 (2023-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Adapted the base :class:`IsaacEnv` class to use the :class:`SimulationContext` class from the
+  :mod:`omni.isaac.orbit.sim` module. This simplifies setting of simulation parameters.
+
 
 0.4.0 (2023-07-26)
 ~~~~~~~~~~~~~~~~~~

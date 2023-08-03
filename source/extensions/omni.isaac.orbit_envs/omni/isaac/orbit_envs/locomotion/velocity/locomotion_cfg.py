@@ -16,6 +16,7 @@ from omni.isaac.orbit.robots.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.robots.legged_robot import LeggedRobotCfg
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensorCfg
 from omni.isaac.orbit.sensors.ray_caster import GridPatternCfg, RayCasterCfg
+from omni.isaac.orbit.sim import SimulationCfg
 from omni.isaac.orbit.terrains import TerrainImporterCfg
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.utils import configclass
@@ -26,7 +27,7 @@ import omni.isaac.orbit_envs.locomotion.observations as Obs
 import omni.isaac.orbit_envs.locomotion.randomizations as Rand
 import omni.isaac.orbit_envs.locomotion.rewards as Rew
 import omni.isaac.orbit_envs.locomotion.terminations as Done
-from omni.isaac.orbit_envs.isaac_env_cfg import EnvCfg, IsaacEnvCfg, SimCfg, ViewerCfg
+from omni.isaac.orbit_envs.isaac_env_cfg import EnvCfg, IsaacEnvCfg, ViewerCfg
 from omni.isaac.orbit_envs.locomotion.actions import JointPositionActionCfg
 
 ##
@@ -222,12 +223,12 @@ class LocomotionEnvCfg(IsaacEnvCfg):
     """Configuration for the locomotion velocity environment."""
 
     # General Settings
-    env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=20.0)
-    viewer: ViewerCfg = ViewerCfg(debug_vis=True)
-    # Physics settings
     # disable replicate physics to use physics domain randomization
     # TODO: This is a temporary fix. Should be resolved in the future.
-    sim: SimCfg = SimCfg(dt=0.005, substeps=1, replicate_physics=False, disable_contact_processing=True)
+    env: EnvCfg = EnvCfg(num_envs=4096, env_spacing=2.5, episode_length_s=20.0, replicate_physics=False)
+    viewer: ViewerCfg = ViewerCfg(debug_vis=True)
+    # Physics settings
+    sim: SimulationCfg = SimulationCfg(dt=0.005, substeps=1, disable_contact_processing=True)
 
     # Scene Settings
     terrain: TerrainImporterCfg = TerrainImporterCfg(
