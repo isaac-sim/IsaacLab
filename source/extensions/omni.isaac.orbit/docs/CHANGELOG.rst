@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.8.3 (2023-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the :class:`ActuatorBase` class to the :mod:`omni.isaac.orbit.actuators.actuator_base` module.
+* Renamed the :mod:`omni.isaac.orbit.actuators.actuator` module to :mod:`omni.isaac.orbit.actuators.actuator_pd`
+  to make it more explicit that it contains the PD actuator models.
+
+
 0.8.2 (2023-08-02)
 ~~~~~~~~~~~~~~~~~~
 

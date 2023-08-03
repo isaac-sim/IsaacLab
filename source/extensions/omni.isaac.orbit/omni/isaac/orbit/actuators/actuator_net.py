@@ -21,10 +21,10 @@ from omni.isaac.core.utils.types import ArticulationActions
 
 from omni.isaac.orbit.utils.assets import read_file
 
-from .actuator import DCMotor
+from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
-    from .actuator_cfg import ActuatorBaseCfg, ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+    from .actuator_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 
 
 class ActuatorNetLSTM(DCMotor):
@@ -36,45 +36,35 @@ class ActuatorNetLSTM(DCMotor):
     hidden states of the recurrent network captures the history.
 
     Note:
-        The class only supports desired joint positions commands as inputs in the method:
-        :meth:`ActuatorNetLSTM.set_command`.
-
+        Only the desired joint positions are used as inputs to the network.
     """
 
     cfg: ActuatorNetLSTMCfg
     """The configuration of the actuator model."""
 
-    def __init__(self, cfg: ActuatorBaseCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
+    def __init__(self, cfg: ActuatorNetLSTMCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
         super().__init__(cfg, dof_names, dof_ids, num_envs, device)
-        """Initializes the actuator net model.
 
-        Args:
-            cfg (ActuatorNetLSTMCfg): The configuration for the actuator model.
-            num_actuators (int): The number of actuators using the model.
-            num_envs (int): The number of instances of the articulation.
-            device (str): The computation device.
-        """
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self.device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device)
 
         # extract number of lstm layers and hidden dim from the shape of weights
         num_layers = len(self.network.lstm.state_dict()) // 4
         hidden_dim = self.network.lstm.state_dict()["weight_hh_l0"].shape[1]
         # create buffers for storing LSTM inputs
-        self.sea_input = torch.zeros(self.num_envs * self.num_actuators, 1, 2, device=self.device)
+        self.sea_input = torch.zeros(self._num_envs * self.num_joints, 1, 2, device=self._device)
         self.sea_hidden_state = torch.zeros(
-            num_layers, self.num_envs * self.num_actuators, hidden_dim, device=self.device
+            num_layers, self._num_envs * self.num_joints, hidden_dim, device=self._device
         )
-        self.sea_cell_state = torch.zeros(
-            num_layers, self.num_envs * self.num_actuators, hidden_dim, device=self.device
-        )
+        self.sea_cell_state = torch.zeros(num_layers, self._num_envs * self.num_joints, hidden_dim, device=self._device)
         # reshape via views (doesn't change the actual memory layout)
-        layer_shape_per_env = (num_layers, self.num_envs, self.num_actuators, hidden_dim)
+        layer_shape_per_env = (num_layers, self._num_envs, self.num_joints, hidden_dim)
         self.sea_hidden_state_per_env = self.sea_hidden_state.view(layer_shape_per_env)
         self.sea_cell_state_per_env = self.sea_cell_state.view(layer_shape_per_env)
 
     def reset(self, env_ids: Sequence[int]):
+        # reset the hidden and cell states for the specified environments
         with torch.no_grad():
             self.sea_hidden_state_per_env[:, env_ids] = 0.0
             self.sea_cell_state_per_env[:, env_ids] = 0.0
@@ -85,14 +75,17 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - dof_pos).flatten()
         self.sea_input[:, 0, 1] = dof_vel.flatten()
+
         # run network inference
         with torch.inference_mode():
             torques, (self.sea_hidden_state[:], self.sea_cell_state[:]) = self.network(
                 self.sea_input, (self.sea_hidden_state, self.sea_cell_state)
             )
-        self.computed_effort = torques.reshape(self.num_envs, self.num_actuators)
+        self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
 
+        # clip the computed effort based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)
+
         # return torques
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
@@ -115,8 +108,7 @@ class ActuatorNetMLP(DCMotor):
     as a TorchScript.
 
     Note:
-        The class only supports desired joint positions commands as inputs in the method:
-        :meth:`ActuatorNetMLP.set_command`.
+        Only the desired joint positions are used as inputs to the network.
 
     """
 
@@ -124,27 +116,19 @@ class ActuatorNetMLP(DCMotor):
     """The configuration of the actuator model."""
 
     def __init__(self, cfg: ActuatorNetMLPCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
-        """Initializes the actuator net model.
-
-        Args:
-            cfg (ActuatorNetMLPCfg): The configuration for the actuator model.
-            num_actuators (int): The number of actuators using the model.
-            num_envs (int): The number of instances of the articulation.
-            device (str): The computation device.
-        """
         super().__init__(cfg, dof_names, dof_ids, num_envs, device)
-        # save config locally
-        self.cfg = cfg
+
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self.device)
+        self.network = torch.jit.load(file_bytes, map_location=self._device)
 
         # create buffers for MLP history
         history_length = max(self.cfg.input_idx) + 1
-        self._dof_pos_error_history = torch.zeros(self.num_envs, history_length, self.num_actuators, device=self.device)
-        self._dof_vel_history = torch.zeros(self.num_envs, history_length, self.num_actuators, device=self.device)
+        self._dof_pos_error_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
+        self._dof_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
 
     def reset(self, env_ids: Sequence[int]):
+        # reset the history for the specified environments
         self._dof_pos_error_history[env_ids] = 0.0
         self._dof_vel_history[env_ids] = 0.0
 
@@ -162,18 +146,20 @@ class ActuatorNetMLP(DCMotor):
         # compute network inputs
         # -- positions
         pos_input = torch.cat([self._dof_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        pos_input = pos_input.reshape(self.num_envs * self.num_actuators, -1)
+        pos_input = pos_input.reshape(self._num_envs * self.num_joints, -1)
         # -- velocity
         vel_input = torch.cat([self._dof_vel_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        vel_input = vel_input.reshape(self.num_envs * self.num_actuators, -1)
+        vel_input = vel_input.reshape(self._num_envs * self.num_joints, -1)
         # -- scale and concatenate inputs
         network_input = torch.cat([vel_input * self.cfg.vel_scale, pos_input * self.cfg.pos_scale], dim=1)
 
         # run network inference
-        torques = self.network(network_input).reshape(self.num_envs, self.num_actuators)
-        self.computed_effort = torques.reshape(self.num_envs, self.num_actuators)
+        torques = self.network(network_input).reshape(self._num_envs, self.num_joints)
+        self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
 
+        # clip the computed effort based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)
+
         # return torques
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None

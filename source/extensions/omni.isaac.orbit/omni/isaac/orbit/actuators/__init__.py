@@ -5,6 +5,35 @@
 
 """Subpackage for handling actuator models."""
 
-from .actuator import ActuatorBase, DCMotor, IdealPDActuator, ImplicitActuator
-from .actuator_cfg import ActuatorBaseCfg, ActuatorNetLSTMCfg, ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg
+from .actuator_base import ActuatorBase
+from .actuator_cfg import (
+    ActuatorBaseCfg,
+    ActuatorNetLSTMCfg,
+    ActuatorNetMLPCfg,
+    DCMotorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
+from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
+
+__all__ = [
+    # base actuator
+    "ActuatorBase",
+    "ActuatorBaseCfg",
+    # implicit actuator
+    "ImplicitActuatorCfg",
+    "ImplicitActuator",
+    # ideal pd actuator
+    "IdealPDActuatorCfg",
+    "IdealPDActuator",
+    # dc motor
+    "DCMotorCfg",
+    "DCMotor",
+    # actuator net -- lstm
+    "ActuatorNetLSTMCfg",
+    "ActuatorNetLSTM",
+    # actuator net -- mlp
+    "ActuatorNetMLPCfg",
+    "ActuatorNetMLP",
+]

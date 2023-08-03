@@ -94,7 +94,7 @@ ANYMAL_B_CFG = LeggedRobotCfg(
     articulation_props=LeggedRobotCfg.ArticulationRootPropertiesCfg(
         enable_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
     ),
-    actuators={"legs": Anydrive3LSTMCfg(dof_name_expr=[".*HAA", ".*HFE", ".*KFE"])},
+    actuators={"legs": Anydrive3LSTMCfg(dof_names_expr=[".*HAA", ".*HFE", ".*KFE"])},
 )
 """Configuration of ANYmal-B robot using actuator-net."""
 
@@ -145,6 +145,6 @@ ANYMAL_C_CFG = LeggedRobotCfg(
     articulation_props=LeggedRobotCfg.ArticulationRootPropertiesCfg(
         enable_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=1
     ),
-    actuators={"legs": Anydrive3LSTMCfg(dof_name_expr=[".*HAA", ".*HFE", ".*KFE"])},
+    actuators={"legs": Anydrive3LSTMCfg(dof_names_expr=[".*HAA", ".*HFE", ".*KFE"])},
 )
 """Configuration of ANYmal-C robot using actuator-net."""

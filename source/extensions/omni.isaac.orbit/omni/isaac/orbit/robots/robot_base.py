@@ -55,7 +55,7 @@ class RobotBase:
         # Flag to check that instance is spawned.
         self._is_spawned = False
         # data for storing actuator group
-        self.actuators = dict.fromkeys(self.cfg.actuators.keys())
+        self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
     """
     Properties
@@ -527,7 +527,7 @@ class RobotBase:
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # create actuator group
-            dof_ids, dof_names = self.find_dofs(actuator_cfg.dof_name_expr)
+            dof_ids, dof_names = self.find_dofs(actuator_cfg.dof_names_expr)
             # for efficiency avoid indexing over all indices
             if len(dof_ids) == self.num_dof:
                 dof_ids = ...
@@ -552,7 +552,7 @@ class RobotBase:
                 self.set_dof_torque_limit(1.0e9, dof_ids=actuator.dof_indices)
 
         # perform some sanity checks to ensure actuators are prepared correctly
-        total_act_dof = sum(group.num_actuators for group in self.actuators.values())
+        total_act_dof = sum(group.num_joints for group in self.actuators.values())
         if total_act_dof != self.num_dof:
             carb.log_warn(
                 f"Not all actuators are configured through groups! Total number of actuated DOFs not equal to number of DOFs available: {total_act_dof} != {self.num_dof}."
