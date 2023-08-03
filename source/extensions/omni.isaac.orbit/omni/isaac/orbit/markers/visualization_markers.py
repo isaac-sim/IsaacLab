@@ -22,9 +22,11 @@ from dataclasses import MISSING
 from typing import Any, Dict, List, Optional, Union
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
+import omni.kit.commands
 from omni.isaac.core.materials import PreviewSurface
 from omni.isaac.core.prims import GeometryPrim
-from pxr import Gf, UsdGeom, Vt
+from pxr import Gf, Sdf, UsdGeom, Vt
 
 from omni.isaac.orbit.utils.assets import check_file_path
 from omni.isaac.orbit.utils.configclass import configclass
@@ -162,21 +164,13 @@ class VisualizationMarkers:
             cfg (VisualizationMarkersCfg): The configuration for the markers.
 
         Raises:
-            ValueError: When a prim already exists at the :obj:`prim_path` and it is not a :class:`UsdGeom.PointInstancer`.
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
-        # resolve default markers in the UI elements
-        # -- prim path
-        if prim_utils.is_prim_path_valid(prim_path):
-            # retrieve prim if it exists
-            prim = prim_utils.get_prim_at_path(prim_path)
-            if not prim.IsA(UsdGeom.PointInstancer):
-                raise ValueError(f"The prim at path {prim_path} cannot be parsed as a `UsdGeom.PointInstancer` object.")
-            self._instancer_manager = UsdGeom.PointInstancer(prim)
-        else:
-            # create a new prim
-            prim = prim_utils.define_prim(prim_path, "PointInstancer")
-            self._instancer_manager = UsdGeom.PointInstancer(prim)
+        # get next free path for the prim
+        prim_path = stage_utils.get_next_free_path(prim_path)
+        # create a new prim
+        prim = prim_utils.define_prim(prim_path, "PointInstancer")
+        self._instancer_manager = UsdGeom.PointInstancer(prim)
         # store inputs
         self.prim_path = prim_path
         self.cfg = cfg
@@ -408,6 +402,14 @@ class VisualizationMarkers:
                 usd_path=usd_path,
                 scale=cfg.scale,
                 attributes=cfg.attributes,
+            )
+            # make marker invisible to secondary rays
+            omni.kit.commands.execute(
+                "ChangePropertyCommand",
+                prop_path=Sdf.Path(f"{marker_prim_path}.primvars:invisibleToSecondaryRays"),
+                value=True,
+                prev=None,
+                type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
             )
             # set visibility
             prim_utils.set_prim_visibility(prim, visible=cfg.visible)

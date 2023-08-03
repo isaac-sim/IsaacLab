@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.8.5 (2023-08-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :class:`omni.isaac.orbit.markers.Visualizationmarkers` class so that the markers are not visible in camera rendering mode.
+
+Changed
+^^^^^^^
+
+* Simplified the creation of the point instancer in the :class:`omni.isaac.orbit.markers.Visualizationmarkers` class. It now creates a new
+  prim at the next available prim path if a prim already exists at the given path.
+
+
 0.8.4 (2023-08-02)
 ~~~~~~~~~~~~~~~~~~
 
