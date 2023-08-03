@@ -6,9 +6,10 @@
 from dataclasses import MISSING
 from typing import Optional, Tuple
 
-import omni.isaac.orbit.terrains.height_field.hf_terrains as hf_terrains
-from omni.isaac.orbit.terrains.terrain_cfg import SubTerrainBaseCfg
 from omni.isaac.orbit.utils import configclass
+
+from ..terrain_generator_cfg import SubTerrainBaseCfg
+from . import hf_terrains
 
 
 @configclass

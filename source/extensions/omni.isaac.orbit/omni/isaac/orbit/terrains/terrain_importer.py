@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
 
 import numpy as np
 import torch
 import trimesh
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
 import warp
+from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdGeom
 
 from omni.isaac.orbit.markers import VisualizationMarkers
@@ -18,10 +20,12 @@ from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.utils.kit import create_ground_plane
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh
 
-from .terrain_cfg import TerrainImporterCfg
 from .terrain_generator import TerrainGenerator
 from .trimesh.utils import make_plane
 from .utils import create_prim_from_mesh
+
+if TYPE_CHECKING:
+    from .terrain_importer_cfg import TerrainImporterCfg
 
 
 class TerrainImporter:
@@ -41,39 +45,39 @@ class TerrainImporter:
     curriculum. For example, in a game, the player starts with easy levels and progresses to harder levels.
     """
 
-    meshes: Dict[str, trimesh.Trimesh]
+    meshes: dict[str, trimesh.Trimesh]
     """A dictionary containing the names of the meshes and their keys."""
-    warp_meshes: Dict[str, warp.Mesh]
+    warp_meshes: dict[str, warp.Mesh]
     """A dictionary containing the names of the warp meshes and their keys."""
-    terrain_origins: Optional[torch.Tensor]
+    terrain_origins: torch.Tensor | None
     """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
 
     If :obj:`None`, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.
     """
     env_origins: torch.Tensor
-    """The origins of the environment instances. Shape is (num_envs, 3)."""
+    """The origins of the environments. Shape is (num_envs, 3)."""
 
-    def __init__(self, cfg: TerrainImporterCfg, num_envs: int, device: str):
+    def __init__(self, cfg: TerrainImporterCfg):
         """Initialize the terrain importer.
 
         Args:
             cfg (TerrainImporterCfg): The configuration for the terrain importer.
-            num_envs (int): The number of environment origins to configure.
-            device (str, optional): The device to use.
 
         Raises:
             ValueError: If input terrain type is not supported.
             ValueError: If terrain type is 'generator' and no configuration provided for ``terrain_generator``.
             ValueError: If terrain type is 'usd' and no configuration provided for ``usd_path``.
+            ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
         # store inputs
         self.cfg = cfg
-        self.device = device
+        self.device = SimulationContext.instance().device
 
         # create a dict of meshes
         self.meshes = dict()
         self.warp_meshes = dict()
         self.env_origins = None
+        self.terrain_origins = None
         # marker for visualization
         self.origin_visualizer = None
 
@@ -83,35 +87,42 @@ class TerrainImporter:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
             terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator)
-            self.import_mesh(terrain_generator.terrain_mesh, key="terrain")
+            self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # configure the terrain origins based on the terrain generator
-            self.configure_env_origins(num_envs, terrain_generator.terrain_origins)
+            self.configure_env_origins(terrain_generator.terrain_origins)
         elif self.cfg.terrain_type == "usd":
             # check if config is provided
             if self.cfg.usd_path is None:
                 raise ValueError("Input terrain type is 'usd' but no value provided for 'usd_path'.")
             # import the terrain
-            self.import_usd(self.cfg.usd_path, key="terrain")
+            self.import_usd("terrain", self.cfg.usd_path)
             # configure the origins in a grid
-            self.configure_env_origins(num_envs)
+            self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
             # load the plane
-            self.import_ground_plane(key="terrain")
+            self.import_ground_plane("terrain")
             # configure the origins in a grid
-            self.configure_env_origins(num_envs)
+            self.configure_env_origins()
         else:
             raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
 
-    def import_ground_plane(self, size: Tuple[int, int] = (2.0e6, 2.0e6), key: str = "terrain", **kwargs):
+    """
+    Operations - Import.
+    """
+
+    def import_ground_plane(self, key: str, size: tuple[int, int] = (2.0e6, 2.0e6), **kwargs):
         """Add a plane to the terrain importer.
 
         Args:
+            key (str): The key to store the mesh.
             size (Tuple[int, int], optional): The size of the plane. Defaults to (2.0e6, 2.0e6).
-            key (str, optional): The key to store the mesh. Defaults to "terrain".
 
         Raises:
             ValueError: If a terrain with the same key already exists.
         """
+        # check if key exists
+        if key in self.meshes:
+            raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
         # create a plane
         mesh = make_plane(size, height=0.0, center_zero=True)
         # store the mesh
@@ -134,21 +145,21 @@ class TerrainImporter:
         # import the grid mesh
         create_ground_plane(self.cfg.prim_path, **mesh_props)
 
-    def import_mesh(self, mesh: trimesh.Trimesh, key: str = "terrain", **kwargs):
+    def import_mesh(self, key: str, mesh: trimesh.Trimesh, **kwargs):
         """Import a mesh into the simulator.
 
         The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path
         contains the mesh as a :class:`pxr.UsdGeom` instance along with visual or physics material prims.
 
         Args:
+            key (str): The key to store the mesh.
             mesh (trimesh.Trimesh): The mesh to import.
-            key (str, optional): The key to store the mesh. Defaults to "terrain".
             **kwargs: The properties of the mesh. If not provided, the default properties are used.
 
         Raises:
             ValueError: If a terrain with the same key already exists.
         """
-        # add mesh to the dict
+        # check if key exists
         if key in self.meshes:
             raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
         # store the mesh
@@ -174,7 +185,7 @@ class TerrainImporter:
         # import the mesh
         create_prim_from_mesh(mesh_prim_path, mesh.vertices, mesh.faces, **mesh_props)
 
-    def import_usd(self, usd_path: str, key: str = "terrain"):
+    def import_usd(self, key: str, usd_path: str):
         """Import a mesh from a USD file.
 
         We assume that the USD file contains a single mesh. If the USD file contains multiple meshes, then
@@ -186,8 +197,8 @@ class TerrainImporter:
             be defined in the USD file.
 
         Args:
+            key (str): The key to store the mesh.
             usd_path (str): The path to the USD file.
-            key (str, optional): The key to store the mesh. Defaults to "terrain".
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -215,15 +226,18 @@ class TerrainImporter:
         device = "cuda" if "cuda" in self.device else "cpu"
         self.warp_meshes[key] = convert_to_warp_mesh(vertices, faces, device=device)
 
-    def configure_env_origins(self, num_envs: int, origins: Optional[np.ndarray] = None):
+    """
+    Operations - Origins.
+    """
+
+    def configure_env_origins(self, origins: np.ndarray | None = None):
         """Configure the origins of the environments based on the added terrain.
 
         Args:
-            num_envs (int): The number of environment origins to define.
             origins (Optional[np.ndarray]): The origins of the sub-terrains. Shape: (num_rows, num_cols, 3).
         """
         # create markers for the origins
-        markers = VisualizationMarkers(f"{self.cfg.prim_path}/originMarkers", cfg=FRAME_MARKER_CFG)
+        markers = VisualizationMarkers("/Visuals/TerrainOrigin", cfg=FRAME_MARKER_CFG)
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
             # convert to numpy
@@ -232,13 +246,16 @@ class TerrainImporter:
             # store the origins
             self.terrain_origins = origins.to(self.device, dtype=torch.float)
             # compute environment origins
-            self.env_origins = self._compute_env_origins_curriculum(num_envs, self.terrain_origins)
+            self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
             # put markers on the sub-terrain origins
             markers.visualize(self.terrain_origins.reshape(-1, 3))
         else:
             self.terrain_origins = None
+            # check if env spacing is valid
+            if self.cfg.env_spacing is None:
+                raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
-            self.env_origins = self._compute_env_origins_grid(num_envs, self.cfg.env_spacing)
+            self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
             # put markers on the grid origins
             markers.visualize(self.env_origins.reshape(-1, 3))
 

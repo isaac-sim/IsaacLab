@@ -110,6 +110,8 @@ class LocomotionEnv(IsaacEnv):
 
         # terrain
         self.cfg.terrain.prim_path = "/World/ground"
+        self.cfg.terrain.num_envs = self.cfg.env.num_envs
+        self.cfg.terrain.env_spacing = self.cfg.env.env_spacing
         # check if curriculum is enabled
         if self.cfg.terrain.terrain_type == "generator":
             if hasattr(self.cfg.curriculum, "terrain_levels") and self.cfg.curriculum.terrain_levels is not None:
@@ -117,7 +119,7 @@ class LocomotionEnv(IsaacEnv):
             else:
                 self.cfg.terrain.terrain_generator.curriculum = False
         # self.cfg.terrain.max_init_terrain_level = None
-        self.terrain_importer = TerrainImporter(self.cfg.terrain, self.num_envs, device=self.device)
+        self.terrain_importer = TerrainImporter(self.cfg.terrain)
 
         # robot
         self.robot.spawn(self.template_env_ns + "/Robot")

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from .utils import height_field_to_mesh
 
 if TYPE_CHECKING:
-    import omni.isaac.orbit.terrains.height_field.hf_terrains_cfg as hf_terrains_cfg
+    from . import hf_terrains_cfg
 
 
 @height_field_to_mesh

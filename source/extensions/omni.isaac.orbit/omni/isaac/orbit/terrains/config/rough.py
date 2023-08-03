@@ -7,7 +7,7 @@
 
 import omni.isaac.orbit.terrains as terrain_gen
 
-from ..terrain_cfg import TerrainGeneratorCfg
+from ..terrain_generator_cfg import TerrainGeneratorCfg
 
 ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
     size=(8.0, 8.0),

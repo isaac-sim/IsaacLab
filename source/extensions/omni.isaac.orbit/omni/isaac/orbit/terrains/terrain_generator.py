@@ -14,7 +14,7 @@ from omni.isaac.orbit.utils.io import dump_yaml
 from omni.isaac.orbit.utils.timer import Timer
 
 from .height_field import HfTerrainBaseCfg
-from .terrain_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg
+from .terrain_generator_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg
 from .trimesh.utils import make_border
 
 

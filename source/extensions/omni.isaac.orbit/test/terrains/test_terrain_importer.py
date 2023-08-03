@@ -96,13 +96,15 @@ def main(terrain_type: str):
 
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        num_envs=2048,
+        env_spacing=3.0,
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type=terrain_type,
         terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True),
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
     )
-    terrain_importer = TerrainImporter(terrain_importer_cfg, num_envs=num_balls, device=sim.device)
+    terrain_importer = TerrainImporter(terrain_importer_cfg)
 
     # Define the scene
     # -- Light

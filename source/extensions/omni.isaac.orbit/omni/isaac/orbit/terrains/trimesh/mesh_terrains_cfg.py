@@ -8,8 +8,9 @@ from typing import Tuple, Union
 
 import omni.isaac.orbit.terrains.trimesh.mesh_terrains as mesh_terrains
 import omni.isaac.orbit.terrains.trimesh.utils as mesh_utils_terrains
-from omni.isaac.orbit.terrains.terrain_cfg import SubTerrainBaseCfg
 from omni.isaac.orbit.utils import configclass
+
+from ..terrain_generator_cfg import SubTerrainBaseCfg
 
 """
 Different trimesh terrain configurations.

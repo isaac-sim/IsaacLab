@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.8.2 (2023-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cleaned up the :class:`omni.isaac.orbit.terrain.TerrainImporter` class to take all the parameters from the configuration
+  object. This makes it consistent with the other classes in the package.
+* Moved the configuration classes for terrain generator and terrain importer into separate files to resolve circular
+  dependency issues.
+
+
 0.8.1 (2023-08-02)
 ~~~~~~~~~~~~~~~~~~
 

@@ -18,7 +18,6 @@ import numpy as np
 import trimesh
 from dataclasses import MISSING
 from typing import Callable
-from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -124,74 +123,3 @@ class TerrainGeneratorCfg:
 
     cache_dir: str = "/tmp/orbit/terrains"
     """The directory where the terrain cache is stored. Defaults to "/tmp/orbit/terrains"."""
-
-
-@configclass
-class TerrainImporterCfg:
-    """Configuration for the terrain manager."""
-
-    prim_path: str = MISSING
-    """The absolute path of the USD terrain prim.
-
-    All sub-terrains are imported relative to this prim path.
-    """
-
-    terrain_type: Literal["generator", "plane", "usd"] = "generator"
-    """The type of terrain to generate. Defaults to "generator".
-
-    Available options are "plane", "usd", and "generator".
-    """
-
-    terrain_generator: TerrainGeneratorCfg | None = None
-    """The terrain generator configuration.
-
-    Only used if ``terrain_type`` is set to "generator".
-    """
-
-    usd_path: str | None = None
-    """The path to the USD file containing the terrain.
-
-    Only used if ``terrain_type`` is set to "usd".
-    """
-
-    color: tuple[float, float, float] | None = (0.065, 0.0725, 0.080)
-    """The color of the terrain. Defaults to (0.065, 0.0725, 0.080).
-
-    If :obj:`None`, no color is applied to the prim.
-    """
-
-    static_friction: float = 1.0
-    """The static friction coefficient of the terrain. Defaults to 1.0."""
-
-    dynamic_friction: float = 1.0
-    """The dynamic friction coefficient of the terrain. Defaults to 1.0."""
-
-    restitution: float = 0.0
-    """The restitution coefficient of the terrain. Defaults to 0.0."""
-
-    improve_patch_friction: bool = False
-    """Whether to enable patch friction. Defaults to False."""
-
-    combine_mode: str = "average"
-    """Determines the way physics materials will be combined during collisions. Defaults to `average`.
-
-    Available options are `average`, `min`, `multiply`, `multiply`, and `max`.
-    """
-
-    env_spacing: float = 3.0
-    """The spacing between environment origins when defined in a grid. Defaults to 3.0.
-
-    Note:
-      This parameter is used only when no sub-terrain origins are defined.
-    """
-
-    max_init_terrain_level: int | None = None
-    """The maximum initial terrain level for defining environment origins. Defaults to None.
-
-    The terrain levels are specified by the number of rows in the grid arrangement of
-    sub-terrains. If :obj:`None`, then the initial terrain level is set to the maximum
-    terrain level available (``num_rows - 1``).
-
-    Note:
-      This parameter is used only when sub-terrain origins are defined.
-    """
