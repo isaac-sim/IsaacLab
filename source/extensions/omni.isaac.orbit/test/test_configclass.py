@@ -100,6 +100,19 @@ class BasicDemoCfg:
     robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
 
 
+@configclass
+class BasicDemoPostInitCfg:
+    """Dummy configuration class."""
+
+    device_id: int = 0
+    env: EnvCfg = EnvCfg()
+    robot_default_state: RobotDefaultStateCfg = RobotDefaultStateCfg()
+
+    def __post_init__(self):
+        self.device_id = 1
+        self.add_variable = 3
+
+
 """
 Dummy configuration to check type annotations ordering.
 """
@@ -143,6 +156,7 @@ class ParentDemoCfg:
     b = 2  # type annotation missing on purpose
     c: RobotDefaultStateCfg = MISSING  # add new missing field
     j: List[str] = MISSING  # add new missing field
+    i: List[str] = MISSING  # add new missing field
     func: Callable = MISSING  # add new missing field
 
 
@@ -160,6 +174,10 @@ class ChildDemoCfg(ParentDemoCfg):
 
     dummy_class = DummyClass
 
+    def __post_init__(self):
+        self.b = 3  # change value of existing field
+        self.i = ["a", "b"]  # change value of existing field
+
 
 @configclass
 class ChildChildDemoCfg(ChildDemoCfg):
@@ -167,6 +185,12 @@ class ChildChildDemoCfg(ChildDemoCfg):
 
     func_2 = dummy_function2
     d = 2  # set default value for missing field
+
+    def __post_init__(self):
+        """Post initialization function."""
+        super().__post_init__()
+        self.b = 4  # set default value for missing field
+        self.f = "new"  # add new missing field
 
 
 """
@@ -211,6 +235,9 @@ class OutsideClassCfg:
     inside: InsideClassCfg = InsideClassCfg()
     x: int = 20
 
+    def __post_init__(self):
+        self.inside.b = "dummy_changed"
+
 
 """
 Dummy configuration: Functions
@@ -250,6 +277,18 @@ basic_demo_cfg_change_correct = {
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
     "device_id": 0,
+}
+
+basic_demo_post_init_cfg_correct = {
+    "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 1,
+    "add_variable": 3,
 }
 
 """
@@ -355,6 +394,10 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
         cfg.from_dict(cfg_dict)
         self.assertDictEqual(cfg.to_dict(), basic_demo_cfg_change_correct)
+
+    def test_config_update_dict_using_post_init(self):
+        cfg = BasicDemoPostInitCfg()
+        self.assertDictEqual(cfg.to_dict(), basic_demo_post_init_cfg_correct)
 
     def test_invalid_update_key(self):
         """Test invalid key update."""
@@ -542,9 +585,12 @@ class TestConfigClass(unittest.TestCase):
 
         self.assertEqual(cfg.func, dummy_function1)
         self.assertEqual(cfg.a, 20)
-        self.assertEqual(cfg.b, 2)
         self.assertEqual(cfg.d, 3)
         self.assertEqual(cfg.j, ["c", "d"])
+
+        # check post init
+        self.assertEqual(cfg.b, 3)
+        self.assertEqual(cfg.i, ["a", "b"])
 
     def test_config_double_inheritance(self):
         """Tests that inheritance works properly when inheriting twice."""
@@ -554,9 +600,13 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.func, dummy_function1)
         self.assertEqual(cfg.func_2, dummy_function2)
         self.assertEqual(cfg.a, 20)
-        self.assertEqual(cfg.b, 2)
         self.assertEqual(cfg.d, 3)
         self.assertEqual(cfg.j, ["c", "d"])
+
+        # check post init
+        self.assertEqual(cfg.b, 4)
+        self.assertEqual(cfg.f, "new")
+        self.assertEqual(cfg.i, ["a", "b"])
 
     def test_config_with_class_type(self):
         """Tests that configclass works properly with class type."""
@@ -587,7 +637,7 @@ class TestConfigClass(unittest.TestCase):
         self.assertNotIn("InsideInsideClassCfg", cfg.inside.__annotations__)
         # check values
         self.assertEqual(cfg.inside.class_name, DummyClass)
-        self.assertEqual(cfg.inside.b, "dummy")
+        self.assertEqual(cfg.inside.b, "dummy_changed")
         self.assertEqual(cfg.x, 20)
 
     def test_config_dumping(self):

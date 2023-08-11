@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.8.7 (2023-08-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added support for `__post_init__ <https://docs.python.org/3/library/dataclasses.html#post-init-processing>`_ in
+  the :class:`omni.isaac.orbit.utils.configclass` decorator.
+
+
 0.8.6 (2023-08-03)
 ~~~~~~~~~~~~~~~~~~
 

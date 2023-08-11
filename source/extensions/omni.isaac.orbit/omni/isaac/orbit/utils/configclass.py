@@ -74,7 +74,11 @@ def configclass(cls, **kwargs):
     # add field factory
     _process_mutable_types(cls)
     # copy mutable members
-    setattr(cls, "__post_init__", _custom_post_init)
+    # note: we check if user defined __post_init__ function exists and augment it with our own
+    if hasattr(cls, "__post_init__"):
+        setattr(cls, "__post_init__", _combined_function(cls.__post_init__, _custom_post_init))
+    else:
+        setattr(cls, "__post_init__", _custom_post_init)
     # add helper functions for dictionary conversion
     setattr(cls, "to_dict", _class_to_dict)
     setattr(cls, "from_dict", _update_class_from_dict)
@@ -314,6 +318,25 @@ def _custom_post_init(obj):
         # duplicate data members
         if not callable(value):
             setattr(obj, key, deepcopy(value))
+
+
+def _combined_function(f1: Callable, f2: Callable) -> Callable:
+    """Combine two functions into one.
+
+    Args:
+        f1 (Callable): The first function.
+        f2 (Callable): The second function.
+
+    Returns:
+        Callable: The combined function.
+    """
+
+    def _combined(*args, **kwargs):
+        # call both functions
+        f1(*args, **kwargs)
+        f2(*args, **kwargs)
+
+    return _combined
 
 
 """
