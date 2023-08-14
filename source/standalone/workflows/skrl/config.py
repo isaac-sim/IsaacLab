@@ -81,7 +81,7 @@ def convert_skrl_cfg(cfg, framework):
     ]
 
     def reward_shaper_function(scale):
-        def reward_shaper(rewards, timestep, timesteps):
+        def reward_shaper(rewards, *args, **kwargs):
             return rewards * scale
 
         return reward_shaper
