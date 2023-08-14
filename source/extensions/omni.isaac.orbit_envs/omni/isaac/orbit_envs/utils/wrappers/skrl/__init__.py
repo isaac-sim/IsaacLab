@@ -3,10 +3,47 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module includes wrappers built in PyTorch and JAX for skrl.
+"""Wrapper to configure an :class:`IsaacEnv` instance to skrl environment.
 
-Reference:
-    https://github.com/Toni-SM/skrl
+The following example shows how to wrap an environment for skrl:
+
+.. tabs::
+
+    .. group-tab:: PyTorch
+
+        .. code-block:: python
+
+            from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlTorchVecEnvWrapper
+
+            env = SkrlTorchVecEnvWrapper(env)
+
+    .. group-tab:: JAX
+
+        .. code-block:: python
+
+            from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlJaxVecEnvWrapper
+
+            env = SkrlJaxVecEnvWrapper(env)
+
+Or, equivalently, by directly calling the skrl library API as follows:
+
+.. tabs::
+
+    .. group-tab:: PyTorch
+
+        .. code-block:: python
+
+            from skrl.envs.wrappers.torch import wrap_env
+
+            env = wrap_env(env, wrapper="isaac-orbit")
+
+    .. group-tab:: JAX
+
+        .. code-block:: python
+
+            from skrl.envs.wrappers.jax import wrap_env
+
+            env = wrap_env(env, wrapper="isaac-orbit")
 
 """
 
