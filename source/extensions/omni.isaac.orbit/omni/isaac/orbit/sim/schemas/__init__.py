@@ -1,0 +1,62 @@
+# Copyright [2023] Boston Dynamics AI Institute, Inc.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Sub-module containing utilities for schemas used in Omniverse.
+
+We wrap the USD schemas for PhysX and USD Physics in a more convenient API for setting the parameters from
+Python. This is done so that configuration objects can define the schema properties to set and make it easier
+to tune the physics parameters without requiring to open Omniverse Kit and manually set the parameters into
+the respective USD attributes.
+
+.. caution::
+
+    Schema properties cannot be applied on prims that are prototypes as they are read-only prims. This
+    particularly affects instanced assets where some of the prims (usually the visual and collision meshes)
+    are prototypes so that the instancing can be done efficiently.
+
+    In such cases, it is assumed that the prototypes have sim-ready properties on them that don't need to be modified.
+    Trying to set properties into prototypes will throw a warning saying that the prim is a prototype and the
+    properties cannot be set.
+
+The schemas are defined in the following links:
+
+* `UsdPhysics schema <https://openusd.org/dev/api/usd_physics_page_front.html>`_
+* `PhysxSchema schema <https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/index.html>`_
+
+Locally, the schemas are defined in the following files:
+
+* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda``
+* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/PhysxSchema/schema.usda``
+
+"""
+
+from .schemas import (
+    set_articulation_root_properties,
+    set_collision_properties,
+    set_mass_properties,
+    set_rigid_body_properties,
+)
+from .schemas_cfg import (
+    ArticulationRootPropertiesCfg,
+    CollisionPropertiesCfg,
+    MassPropertiesCfg,
+    RigidBodyPropertiesCfg,
+)
+
+__all__ = [
+    # articulation root
+    "ArticulationRootPropertiesCfg",
+    "set_articulation_root_properties",
+    # rigid bodies
+    "RigidBodyPropertiesCfg",
+    "set_rigid_body_properties",
+    # colliders
+    "CollisionPropertiesCfg",
+    "set_collision_properties",
+    # mass
+    "MassPropertiesCfg",
+    "set_mass_properties",
+]

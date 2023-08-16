@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.8.8 (2023-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added configuration classes and functions for setting different physics-based schemas in the
+  :mod:`omni.isaac.orbit.sim.schemas` module. These allow modifying properties of the physics solver
+  on the asset using configuration objects.
+
+
 0.8.7 (2023-08-03)
 ~~~~~~~~~~~~~~~~~~
 

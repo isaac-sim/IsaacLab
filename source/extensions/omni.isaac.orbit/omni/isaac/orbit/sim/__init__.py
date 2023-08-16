@@ -3,13 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module provides the ``SimulationContext`` class.
+"""This sub-module contains utilities for simulation.
 
-The :class:`SimulationContext` inherits from the :class:`omni.isaac.core.simulation_context.SimulationContext` class
-to provide additional functionality for the Orbit extension. This includes configuring the simulation through
-the configuration class :class:`SimulationCfg` and providing a context manager for the simulation.
+To make it convenient to use the module, we recommend importing the module as follows:
+
+.. code-block:: python
+
+    import omni.isaac.orbit.sim as sim_utils
+
 """
 
+from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysicsMaterialCfg, PhysxCfg, SimulationCfg
 from .simulation_context import SimulationContext
 
