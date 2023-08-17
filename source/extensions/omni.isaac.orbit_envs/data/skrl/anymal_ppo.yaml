@@ -9,6 +9,7 @@ models:
     clip_log_std: True
     min_log_std: -20.0
     max_log_std: 2.0
+    initial_log_std: 0.0
     input_shape: "Shape.STATES"
     hiddens: [128, 128, 128]
     hidden_activation: ["elu", "elu", "elu"]
@@ -29,8 +30,8 @@ models:
 # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
 agent:
   rollouts: 24
-  learning_epochs: 5
-  mini_batches: 4
+  learning_epochs: 8
+  mini_batches: 8
   discount_factor: 0.99
   lambda: 0.95
   learning_rate: 1.e-3
@@ -51,6 +52,7 @@ agent:
   value_loss_scale: 1.0
   kl_threshold: 0
   rewards_shaper_scale: 1.0
+  time_limit_bootstrap: False
   # logging and checkpoint
   experiment:
     directory: "anymal"
