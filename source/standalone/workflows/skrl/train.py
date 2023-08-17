@@ -132,7 +132,7 @@ def main():
     set_seed(args_cli_seed if args_cli_seed is not None else experiment_cfg["seed"])
 
     # instantiate models using skrl model instantiator utility
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
+    # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
     # force separated models for jax
     if args_cli.framework.startswith("jax"):
@@ -171,12 +171,12 @@ def main():
             model.init_state_dict(role)
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.memories.random.html
+    # https://skrl.readthedocs.io/en/latest/api/memories/random.html
     memory_size = experiment_cfg["agent"]["rollouts"]  # memory_size is the agent's number of rollouts
     memory = RandomMemory(memory_size=memory_size, num_envs=env.num_envs, device=env.device)
 
     # configure and instantiate PPO agent
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+    # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
     agent_cfg.update(convert_skrl_cfg(experiment_cfg["agent"], args_cli.framework))
@@ -194,7 +194,7 @@ def main():
     )
 
     # configure and instantiate a custom RL trainer for logging episode events
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html
+    # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
     trainer = SkrlVecTrainer(cfg=experiment_cfg["trainer"], env=env, agent=agent)
 
     # train the agent

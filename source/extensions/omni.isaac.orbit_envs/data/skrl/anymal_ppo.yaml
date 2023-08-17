@@ -1,7 +1,7 @@
 seed: 42
 
 # Models are instantiated using skrl's model instantiator utility
-# https://skrl.readthedocs.io/en/develop/modules/skrl.utils.model_instantiators.html
+# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
   separate: False
   policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
@@ -27,7 +27,7 @@ models:
 
 
 # PPO agent configuration (field names are from PPO_DEFAULT_CONFIG)
-# https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+# https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
   rollouts: 24
   learning_epochs: 8
@@ -62,6 +62,6 @@ agent:
 
 
 # Sequential trainer
-# https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
+# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   timesteps: 12000
