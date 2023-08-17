@@ -34,10 +34,14 @@ Locally, the schemas are defined in the following files:
 """
 
 from .schemas import (
-    set_articulation_root_properties,
-    set_collision_properties,
-    set_mass_properties,
-    set_rigid_body_properties,
+    define_articulation_root_properties,
+    define_collision_properties,
+    define_mass_properties,
+    define_rigid_body_properties,
+    modify_articulation_root_properties,
+    modify_collision_properties,
+    modify_mass_properties,
+    modify_rigid_body_properties,
 )
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
@@ -49,14 +53,18 @@ from .schemas_cfg import (
 __all__ = [
     # articulation root
     "ArticulationRootPropertiesCfg",
-    "set_articulation_root_properties",
+    "define_articulation_root_properties",
+    "modify_articulation_root_properties",
     # rigid bodies
     "RigidBodyPropertiesCfg",
-    "set_rigid_body_properties",
+    "define_rigid_body_properties",
+    "modify_rigid_body_properties",
     # colliders
     "CollisionPropertiesCfg",
-    "set_collision_properties",
+    "define_collision_properties",
+    "modify_collision_properties",
     # mass
     "MassPropertiesCfg",
-    "set_mass_properties",
+    "define_mass_properties",
+    "modify_mass_properties",
 ]

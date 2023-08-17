@@ -6,17 +6,59 @@
 from __future__ import annotations
 
 import omni.isaac.core.utils.stage as stage_utils
+import omni.physx.scripts.utils as physx_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
 from ..utils import apply_nested, safe_set_attribute_on_usd_schema
 from . import schemas_cfg
 
+"""
+Articulation root properties.
+"""
+
+
+def define_articulation_root_properties(
+    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the articulation root schema on the input prim and set its properties.
+
+    See :func:`set_articulation_root_properties` for more details on how the properties are set.
+
+    Args:
+        prim_path (str): The prim path where to apply the articulation root schema.
+        cfg (schemas_cfg.ArticulationRootPropertiesCfg): The configuration for the articulation root.
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        TypeError: When the prim already has conflicting API schemas.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get articulation USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # check if we can apply the articulation root schema
+    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.ArticulationRootAPI):
+        raise TypeError(
+            f"Cannot apply ArticulationRootAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
+        )
+    # check if prim has articulation applied on it
+    if not UsdPhysics.ArticulationRootAPI(prim):
+        UsdPhysics.ArticulationRootAPI.Apply(prim)
+    # set articulation root properties
+    modify_articulation_root_properties(prim_path, cfg, stage)
+
 
 @apply_nested
-def set_articulation_root_properties(
-    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage = None
+def modify_articulation_root_properties(
+    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
 ):
-    """Set PhysX parameters for an articulation root prim.
+    """Modify PhysX parameters for an articulation root prim.
 
     The `articulation root`_ marks the root of an articulation tree. For floating articulations, this should be on
     the root body. For fixed articulations, this API can be on a direct or indirect parent of the root joint
@@ -40,7 +82,7 @@ def set_articulation_root_properties(
     Args:
         prim_path (str): The prim path to the articulation root.
         cfg (schemas_cfg.ArticulationRootPropertiesCfg): The configuration for the articulation root.
-        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -65,9 +107,53 @@ def set_articulation_root_properties(
     return True
 
 
+"""
+Rigid body properties.
+"""
+
+
+def define_rigid_body_properties(
+    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the rigid body schema on the input prim and set its properties.
+
+    See :func:`set_rigid_body_properties` for more details on how the properties are set.
+
+    Args:
+        prim_path (str): The prim path where to apply the rigid body schema.
+        cfg (schemas_cfg.RigidBodyPropertiesCfg): The configuration for the rigid body.
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        TypeError: When the prim already has conflicting API schemas.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get articulation USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # check if we can apply the articulation root schema
+    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.RigidBodyAPI):
+        raise TypeError(
+            f"Cannot apply RigidBodyAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
+        )
+    # check if prim has articulation applied on it
+    if not UsdPhysics.RigidBodyAPI(prim):
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    # set articulation root properties
+    modify_rigid_body_properties(prim_path, cfg, stage)
+
+
 @apply_nested
-def set_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage = None):
-    """Set PhysX parameters for a rigid body prim.
+def modify_rigid_body_properties(
+    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Modify PhysX parameters for a rigid body prim.
 
     A `rigid body`_ is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
     A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by the user, but does not
@@ -88,7 +174,7 @@ def set_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyProperti
     Args:
         prim_path (str): The prim path to the rigid body.
         cfg (schemas_cfg.RigidBodyPropertiesCfg): The configuration for the rigid body.
-        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -119,9 +205,53 @@ def set_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyProperti
     return True
 
 
+"""
+Collision properties.
+"""
+
+
+def define_collision_properties(
+    prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the collision schema on the input prim and set its properties.
+
+    See :func:`set_collision_properties` for more details on how the properties are set.
+
+    Args:
+        prim_path (str): The prim path where to apply the rigid body schema.
+        cfg (schemas_cfg.CollisionPropertiesCfg): The configuration for the collider.
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        TypeError: When the prim already has conflicting API schemas.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get articulation USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # check if we can apply the articulation root schema
+    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.CollisionAPI):
+        raise TypeError(
+            f"Cannot apply CollisionAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
+        )
+    # check if prim has articulation applied on it
+    if not UsdPhysics.CollisionAPI(prim):
+        UsdPhysics.CollisionAPI.Apply(prim)
+    # set articulation root properties
+    modify_collision_properties(prim_path, cfg, stage)
+
+
 @apply_nested
-def set_collision_properties(prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage = None):
-    """Set PhysX properties of collider prim.
+def modify_collision_properties(
+    prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Modify PhysX properties of collider prim.
 
     These properties are based on the `UsdPhysics.CollisionAPI` and `PhysxSchema.PhysxCollisionAPI`_ schemas.
     For more information on the properties, please refer to the official documentation.
@@ -140,7 +270,7 @@ def set_collision_properties(prim_path: str, cfg: schemas_cfg.CollisionPropertie
     Args:
         prim_path (str): The prim path of parent.
         cfg (schemas_cfg.CollisionPropertiesCfg): The configuration for the collider.
-        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -171,8 +301,42 @@ def set_collision_properties(prim_path: str, cfg: schemas_cfg.CollisionPropertie
     return True
 
 
+"""
+Mass properties.
+"""
+
+
+def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
+    """Apply the mass schema on the input prim and set its properties.
+
+    See :func:`set_mass_properties` for more details on how the properties are set.
+
+    Args:
+        prim_path (str): The prim path where to apply the rigid body schema.
+        cfg (schemas_cfg.MassPropertiesCfg): The configuration for the mass properties.
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get articulation USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # check if prim has articulation applied on it
+    if not UsdPhysics.MassAPI(prim):
+        UsdPhysics.MassAPI.Apply(prim)
+    # set articulation root properties
+    modify_mass_properties(prim_path, cfg, stage)
+
+
 @apply_nested
-def set_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage = None):
+def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
     """Set properties for the mass of a rigid body prim.
 
     These properties are based on the `UsdPhysics.MassAPI` schema. If the mass is not defined, the density is used
@@ -195,7 +359,7 @@ def set_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stag
     Args:
         prim_path (str): The prim path of the rigid body.
         cfg (schemas_cfg.MassPropertiesCfg): The configuration for the mass properties.
-        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage

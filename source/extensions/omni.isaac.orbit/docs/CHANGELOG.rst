@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.8.10 (2023-08-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods for defining different physics-based schemas in the :mod:`omni.isaac.orbit.sim.schemas` module.
+  These methods allow creating the schema if it doesn't exist at the specified prim path and modify
+  its properties based on the configuration object.
+
+
 0.8.9 (2023-08-09)
 ~~~~~~~~~~~~~~~~~~
 

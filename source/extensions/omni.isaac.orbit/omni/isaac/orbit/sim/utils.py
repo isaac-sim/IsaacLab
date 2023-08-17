@@ -3,11 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import functools
 from typing import Any, Callable
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from pxr import Sdf, Usd
 
@@ -110,16 +112,20 @@ def apply_nested(func: Callable) -> Callable:
 
     Args:
         func (Callable): The function to apply to all prims under a specified prim-path. The function
-            must take the prim-path as the first argument and the configuration as the second argument.
+            must take the prim-path, the configuration object and the stage as inputs. It should return
+            a boolean indicating whether the function succeeded or not.
 
     Returns:
         Callable: The wrapped function that applies the function to all prims under a specified prim-path.
     """
 
     @functools.wraps(func)
-    def wrapper(prim_path: str, cfg: object):
+    def wrapper(prim_path: str, cfg: object, stage: Usd.Stage | None = None):
+        # get current stage
+        if stage is None:
+            stage = stage_utils.get_current_stage()
         # get USD prim
-        prim = prim_utils.get_prim_at_path(prim_path)
+        prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim_path}' is not valid.")
@@ -128,7 +134,7 @@ def apply_nested(func: Callable) -> Callable:
         while len(all_prims) > 0:
             # get current prim
             child_prim = all_prims.pop(0)
-            child_prim_path = prim_utils.get_prim_path(child_prim)
+            child_prim_path = child_prim.GetPath().pathString
             # check if prim is a prototype
             # note: we prefer throwing a warning instead of ignoring the prim since the user may
             #   have intended to set properties on the prototype prim.
@@ -136,7 +142,7 @@ def apply_nested(func: Callable) -> Callable:
                 carb.log_warn(f"Cannot perform '{func.__name__}' on instanced prim: '{child_prim_path}'")
                 continue
             # set properties
-            success = func(child_prim_path, cfg)
+            success = func(child_prim_path, cfg, stage=stage)
             # if successful, do not look at children
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
