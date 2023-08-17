@@ -7,9 +7,9 @@ with any reinforcement learning framework that supports OpenAI Gym. However, sin
 in a vectorized fashion, they can only be used with frameworks that support vectorized environments.
 
 Many common frameworks come with their own desired definitions of a vectorized environment and require the returned data
-to follow their supported data types and data structures. For example, ``stable-baselines3`` uses ``numpy`` arrays, while
-``rsl-rl``, ``rl-games``, or ``skrl`` use ``torch.Tensor``. We provide wrappers for these different frameworks, which can be found
-in the ``omni.isaac.orbit_envs.utils.wrappers`` module.
+to follow their supported data types and data structures. For example, ``stable-baselines3`` uses ``numpy`` arrays,
+``rsl-rl`` and ``rl-games`` use ``torch.Tensor``, while ``skrl`` uses ``torch.Tensor`` and ``jax.Array``. We provide
+wrappers for these different frameworks, which can be found in the ``omni.isaac.orbit_envs.utils.wrappers`` module.
 
 
 The Code
