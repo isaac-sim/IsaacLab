@@ -196,6 +196,12 @@ from the environments into the respective libraries function argument and return
 
       .. group-tab:: JAX
 
+         .. note::
+
+            To install the JAX version for GPU, or to troubleshoot any setup errors, please refer to the skrl
+            `Installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ page before
+            proceeding with the steps described below.
+
          .. code:: bash
 
             # install python module (for skrl)
