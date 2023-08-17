@@ -53,4 +53,4 @@ def dump_yaml(filename: str, data: Union[Dict, object], sort_keys: bool = False)
         data = class_to_dict(data)
     # save data
     with open(filename, "w") as f:
-        yaml.dump(data, f, default_flow_style=None, sort_keys=sort_keys)
+        yaml.dump(data, f, default_flow_style=False, sort_keys=sort_keys)

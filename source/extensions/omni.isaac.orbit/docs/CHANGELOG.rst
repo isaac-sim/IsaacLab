@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.8.9 (2023-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the :class:`omni.isaac.orbit.asset_loader.UrdfLoader` class to the :mod:`omni.isaac.orbit.sim.loaders`
+  module to make it more accessible to the user.
+
+
 0.8.8 (2023-08-09)
 ~~~~~~~~~~~~~~~~~~
 
@@ -237,7 +247,7 @@ Added
 Fixed
 ^^^^^
 
-* Fixed the ordering of terms in :mod:`omni.isaac.orbit.core.utils.configclass` to be consistent in the order in which
+* Fixed the ordering of terms in :mod:`omni.isaac.orbit.utils.configclass` to be consistent in the order in which
   they are defined. Previously, the ordering was done alphabetically which made it inconsistent with the order in which
   the parameters were defined.
 
@@ -246,7 +256,7 @@ Changed
 
 * Changed the default value of the argument :attr:`sort_keys` in the :meth:`omni.isaac.orbit.utils.io.yaml.dump_yaml`
   method to ``False``.
-* Moved the old config classes in :mod:`omni.isaac.orbit.core.utils.configclass` to
+* Moved the old config classes in :mod:`omni.isaac.orbit.utils.configclass` to
   :mod:`omni.isaac.orbit.compat.utils.configclass` so that users can still run their old code where alphabetical
   ordering was used.
 
@@ -384,8 +394,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixed bugs in :meth:`axis_angle_from_quat` in the ``omni.isaac.orbit.core.utils.math`` to handle quaternion with negative w component.
-* Fixed bugs in :meth:`subtract_frame_transforms` in the ``omni.isaac.orbit.core.utils.math`` by adding the missing final rotation.
+* Fixed bugs in :meth:`axis_angle_from_quat` in the ``omni.isaac.orbit.utils.math`` to handle quaternion with negative w component.
+* Fixed bugs in :meth:`subtract_frame_transforms` in the ``omni.isaac.orbit.utils.math`` by adding the missing final rotation.
 
 
 0.2.7 (2023-04-07)
@@ -428,7 +438,7 @@ Fixed
 Added
 ^^^^^
 
-* Added :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.core.utils.kit``.
+* Added :meth:`apply_nested_physics_material` to the ``omni.isaac.orbit.utils.kit``.
 * Added the :meth:`sample_cylinder` to sample points from a cylinder's surface.
 * Added documentation about the issue in using instanceable asset as markers.
 

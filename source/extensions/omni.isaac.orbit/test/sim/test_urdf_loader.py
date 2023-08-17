@@ -27,7 +27,7 @@ from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
 
-from omni.isaac.orbit.asset_loader import UrdfLoader, UrdfLoaderCfg
+from omni.isaac.orbit.sim.loaders import UrdfLoader, UrdfLoaderCfg
 
 
 class TestUrdfLoader(unittest.TestCase):

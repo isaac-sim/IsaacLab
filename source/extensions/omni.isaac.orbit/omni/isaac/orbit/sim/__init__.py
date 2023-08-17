@@ -13,6 +13,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
+from .loaders import UrdfLoader, UrdfLoaderCfg
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysicsMaterialCfg, PhysxCfg, SimulationCfg
 from .simulation_context import SimulationContext
