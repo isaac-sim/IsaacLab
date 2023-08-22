@@ -10,12 +10,11 @@ configuring the environment instances, viewer settings, and simulation parameter
 """
 
 from typing import Tuple
+from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
 from .spawners.materials import RigidBodyMaterialCfg
-
-__all__ = ["PhysxCfg", "SimulationCfg"]
 
 
 @configclass
@@ -42,7 +41,7 @@ class PhysxCfg:
     shape and body management, and constrained solver.
     """
 
-    solver_type: int = 1
+    solver_type: Literal[0, 1] = 1
     """The type of solver to use.Default is 1 (TGS).
 
     Available solvers:
@@ -50,6 +49,66 @@ class PhysxCfg:
     * :obj:`0`: PGS (Projective Gauss-Seidel)
     * :obj:`1`: TGS (Truncated Gauss-Seidel)
     """
+
+    min_position_iteration_count: int = 1
+    """Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 1.
+
+    .. note::
+
+        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
+        the number of iterations specified by the actor with the highest iteration and clamps it to
+        the range ``[min_position_iteration_count, max_position_iteration_count]``.
+
+    .. versionchanged:: 2022.2
+
+        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
+    """
+
+    max_position_iteration_count: int = 255
+    """Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.
+
+    .. note::
+
+        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
+        the number of iterations specified by the actor with the highest iteration and clamps it to
+        the range ``[min_position_iteration_count, max_position_iteration_count]``.
+
+    .. versionchanged:: 2022.2
+
+        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
+    """
+
+    min_velocity_iteration_count: int = 0
+    """Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 0.
+
+    .. note::
+
+        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
+        the number of iterations specified by the actor with the highest iteration and clamps it to
+        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
+
+    .. versionadded:: 2023.1
+
+        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`min_position_iteration_count`.
+    """
+
+    max_velocity_iteration_count: int = 255
+    """Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.
+
+    .. note::
+
+        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
+        the number of iterations specified by the actor with the highest iteration and clamps it to
+        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
+
+    .. versionadded:: 2023.1
+
+        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`max_position_iteration_count`.
+    """
+
+    enable_ccd: bool = False
+    """Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.
+    Default is False."""
 
     enable_stabilization: bool = True
     """Enable/disable additional stabilization pass in solver. Default is True."""
@@ -63,33 +122,36 @@ class PhysxCfg:
     friction_correlation_distance: float = 0.025
     """Distance threshold for merging contacts into a single friction anchor point (in m). Default is 0.025 m."""
 
-    gpu_max_rigid_contact_count: int = 1024 * 1024
-    """Size of rigid contact stream buffer allocated in pinned host memory. Default is 2 ** 20."""
+    gpu_max_rigid_contact_count: int = 2**23
+    """Size of rigid contact stream buffer allocated in pinned host memory. Default is 2 ** 23."""
 
-    gpu_max_rigid_patch_count: int = 80 * 1024 * 2
-    """Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 80 * 2 ** 11."""
+    gpu_max_rigid_patch_count: int = 5 * 2**15
+    """Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 5 * 2 ** 15."""
 
-    gpu_found_lost_pairs_capacity: int = 1024 * 1024 * 2
+    gpu_found_lost_pairs_capacity: int = 2**21
     """Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 21.
 
     This is used for the found/lost pair reports in the BP.
     """
 
-    gpu_found_lost_aggregate_pairs_capacity: int = 1024 * 1024 * 32
+    gpu_found_lost_aggregate_pairs_capacity: int = 2**25
     """Capacity of found and lost buffers in aggregate system allocated in GPU global memory.
-    Default is 2 ** 21.
+    Default is 2 ** 25.
 
     This is used for the found/lost pair reports in AABB manager.
     """
 
-    gpu_total_aggregate_pairs_capacity: int = 1024 * 1024 * 2
+    gpu_total_aggregate_pairs_capacity: int = 2**21
     """Capacity of total number of aggregate pairs allocated in GPU global memory. Default is 2 ** 21."""
 
-    gpu_heap_capacity: int = 64 * 1024 * 1024
+    gpu_collision_stack_size: int = 2**26
+    """Size of the collision stack buffer allocated in pinned host memory. Default is 2 ** 26."""
+
+    gpu_heap_capacity: int = 2**26
     """Initial capacity of the GPU and pinned host memory heaps. Additional memory will be allocated
     if more memory is required. Default is 2 ** 26."""
 
-    gpu_temp_buffer_capacity: int = 16 * 1024 * 1024
+    gpu_temp_buffer_capacity: int = 2**24
     """Capacity of temp buffer allocated in pinned host memory. Default is 2 ** 24."""
 
     gpu_max_num_partitions: int = 8
@@ -98,10 +160,10 @@ class PhysxCfg:
     This variable must be power of 2. A value greater than 32 is currently not supported. Range: (1, 32)
     """
 
-    gpu_max_soft_body_contacts: int = 1024 * 1024
+    gpu_max_soft_body_contacts: int = 2**20
     """Size of soft body contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
 
-    gpu_max_particle_contacts: int = 1024 * 1024
+    gpu_max_particle_contacts: int = 2**20
     """Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20."""
 
 
@@ -136,7 +198,7 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_flatcache: bool = True
+    use_fabric: bool = True
     """Enable/disable reading of physics buffers directly. Default is True.
 
     When running the simulation, updates in the states in the scene is normally synchronized with USD.
@@ -149,6 +211,18 @@ class SimulationCfg:
     Note:
         When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
         updates, please set this flag to :obj:`False`.
+
+    .. versionadded:: 2023.1
+
+        This flag is introduced in 2023.1.0. For older versions, please use :obj:`use_flatcache` instead.
+    """
+
+    use_flatcache: bool = True
+    """Enable/disable reading of physics buffers directly. Default is True.
+
+    .. deprecated:: 2023.1
+
+        This flag is deprecated and will be removed in the future. Please use :obj:`use_fabric` instead.
     """
 
     disable_contact_processing: bool = False

@@ -1,8 +1,26 @@
 Changelog
 ---------
 
-0.8.11 (2023-08-18)
+0.8.12 (2023-08-18)
 ~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added other properties provided by ``PhysicsScene`` to the :class:`omni.isaac.orbit.sim.SimulationContext`
+  class to allow setting CCD, solver iterations, etc.
+* Added commonly used functions to the :class:`SimulationContext` class itself to avoid having additional
+  imports from Isaac Sim when doing simple tasks such as setting camera view or retrieving the simulation settings.
+
+Fixed
+^^^^^
+
+* Switched the notations of default buffer values in :class:`omni.isaac.orbit.sim.PhysxCfg` from multiplication
+  to scientific notation to avoid confusion with the values.
+
+
+0.8.11 (2023-08-18)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

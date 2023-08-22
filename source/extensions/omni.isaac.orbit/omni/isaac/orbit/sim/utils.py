@@ -277,13 +277,15 @@ def bind_visual_material(
         binding_strength = "weakerThanDescendants"
     # obtain material binding API
     # note: we prefer using the command here as it is more robust than the USD API
-    omni.kit.commands.execute(
+    success, _ = omni.kit.commands.execute(
         "BindMaterialCommand",
         prim_path=prim_path,
         material_path=material_path,
         strength=binding_strength,
         stage=stage,
     )
+    # return success
+    return success
 
 
 @apply_nested
@@ -293,7 +295,8 @@ def bind_physics_material(
     """Bind a physics material to a prim.
 
     `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes having
-    collision APIs, or deformable body APIs, or being a particle system.
+    collision APIs, or deformable body APIs, or being a particle system. In case the prim does not have
+    any of these APIs, the function will not apply the material and return False.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
@@ -311,7 +314,6 @@ def bind_physics_material(
 
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
-        ValueError: When prim at specified path is not physics-enabled.
     """
     # resolve stage
     if stage is None:
@@ -329,10 +331,11 @@ def bind_physics_material(
     has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
     has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
-        raise ValueError(
+        carb.log_verbose(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, a deformable body, nor a particle system."
         )
+        return False
 
     # obtain material binding API
     if prim.HasAPI(UsdShade.MaterialBindingAPI):
@@ -348,3 +351,5 @@ def bind_physics_material(
         binding_strength = UsdShade.Tokens.weakerThanDescendants
     # apply the material
     material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
+    # return success
+    return True

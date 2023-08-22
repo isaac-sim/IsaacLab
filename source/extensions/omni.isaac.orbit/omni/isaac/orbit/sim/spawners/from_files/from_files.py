@@ -143,7 +143,7 @@ def spawn_from_urdf(
     return prim_utils.get_prim_at_path(prim_path)
 
 
-def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, *kwargs) -> Usd.Prim:
+def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwargs) -> Usd.Prim:
     """Spawns a ground plane into the scene.
 
     This function loads the USD file containing the grid plane asset from Isaac Sim. It may
