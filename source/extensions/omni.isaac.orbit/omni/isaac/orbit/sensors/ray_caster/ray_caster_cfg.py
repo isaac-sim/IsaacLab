@@ -13,14 +13,24 @@ from dataclasses import MISSING
 from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .patterns_cfg import PatternBaseCfg
+from .patterns.patterns_cfg import PatternBaseCfg
+from .ray_caster import RayCaster
 
 
 @configclass
 class RayCasterCfg(SensorBaseCfg):
     """Configuration for the ray-cast sensor."""
 
-    cls_name = "RayCaster"
+    @configclass
+    class OffsetCfg:
+        """The offset pose of the sensor's frame from the sensor's parent frame."""
+
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+    cls_name = RayCaster
 
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.
@@ -30,11 +40,8 @@ class RayCasterCfg(SensorBaseCfg):
         static meshes and dynamic meshes.
     """
 
-    pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """The position offset from the frame the sensor is attached to. Defaults to (0.0, 0.0, 0.0)."""
-
-    quat_offset: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    """The quaternion offset (w, x, y, z) from the frame the sensor is attached to. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+    offset: OffsetCfg = OffsetCfg()
+    """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
 
     attach_yaw_only: bool = MISSING
     """Whether the rays' starting positions and directions only track the yaw orientation.

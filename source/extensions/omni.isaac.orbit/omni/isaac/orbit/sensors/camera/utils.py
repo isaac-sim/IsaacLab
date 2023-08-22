@@ -4,17 +4,25 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Helper functions to project between pointcloud and depth images."""
 
+from __future__ import annotations
 
+import math
 import numpy as np
 import torch
-from typing import Optional, Sequence, Tuple, Union
+from typing import Sequence
+from typing_extensions import Literal
 
 import warp as wp
 
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.utils.array import TensorData, convert_to_torch
 
-__all__ = ["transform_points", "create_pointcloud_from_depth", "create_pointcloud_from_rgbd"]
+__all__ = [
+    "transform_points",
+    "create_pointcloud_from_depth",
+    "create_pointcloud_from_rgbd",
+    "convert_orientation_convention",
+]
 
 
 """
@@ -24,10 +32,10 @@ Depth <-> Pointcloud conversions.
 
 def transform_points(
     points: TensorData,
-    position: Optional[Sequence[float]] = None,
-    orientation: Optional[Sequence[float]] = None,
-    device: Union[torch.device, str, None] = None,
-) -> Union[np.ndarray, torch.Tensor]:
+    position: Sequence[float] | None = None,
+    orientation: Sequence[float] | None = None,
+    device: torch.device | str | None = None,
+) -> np.ndarray | torch.Tensor:
     r"""Transform input points in a given frame to a target frame.
 
     This function transform points from a source frame to a target frame. The transformation is defined by the
@@ -78,13 +86,13 @@ def transform_points(
 
 
 def create_pointcloud_from_depth(
-    intrinsic_matrix: Union[np.ndarray, torch.Tensor, wp.array],
-    depth: Union[np.ndarray, torch.Tensor, wp.array],
+    intrinsic_matrix: np.ndarray | torch.Tensor | wp.array,
+    depth: np.ndarray | torch.Tensor | wp.array,
     keep_invalid: bool = False,
-    position: Optional[Sequence[float]] = None,
-    orientation: Optional[Sequence[float]] = None,
-    device: Optional[Union[torch.device, str]] = None,
-) -> Union[np.ndarray, torch.Tensor]:
+    position: Sequence[float] | None = None,
+    orientation: Sequence[float] | None = None,
+    device: torch.device | str | None = None,
+) -> np.ndarray | torch.Tensor:
     r"""Creates pointcloud from input depth image and camera intrinsic matrix.
 
     This function creates a pointcloud from a depth image and camera intrinsic matrix. The pointcloud is
@@ -162,15 +170,15 @@ def create_pointcloud_from_depth(
 
 
 def create_pointcloud_from_rgbd(
-    intrinsic_matrix: Union[torch.Tensor, np.ndarray, wp.array],
-    depth: Union[torch.Tensor, np.ndarray, wp.array],
-    rgb: Union[torch.Tensor, wp.array, np.ndarray, Tuple[float, float, float]] = None,
+    intrinsic_matrix: torch.Tensor | np.ndarray | wp.array,
+    depth: torch.Tensor | np.ndarray | wp.array,
+    rgb: torch.Tensor | wp.array | np.ndarray | tuple[float, float, float] = None,
     normalize_rgb: bool = False,
-    position: Optional[Sequence[float]] = None,
-    orientation: Optional[Sequence[float]] = None,
-    device: Optional[Union[torch.device, str]] = None,
+    position: Sequence[float] | None = None,
+    orientation: Sequence[float] | None = None,
+    device: torch.device | str | None = None,
     num_channels: int = 3,
-) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[np.ndarray, np.ndarray]]:
+) -> tuple[torch.Tensor, torch.Tensor] | tuple[np.ndarray, np.ndarray]:
     """Creates pointcloud from input depth image and camera transformation matrix.
 
     This function provides the same functionality as :meth:`create_pointcloud_from_depth` but also allows
@@ -243,7 +251,7 @@ def create_pointcloud_from_rgbd(
             # convert the matrix to (W, H, 3) from (H, W, 3) since depth processing
             # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
-        elif isinstance(rgb, Tuple):
+        elif isinstance(rgb, (tuple, list)):
             # same color for all points
             points_rgb = torch.Tensor((rgb,) * num_points, device=device, dtype=torch.uint8)
         else:
@@ -269,3 +277,90 @@ def create_pointcloud_from_rgbd(
         return points_xyz.cpu().numpy(), points_rgb.cpu().numpy()
     else:
         return points_xyz, points_rgb
+
+
+def convert_orientation_convention(
+    orientation: torch.Tensor,
+    origin: Literal["opengl", "ros", "world"] = "opengl",
+    target: Literal["opengl", "ros", "world"] = "ros",
+) -> torch.Tensor:
+    r"""Converts a quaternion representing a rotation from one convention to another.
+
+    In USD, the camera follows the ``"opengl"`` convention. Thus, it is always in **Y up** convention.
+    This means that the camera is looking down the -Z axis with the +Y axis pointing up , and +X axis pointing right.
+    However, in ROS, the camera is looking down the +Z axis with the +Y axis pointing down, and +X axis pointing right.
+    Thus, the camera needs to be rotated by :math:`180^{\circ}` around the X axis to follow the ROS convention.
+
+    .. math::
+
+        T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+
+    On the other hand, the typical world coordinate system is with +X pointing forward, +Y pointing left,
+    and +Z pointing up. The camera can also be set in this convention by rotating the camera by :math:`90^{\circ}`
+    around the X axis and :math:`-90^{\circ}` around the Y axis.
+
+    .. math::
+
+        T_{WORLD} = \begin{bmatrix} 0 & 0 & -1 & 0 \\ -1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
+
+    Thus, based on their application, cameras follow different conventions for their orientation. This function
+    converts a quaternion from one convention to another.
+
+    Possible conventions are:
+
+    - :obj:"opengl" - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
+    - :obj:"ros"    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
+    - :obj:"world"  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
+
+    Args:
+        orientation torch.Tensor: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention
+        origin (Literal["opengl", "ros", "world"], optional): Convention to convert to. Defaults to "ros".
+        target (Literal["opengl", "ros", "world"], optional): Convention to convert from. Defaults to "opengl".
+
+    Returns:
+        torch.Tensor: Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
+    """
+    if target == origin:
+        return orientation
+
+    # -- unify input type
+    if origin == "ros":
+        # convert from ros to opengl convention
+        rotm = math_utils.matrix_from_quat(orientation)
+        rotm[:, :, 2] = -rotm[:, :, 2]
+        rotm[:, :, 1] = -rotm[:, :, 1]
+        # convert to opengl convention
+        quat_gl = math_utils.quat_from_matrix(rotm)
+    elif origin == "world":
+        # convert from world (x forward and z up) to opengl convention
+        rotm = math_utils.matrix_from_quat(orientation)
+        rotm = torch.matmul(
+            rotm,
+            math_utils.matrix_from_euler(
+                torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ"
+            ),
+        )
+        # convert to isaac-sim convention
+        quat_gl = math_utils.quat_from_matrix(rotm)
+    else:
+        quat_gl = orientation
+
+    # -- convert to target convention
+    if target == "ros":
+        # convert from opengl to ros convention
+        rotm = math_utils.matrix_from_quat(quat_gl)
+        rotm[:, :, 2] = -rotm[:, :, 2]
+        rotm[:, :, 1] = -rotm[:, :, 1]
+        return math_utils.quat_from_matrix(rotm)
+    elif target == "world":
+        # convert from opengl to world (x forward and z up) convention
+        rotm = math_utils.matrix_from_quat(quat_gl)
+        rotm = torch.matmul(
+            rotm,
+            math_utils.matrix_from_euler(
+                torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ"
+            ).T,
+        )
+        return math_utils.quat_from_matrix(rotm)
+    else:
+        return quat_gl

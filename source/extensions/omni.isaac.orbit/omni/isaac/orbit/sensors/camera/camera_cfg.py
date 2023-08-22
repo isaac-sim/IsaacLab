@@ -3,66 +3,68 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the camera sensor."""
-
+from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import List, Tuple
+from typing_extensions import Literal
 
+from omni.isaac.orbit.sim import FisheyeCameraCfg, PinholeCameraCfg
 from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-
-__all__ = ["PinholeCameraCfg", "FisheyeCameraCfg"]
+from .camera import Camera
 
 
 @configclass
-class PinholeCameraCfg(SensorBaseCfg):
-    """Configuration for a pinhole camera sensor."""
+class CameraCfg(SensorBaseCfg):
+    """Configuration for a camera sensor."""
 
     @configclass
-    class UsdCameraCfg:
-        """USD related configuration of the sensor.
+    class OffsetCfg:
+        """The offset pose of the sensor's frame from the sensor's parent frame."""
 
-        The parameter is kept default from USD if it is set to :obj:`None`. This includes the default
-        parameters (in case the sensor is created) or the ones set by the user (in case the sensor is
-        loaded from existing USD stage).
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
-        Reference:
-            * https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html
-            * https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+        convention: Literal["opengl", "ros", "world"] = "ros"
+        """The convention in which the frame offset is applied. Defaults to "ros".
+
+        - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera) convention.
+        - ``"ros"``    - forward axis: ``+Z`` - up axis: ``-Y`` - Offset is applied in the ROS convention.
+        - ``"world"``  - forward axis: ``+X`` - up axis: ``+Z`` - Offset is applied in the World Frame convention.
+
         """
 
-        clipping_range: Tuple[float, float] = None
-        """Near and far clipping distances (in stage units)."""
-        focal_length: float = None
-        """Perspective focal length (in mm). Longer lens lengths narrower FOV, shorter lens lengths wider FOV."""
-        focus_distance: float = None
-        """Distance from the camera to the focus plane (in stage units).
+    cls_name = Camera
 
-        The distance at which perfect sharpness is achieved.
-        """
-        f_stop: float = None
-        """Lens aperture. Defaults to 0.0, which turns off focusing.
+    offset: OffsetCfg = OffsetCfg()
+    """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.
 
-        Controls Distance Blurring. Lower Numbers decrease focus range, larger numbers increase it.
-        """
-        horizontal_aperture: float = None
-        """Horizontal aperture (in mm). Emulates sensor/film width on a camera."""
-        horizontal_aperture_offset: float = None
-        """Offsets Resolution/Film gate horizontally."""
-        vertical_aperture_offset: float = None
-        """Offsets Resolution/Film gate vertically."""
+    Note:
+        The parent frame is the frame the sensor attaches to. For example, the parent frame of a
+        camera at path ``/World/envs/env_0/Robot/Camera`` is ``/World/envs/env_0/Robot``.
+    """
 
-    cls_name = "Camera"
+    spawn: PinholeCameraCfg | FisheyeCameraCfg | None = MISSING
+    """Spawn configuration for the asset.
 
-    data_types: List[str] = ["rgb"]
+    If :obj:`None`, then the prim is not spawned by the asset. Instead, it is assumed that the
+    asset is already present in the scene.
+    """
+
+    data_types: list[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
+
     width: int = MISSING
     """Width of the image in pixels."""
+
     height: int = MISSING
     """Height of the image in pixels."""
-    semantic_types: List[str] = ["class"]
+
+    semantic_types: list[str] = ["class"]
     """List of allowed semantic types the types. Defaults to ["class"].
 
     For example, if semantic types is [“class”], only the bounding boxes for prims with semantics of
@@ -71,6 +73,7 @@ class PinholeCameraCfg(SensorBaseCfg):
     More information available at:
         https://docs.omniverse.nvidia.com/app_code/prod_extensions/ext_replicator/semantic_schema_editor.html
     """
+
     colorize: bool = False
     """whether to output colorized semantic information or non-colorized one. Defaults to False.
 
@@ -80,42 +83,3 @@ class PinholeCameraCfg(SensorBaseCfg):
     If False, the semantic images will be a 2D array of integers, where each pixel is an integer representing
     the semantic ID. Accordingly, the information output will contain mapping from semantic ID to semantic labels.
     """
-    projection_type: str = "pinhole"
-    """Type of projection to use for the camera. Defaults to "pinhole"."""
-    usd_params: UsdCameraCfg = UsdCameraCfg()
-    """Parameters for setting USD camera settings."""
-
-
-@configclass
-class FisheyeCameraCfg(PinholeCameraCfg):
-    """Configuration for a fisheye camera sensor."""
-
-    @configclass
-    class UsdCameraCfg(PinholeCameraCfg.UsdCameraCfg):
-        """USD related configuration of the sensor for the fisheye model."""
-
-        fisheye_nominal_width: float = None
-        """Nominal width of fisheye lens model."""
-        fisheye_nominal_height: float = None
-        """Nominal height of fisheye lens model."""
-        fisheye_optical_centre_x: float = None
-        """Horizontal optical centre position of fisheye lens model."""
-        fisheye_optical_centre_y: float = None
-        """Vertical optical centre position of fisheye lens model."""
-        fisheye_max_fov: float = None
-        """Maximum field of view of fisheye lens model."""
-        fisheye_polynomial_a: float = None
-        """First component of fisheye polynomial."""
-        fisheye_polynomial_b: float = None
-        """Second component of fisheye polynomial."""
-        fisheye_polynomial_c: float = None
-        """Third component of fisheye polynomial."""
-        fisheye_polynomial_d: float = None
-        """Fourth component of fisheye polynomial."""
-        fisheye_polynomial_e: float = None
-        """Fifth component of fisheye polynomial."""
-
-    projection_type: str = "fisheye_polynomial"
-    """Type of projection to use for the camera. Defaults to "fisheye_polynomial"."""
-    usd_params: UsdCameraCfg = UsdCameraCfg()
-    """Parameters for setting USD camera settings."""

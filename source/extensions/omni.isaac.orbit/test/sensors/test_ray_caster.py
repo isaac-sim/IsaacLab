@@ -19,14 +19,14 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="Ray Caster Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
     "--terrain_type",
     type=str,
-    default="generated",
-    help="Type of terrain to import. Can be 'generated' or 'usd' or 'plane'.",
+    default="generator",
+    help="Type of terrain to import. Can be 'generator' or 'usd' or 'plane'.",
 )
 args_cli = parser.parse_args()
 
@@ -49,8 +49,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.terrains as terrain_gen
-import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.ray_caster import GridPatternCfg, RayCaster, RayCasterCfg
+from omni.isaac.orbit.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
@@ -112,27 +111,21 @@ def main():
     # Design the scene
     design_scene(sim=sim, num_envs=num_envs)
     # Handler for terrains importing
-    if args_cli.terrain_type == "generated":
-        terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
-            prim_path="/World/ground",
-            terrain_type="generator",
-            terrain_generator=ROUGH_TERRAINS_CFG,
-            max_init_terrain_level=None,
-        )
-        terrain_importer = TerrainImporter(terrain_importer_cfg, num_envs=1, device=sim.device)
-    elif args_cli.terrain_type == "usd":
-        prim_utils.create_prim("/World/ground", usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
-    elif args_cli.terrain_type == "plane":
-        kit_utils.create_ground_plane("/World/ground")
-    else:
-        raise NotImplementedError(f"Terrain type {args_cli.terrain_type} not supported!")
+    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type=args_cli.terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+        max_init_terrain_level=None,
+        num_envs=1,
+    )
+    terrain_importer = TerrainImporter(terrain_importer_cfg)
 
     # Create a ray-caster sensor
-    pattern_cfg = GridPatternCfg(resolution=0.1, size=(1.6, 1.0))
     ray_caster_cfg = RayCasterCfg(
-        prim_path_expr="ball",
+        prim_path="/World/envs/env_.*/ball",
         mesh_prim_paths=["/World/ground"],
-        pattern_cfg=pattern_cfg,
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         attach_yaw_only=True,
         debug_vis=False if args_cli.headless else True,
     )
@@ -146,8 +139,6 @@ def main():
     # Initialize the views
     # -- balls
     ball_view.initialize()
-    # -- sensors
-    ray_caster.initialize("/World/envs/env_.*")
     # Print the sensor information
     print(ray_caster)
 
@@ -176,18 +167,14 @@ def main():
             )
             ball_view.set_velocities(ball_initial_velocities[reset_indices], indices=reset_indices)
             # reset the sensor
-            ray_caster.reset_buffers(reset_indices)
+            ray_caster.reset(reset_indices)
             # reset the counter
             step_count = 0
         # Step simulation
         sim.step()
         # Update the ray-caster
-        with Timer(f"Ray-caster update with {ray_caster.count} x {ray_caster.num_rays} rays"):
+        with Timer(f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays"):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
-        # Visualize the ray-caster
-        if not args_cli.headless:
-            with Timer(f"Ray-caster debug visualization\t\t"):
-                ray_caster.debug_vis()
         # Update counter
         step_count += 1
 

@@ -9,122 +9,118 @@ This class defines an interface for sensors similar to how the :class:`omni.isaa
 Each sensor class should inherit from this class and implement the abstract methods.
 """
 
+from __future__ import annotations
 
 import torch
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Sequence
+from typing import Any, Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit.app
+import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext
 
 from .sensor_base_cfg import SensorBaseCfg
 
 
 class SensorBase(ABC):
-    """The base class for implementing a sensor."""
+    """The base class for implementing a sensor.
+
+    The implementation is based on lazy evaluation. The sensor data is only updated when the user
+    tries accessing the data through the :attr:`data` property or sets ``force_compute=True`` in
+    the :meth:`update` method. This is done to avoid unnecessary computation when the sensor data
+    is not used.
+
+    The sensor is updated at the specified update period. If the update period is zero, then the
+    sensor is updated at every simulation step.
+    """
 
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
 
-        The sensor tick is the time between two sensor buffers. If the sensor tick is zero, then the sensor
-        buffers are filled at every simulation step.
-
         Args:
             cfg (SensorBaseCfg): The configuration parameters for the sensor.
         """
-        # Store the config
+        # check that config is valid
+        if cfg.history_length < 0:
+            raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
+        # store inputs
         self.cfg = cfg
-        # Current timestamp (in seconds)
-        self._timestamp: torch.Tensor
-        # Timestamp from last update
-        self._timestamp_last_update: torch.Tensor
-        # ids of envs with outdated data
-        self._is_outdated: torch.Tensor
-        # Flag for whether the sensor is initialized
-        self._is_initialized: bool = False
-        # data object
-        self._data: object = None
+        # flag for whether the sensor is initialized
+        self._is_initialized = False
+
+        # add callbacks for stage play/stop
+        physx_interface = omni.physx.acquire_physx_interface()
+        self._initialize_handle = physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
+            int(omni.physx.bindings._physx.SimulationEvent.RESUMED), self._initialize_callback
+        )
+        self._invalidate_initialize_handle = (
+            physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
+                int(omni.physx.bindings._physx.SimulationEvent.STOPPED), self._invalidate_initialize_callback
+            )
+        )
+        # add callback for debug visualization
+        if self.cfg.debug_vis:
+            app_interface = omni.kit.app.get_app_interface()
+            self._debug_visualization_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                self._debug_vis_callback
+            )
+        else:
+            self._debug_visualization_handle = None
+
+    def __del__(self):
+        """Unsubscribe from the callbacks."""
+        self._initialize_handle.unsubscribe()
+        self._invalidate_initialize_handle.unsubscribe()
+        if self._debug_visualization_handle is not None:
+            self._debug_visualization_handle.unsubscribe()
 
     """
     Properties
     """
 
     @property
-    def prim_paths(self) -> List[str]:
-        """The paths to the sensor prims."""
-        return self._view.prim_paths
-
-    @property
-    def count(self) -> int:
-        """Number of prims encapsulated."""
-        return self._view.count
-
-    @property
     def device(self) -> str:
-        """Device where the sensor is running."""
+        """Memory device for computation."""
         return self._device
 
     @property
-    def timestamp(self) -> torch.Tensor:
-        """Simulation time of the measurement (in seconds)."""
-        return self._timestamp
-
-    @property
+    @abstractmethod
     def data(self) -> Any:
-        """Gets the data from the simulated sensor after updating it if necessary."""
-        # update sensors if needed
-        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
-        if len(outdated_env_ids) > 0:
-            # obtain new data
-            self._update_buffers(outdated_env_ids)
-            # update the timestamp from last update
-            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
-            # set outdated flag to false for the updated sensors
-            # TODO (from mayank): Why all of them are false? It is unclear. Shouldn't just be the ones that were updated?
-            self._is_outdated[:] = False
-        return self._data
+        """Data from the sensor.
+
+        This property is only updated when the user tries to access the data. This is done to avoid
+        unnecessary computation when the sensor data is not used.
+
+        For updating the sensor when this property is accessed, you can use the following
+        code snippet in your sensor implementation:
+
+        .. code-block:: python
+
+            # update sensors if needed
+            self._update_outdated_buffers()
+            # return the data (where `_data` is the data for the sensor)
+            return self._data
+        """
+        raise NotImplementedError
 
     """
     Operations
     """
 
-    def spawn(self, prim_path: str, *args, **kwargs):
-        """Spawns the sensor into the stage.
+    def set_debug_vis(self, debug_vis: bool):
+        """Sets whether to visualize the sensor data.
 
         Args:
-            prim_path (str): The path of the prim to attach the sensor to.
-        """
-        pass
-
-    def initialize(self, env_prim_path: str = None):
-        """Initializes the sensor handles and internal buffers.
-
-        Args:
-            env_prim_path (str, optional): The (templated) prim path expression to the environments where the sensors are created. Defaults to None.
+            debug_vis (bool): Whether to visualize the sensor data.
 
         Raises:
-            RuntimeError: If the simulation context is not initialized.
-            RuntimeError: If no prims are found for the given prim path expression.
+            RuntimeError: If the asset debug visualization is not enabled.
         """
-        # Obtain Simulation Context
-        sim = SimulationContext.instance()
-        if sim is not None:
-            self._device = sim.device
-            self._sim_physics_dt = sim.get_physics_dt()
-        else:
-            raise RuntimeError("Simulation Context is not initialized!")
-        # Count number of environments
-        self._num_envs = len(prim_utils.find_matching_prim_paths(env_prim_path))
-        # Boolean tensor indicating whether the sensor data has to be refreshed
-        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
-        # Current timestamp (in seconds)
-        self._timestamp = torch.zeros(self._num_envs, device=self._device)
-        # Timestamp from last update
-        self._timestamp_last_update = torch.zeros_like(self._timestamp)
-        # Set the initialized flag
-        self._is_initialized = True
+        if not self.cfg.debug_vis:
+            raise RuntimeError("Debug visualization is not enabled for this sensor.")
 
-    def reset_buffers(self, env_ids: Optional[Sequence[int]] = None):
+    def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the sensor internals.
 
         Args:
@@ -147,11 +143,45 @@ class SensorBase(ABC):
         # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
         #   It is only for the contact sensor but there we should redefine the update function IMO.
         if force_recompute or (self.cfg.history_length > 0):
-            # TODO (from @mayank): Why are we calling an attribute like this!? We should clean this up
-            #   and make a function.
-            self.data
+            self._update_outdated_buffers()
 
-    def debug_vis(self):
+    """
+    Implementation specific.
+    """
+
+    @abstractmethod
+    def _initialize_impl(self):
+        """Initializes the sensor-related handles and internal buffers."""
+        # Obtain Simulation Context
+        sim = SimulationContext.instance()
+        if sim is not None:
+            self._device = sim.device
+            self._sim_physics_dt = sim.get_physics_dt()
+        else:
+            raise RuntimeError("Simulation Context is not initialized!")
+        # Count number of environments
+        env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+        self._num_envs = len(prim_utils.find_matching_prim_paths(env_prim_path_expr))
+        # Boolean tensor indicating whether the sensor data has to be refreshed
+        self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
+        # Current timestamp (in seconds)
+        self._timestamp = torch.zeros(self._num_envs, device=self._device)
+        # Timestamp from last update
+        self._timestamp_last_update = torch.zeros_like(self._timestamp)
+
+    @abstractmethod
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
+        """Fills the sensor data for provided environment ids.
+
+        This function does not perform any time-based checks and directly fills the data into the
+        data container.
+
+        Args:
+            env_ids (Sequence[int]): The indices of the sensors that are ready to capture.
+        """
+        raise NotImplementedError
+
+    def _debug_vis_impl(self):
         """Visualizes the sensor data.
 
         This is an empty function that can be overridden by the derived class to visualize the sensor data.
@@ -163,17 +193,39 @@ class SensorBase(ABC):
         pass
 
     """
-    Implementation specific.
+    Simulation callbacks.
     """
 
-    @abstractmethod
-    def _update_buffers(self, env_ids: Optional[Sequence[int]] = None):
-        """Fills the buffers of the sensor data.
+    def _initialize_callback(self, event):
+        """Initializes the scene elements.
 
-        This function does not perform any time-based checks and directly fills the data into the data container.
-
-        Args:
-            env_ids (Optional[Sequence[int]]): The indices of the sensors that are ready to capture.
-                If None, then all sensors are ready to capture. Defaults to None.
+        Note:
+            PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
+            called whenever the simulator "plays" from a "stop" state.
         """
-        raise NotImplementedError
+        if not self._is_initialized:
+            self._initialize_impl()
+            self._is_initialized = True
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        self._is_initialized = False
+
+    def _debug_vis_callback(self, event):
+        """Visualizes the sensor data."""
+        self._debug_vis_impl()
+
+    """
+    Helper functions.
+    """
+
+    def _update_outdated_buffers(self):
+        """Fills the sensor data for the outdated sensors."""
+        outdated_env_ids = self._is_outdated.nonzero().squeeze(-1)
+        if len(outdated_env_ids) > 0:
+            # obtain new data
+            self._update_buffers_impl(outdated_env_ids)
+            # update the timestamp from last update
+            self._timestamp_last_update[outdated_env_ids] = self._timestamp[outdated_env_ids]
+            # set outdated flag to false for the updated sensors
+            self._is_outdated[outdated_env_ids] = False

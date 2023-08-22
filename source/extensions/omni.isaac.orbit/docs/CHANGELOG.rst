@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.9.1 (2023-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Introduced three different rotation conventions in the :class:`omni.isaac.orbit.sensors.Camera` class. These
+  conventions are:
+
+  * ``opengl``: the camera is looking down the -Z axis with the +Y axis pointing up
+  * ``ros``: the camera is looking down the +Z axis with the +Y axis pointing down
+  * ``world``: the camera is looking along the +X axis with the -Z axis pointing down
+
+  These can be used to declare the camera offset in :class:`omni.isaac.orbit.sensors.CameraCfg.OffsetCfg` class
+  and in :meth:`omni.isaac.orbit.sensors.Camera.set_world_pose` method. Additionally, all conventions are
+  saved to :class:`omni.isaac.orbit.sensors.CameraData` class for easy access.
+
+Changed
+^^^^^^^
+
+* Adapted all the sensor classes to follow a structure similar to the :class:`omni.issac.orbit.assets.AssetBase`.
+  Hence, the spawning and initialization of sensors manually by the users is avoided.
+* Removed the :meth:`debug_vis` function since that this functionality is handled by a render callback automatically
+  (based on the passed configuration for the :class:`omni.isaac.orbit.sensors.SensorBaseCfg.debug_vis` flag).
+
+
 0.9.0 (2023-08-18)
 ~~~~~~~~~~~~~~~~~~
 

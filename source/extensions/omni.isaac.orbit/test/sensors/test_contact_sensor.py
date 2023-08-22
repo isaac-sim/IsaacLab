@@ -19,9 +19,9 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="Contact Sensor Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
-parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
+parser.add_argument("--num_robots", type=int, default=64, help="Number of robots to spawn.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
@@ -42,8 +42,8 @@ from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.robots.config.anymal import ANYMAL_C_CFG
-from omni.isaac.orbit.robots.legged_robot import LeggedRobot
+from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.assets.articulation.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 
 """
@@ -97,27 +97,22 @@ def main():
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")
-
-    # Spawn things into the scene
-    robot = LeggedRobot(cfg=ANYMAL_C_CFG)
-    robot.spawn("/World/envs/env_0/Robot")
-    # Contact sensor
-    contact_sensor_cfg = ContactSensorCfg(
-        prim_path_expr="Robot/.*_SHANK", debug_vis=False if args_cli.headless else True
-    )
-    contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
-    # design props
-    design_scene()
-
     # Clone the scene
     num_envs = args_cli.num_robots
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    envs_positions = cloner.clone(
-        source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True
+    _ = cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
+    # Design props
+    design_scene()
+    # Spawn things into the scene
+    robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg.spawn.activate_contact_sensors = True
+    robot = Articulation(cfg=robot_cfg)
+    # Contact sensor
+    contact_sensor_cfg = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/Robot/.*_SHANK", debug_vis=False if args_cli.headless else True
     )
-    # convert environment positions to torch tensor
-    envs_positions = torch.tensor(envs_positions, dtype=torch.float, device=sim.device)
+    contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance
     physics_scene_path = sim.get_physics_context().prim_path
     cloner.filter_collisions(
@@ -126,17 +121,11 @@ def main():
 
     # Play the simulator
     sim.reset()
-    # Acquire handles
-    # Initialize handles
-    robot.initialize("/World/envs/env_.*/Robot")
-    contact_sensor.initialize("/World/envs/env_.*")
+    # print info
     print(contact_sensor)
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
-
-    # dummy actions
-    actions = robot.data.default_dof_pos
 
     # Define simulation stepping
     decimation = 4
@@ -158,32 +147,30 @@ def main():
             sim_time = 0.0
             count = 0
             # reset dof state
-            dof_pos = robot.data.default_dof_pos
-            dof_vel = robot.data.default_dof_vel
-            robot.set_dof_state(dof_pos, dof_vel)
-            robot.reset_buffers()
-            # reset command
-            actions = robot.data.default_dof_pos
+            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.reset()
         # perform 4 steps
         for _ in range(decimation):
             # apply actions
-            robot.set_dof_position_targets(actions)
+            robot.set_joint_position_targets(robot.data.default_joint_pos)
             # write commands to sim
-            robot.write_commands_to_sim()
+            robot.write_data_to_sim()
             # perform step
             sim.step(render=not args_cli.headless)
             # fetch data
-            robot.refresh_sim_data(refresh_dofs=True)
+            robot.fetch_data_from_sim()
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update the buffers
         if sim.is_playing():
-            robot.update_buffers(sim_dt)
+            robot.update(sim_dt)
             contact_sensor.update(sim_dt, force_recompute=True)
-            # update marker visualization
-            if not args_cli.headless:
-                contact_sensor.debug_vis()
+            if count % 100 == 0:
+                print("Sim-time: ", sim_time)
+                print("Number of contacts: ", torch.count_nonzero(contact_sensor.data.current_air_time == 0.0).item())
+                print("-" * 80)
 
 
 if __name__ == "__main__":

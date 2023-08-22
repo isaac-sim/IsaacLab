@@ -1,33 +1,71 @@
-import numpy as np
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import torch
 from dataclasses import dataclass
 from tensordict import TensorDict
-from typing import Any, Dict, List, Tuple, Union
-
-from omni.isaac.orbit.utils.array import TensorData
+from typing import Any
 
 
 @dataclass
 class CameraData:
     """Data container for the camera sensor."""
 
-    position: TensorData = None
+    ##
+    # Frame state.
+    ##
+
+    pos_w: torch.Tensor = None
     """Position of the sensor origin in world frame, following ROS convention.
 
     Shape is (N, 3) where ``N`` is the number of sensors.
     """
-    orientation: TensorData = None
+
+    quat_w_ros: torch.Tensor = None
     """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention.
+
+    .. note::
+        ROS convention follows the camera aligned with forward axis +Z and up axis -Y.
 
     Shape: (N, 4) where ``N`` is the number of sensors.
     """
-    intrinsic_matrices: TensorData = None
+
+    quat_w_world: torch.Tensor = None
+    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following the world coordinate frame
+
+    .. note::
+        World frame convention follows the camera aligned with forward axis +X and up axis +Z.
+
+    Shape: (N, 4) where ``N`` is the number of sensors.
+    """
+
+    quat_w_opengl: torch.Tensor = None
+    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following Opengl / Usd.Camera convention
+
+    .. note::
+        OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.
+
+    Shape: (N, 4) where ``N`` is the number of sensors.
+    """
+
+    ##
+    # Camera data
+    ##
+
+    image_shape: tuple[int, int] = None
+    """A tuple containing (height, width) of the camera sensor."""
+
+    intrinsic_matrices: torch.Tensor = None
     """The intrinsic matrices for the camera.
 
     Shape is (N, 3, 3) where ``N`` is the number of sensors.
     """
-    image_shape: Tuple[int, int] = None
-    """A tuple containing (height, width) of the camera sensor."""
-    output: Union[Dict[str, np.ndarray], TensorDict] = None
+
+    output: TensorDict = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
@@ -35,7 +73,8 @@ class CameraData:
 
     .. _Replicator Documentation: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
     """
-    info: List[Dict[str, Any]] = None
+
+    info: list[dict[str, Any]] = None
     """The retrieved sensor info with sensor types as key.
 
     This contains extra information provided by the sensor such as semantic segmentation label mapping, prim paths.

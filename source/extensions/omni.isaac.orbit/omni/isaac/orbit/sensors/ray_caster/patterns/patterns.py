@@ -11,10 +11,10 @@ import torch
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .patterns_cfg import BpearlPatternCfg, GridPatternCfg, PinholeCameraPatternCfg
+    from . import patterns_cfg
 
 
-def grid_pattern(cfg: GridPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+def grid_pattern(cfg: patterns_cfg.GridPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
     """A regular grid pattern for ray casting.
 
     The grid pattern is made from rays that are parallel to each other. They span a 2D grid in the sensor's
@@ -41,7 +41,7 @@ def grid_pattern(cfg: GridPatternCfg, device: str) -> tuple[torch.Tensor, torch.
     return ray_starts, ray_directions
 
 
-def pinhole_camera_pattern(cfg: PinholeCameraPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+def pinhole_camera_pattern(cfg: patterns_cfg.PinholeCameraPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
     """The depth-image pattern for ray casting.
 
     Args:
@@ -64,7 +64,7 @@ def pinhole_camera_pattern(cfg: PinholeCameraPatternCfg, device: str) -> tuple[t
     return ray_starts, ray_directions
 
 
-def bpearl_pattern(cfg: BpearlPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+def bpearl_pattern(cfg: patterns_cfg.BpearlPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
     """The RS-Bpearl pattern for ray casting.
 
     The `Robosense RS-Bpearl`_ is a short-range LiDAR that has a 360 degrees x 90 degrees super wide

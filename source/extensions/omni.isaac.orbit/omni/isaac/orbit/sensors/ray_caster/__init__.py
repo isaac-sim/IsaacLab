@@ -8,18 +8,16 @@ Ray-caster based on warp.
 """
 
 
-from .patterns_cfg import BpearlPatternCfg, GridPatternCfg, PatternBaseCfg, PinholeCameraPatternCfg
+from . import patterns
 from .ray_caster import RayCaster
 from .ray_caster_cfg import RayCasterCfg
 from .ray_caster_data import RayCasterData
 
 __all__ = [
+    # sensor
     "RayCaster",
     "RayCasterData",
     "RayCasterCfg",
     # patterns
-    "PatternBaseCfg",
-    "GridPatternCfg",
-    "PinholeCameraPatternCfg",
-    "BpearlPatternCfg",
+    "patterns",
 ]

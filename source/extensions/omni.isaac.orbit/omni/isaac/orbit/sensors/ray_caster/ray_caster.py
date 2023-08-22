@@ -8,23 +8,25 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.prims import RigidPrimView, XFormPrimView
 from pxr import UsdGeom, UsdPhysics
 
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import RAY_CASTER_MARKER_CFG
+from omni.isaac.orbit.terrains.trimesh.utils import make_plane
 from omni.isaac.orbit.utils.math import quat_apply, quat_apply_yaw
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .ray_caster_cfg import RayCasterCfg
 from .ray_caster_data import RayCasterData
+
+if TYPE_CHECKING:
+    from .ray_caster_cfg import RayCasterCfg
 
 
 class RayCaster(SensorBase):
@@ -43,14 +45,15 @@ class RayCaster(SensorBase):
         is a work in progress.
     """
 
+    cfg: RayCasterCfg
+    """The configuration parameters."""
+
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
 
         Args:
             cfg (RayCasterCfg): The configuration parameters.
         """
-        # store config
-        self.cfg = cfg
         # initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
@@ -63,26 +66,46 @@ class RayCaster(SensorBase):
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
-            f"Ray-caster @ '{self._view._regex_prim_paths}': \n"
-            f"\tview type : {self._view.__class__}\n"
-            f"\tupdate period (s) : {self.cfg.update_period}\n"
-            f"\tnumber of meshes : {len(self.warp_meshes)}\n"
-            f"\tnumber of sensors: {self._view.count}\n"
-            f"\tnumber of rays/sensor : {self.num_rays}\n"
+            f"Ray-caster @ '{self.cfg.prim_path}': \n"
+            f"\tview type            : {self._view.__class__}\n"
+            f"\tupdate period (s)    : {self.cfg.update_period}\n"
+            f"\tnumber of meshes     : {len(self.warp_meshes)}\n"
+            f"\tnumber of sensors    : {self._view.count}\n"
+            f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
         )
 
     """
-    Operations
+    Properties
     """
 
-    def initialize(self, env_prim_path: str):
-        # check if the prim at path is a articulated or rigid prim
+    @property
+    def data(self) -> RayCasterData:
+        # update sensors if needed
+        self._update_outdated_buffers()
+        # return the data
+        return self._data
+
+    """
+    Operations.
+    """
+
+    def set_debug_vis(self, debug_vis: bool):
+        super().set_debug_vis(debug_vis)
+        if self.ray_visualizer is not None:
+            self.ray_visualizer.set_visibility(debug_vis)
+
+    """
+    Implementation.
+    """
+
+    def _initialize_impl(self):
+        super()._initialize_impl()
+        # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
         prim_view_class = None
-        prim_paths_expr = f"{env_prim_path}/{self.cfg.prim_path_expr}"
-        for prim_path in prim_utils.find_matching_prim_paths(prim_paths_expr):
+        for prim_path in prim_utils.find_matching_prim_paths(self.cfg.prim_path):
             # get prim at path
             prim = prim_utils.get_prim_at_path(prim_path)
             # check if it is a rigid prim
@@ -92,17 +115,15 @@ class RayCaster(SensorBase):
                 prim_view_class = RigidPrimView
             else:
                 prim_view_class = XFormPrimView
-                carb.log_warn(f"The prim at path {prim_path} is not a rigid prim! Using XFormPrimView.")
+                carb.log_warn(f"The prim at path {prim_path} is not a physics prim! Using XFormPrimView.")
             # break the loop
             break
         # check if prim view class is found
         if prim_view_class is None:
-            raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {prim_paths_expr}")
+            raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
         # create a rigid prim view for the sensor
-        self._view = prim_view_class(prim_paths_expr, reset_xform_properties=False)
+        self._view = prim_view_class(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
-        # initialize the base class
-        super().initialize(env_prim_path)
 
         # check number of mesh prims provided
         if len(self.cfg.mesh_prim_paths) != 1:
@@ -111,31 +132,49 @@ class RayCaster(SensorBase):
             )
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # obtain the mesh prim
+            # check if the prim is a plane - handle PhysX plane as a special case
+            # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = prim_utils.get_first_matching_child_prim(
-                mesh_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh"
+                mesh_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Plane"
             )
-            # check if valid
-            if not prim_utils.is_prim_path_valid(mesh_prim_path):
-                raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
-            # cast into UsdGeomMesh
-            mesh_prim = UsdGeom.Mesh(mesh_prim)
-            # read the vertices and faces
-            points = np.asarray(mesh_prim.GetPointsAttr().Get())
-            indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-            wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
+            # if we did not find a plane then we need to read the mesh
+            if mesh_prim is None:
+                # obtain the mesh prim
+                mesh_prim = prim_utils.get_first_matching_child_prim(
+                    mesh_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh"
+                )
+                # check if valid
+                if not prim_utils.is_prim_path_valid(mesh_prim_path):
+                    raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
+                # cast into UsdGeomMesh
+                mesh_prim = UsdGeom.Mesh(mesh_prim)
+                # read the vertices and faces
+                points = np.asarray(mesh_prim.GetPointsAttr().Get())
+                indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
+                wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
+                # print info
+                carb.log_info(
+                    f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
+                )
+            else:
+                mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
+                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
+                # print info
+                carb.log_info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
             self.warp_meshes.append(wp_mesh)
         # throw an error if no meshes are found
         if len(self.warp_meshes) == 0:
-            raise RuntimeError("No meshes found for ray-casting! Please check the mesh prim paths.")
+            raise RuntimeError(
+                f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
+            )
 
         # compute ray stars and directions
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
         # apply offset transformation to the rays
-        offset_pos = torch.tensor(list(self.cfg.pos_offset), device=self._device)
-        offset_quat = torch.tensor(list(self.cfg.quat_offset), device=self._device)
+        offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device)
+        offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device)
         self.ray_directions = quat_apply(offset_quat.repeat(len(self.ray_directions), 1), self.ray_directions)
         self.ray_starts += offset_pos
         # repeat the rays for each sensor
@@ -147,24 +186,8 @@ class RayCaster(SensorBase):
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
 
-    def debug_vis(self):
-        # visualize the point hits
-        if self.cfg.debug_vis:
-            if self.ray_visualizer is None:
-                prim_path = stage_utils.get_next_free_path("/Visuals/RayCaster")
-                self.ray_visualizer = VisualizationMarkers(prim_path, cfg=RAY_CASTER_MARKER_CFG)
-            # check if prim is visualized
-            self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
-
-    """
-    Implementation.
-    """
-
-    def _update_buffers(self, env_ids: Sequence[int] | None = None):
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
-        # default to all sensors
-        if env_ids is None:
-            env_ids = self._ALL_INDICES
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_world_poses(env_ids, clone=False)
         self._data.pos_w[env_ids] = pos_w
@@ -184,3 +207,10 @@ class RayCaster(SensorBase):
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(ray_starts_w, ray_directions_w, self.warp_meshes[0])
+
+    def _debug_vis_impl(self):
+        # visualize the point hits
+        if self.ray_visualizer is None:
+            self.ray_visualizer = VisualizationMarkers("/Visuals/RayCaster", cfg=RAY_CASTER_MARKER_CFG)
+        # check if prim is visualized
+        self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
