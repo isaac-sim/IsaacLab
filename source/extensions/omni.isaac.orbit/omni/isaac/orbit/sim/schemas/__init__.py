@@ -34,6 +34,7 @@ Locally, the schemas are defined in the following files:
 """
 
 from .schemas import (
+    activate_contact_sensors,
     define_articulation_root_properties,
     define_collision_properties,
     define_mass_properties,
@@ -59,6 +60,7 @@ __all__ = [
     "RigidBodyPropertiesCfg",
     "define_rigid_body_properties",
     "modify_rigid_body_properties",
+    "activate_contact_sensors",
     # colliders
     "CollisionPropertiesCfg",
     "define_collision_properties",

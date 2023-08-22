@@ -4,13 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext as _SimulationContext
-from pxr import PhysxSchema
 
 from .simulation_cfg import SimulationCfg
+from .utils import bind_physics_material
 
 
 class SimulationContext(_SimulationContext):
@@ -76,18 +75,13 @@ class SimulationContext(_SimulationContext):
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
-        # modify the physics material
+        # create the default physics material
+        # this material is used when no material is specified for a primitive
+        # check: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
         material_path = f"{self.cfg.physics_prim_path}/defaultMaterial"
-        material_prim = prim_utils.get_prim_at_path(material_path)
-        # Apply PhysX Rigid Material schema
-        physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(material_prim)
-        # Set patch friction property
-        improve_patch_friction = self.cfg.default_physics_material.improve_patch_friction
-        physx_material_api.CreateImprovePatchFrictionAttr().Set(improve_patch_friction)
-        # Set combination mode for coefficients
-        combine_mode = self.cfg.default_physics_material.combine_mode
-        physx_material_api.CreateFrictionCombineModeAttr().Set(combine_mode)
-        physx_material_api.CreateRestitutionCombineModeAttr().Set(combine_mode)
+        self.cfg.physics_material.func(material_path, self.cfg.physics_material)
+        # bind the physics material to the scene
+        bind_physics_material(self.cfg.physics_prim_path, material_path)
 
         # check if flatcache is enabled
         # this is needed to flush the flatcache data into Hydra manually when calling `render()`

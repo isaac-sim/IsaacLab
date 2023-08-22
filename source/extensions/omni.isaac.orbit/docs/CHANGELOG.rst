@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.8.11 (2023-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Adds utility functions and configuration objects in the :mod:`omni.isaac.orbit.sim.spawners`
+  to create the following prims in the scene:
+
+  * :mod:`omni.isaac.orbit.sim.spawners.from_file`: Create a prim from a USD/URDF file.
+  * :mod:`omni.isaac.orbit.sim.spawners.shapes`: Create USDGeom prims for shapes (box, sphere, cylinder, capsule, etc.).
+  * :mod:`omni.isaac.orbit.sim.spawners.materials`: Create a visual or physics material prim.
+  * :mod:`omni.isaac.orbit.sim.spawners.lights`: Create a USDLux prim for different types of lights.
+  * :mod:`omni.isaac.orbit.sim.spawners.sensors`: Create a USD prim for supported sensors.
+
+Changed
+^^^^^^^
+
+* Modified the :class:`SimulationContext` class to take the default physics material using the material spawn
+  configuration object.
+
+
 0.8.10 (2023-08-17)
 ~~~~~~~~~~~~~~~~~~
 

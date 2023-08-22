@@ -13,37 +13,9 @@ from typing import Tuple
 
 from omni.isaac.orbit.utils import configclass
 
-__all__ = ["PhysicsMaterialCfg", "PhysxCfg", "SimulationCfg"]
+from .spawners.materials import RigidBodyMaterialCfg
 
-
-##
-# Simulation settings
-##
-
-
-@configclass
-class PhysicsMaterialCfg:
-    """Physics material parameters."""
-
-    static_friction: float = 1.0
-    """The static friction coefficient. Defaults to 1.0."""
-
-    dynamic_friction: float = 1.0
-    """The dynamic friction coefficient. Defaults to 1.0."""
-
-    restitution: float = 0.0
-    """The restitution coefficient. Defaults to 0.0."""
-
-    improve_patch_friction: bool = False
-    """Whether to enable patch friction. Defaults to False."""
-
-    combine_mode: str = "average"
-    """Determines the way physics materials will be combined during collisions. Defaults to `average`.
-
-    This includes for both friction and restitution combination.
-
-    Available options are `average`, `min`, `multiply`, `multiply`, and `max`.
-    """
+__all__ = ["PhysxCfg", "SimulationCfg"]
 
 
 @configclass
@@ -201,8 +173,8 @@ class SimulationCfg:
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
 
-    default_physics_material: PhysicsMaterialCfg = PhysicsMaterialCfg()
-    """Default physics material settings. Default is PhysicsMaterialCfg().
+    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
+    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
     physics material specified on them.

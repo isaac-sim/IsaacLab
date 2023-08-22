@@ -28,6 +28,8 @@ if nucleus_utils.get_assets_root_path() is None:
     carb.log_error(msg)
     raise RuntimeError(msg)
 
+NVIDIA_NUCLEUS_DIR = nucleus_utils.get_nvidia_asset_root_path()
+"""Path to the root directory on the NVIDIA Nucleus Server."""
 
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
@@ -43,8 +45,11 @@ def check_file_path(path: str) -> int:
         path (str): The path to the file.
 
     Returns:
-        int: The status of the file. Possible values are: :obj:`0` if the file does not exist
-            :obj:`1` if the file exists locally, or :obj:`2` if the file exists on the Nucleus Server.
+        int: The status of the file. Possible values are:
+
+            * :obj:`0` if the file does not exist
+            * :obj:`1` if the file exists locally
+            * :obj:`2` if the file exists on the Nucleus Server
     """
     if os.path.isfile(path):
         return 1

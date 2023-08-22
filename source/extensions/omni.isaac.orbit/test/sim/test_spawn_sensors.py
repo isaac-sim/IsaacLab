@@ -1,0 +1,127 @@
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Launch Isaac Sim Simulator first."""
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
+
+import traceback
+import unittest
+
+import carb
+import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
+from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.version import get_version
+
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.sim.spawners.sensors.sensors import (
+    CUSTOM_FISHEYE_CAMERA_ATTRIBUTES,
+    CUSTOM_PINHOLE_CAMERA_ATTRIBUTES,
+)
+from omni.isaac.orbit.utils.string import to_camel_case
+
+
+class TestSpawningSensors(unittest.TestCase):
+    """Test fixture for checking spawning of USD sensors with different settings."""
+
+    def setUp(self) -> None:
+        """Create a blank new stage for each test."""
+        # Simulation time-step
+        self.dt = 0.1
+        # Load kit helper
+        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
+        # Wait for spawning
+        stage_utils.update_stage()
+        # obtain isaac sim version
+        self.isaac_sim_version = int(get_version()[2])
+
+    def tearDown(self) -> None:
+        """Stops simulator after each test."""
+        # stop simulation
+        self.sim.stop()
+        self.sim.clear()
+
+    """
+    Basic spawning.
+    """
+
+    def test_spawn_pinhole_camera(self):
+        """Test spawning a pinhole camera."""
+        cfg = sim_utils.PinholeCameraCfg(
+            focal_length=5.0, f_stop=10.0, clipping_range=(0.1, 1000.0), horizontal_aperture=10.0
+        )
+        prim = cfg.func("/World/pinhole_camera", cfg)
+
+        # check if the light is spawned
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/pinhole_camera"))
+        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
+        # validate properties on the prim
+        self._validate_properties_on_prim("/World/pinhole_camera", cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
+
+    def test_spawn_fisheye_camera(self):
+        """Test spawning a fisheye camera."""
+        cfg = sim_utils.FisheyeCameraCfg(
+            projection_type="fisheye_equidistant",
+            focal_length=5.0,
+            f_stop=10.0,
+            clipping_range=(0.1, 1000.0),
+            horizontal_aperture=10.0,
+        )
+        # FIXME: This throws a warning. Check with Replicator team if this is expected/known.
+        #   [omni.hydra] Camera '/World/fisheye_camera': Unknown projection type, defaulting to pinhole
+        prim = cfg.func("/World/fisheye_camera", cfg)
+
+        # check if the light is spawned
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/fisheye_camera"))
+        self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Camera")
+        # validate properties on the prim
+        self._validate_properties_on_prim("/World/fisheye_camera", cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
+
+    """
+    Helper functions.
+    """
+
+    def _validate_properties_on_prim(self, prim_path: str, cfg: object, custom_attr: dict):
+        """Validate the properties on the prim.
+
+        Args:
+            prim_path (str): The prim name.
+            cfg (object): The configuration object.
+            custom_attr (dict[str, [str, Sdf.ValueType]]): The custom attributes for sensor.
+        """
+        prim = prim_utils.get_prim_at_path(prim_path)
+        for attr_name, attr_value in cfg.__dict__.items():
+            # skip names we know are not present
+            if attr_name in ["func", "copy_from_source", "lock_camera"] or attr_value is None:
+                continue
+            # obtain prim property name
+            if attr_name in custom_attr:
+                prim_prop_name = custom_attr[attr_name][0]
+                # check custom attributes
+            else:
+                # convert attribute name in prim to cfg name
+                prim_prop_name = to_camel_case(attr_name, to="cC")
+            # validate the values
+            self.assertAlmostEqual(prim.GetAttribute(prim_prop_name).Get(), attr_value, places=5)
+
+
+if __name__ == "__main__":
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

@@ -6,14 +6,27 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable
+import re
+from typing import TYPE_CHECKING, Any, Callable
 
 import carb
+import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
-from pxr import Sdf, Usd
+from omni.isaac.cloner import Cloner
+from omni.isaac.version import get_version
+from pxr import PhysxSchema, Sdf, Usd, UsdPhysics, UsdShade
 
 from omni.isaac.orbit.utils.string import to_camel_case
+
+from . import schemas
+
+if TYPE_CHECKING:
+    from .spawners.spawner_cfg import SpawnerCfg
+
+"""
+Attribute - Setters.
+"""
 
 
 def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, value: Any, camel_case: bool = True):
@@ -98,6 +111,11 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
     )
 
 
+"""
+Decorators.
+"""
+
+
 def apply_nested(func: Callable) -> Callable:
     """Decorator to apply a function to all prims under a specified prim-path.
 
@@ -120,7 +138,7 @@ def apply_nested(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(prim_path: str, cfg: object, stage: Usd.Stage | None = None):
+    def wrapper(prim_path: str, cfg: object, stage: Usd.Stage | None = None, **kwargs):
         # get current stage
         if stage is None:
             stage = stage_utils.get_current_stage()
@@ -134,7 +152,7 @@ def apply_nested(func: Callable) -> Callable:
         while len(all_prims) > 0:
             # get current prim
             child_prim = all_prims.pop(0)
-            child_prim_path = child_prim.GetPath().pathString
+            child_prim_path = child_prim.GetPath().pathString  # type: ignore
             # check if prim is a prototype
             # note: we prefer throwing a warning instead of ignoring the prim since the user may
             #   have intended to set properties on the prototype prim.
@@ -142,10 +160,191 @@ def apply_nested(func: Callable) -> Callable:
                 carb.log_warn(f"Cannot perform '{func.__name__}' on instanced prim: '{child_prim_path}'")
                 continue
             # set properties
-            success = func(child_prim_path, cfg, stage=stage)
+            success = func(child_prim_path, cfg, stage=stage, **kwargs)
             # if successful, do not look at children
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
                 all_prims += child_prim.GetChildren()
 
     return wrapper
+
+
+def clone(func: Callable) -> Callable:
+    """Decorator for cloning a prim based on matching prim paths of the prim's parent.
+
+    The decorator checks if the parent prim path matches any prim paths in the stage. If so, it clones the
+    spawned prim at each matching prim path. For example, if the input prim path is: ``/World/Table_[0-9]/Bottle``,
+    the decorator will clone the prim at each matching prim path of the parent prim: ``/World/Table_0/Bottle``,
+    ``/World/Table_1/Bottle``, etc.
+
+    Note:
+        For matching prim paths, the decorator assumes that valid prims exist for all matching prim paths.
+        In case no matching prim paths are found, the decorator raises a ``RuntimeError``.
+
+    Args:
+        func (callable): The function to decorate.
+
+    Returns:
+        callable: The decorated function that spawns the prim and clones it at each matching prim path.
+            It returns the spawned prim.
+    """
+
+    @functools.wraps(func)
+    def wrapper(prim_path: str, cfg: SpawnerCfg, *args, **kwargs):
+        # resolve: {SPAWN_NS}/AssetName
+        # note: this assumes that the spawn namespace already exists in the stage
+        root_path, asset_path = prim_path.rsplit("/", 1)
+        # check if input is a regex expression
+        # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
+        is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
+
+        # resolve matching prims for source prim path expression
+        if is_regex_expression:
+            source_prim_paths = prim_utils.find_matching_prim_paths(root_path)
+            # if no matching prims are found, raise an error
+            if len(source_prim_paths) == 0:
+                raise RuntimeError(
+                    f"Unable to find source prim path: '{root_path}'. Please create the prim before spawning."
+                )
+        else:
+            source_prim_paths = [root_path]
+
+        # resolve prim paths for spawning and cloning
+        prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
+        # spawn single instance
+        prim = func(prim_paths[0], cfg, *args, **kwargs)
+        # activate rigid body contact sensors
+        if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
+            schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
+        # clone asset using cloner API
+        if len(prim_paths) > 1:
+            cloner = Cloner()
+            # clone the prim based on isaac-sim version
+            isaac_major_version = int(get_version()[2])
+            if isaac_major_version <= 2022:
+                cloner.clone(prim_paths[0], prim_paths, replicate_physics=False)
+            else:
+                cloner.clone(prim_paths[0], prim_paths, replicate_physics=False, copy_from_source=cfg.copy_from_source)
+        # return the source prim
+        return prim
+
+    return wrapper
+
+
+"""
+Material bindings.
+"""
+
+
+@apply_nested
+def bind_visual_material(
+    prim_path: str, material_path: str, stage: Usd.Stage | None = None, stronger_than_descendants: bool = True
+):
+    """Bind a visual material to a prim.
+
+    This function is a wrapper around the USD command `BindMaterialCommand`_.
+
+    .. note::
+        The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
+        and all its descendants.
+
+    .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
+
+    Args:
+        prim_path (str): The prim path where to apply the material.
+        material_path (str): The prim path of the material to apply.
+        stage (Usd.Stage | None, optional): The stage where the prim and material exist. Defaults to None,
+            in which case the current stage is used.
+        stronger_than_descendants (bool): Whether the material should override the material of its descendants.
+            Defaults to True.
+
+    Raises:
+        ValueError: If the provided prim paths do not exist on stage.
+    """
+    # resolve stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # check if prim and material exists
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        raise ValueError(f"Target prim '{material_path}' does not exist.")
+    if not stage.GetPrimAtPath(material_path).IsValid():
+        raise ValueError(f"Visual material '{material_path}' does not exist.")
+
+    # resolve token for weaker than descendants
+    if stronger_than_descendants:
+        binding_strength = "strongerThanDescendants"
+    else:
+        binding_strength = "weakerThanDescendants"
+    # obtain material binding API
+    # note: we prefer using the command here as it is more robust than the USD API
+    omni.kit.commands.execute(
+        "BindMaterialCommand",
+        prim_path=prim_path,
+        material_path=material_path,
+        strength=binding_strength,
+        stage=stage,
+    )
+
+
+@apply_nested
+def bind_physics_material(
+    prim_path: str, material_path: str, stage: Usd.Stage | None = None, stronger_than_descendants: bool = True
+):
+    """Bind a physics material to a prim.
+
+    `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes having
+    collision APIs, or deformable body APIs, or being a particle system.
+
+    .. note::
+        The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
+        and all its descendants.
+
+    .. _Physics material: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
+
+    Args:
+        prim_path (str): The prim path where to apply the material.
+        material_path (str): The prim path of the material to apply.
+        stage (Usd.Stage | None, optional): The stage where the prim and material exist. Defaults to None,
+            in which case the current stage is used.
+        stronger_than_descendants (bool): Whether the material should override the material of its descendants.
+            Defaults to True.
+
+    Raises:
+        ValueError: If the provided prim paths do not exist on stage.
+        ValueError: When prim at specified path is not physics-enabled.
+    """
+    # resolve stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # check if prim and material exists
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        raise ValueError(f"Target prim '{material_path}' does not exist.")
+    if not stage.GetPrimAtPath(material_path).IsValid():
+        raise ValueError(f"Physics material '{material_path}' does not exist.")
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim has collision applied on it
+    has_physics_scene_api = prim.HasAPI(PhysxSchema.PhysxSceneAPI)
+    has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
+    has_deformable_body = prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
+    has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
+    if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
+        raise ValueError(
+            f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
+            " PhysX scene, collider, a deformable body, nor a particle system."
+        )
+
+    # obtain material binding API
+    if prim.HasAPI(UsdShade.MaterialBindingAPI):
+        material_binding_api = UsdShade.MaterialBindingAPI(prim)
+    else:
+        material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    # obtain the material prim
+    material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+    # resolve token for weaker than descendants
+    if stronger_than_descendants:
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
+    else:
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    # apply the material
+    material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore

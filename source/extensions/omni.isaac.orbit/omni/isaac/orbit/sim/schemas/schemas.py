@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.physx.scripts.utils as physx_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
@@ -379,5 +380,68 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     for attr_name in ["mass", "density"]:
         value = cfg.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_physics_mass_api, attr_name, value)
+    # success
+    return True
+
+
+def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.Stage = None):
+    """Activate the contact sensor on all rigid bodies under a specified prim path.
+
+    This function adds the PhysX contact report API to all rigid bodies under the specified prim path.
+    It also sets the force threshold beyond which the contact sensor reports the contact. The contact
+    reporting API can only be added to rigid bodies.
+
+    Args:
+        prim_path (str): The prim path under which to search and prepare contact sensors.
+        threshold (float, optional): The threshold for the contact sensor. Defaults to 0.0.
+        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: If the input prim path is not valid.
+        ValueError: If there are no rigid bodies under the prim path.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get prim
+    prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # iterate over all children
+    num_contact_sensors = 0
+    all_prims = [prim]
+    while len(all_prims) > 0:
+        # get current prim
+        child_prim = all_prims.pop(0)
+        # check if prim is a rigid body
+        # nested rigid bodies are not allowed by SDK so we can safely assume that
+        # if a prim has a rigid body API, it is a rigid body and we don't need to
+        # check its children
+        if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            # set sleep threshold to zero
+            rb = PhysxSchema.PhysxRigidBodyAPI.Get(stage, prim.GetPrimPath())
+            rb.CreateSleepThresholdAttr().Set(0.0)
+            # add contact report API with threshold of zero
+            if not child_prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+                carb.log_verbose(f"Adding contact report API to prim: '{child_prim.GetPrimPath()}'")
+                cr_api = PhysxSchema.PhysxContactReportAPI.Apply(child_prim)
+            else:
+                carb.log_verbose(f"Contact report API already exists on prim: '{child_prim.GetPrimPath()}'")
+                cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, child_prim.GetPrimPath())
+            # set threshold to zero
+            cr_api.CreateThresholdAttr().Set(threshold)
+            # increment number of contact sensors
+            num_contact_sensors += 1
+        else:
+            # add all children to tree
+            all_prims += child_prim.GetChildren()
+    # check if no contact sensors were found
+    if num_contact_sensors == 0:
+        raise ValueError(
+            f"No contact sensors added to the prim: '{prim_path}'. This means that no rigid bodies "
+            "are present under this prim. Please check the prim path."
+        )
     # success
     return True
