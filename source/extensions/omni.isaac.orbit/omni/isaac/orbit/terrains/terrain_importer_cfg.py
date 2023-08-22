@@ -9,6 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 from typing_extensions import Literal
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.utils import configclass
 
 from .terrain_importer import TerrainImporter
@@ -23,6 +24,9 @@ class TerrainImporterCfg:
 
     cls_name: type = TerrainImporter
     """The class name of the terrain importer."""
+
+    collision_group: int = -1
+    """The collision group of the terrain. Defaults to -1."""
 
     prim_path: str = MISSING
     """The absolute path of the USD terrain prim.
@@ -58,28 +62,24 @@ class TerrainImporterCfg:
       This parameter is used only when the ``terrain_type`` is ``"plane"`` or ``"usd"``.
     """
 
-    color: tuple[float, float, float] | None = (0.065, 0.0725, 0.080)
-    """The color of the terrain. Defaults to (0.065, 0.0725, 0.080).
+    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(
+        diffuse_color=(0.065, 0.0725, 0.080)
+    )
+    """The visual material of the terrain. Defaults to a dark gray color material.
 
-    If :obj:`None`, no color is applied to the prim.
+    The material is created at the path: ``{prim_path}/visualMaterial``. If `None`, then no material is created.
+
+    .. note::
+        This parameter is used only when the ``terrain_type`` is ``"generator"``.
     """
 
-    static_friction: float = 1.0
-    """The static friction coefficient of the terrain. Defaults to 1.0."""
+    physics_material: sim_utils.RigidBodyMaterialCfg = sim_utils.RigidBodyMaterialCfg()
+    """The physics material of the terrain. Defaults to a default physics material.
 
-    dynamic_friction: float = 1.0
-    """The dynamic friction coefficient of the terrain. Defaults to 1.0."""
+    The material is created at the path: ``{prim_path}/physicsMaterial``.
 
-    restitution: float = 0.0
-    """The restitution coefficient of the terrain. Defaults to 0.0."""
-
-    improve_patch_friction: bool = False
-    """Whether to enable patch friction. Defaults to False."""
-
-    combine_mode: str = "average"
-    """Determines the way physics materials will be combined during collisions. Defaults to `average`.
-
-    Available options are `average`, `min`, `multiply`, `multiply`, and `max`.
+    .. note::
+        This parameter is used only when the ``terrain_type`` is ``"generator"`` or ``"plane"``.
     """
 
     max_init_terrain_level: int | None = None

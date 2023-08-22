@@ -20,6 +20,7 @@ def color_meshes_by_height(meshes: List[trimesh.Trimesh], **kwargs) -> trimesh.T
     Keyword Args:
         color (List[int]): A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
+        color_map (str): The name of the color map to be used. Defaults to "turbo".
 
     Returns:
         trimesh.Trimesh: A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
@@ -38,15 +39,18 @@ def color_meshes_by_height(meshes: List[trimesh.Trimesh], **kwargs) -> trimesh.T
     else:
         # Normalize the heights to [0,1]
         heights_normalized = (heights - np.min(heights)) / (np.max(heights) - np.min(heights))
+        # clip lower and upper bounds to have better color mapping
+        heights_normalized = np.clip(heights_normalized, 0.1, 0.9)
         # Get the color for each vertex based on the height
-        colors = trimesh.visual.color.interpolate(heights_normalized, color_map="turbo")
+        color_map = kwargs.pop("color_map", "turbo")
+        colors = trimesh.visual.color.interpolate(heights_normalized, color_map=color_map)
         # Set the vertex colors
         mesh.visual.vertex_colors = colors
     # Return the mesh
     return mesh
 
 
-def create_prim_from_mesh(prim_path: str, vertices: np.ndarray, triangles: np.ndarray, **kwargs):
+def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     """Create a USD prim with mesh defined from vertices and triangles.
 
     The function creates a USD prim with a mesh defined from vertices and triangles. It performs the
@@ -59,67 +63,62 @@ def create_prim_from_mesh(prim_path: str, vertices: np.ndarray, triangles: np.nd
 
     Args:
         prim_path (str): The path to the primitive to be created.
-        vertices (np.ndarray): The vertices of the mesh. Shape is :math:`(N, 3)`, where :math:`N`
-            is the number of vertices.
-        triangles (np.ndarray): The triangles of the mesh as references to vertices for each triangle.
-            Shape is :math:`(M, 3)`, where :math:`M` is the number of triangles / faces.
+        mesh (trimesh.Trimesh): The mesh to be used for the primitive.
 
     Keyword Args:
         translation (Optional[Sequence[float]]): The translation of the terrain. Defaults to None.
         orientation (Optional[Sequence[float]]): The orientation of the terrain. Defaults to None.
-        scale (Optional[Sequence[float]]): The scale of the terrain. Defaults to None.
-        color (Optional[tuple]): The color of the terrain. Defaults to (0.065, 0.0725, 0.080).
-        static_friction (float): The static friction of the terrain. Defaults to 1.0.
-        dynamic_friction (float): The dynamic friction of the terrain. Defaults to 1.0.
-        restitution (float): The restitution of the terrain. Defaults to 0.0.
-        improve_patch_friction (bool): Whether to enable patch friction. Defaults to False.
-        combine_mode (str): Determines the way physics materials will be combined during collisions.
-            Available options are `average`, `min`, `multiply`, `multiply`, and `max`. Defaults to `average`.
+        visual_material (Optional[sim_utils.VisualMaterialCfg]): The visual material to apply. Defaults to None.
+        physics_material (Optional[sim_utils.RigidBodyMaterialCfg]): The physics material to apply. Defaults to None.
     """
     # need to import these here to prevent isaacsim launching when importing this module
     import omni.isaac.core.utils.prims as prim_utils
-    from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
-    from omni.isaac.core.prims import GeometryPrim, XFormPrim
-    from pxr import PhysxSchema
+    from pxr import UsdGeom
+
+    import omni.isaac.orbit.sim as sim_utils
 
     # create parent prim
     prim_utils.create_prim(prim_path, "Xform")
     # create mesh prim
-    prim_utils.create_prim(
+    prim = prim_utils.create_prim(
         f"{prim_path}/mesh",
         "Mesh",
         translation=kwargs.get("translation"),
         orientation=kwargs.get("orientation"),
-        scale=kwargs.get("scale"),
         attributes={
-            "points": vertices,
-            "faceVertexIndices": triangles.flatten(),
-            "faceVertexCounts": np.asarray([3] * len(triangles)),
+            "points": mesh.vertices,
+            "faceVertexIndices": mesh.faces.flatten(),
+            "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
             "subdivisionScheme": "bilinear",
         },
     )
+    # apply collider properties
+    collider_cfg = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
+    sim_utils.define_collision_properties(prim.GetPrimPath(), collider_cfg)
+    # add rgba color to the mesh primvars
+    if mesh.visual.vertex_colors is not None:
+        # obtain color from the mesh
+        rgba_colors = np.asarray(mesh.visual.vertex_colors).astype(np.float32) / 255.0
+        # displayColor is a primvar attribute that is used to color the mesh
+        color_prim_attr = prim.GetAttribute("primvars:displayColor")
+        color_prim_var = UsdGeom.Primvar(color_prim_attr)
+        color_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
+        color_prim_attr.Set(rgba_colors[:, :3])
+        # displayOpacity is a primvar attribute that is used to set the opacity of the mesh
+        display_prim_attr = prim.GetAttribute("primvars:displayOpacity")
+        display_prim_var = UsdGeom.Primvar(display_prim_attr)
+        display_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
+        display_prim_var.Set(rgba_colors[:, 3])
 
     # create visual material
-    color = kwargs.get("color", (0.065, 0.0725, 0.080))
-    if color is not None:
-        material = PreviewSurface(f"{prim_path}/visualMaterial", color=np.asarray(color))
-        XFormPrim(f"{prim_path}/mesh").apply_visual_material(material)
-
+    if kwargs.get("visual_material") is not None:
+        visual_material_cfg: sim_utils.VisualMaterialCfg = kwargs.get("visual_material")
+        # spawn the material
+        visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
+        sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
     # create physics material
-    material = PhysicsMaterial(
-        f"{prim_path}/physicsMaterial",
-        static_friction=kwargs.get("static_friction", 1.0),
-        dynamic_friction=kwargs.get("dynamic_friction", 1.0),
-        restitution=kwargs.get("restitution", 0.0),
-    )
-    # apply PhysX Rigid Material schema
-    physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(material.prim)
-    # set patch friction property
-    improve_patch_friction = kwargs.get("improve_patch_friction", False)
-    physx_material_api.CreateImprovePatchFrictionAttr().Set(improve_patch_friction)
-    # set combination mode for coefficients
-    combine_mode = kwargs.get("combine_mode", "multiply")
-    physx_material_api.CreateFrictionCombineModeAttr().Set(combine_mode)
-    physx_material_api.CreateRestitutionCombineModeAttr().Set(combine_mode)
-    # apply physics material to ground plane
-    GeometryPrim(f"{prim_path}/mesh", collision=True).apply_physics_material(material)
+    if kwargs.get("physics_material") is not None:
+        physics_material_cfg: sim_utils.RigidBodyMaterialCfg = kwargs.get("physics_material")
+        # spawn the material
+        physics_material_cfg.func(f"{prim_path}/physicsMaterial", physics_material_cfg)
+        sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")

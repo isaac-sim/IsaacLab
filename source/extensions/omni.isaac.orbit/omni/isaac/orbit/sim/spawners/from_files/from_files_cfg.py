@@ -72,7 +72,7 @@ class GroundPlaneCfg(SpawnerCfg):
 
     If None, then the color remains unchanged.
     """
-    size: tuple[float, float] | None = None
-    """The size of the ground plane. Defaults to None, which is 100 m x 100 m."""
+    size: tuple[float, float] = (100.0, 100.0)
+    """The size of the ground plane. Defaults to 100 m x 100 m."""
     physics_material: materials.RigidBodyMaterialCfg = materials.RigidBodyMaterialCfg()
     """Physics material properties. Defaults to the default rigid body material."""

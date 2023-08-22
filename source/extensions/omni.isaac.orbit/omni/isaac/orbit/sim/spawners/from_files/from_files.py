@@ -172,18 +172,18 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
 
     # Create physics material
     if cfg.physics_material is not None:
-        cfg.physics_material.func(f"{prim_path}/groundMaterial", cfg.physics_material)
+        cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
         # Apply physics material to ground plane
         collision_prim_path = prim_utils.get_prim_path(
             prim_utils.get_first_matching_child_prim(
                 prim_path, predicate=lambda x: prim_utils.get_prim_type_name(x) == "Plane"
             )
         )
-        bind_physics_material(collision_prim_path, f"{prim_path}/groundMaterial")
+        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial")
 
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
-    if cfg.size is not None and prim_utils.is_prim_path_valid(f"{prim_path}/Enviroment"):
+    if prim_utils.is_prim_path_valid(f"{prim_path}/Enviroment"):
         # compute scale from size
         scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
         # apply scale to the mesh

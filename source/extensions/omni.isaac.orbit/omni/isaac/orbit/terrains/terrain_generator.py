@@ -16,6 +16,7 @@ from omni.isaac.orbit.utils.timer import Timer
 from .height_field import HfTerrainBaseCfg
 from .terrain_generator_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg
 from .trimesh.utils import make_border
+from .utils import color_meshes_by_height
 
 
 class TerrainGenerator:
@@ -92,6 +93,17 @@ class TerrainGenerator:
         self._add_terrain_border()
         # combine all the sub-terrains into a single mesh
         self.terrain_mesh = trimesh.util.concatenate(self.terrain_meshes)
+        # color the terrain mesh
+        if self.cfg.color_scheme == "height":
+            self.terrain_mesh = color_meshes_by_height(self.terrain_mesh)
+        elif self.cfg.color_scheme == "random":
+            self.terrain_mesh.visual.vertex_colors = np.random.choice(
+                range(256), size=(len(self.terrain_mesh.vertices), 4)
+            )
+        elif self.cfg.color_scheme == "none":
+            pass
+        else:
+            raise ValueError(f"Invalid color scheme: {self.cfg.color_scheme}.")
         # offset the entire terrain and origins so that it is centered
         # -- terrain mesh
         transform = np.eye(4)

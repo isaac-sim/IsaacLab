@@ -39,8 +39,16 @@ parser.add_argument("--geom_sphere", action="store_true", default=False, help="W
 parser.add_argument(
     "--terrain_type",
     type=str,
+    choices=["generated", "usd", "plane"],
     default="generator",
     help="Type of terrain to import. Can be 'generated' or 'usd' or 'plane'.",
+)
+parser.add_argument(
+    "--color_scheme",
+    type=str,
+    default="height",
+    choices=["height", "random", "none"],
+    help="The color scheme to use for the generated terrain.",
 )
 args_cli = parser.parse_args()
 
@@ -69,7 +77,7 @@ from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
 
-def main(terrain_type: str):
+def main():
     """Generates a terrain from orbit."""
 
     # Load kit helper
@@ -100,8 +108,8 @@ def main(terrain_type: str):
         env_spacing=3.0,
         prim_path="/World/ground",
         max_init_terrain_level=None,
-        terrain_type=terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True),
+        terrain_type=args_cli.terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True, color_scheme=args_cli.color_scheme),
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
     )
     terrain_importer = TerrainImporter(terrain_importer_cfg)
@@ -191,6 +199,6 @@ def main(terrain_type: str):
 
 if __name__ == "__main__":
     # Runs the main function
-    main(terrain_type=args_cli.terrain_type)
+    main()
     # Close the simulator
     simulation_app.close()

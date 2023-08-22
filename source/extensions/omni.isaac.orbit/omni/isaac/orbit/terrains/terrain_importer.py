@@ -15,9 +15,9 @@ import warp
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdGeom
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
-from omni.isaac.orbit.utils.kit import create_ground_plane
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh
 
 from .terrain_generator import TerrainGenerator
@@ -110,7 +110,7 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, key: str, size: tuple[int, int] = (2.0e6, 2.0e6), **kwargs):
+    def import_ground_plane(self, key: str, size: tuple[int, int] = (2.0e6, 2.0e6)):
         """Add a plane to the terrain importer.
 
         Args:
@@ -131,21 +131,11 @@ class TerrainImporter:
         device = "cuda" if "cuda" in self.device else "cpu"
         self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
 
-        # properties for the terrain
-        mesh_props = {
-            "color": self.cfg.color,
-            "static_friction": self.cfg.static_friction,
-            "dynamic_friction": self.cfg.dynamic_friction,
-            "restitution": self.cfg.restitution,
-            "improve_patch_friction": self.cfg.improve_patch_friction,
-            "combine_mode": self.cfg.combine_mode,
-        }
-        # update the properties
-        mesh_props.update(kwargs)
-        # import the grid mesh
-        create_ground_plane(self.cfg.prim_path, **mesh_props)
+        # get the mesh
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material)
+        ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
 
-    def import_mesh(self, key: str, mesh: trimesh.Trimesh, **kwargs):
+    def import_mesh(self, key: str, mesh: trimesh.Trimesh):
         """Import a mesh into the simulator.
 
         The mesh is imported into the simulator under the prim path ``cfg.prim_path/{key}``. The created path
@@ -154,7 +144,6 @@ class TerrainImporter:
         Args:
             key (str): The key to store the mesh.
             mesh (trimesh.Trimesh): The mesh to import.
-            **kwargs: The properties of the mesh. If not provided, the default properties are used.
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -171,19 +160,13 @@ class TerrainImporter:
         # get the mesh
         mesh = self.meshes[key]
         mesh_prim_path = self.cfg.prim_path + f"/{key}"
-        # properties for the terrain
-        mesh_props = {
-            "color": self.cfg.color,
-            "static_friction": self.cfg.static_friction,
-            "dynamic_friction": self.cfg.dynamic_friction,
-            "restitution": self.cfg.restitution,
-            "improve_patch_friction": self.cfg.improve_patch_friction,
-            "combine_mode": self.cfg.combine_mode,
-        }
-        # update the properties
-        mesh_props.update(kwargs)
         # import the mesh
-        create_prim_from_mesh(mesh_prim_path, mesh.vertices, mesh.faces, **mesh_props)
+        create_prim_from_mesh(
+            mesh_prim_path,
+            mesh,
+            visual_material=self.cfg.visual_material,
+            physics_material=self.cfg.physics_material,
+        )
 
     def import_usd(self, key: str, usd_path: str):
         """Import a mesh from a USD file.
@@ -208,6 +191,7 @@ class TerrainImporter:
             raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
         # add the prim path
         prim_utils.create_prim(self.cfg.prim_path + f"/{key}", usd_path=usd_path)
+
         # traverse the prim and get the collision mesh
         # THINK: Should the user specify the collision mesh?
         mesh_prim = prim_utils.get_first_matching_child_prim(

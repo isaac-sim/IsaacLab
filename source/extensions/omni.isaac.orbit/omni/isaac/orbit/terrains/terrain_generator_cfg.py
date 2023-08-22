@@ -18,6 +18,7 @@ import numpy as np
 import trimesh
 from dataclasses import MISSING
 from typing import Callable
+from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -84,6 +85,16 @@ class TerrainGeneratorCfg:
 
     num_cols: int = 1
     """Number of columns of sub-terrains to generate. Defaults to 1."""
+
+    color_scheme: Literal["height", "random", "none"] = "none"
+    """Color scheme to use for the terrain. Defaults to "none".
+
+    The available color schemes are:
+
+    - "height": Color based on the height of the terrain.
+    - "random": Random color scheme.
+    - "none": No color scheme.
+    """
 
     horizontal_scale: float = 0.1
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.

@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.9.2 (2023-08-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ability to color meshes in the :class:`omni.isaac.orbit.terrain.TerrainGenerator` class. Currently,
+  it only supports coloring the mesh randomly (``"random"``), based on the terrain height (``"height"``), and
+  no coloring (``"none"``).
+
+Fixed
+^^^^^
+
+* Modified the :class:`omni.isaac.orbit.terrain.TerrainImporter` class to configure visual and physics materials
+  based on the configuration object.
+
+
 0.9.1 (2023-08-18)
 ~~~~~~~~~~~~~~~~~~
 
