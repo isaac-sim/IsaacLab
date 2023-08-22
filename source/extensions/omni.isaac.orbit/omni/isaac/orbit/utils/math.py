@@ -160,9 +160,7 @@ def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     return o.reshape(quaternions.shape[:-1] + (3, 3))
 
 
-def convert_quat(
-    quat: Union[torch.tensor, Sequence[float]], to: Optional[str] = "xyzw"
-) -> Union[torch.tensor, np.ndarray]:
+def convert_quat(quat: Union[torch.tensor, Sequence[float]], to: Optional[str] = "xyzw") -> torch.tensor:
     """Converts quaternion from one convention to another.
 
     The convention to convert TO is specified as an optional argument. If to == 'xyzw',
@@ -177,22 +175,27 @@ def convert_quat(
         ValueError: Invalid shape of input `quat`, i.e. not (..., 4,).
 
     Returns:
-        Union[torch.tensor, np.ndarray]: The converted quaternion in specified convention.
+        torch.tensor: The converted quaternion in specified convention.
     """
-    # convert to numpy (sanity check)
+    # convert to torch (sanity check)
     if not isinstance(quat, torch.Tensor):
-        quat = np.asarray(quat)
+        if isinstance(quat, np.ndarray):
+            quat = torch.from_numpy(quat)
+        else:
+            quat = torch.tensor(quat, dtype=float)
     # check input is correct
     if quat.shape[-1] != 4:
-        msg = f"convert_quat(): Expected input quaternion shape mismatch: {quat.shape} != (..., 4)."
+        msg = f"Expected input quaternion shape mismatch: {quat.shape} != (..., 4)."
         raise ValueError(msg)
     # convert to specified quaternion type
     if to == "xyzw":
-        return quat[..., [1, 2, 3, 0]]
+        # wxyz -> xyzw
+        return quat.roll(-1, dims=-1)
     elif to == "wxyz":
-        return quat[..., [3, 0, 1, 2]]
+        # xyzw -> wxyz
+        return quat.roll(1, dims=-1)
     else:
-        raise ValueError("convert_quat(): Choose a valid `to` argument (xyzw or wxyz).")
+        raise ValueError(f"Choose a valid `to` argument (xyzw or wxyz). Received: {to}")
 
 
 @torch.jit.script

@@ -1,8 +1,33 @@
 Changelog
 ---------
 
-0.8.12 (2023-08-18)
+0.9.0 (2023-08-18)
 ~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Introduces a new set of asset interfaces. These interfaces simplify the spawning of assets into the scene
+  and initializing the physics handle by putting that inside post-startup physics callbacks. With this, users
+  no longer need to worry about the :meth:`spawn` and :meth:`initialize` calls.
+* Added utility methods to :mod:`omni.isaac.orbit.utils.string` module that resolve regex expressions based
+  on passed list of target keys.
+
+Changed
+^^^^^^^
+
+* Renamed all references of joints in an articulation from "dof" to "joint". This makes it consistent with the
+  terminology used in robotics.
+
+Deprecated
+^^^^^^^^^^
+
+* Removed the previous modules for objects and robots. Instead the :class:`Articulation` and :class:`RigidObject`
+  should be used.
+
+
+0.8.12 (2023-08-18)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

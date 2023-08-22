@@ -19,7 +19,7 @@ def test_lambda_function(x):
 
 
 class TestDictUtilities(unittest.TestCase):
-    """Test fixture for checking Kit utilities in Orbit."""
+    """Test fixture for checking dictionary utilities in Orbit."""
 
     def test_print_dict(self):
         """Test printing of dictionary."""

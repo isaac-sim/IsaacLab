@@ -59,7 +59,10 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     collision_props: schemas.CollisionPropertiesCfg | None = None
     """Properties to apply to all collision meshes."""
     activate_contact_sensors: bool = False
-    """Activate contact reporting on all rigid bodies. Defaults to False."""
+    """Activate contact reporting on all rigid bodies. Defaults to False.
+
+    This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.
+    """
 
 
 @configclass

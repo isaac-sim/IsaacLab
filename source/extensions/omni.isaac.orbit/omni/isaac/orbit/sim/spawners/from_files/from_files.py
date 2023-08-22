@@ -150,10 +150,13 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
     not work with other assets for ground planes. In those cases, please use the `spawn_from_usd`
     function.
 
+    Note:
+        This function takes keyword arguments to be compatible with other spawners. However, it does not
+        use any of the kwargs.
+
     Args:
         prim_path (str): The path to spawn the asset at.
         cfg (spawner_cfg.GroundPlaneCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation of the asset. Defaults to None.
 
     Returns:
         Usd.Prim: The prim of the spawned asset.

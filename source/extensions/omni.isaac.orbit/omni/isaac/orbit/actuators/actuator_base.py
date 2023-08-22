@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-import re
 import torch
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Sequence
 
 from omni.isaac.core.utils.types import ArticulationActions
+
+import omni.isaac.orbit.utils.string as string_utils
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorBaseCfg
@@ -44,14 +45,14 @@ class ActuatorBase(ABC):
     """The damping (D gain) of the PD controller. Shape is ``(num_envs, num_joints)``."""
 
     def __init__(
-        self, cfg: ActuatorBaseCfg, dof_names: list[str], dof_ids: list[int] | Ellipsis, num_envs: int, device: str
+        self, cfg: ActuatorBaseCfg, joint_names: list[str], joint_ids: list[int] | Ellipsis, num_envs: int, device: str
     ):
         """Initialize the actuator.
 
         Args:
             cfg (ActuatorBaseCfg): The configuration of the actuator model.
-            dof_names (list[str]): The joint names in the articulation.
-            dof_ids (list[int] | Ellipsis): The joint indices in the articulation.
+            joint_names (list[str]): The joint names in the articulation.
+            joint_ids (list[int] | Ellipsis): The joint indices in the articulation.
             num_envs (int): Number of articulations in the view.
             device (str): Device used for processing.
         """
@@ -59,8 +60,8 @@ class ActuatorBase(ABC):
         self.cfg = cfg
         self._num_envs = num_envs
         self._device = device
-        self._dof_names = dof_names
-        self._dof_indices = dof_ids
+        self._joint_names = joint_names
+        self._joint_indices = joint_ids
 
         # create commands buffers for allocation
         self.computed_effort = torch.zeros(self._num_envs, self.num_joints, device=self._device)
@@ -74,32 +75,37 @@ class ActuatorBase(ABC):
         if self.cfg.velocity_limit is not None:
             self.velocity_limit = self.cfg.velocity_limit
         # parse joint stiffness and damping
-        for index, dof_name in enumerate(self.dof_names):
-            # -- stiffness
-            if self.cfg.stiffness is not None:
-                for re_key, value in self.cfg.stiffness.items():
-                    if re.fullmatch(re_key, dof_name):
-                        if value is not None:
-                            self.stiffness[:, index] = value
-            # -- damping
-            if self.cfg.damping is not None:
-                for re_key, value in self.cfg.damping.items():
-                    if re.fullmatch(re_key, dof_name):
-                        if value is not None:
-                            self.damping[:, index] = value
+        # -- stiffness
+        if self.cfg.stiffness is not None:
+            if isinstance(self.cfg.stiffness, float):
+                # if float, then use the same value for all joints
+                self.stiffness[:] = self.cfg.stiffness
+            else:
+                # if dict, then parse the regular expression
+                indices, _, values = string_utils.resolve_matching_names_values(self.cfg.stiffness, self.joint_names)
+                self.stiffness[:, indices] = torch.tensor(values, device=self._device)
+        # -- damping
+        if self.cfg.damping is not None:
+            if isinstance(self.cfg.damping, float):
+                # if float, then use the same value for all joints
+                self.damping[:] = self.cfg.damping
+            else:
+                # if dict, then parse the regular expression
+                indices, _, values = string_utils.resolve_matching_names_values(self.cfg.stiffness, self.joint_names)
+                self.damping[:, indices] = torch.tensor(values, device=self._device)
 
     def __str__(self) -> str:
         """A string representation of the actuator group."""
         # resolve joint indices for printing
-        dof_indices = self.dof_indices
-        if dof_indices is Ellipsis:
-            dof_indices = list(range(self.num_joints))
+        joint_indices = self.joint_indices
+        if joint_indices is Ellipsis:
+            joint_indices = list(range(self.num_joints))
         return (
             f"<class {self.__class__.__name__}> object:\n"
             f"\tNumber of joints      : {self.num_joints}\n"
-            f"\tJoint names expression: {self.cfg.dof_names_expr}\n"
-            f"\tJoint names           : {self.dof_names}\n"
-            f"\tJoint indices         : {dof_indices}\n"
+            f"\tJoint names expression: {self.cfg.joint_names_expr}\n"
+            f"\tJoint names           : {self.joint_names}\n"
+            f"\tJoint indices         : {joint_indices}\n"
         )
 
     """
@@ -109,21 +115,21 @@ class ActuatorBase(ABC):
     @property
     def num_joints(self) -> int:
         """Number of actuators in the group."""
-        return len(self._dof_names)
+        return len(self._joint_names)
 
     @property
-    def dof_names(self) -> list[str]:
+    def joint_names(self) -> list[str]:
         """Articulation's joint names that are part of the group."""
-        return self._dof_names
+        return self._joint_names
 
     @property
-    def dof_indices(self) -> list[int] | Ellipsis:
+    def joint_indices(self) -> list[int] | Ellipsis:
         """Articulation's joint indices that are part of the group.
 
         Note:
             If :obj:`Ellipsis` is returned, then the group contains all the joints in the articulation.
         """
-        return self._dof_indices
+        return self._joint_indices
 
     """
     Operations.
@@ -140,7 +146,7 @@ class ActuatorBase(ABC):
 
     @abstractmethod
     def compute(
-        self, control_action: ArticulationActions, dof_pos: torch.Tensor, dof_vel: torch.Tensor
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.
 
@@ -149,9 +155,9 @@ class ActuatorBase(ABC):
         Args:
             control_action (ArticulationActions): The joint action instance comprising of the desired joint
                 positions, joint velocities and (feed-forward) joint efforts.
-            dof_pos (torch.Tensor): The current joint positions of the joints in the group.
+            joint_pos (torch.Tensor): The current joint positions of the joints in the group.
                 Shape is ``(num_envs, num_joints)``.
-            dof_vel (torch.Tensor): The current joint velocities of the joints in the group.
+            joint_vel (torch.Tensor): The current joint velocities of the joints in the group.
                 Shape is ``(num_envs, num_joints)``.
 
         Returns:

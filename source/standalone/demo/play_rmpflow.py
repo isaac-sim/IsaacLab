@@ -47,13 +47,9 @@ from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
 from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
-"""
-Main
-"""
-
 
 def main():
-    """Spawns a single-arm manipulator and applies commands through RMPFlow kinematics control."""
+    """Main function."""
 
     # Load kit helper
     sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")

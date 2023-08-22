@@ -18,7 +18,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="This script demonstrates how to use the inverse kinematics controller.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--robot", type=str, default="franka_panda", help="Name of the robot.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to spawn.")
@@ -49,13 +49,9 @@ from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
 from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
-"""
-Main
-"""
-
 
 def main():
-    """Spawns a single-arm manipulator and applies commands through inverse kinematics control."""
+    """Main function."""
 
     # Load kit helper
     sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")

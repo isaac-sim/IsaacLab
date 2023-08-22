@@ -17,7 +17,15 @@ Sub-module containing utilities for the Orbit framework.
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES, TensorData, convert_to_torch
 from .configclass import configclass
 from .dict import class_to_dict, convert_dict_to_backend, print_dict, update_class_from_dict, update_dict
-from .string import callable_to_string, is_lambda_expression, string_to_callable, to_camel_case, to_snake_case
+from .string import (
+    callable_to_string,
+    is_lambda_expression,
+    resolve_matching_names,
+    resolve_matching_names_values,
+    string_to_callable,
+    to_camel_case,
+    to_snake_case,
+)
 from .timer import Timer
 
 __all__ = [
@@ -40,6 +48,8 @@ __all__ = [
     "is_lambda_expression",
     "string_to_callable",
     "callable_to_string",
+    "resolve_matching_names",
+    "resolve_matching_names_values",
     # timer
     "Timer",
 ]

@@ -17,7 +17,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="This script demonstrates how to use the cloner API from Isaac Sim.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--robot", type=str, default="franka_panda", help="Name of the robot.")
 parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
@@ -34,36 +34,21 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.robots.config.franka import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
-from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
-from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
+from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-
-"""
-Main
-"""
 
 
 def main():
-    """Spawns the Franka robot and clones it using Isaac Gym Cloner API."""
+    """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")
+    sim = SimulationContext(sim_utils.SimulationCfg(device="cuda:0", use_gpu_pipeline=True))
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-
-    # Enable flatcache which avoids passing data over to USD structure
-    # this speeds up the read-write operation of GPU buffers
-    if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_flatcache(True)
-    # Enable hydra scene-graph instancing
-    # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
@@ -73,35 +58,27 @@ def main():
 
     # Spawn things into stage
     # Ground-plane
-    kit_utils.create_ground_plane("/World/defaultGroundPlane", z_position=-1.05)
+    cfg = sim_utils.GroundPlaneCfg(height=-1.05)
+    cfg.func("/World/defaultGroundPlane", cfg)
     # Lights-1
-    prim_utils.create_prim(
-        "/World/Light/GreySphere",
-        "SphereLight",
-        translation=(4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
-    )
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
+    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
     # Lights-2
-    prim_utils.create_prim(
-        "/World/Light/WhiteSphere",
-        "SphereLight",
-        translation=(-4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
-    )
-    # -- Table
-    table_usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-    prim_utils.create_prim("/World/envs/env_0/Table", usd_path=table_usd_path)
-    # -- Robot
-    # resolve robot config from command-line arguments
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
+    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    # Table
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
+    cfg.func("/World/envs/env_0/Table", cfg)
+    # Robot
+    # -- resolve robot config from command-line arguments
     if args_cli.robot == "franka_panda":
         robot_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
     elif args_cli.robot == "ur10":
         robot_cfg = UR10_CFG
     else:
         raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
-    # spawn robot
-    robot = SingleArmManipulator(cfg=robot_cfg)
-    robot.spawn("/World/envs/env_0/Robot", translation=(0.0, 0.0, 0.0))
+    # -- spawn internally and create interface
+    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/envs/env_.*/Robot"))
 
     # Clone the scene
     num_envs = args_cli.num_robots
@@ -120,18 +97,13 @@ def main():
 
     # Play the simulator
     sim.reset()
-    # Acquire handles
-    # Initialize handles
-    robot.initialize("/World/envs/env_.*/Robot")
-    # Reset states
-    robot.reset_buffers()
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
     # dummy actions
-    actions = torch.rand(robot.count, robot.num_actions, device=robot.device)
-    has_gripper = robot.cfg.meta_info.tool_num_dof > 0
+    actions = torch.rand(robot.root_view.count, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
+    has_gripper = args_cli.robot == "franka_panda"
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -152,21 +124,24 @@ def main():
             sim_time = 0.0
             ep_step_count = 0
             # reset dof state
-            dof_pos, dof_vel = robot.get_default_dof_state()
-            robot.set_dof_state(dof_pos, dof_vel)
-            robot.reset_buffers()
+            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.reset()
             # reset command
-            actions = torch.rand(robot.count, robot.num_actions, device=robot.device)
+            actions = (
+                torch.rand(robot.root_view.count, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
+            )
             # reset gripper
             if has_gripper:
-                actions[:, -1] = -1
+                actions[:, -2:] = 0.04
             print("[INFO]: Resetting robots state...")
         # change the gripper action
         if ep_step_count % 50 == 0 and has_gripper:
             # flip command for the gripper
-            actions[:, -1] = -actions[:, -1]
-        # apply actions
-        robot.apply_action(actions)
+            actions[:, -2:] = 0.0 if actions[0, -2] > 0.0 else 0.04
+        # apply action to the robot
+        robot.set_joint_position_target(actions)
+        robot.write_data_to_sim()
         # perform step
         sim.step(render=app_launcher.RENDER)
         # update sim-time
@@ -175,7 +150,7 @@ def main():
         # note: to deal with timeline events such as stopping, we need to check if the simulation is playing
         if sim.is_playing():
             # update buffers
-            robot.update_buffers(sim_dt)
+            robot.update(sim_dt)
 
 
 if __name__ == "__main__":

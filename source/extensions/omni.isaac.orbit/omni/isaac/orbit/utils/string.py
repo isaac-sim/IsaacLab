@@ -5,11 +5,13 @@
 
 """Transformations of strings."""
 
+from __future__ import annotations
+
 import ast
 import importlib
 import inspect
 import re
-from typing import Callable, Optional
+from typing import Any, Callable, Sequence
 
 __all__ = [
     "to_camel_case",
@@ -17,6 +19,8 @@ __all__ = [
     "is_lambda_expression",
     "string_to_callable",
     "callable_to_string",
+    "resolve_matching_names",
+    "resolve_matching_names_values",
 ]
 
 
@@ -25,12 +29,12 @@ String formatting.
 """
 
 
-def to_camel_case(snake_str: str, to: Optional[str] = "cC") -> str:
+def to_camel_case(snake_str: str, to: str = "cC") -> str:
     """Converts a string from snake case to camel case.
 
     Args:
         snake_str (str): A string in snake case (i.e. with '_')
-        to (Optional[str], optional): Convention to convert string to. Defaults to "cC".
+        to (str, optional): Convention to convert string to. Defaults to "cC".
 
     Raises:
         ValueError: Invalid input argument `to`, i.e. not "cC" or "CC".
@@ -146,3 +150,140 @@ def string_to_callable(name: str) -> Callable:
             f"Received the error:\n {e}."
         )
         raise ValueError(msg)
+
+
+"""
+Regex operations.
+"""
+
+
+def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[str]) -> tuple[list[int], list[str]]:
+    """Match a list of query regular expressions against a list of strings and return the matched indices and names.
+
+    When a list of query regular expressions is provided, the function checks each target string against each
+    query regular expression and returns the indices of the matched strings and the matched strings.
+    This means that the ordering is dictated by the order of the target strings and not the order of the query
+    regular expressions.
+
+    For example, if the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'],
+    then the function will return the indices of the matched strings and the matched strings, i.e.
+    ([0, 1, 2], ['a', 'b', 'c']).
+
+    Note:
+        The function does not sort the indices. It returns the indices in the order they are found.
+
+    Args:
+        keys (Union[str, Sequence[str]]): A regular expression or a list of regular expressions
+            to match the strings in the list.
+        list_of_strings (Sequence[str]): A list of strings to match.
+
+    Returns:
+        Tuple[List[int], List[str]]: A tuple of lists containing the matched indices and names.
+
+    Raises:
+        ValueError: When multiple matches are found for a string in the list.
+        ValueError: When not all regular expressions are matched.
+    """
+    # resolve name keys
+    if isinstance(keys, str):
+        keys = [keys]
+    # find matching patterns
+    index_list = []
+    names_list = []
+    # book-keeping to check that we always have a one-to-one mapping
+    # i.e. each target string should match only one regular expression
+    target_strings_match_found = [None for _ in range(len(list_of_strings))]
+    keys_match_found = [[] for _ in range(len(keys))]
+    # loop over all target strings
+    for target_index, potential_match_string in enumerate(list_of_strings):
+        for key_index, re_key in enumerate(keys):
+            if re.fullmatch(re_key, potential_match_string):
+                # check if match already found
+                if target_strings_match_found[target_index]:
+                    raise ValueError(
+                        f"Multiple matches for '{potential_match_string}': '{target_strings_match_found[target_index]}' and '{re_key}'!"
+                    )
+                # add to list
+                target_strings_match_found[target_index] = re_key
+                index_list.append(target_index)
+                names_list.append(potential_match_string)
+                # add for regex key
+                keys_match_found[key_index].append(potential_match_string)
+    # check that all regular expressions are matched
+    if not all(keys_match_found):
+        # make this print nicely aligned for debugging
+        msg = "\n"
+        for key, value in zip(keys, keys_match_found):
+            msg += f"\t{key}: {value}\n"
+        # raise error
+        raise ValueError(
+            f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
+        )
+    # return
+    return index_list, names_list
+
+
+def resolve_matching_names_values(
+    data: dict[str, Any], list_of_strings: Sequence[str]
+) -> tuple[list[int], list[str], list[Any]]:
+    """Match a list of regular expressions in a dictionary against a list of strings and return
+    the matched indices, names, and values.
+
+    For example, if the dictionary is {'a|b|c': 1, 'd|e': 2} and the list of strings is ['a', 'b', 'c', 'd', 'e'],
+    then the function will return the indices of the matched strings, the matched strings, and the values, i.e.
+    ([0, 1, 2, 3, 4], ['a', 'b', 'c', 'd', 'e'], [1, 1, 1, 2, 2]).
+
+    Note:
+        The function does not sort the indices. It returns the indices in the order they are found.
+
+    Args:
+        data (dict[str, Any]): A dictionary of regular expressions and values to match the strings in the list.
+        list_of_strings (Sequence[str]): A list of strings to match.
+
+    Returns:
+        Tuple[List[int], List[str], List[Any]]: A tuple of lists containing the matched indices, names, and values.
+
+    Raises:
+        TypeError: When the input argument `data` is not a dictionary.
+        ValueError: When multiple matches are found for a string in the dictionary.
+        ValueError: When not all regular expressions in the data keys are matched.
+    """
+    # check valid input
+    if not isinstance(data, dict):
+        raise TypeError(f"Input argument `data` should be a dictionary. Received: {data}")
+    # find matching patterns
+    index_list = []
+    names_list = []
+    values_list = []
+    # book-keeping to check that we always have a one-to-one mapping
+    # i.e. each target string should match only one regular expression
+    target_strings_match_found = [None for _ in range(len(list_of_strings))]
+    keys_match_found = [[] for _ in range(len(data))]
+    # loop over all target strings
+    for target_index, potential_match_string in enumerate(list_of_strings):
+        for key_index, (re_key, value) in enumerate(data.items()):
+            if re.fullmatch(re_key, potential_match_string):
+                # check if match already found
+                if target_strings_match_found[target_index]:
+                    raise ValueError(
+                        f"Multiple matches for '{potential_match_string}': '{target_strings_match_found[target_index]}' and '{re_key}'!"
+                    )
+                # add to list
+                target_strings_match_found[target_index] = re_key
+                index_list.append(target_index)
+                names_list.append(potential_match_string)
+                values_list.append(value)
+                # add for regex key
+                keys_match_found[key_index].append(potential_match_string)
+    # check that all regular expressions are matched
+    if not all(keys_match_found):
+        # make this print nicely aligned for debugging
+        msg = "\n"
+        for key, value in zip(data.keys(), keys_match_found):
+            msg += f"\t{key}: {value}\n"
+        # raise error
+        raise ValueError(
+            f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
+        )
+    # return
+    return index_list, names_list, values_list

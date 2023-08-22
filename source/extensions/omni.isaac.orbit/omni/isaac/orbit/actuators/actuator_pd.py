@@ -48,9 +48,8 @@ class ImplicitActuator(ActuatorBase):
     """
 
     def reset(self, *args, **kwargs):
-        raise RuntimeError(
-            "This function should not be called! Implicit actuators are handled directly by the simulation."
-        )
+        # This is a no-op. There is no state to reset for implicit actuators.
+        pass
 
     def compute(self, *args, **kwargs) -> ArticulationActions:
         raise RuntimeError(
@@ -100,15 +99,15 @@ class IdealPDActuator(ActuatorBase):
         pass
 
     def compute(
-        self, control_action: ArticulationActions, dof_pos: torch.Tensor, dof_vel: torch.Tensor
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # compute errors
-        error_pos = control_action.joint_positions - dof_pos
-        error_vel = control_action.joint_velocities - dof_vel
+        error_pos = control_action.joint_positions - joint_pos
+        error_vel = control_action.joint_velocities - joint_vel
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort.clip(-self.effort_limit, self.effort_limit))
         # set the computed actions back into the control action
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
@@ -176,15 +175,15 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: DCMotorCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
-        super().__init__(cfg, dof_names, dof_ids, num_envs, device)
+    def __init__(self, cfg: DCMotorCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str):
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
         # parse configuration
         if self.cfg.saturation_effort is not None:
             self._saturation_effort = self.cfg.saturation_effort
         else:
             self._saturation_effort = torch.inf
         # prepare joint vel buffer for max effort computation
-        self._dof_vel = torch.zeros_like(self.computed_effort)
+        self._joint_vel = torch.zeros_like(self.computed_effort)
         # check that quantities are provided
         if self.cfg.velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
@@ -194,12 +193,12 @@ class DCMotor(IdealPDActuator):
     """
 
     def compute(
-        self, control_action: ArticulationActions, dof_pos: torch.Tensor, dof_vel: torch.Tensor
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # save current joint vel
-        self._dof_vel[:] = dof_vel
+        self._joint_vel[:] = joint_vel
         # calculate the desired joint torques
-        return super().compute(control_action, dof_pos, dof_vel)
+        return super().compute(control_action, joint_pos, joint_vel)
 
     """
     Helper functions.
@@ -208,10 +207,10 @@ class DCMotor(IdealPDActuator):
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         # compute torque limits
         # -- max limit
-        max_effort = self.cfg.saturation_effort * (1.0 - self._dof_vel / self.velocity_limit)
+        max_effort = self.cfg.saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
         max_effort = torch.clip(max_effort, min=0.0, max=self.effort_limit)
         # -- min limit
-        min_effort = self.cfg.saturation_effort * (-1.0 - self._dof_vel / self.velocity_limit)
+        min_effort = self.cfg.saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
         min_effort = torch.clip(min_effort, min=-self.effort_limit, max=0.0)
 
         # clip the torques based on the motor limits

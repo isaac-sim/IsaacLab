@@ -222,9 +222,11 @@ def clone(func: Callable) -> Callable:
             # clone the prim based on isaac-sim version
             isaac_major_version = int(get_version()[2])
             if isaac_major_version <= 2022:
-                cloner.clone(prim_paths[0], prim_paths, replicate_physics=False)
+                cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False)
             else:
-                cloner.clone(prim_paths[0], prim_paths, replicate_physics=False, copy_from_source=cfg.copy_from_source)
+                cloner.clone(
+                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
+                )
         # return the source prim
         return prim
 

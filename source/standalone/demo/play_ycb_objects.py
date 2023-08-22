@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to use the rigid objects class.
+This script demonstrates how to import and use the YCB objects in Orbit
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -15,7 +15,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="Load YCB objects in Orbit and randomize their poses.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 args_cli = parser.parse_args()
 
@@ -25,65 +25,34 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import scipy.spatial.transform as tf
 import torch
 
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
-
-import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.objects.rigid import RigidObject, RigidObjectCfg
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
+from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import convert_quat, quat_mul, random_yaw_orientation, sample_cylinder
-
-"""
-Helpers
-"""
-
-
-def design_scene():
-    """Add prims to the scene."""
-    # Ground-plane
-    kit_utils.create_ground_plane(
-        "/World/defaultGroundPlane",
-        static_friction=0.5,
-        dynamic_friction=0.5,
-        restitution=0.8,
-        improve_patch_friction=True,
-    )
-    # Lights-1
-    prim_utils.create_prim(
-        "/World/Light/GreySphere",
-        "SphereLight",
-        translation=(4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
-    )
-    # Lights-2
-    prim_utils.create_prim(
-        "/World/Light/WhiteSphere",
-        "SphereLight",
-        translation=(-4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
-    )
-
-
-"""
-Main
-"""
+from omni.isaac.orbit.utils.math import quat_mul, random_yaw_orientation, sample_cylinder
 
 
 def main():
-    """Imports all legged robots supported in Orbit and applies zero actions."""
+    """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cpu")
+    sim = SimulationContext(sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False))
     # Set main camera
-    set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
 
     # Spawn things into stage
-    # design props
-    design_scene()
+    # Ground-plane
+    cfg = sim_utils.GroundPlaneCfg(height=0.0)
+    cfg.func("/World/defaultGroundPlane", cfg)
+    # Lights-1
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
+    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
+    # Lights-2
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
+    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+
     # add YCB objects
     ycb_usd_paths = {
         "crackerBox": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
@@ -93,27 +62,16 @@ def main():
     }
     for key, usd_path in ycb_usd_paths.items():
         translation = torch.rand(3).tolist()
-        prim_utils.create_prim(f"/World/Objects/{key}", usd_path=usd_path, translation=translation)
+        cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
+        cfg.func(f"/World/Objects/{key}", cfg, translation=translation)
 
     # Setup rigid object
-    cfg = RigidObjectCfg()
-    # -- usd path
-    cfg.meta_info.usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd"
-    # -- rotate the object to align with the ground plane
-    cfg.init_state.rot = convert_quat(tf.Rotation.from_euler("XYZ", (-90, 90, 0), degrees=True).as_quat(), to="wxyz")
-
+    cfg = RigidObjectCfg(prim_path="/World/Objects/.*")
     # Create rigid object handler
     rigid_object = RigidObject(cfg)
 
-    # Spawn rigid object
-    # note: Spawning object like this will apply rigid object properties and physics material configurations.
-    rigid_object.spawn("/World/Objects/crackerBox2")
-
     # Play the simulator
     sim.reset()
-    # Initialize handles
-    # note: We desire view over all the objects in the scene.
-    rigid_object.initialize("/World/Objects/.*")
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
@@ -137,20 +95,22 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = rigid_object.get_default_root_state()
+            root_state = rigid_object.data.default_root_state_w.clone()
             # -- position
             root_state[:, :3] = sample_cylinder(
-                radius=0.5, h_range=(0.15, 0.25), size=rigid_object.count, device=rigid_object.device
+                radius=0.5, h_range=(0.15, 0.25), size=rigid_object.root_view.count, device=rigid_object.device
             )
             # -- orientation: apply yaw rotation
             root_state[:, 3:7] = quat_mul(
-                random_yaw_orientation(rigid_object.count, rigid_object.device), root_state[:, 3:7]
+                random_yaw_orientation(rigid_object.root_view.count, rigid_object.device), root_state[:, 3:7]
             )
             # -- set root state
-            rigid_object.set_root_state(root_state)
+            rigid_object.write_root_state_to_sim(root_state)
             # reset buffers
-            rigid_object.reset_buffers()
+            rigid_object.reset()
             print(">>>>>>>> Reset!")
+        # apply sim data
+        rigid_object.write_data_to_sim()
         # perform step
         sim.step(render=app_launcher.RENDER)
         # update sim-time
@@ -159,7 +119,7 @@ def main():
         # note: to deal with timeline events such as stopping, we need to check if the simulation is playing
         if sim.is_playing():
             # update buffers
-            rigid_object.update_buffers(sim_dt)
+            rigid_object.update(sim_dt)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ class ActuatorBaseCfg:
     cls: type[ActuatorBase] = MISSING
     """Actuator class."""
 
-    dof_names_expr: list[str] = MISSING
+    joint_names_expr: list[str] = MISSING
     """Articulation's joint names that are part of the group.
 
     Note:
@@ -40,13 +40,13 @@ class ActuatorBaseCfg:
     If :obj:`None`, the limit is set to infinity.
     """
 
-    stiffness: dict[str, float] | None = MISSING
+    stiffness: dict[str, float] | float | None = MISSING
     """Stiffness gains (also known as p-gain) of the joints in the group.
 
     If :obj:`None`, the stiffness is set to 0.
     """
 
-    damping: dict[str, float] | None = MISSING
+    damping: dict[str, float] | float | None = MISSING
     """Damping gains (also known as d-gain) of the joints in the group.
 
     If :obj:`None`, the damping is set to 0.
@@ -60,7 +60,7 @@ Implicit Actuator Models.
 
 @configclass
 class ImplicitActuatorCfg(ActuatorBaseCfg):
-    """Configuration for an ideal PD actuator.
+    """Configuration for an implicit actuator.
 
     Note:
         The PD control is handled implicitly by the simulation.

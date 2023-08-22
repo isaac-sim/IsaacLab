@@ -14,6 +14,7 @@ https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omnive
 
 import io
 import os
+from typing_extensions import Literal
 
 import carb
 import omni.client
@@ -38,7 +39,7 @@ ISAAC_ORBIT_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac/Samples
 """Path to the `Isaac/Samples/Orbit` directory on the NVIDIA Nucleus Server."""
 
 
-def check_file_path(path: str) -> int:
+def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.
 
     Args:

@@ -42,8 +42,10 @@ class ActuatorNetLSTM(DCMotor):
     cfg: ActuatorNetLSTMCfg
     """The configuration of the actuator model."""
 
-    def __init__(self, cfg: ActuatorNetLSTMCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
-        super().__init__(cfg, dof_names, dof_ids, num_envs, device)
+    def __init__(
+        self, cfg: ActuatorNetLSTMCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str
+    ):
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
@@ -70,11 +72,11 @@ class ActuatorNetLSTM(DCMotor):
             self.sea_cell_state_per_env[:, env_ids] = 0.0
 
     def compute(
-        self, control_action: ArticulationActions, dof_pos: torch.Tensor, dof_vel: torch.Tensor
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # compute network inputs
-        self.sea_input[:, 0, 0] = (control_action.joint_positions - dof_pos).flatten()
-        self.sea_input[:, 0, 1] = dof_vel.flatten()
+        self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
+        self.sea_input[:, 0, 1] = joint_vel.flatten()
 
         # run network inference
         with torch.inference_mode():
@@ -115,8 +117,10 @@ class ActuatorNetMLP(DCMotor):
     cfg: ActuatorNetMLPCfg
     """The configuration of the actuator model."""
 
-    def __init__(self, cfg: ActuatorNetMLPCfg, dof_names: list[str], dof_ids: list[int], num_envs: int, device: str):
-        super().__init__(cfg, dof_names, dof_ids, num_envs, device)
+    def __init__(
+        self, cfg: ActuatorNetMLPCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str
+    ):
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
@@ -124,31 +128,33 @@ class ActuatorNetMLP(DCMotor):
 
         # create buffers for MLP history
         history_length = max(self.cfg.input_idx) + 1
-        self._dof_pos_error_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
-        self._dof_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
+        self._joint_pos_error_history = torch.zeros(
+            self._num_envs, history_length, self.num_joints, device=self._device
+        )
+        self._joint_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
 
     def reset(self, env_ids: Sequence[int]):
         # reset the history for the specified environments
-        self._dof_pos_error_history[env_ids] = 0.0
-        self._dof_vel_history[env_ids] = 0.0
+        self._joint_pos_error_history[env_ids] = 0.0
+        self._joint_vel_history[env_ids] = 0.0
 
     def compute(
-        self, control_action: ArticulationActions, dof_pos: torch.Tensor, dof_vel: torch.Tensor
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # move history queue by 1 and update top of history
         # -- positions
-        self._dof_pos_error_history = self._dof_pos_error_history.roll(1, 1)
-        self._dof_pos_error_history[:, 0] = control_action.joint_positions - dof_pos
+        self._joint_pos_error_history = self._joint_pos_error_history.roll(1, 1)
+        self._joint_pos_error_history[:, 0] = control_action.joint_positions - joint_pos
         # -- velocity
-        self._dof_vel_history = self._dof_vel_history.roll(1, 1)
-        self._dof_vel_history[:, 0] = dof_vel
+        self._joint_vel_history = self._joint_vel_history.roll(1, 1)
+        self._joint_vel_history[:, 0] = joint_vel
 
         # compute network inputs
         # -- positions
-        pos_input = torch.cat([self._dof_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
+        pos_input = torch.cat([self._joint_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
         pos_input = pos_input.reshape(self._num_envs * self.num_joints, -1)
         # -- velocity
-        vel_input = torch.cat([self._dof_vel_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
+        vel_input = torch.cat([self._joint_vel_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
         vel_input = vel_input.reshape(self._num_envs * self.num_joints, -1)
         # -- scale and concatenate inputs
         network_input = torch.cat([vel_input * self.cfg.vel_scale, pos_input * self.cfg.pos_scale], dim=1)
