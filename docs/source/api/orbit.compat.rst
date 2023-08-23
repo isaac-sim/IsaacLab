@@ -8,7 +8,8 @@ omni.isaac.orbit.compat
 
    * :mod:`omni.isaac.orbit.markers`
    * :mod:`omni.isaac.orbit.sensors`
-   * :mod:`omni.isaac.orbit.utils.mdp`
+   * :mod:`omni.isaac.orbit.managers`
+   * :mod:`omni.isaac.orbit.sim`
 
 Markers
 -------
@@ -100,6 +101,14 @@ MDP Managers
 ------------
 
 .. automodule:: omni.isaac.orbit.compat.utils.mdp
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Kit Utilities
+-------------
+
+.. automodule:: omni.isaac.orbit.compat.utils.kit
    :members:
    :undoc-members:
    :show-inheritance:

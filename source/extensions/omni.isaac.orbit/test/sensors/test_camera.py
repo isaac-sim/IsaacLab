@@ -2,24 +2,13 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""
-This script shows how to use the camera sensor from the Orbit framework.
 
-The camera sensor is created and interfaced through the Omniverse Replicator API. However, instead of using
-the simulator or OpenGL convention for the camera, we use the robotics or ROS convention.
-"""
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
 
 """Launch Isaac Sim Simulator first."""
 
-import argparse
-
-# omni-isaac-orbit
 from omni.isaac.orbit.app import AppLauncher
-
-# add argparse arguments
-parser = argparse.ArgumentParser(description="Camera Sensor Test Script")
-parser.add_argument("--gpu", action="store_false", default=False, help="Use GPU device for camera rendering output.")
-args_cli = parser.parse_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -32,21 +21,21 @@ import numpy as np
 import os
 import random
 import scipy.spatial.transform as tf
-import shutil
 import traceback
 import unittest
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
-from omni.isaac.core.prims import RigidPrim
+from omni.isaac.core.prims import GeometryPrim, RigidPrim
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import Gf, Usd, UsdGeom
 
+from omni.isaac.orbit.compat.utils.kit import create_ground_plane
 from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
 from omni.isaac.orbit.sim import PinholeCameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
-from omni.isaac.orbit.utils.kit import create_ground_plane
 from omni.isaac.orbit.utils.math import convert_quat
 from omni.isaac.orbit.utils.timer import Timer
 
@@ -77,34 +66,38 @@ class TestCamera(unittest.TestCase):
             ),
             colorize=False,
         )
-
+        # Create a new stage
+        stage_utils.create_new_stage()
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(
-            physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cuda" if args_cli.gpu else "cpu"
-        )
+        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cpu")
         # populate scene
         self._populate_scene()
+        # load stage
+        stage_utils.update_stage()
 
-    def tearDown(self) -> None:
+    def tearDown(self):
         """Stops simulator after each test."""
         # close all the opened viewport from before.
-        rep.vp_manager.destroy_hydra_textures()
+        rep.vp_manager.destroy_hydra_textures("Replicator")
         # stop simulation
-        self.sim.stop()
+        # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
+        self.sim._timeline.stop()
+        # clear the stage
         self.sim.clear()
+        self.sim.clear_instance()
 
     """
     Tests
     """
 
-    def test_camera_init(self) -> None:
+    def test_camera_init(self):
         """Test camera initialization."""
         # Create camera
         camera = Camera(self.camera_cfg)
         # Play sim
-        self.sim.play()
+        self.sim.reset()
         # Check if camera is initialized
         self.assertTrue(camera._is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
@@ -132,12 +125,16 @@ class TestCamera(unittest.TestCase):
             # check image data
             for im_data in camera.data.output.to_dict().values():
                 self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
-    def test_camera_resolution(self) -> None:
+    def test_camera_resolution(self):
+        """Test camera resolution is correctly set."""
         # Create camera
         camera = Camera(self.camera_cfg)
         # Play sim
-        self.sim.play()
+        self.sim.reset()
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -147,40 +144,43 @@ class TestCamera(unittest.TestCase):
         # access image data and compare shapes
         for im_data in camera.data.output.to_dict().values():
             self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
-    def test_camera_init_offset(self) -> None:
-        """Test camera initialization with offset."""
+    def test_camera_init_offset(self):
+        """Test camera initialization with offset using different conventions."""
         # define the same offset in all conventions
-        cam_cfg_offset_ros = copy.copy(self.camera_cfg)
+        # -- ROS convention
+        cam_cfg_offset_ros = copy.deepcopy(self.camera_cfg)
         cam_cfg_offset_ros.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_ROS,
             convention="ros",
         )
         cam_cfg_offset_ros.prim_path = "/World/CameraOffsetRos"
-
-        cam_cfg_offset_opengl = copy.copy(self.camera_cfg)
+        camera_ros = Camera(cam_cfg_offset_ros)
+        # -- OpenGL convention
+        cam_cfg_offset_opengl = copy.deepcopy(self.camera_cfg)
         cam_cfg_offset_opengl.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_OPENGL,
             convention="opengl",
         )
         cam_cfg_offset_opengl.prim_path = "/World/CameraOffsetOpengl"
-
-        cam_cfg_offset_world = copy.copy(self.camera_cfg)
+        camera_opengl = Camera(cam_cfg_offset_opengl)
+        # -- World convention
+        cam_cfg_offset_world = copy.deepcopy(self.camera_cfg)
         cam_cfg_offset_world.offset = CameraCfg.OffsetCfg(
             pos=POSITION,
             rot=QUAT_WORLD,
             convention="world",
         )
         cam_cfg_offset_world.prim_path = "/World/CameraOffsetWorld"
-
-        camera_ros = Camera(cam_cfg_offset_ros)
-        camera_opengl = Camera(cam_cfg_offset_opengl)
         camera_world = Camera(cam_cfg_offset_world)
 
         # play sim
-        self.sim.play()
+        self.sim.reset()
 
         # retrieve camera pose
         prim_tf_ros = camera_ros._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
@@ -192,48 +192,51 @@ class TestCamera(unittest.TestCase):
         prim_tf_world = np.transpose(prim_tf_world)
 
         # check that all transforms are set correctly
-        self.assertTrue(np.allclose(prim_tf_ros[0:3, 3], cam_cfg_offset_ros.offset.pos))
-        self.assertTrue(np.allclose(prim_tf_opengl[0:3, 3], cam_cfg_offset_opengl.offset.pos))
-        self.assertTrue(np.allclose(prim_tf_world[0:3, 3], cam_cfg_offset_world.offset.pos))
-        self.assertTrue(
-            np.allclose(
-                convert_quat(tf.Rotation.from_matrix(prim_tf_ros[:3, :3]).as_quat(), "wxyz"),
-                cam_cfg_offset_opengl.offset.rot,
-            )
+        np.testing.assert_allclose(prim_tf_ros[0:3, 3], cam_cfg_offset_ros.offset.pos)
+        np.testing.assert_allclose(prim_tf_opengl[0:3, 3], cam_cfg_offset_opengl.offset.pos)
+        np.testing.assert_allclose(prim_tf_world[0:3, 3], cam_cfg_offset_world.offset.pos)
+        np.testing.assert_allclose(
+            convert_quat(tf.Rotation.from_matrix(prim_tf_ros[:3, :3]).as_quat(), "wxyz"),
+            cam_cfg_offset_opengl.offset.rot,
+            rtol=1e-5,
         )
-        self.assertTrue(
-            np.allclose(
-                convert_quat(tf.Rotation.from_matrix(prim_tf_opengl[:3, :3]).as_quat(), "wxyz"),
-                cam_cfg_offset_opengl.offset.rot,
-            )
+        np.testing.assert_allclose(
+            convert_quat(tf.Rotation.from_matrix(prim_tf_opengl[:3, :3]).as_quat(), "wxyz"),
+            cam_cfg_offset_opengl.offset.rot,
+            rtol=1e-5,
         )
-        self.assertTrue(
-            np.allclose(
-                convert_quat(tf.Rotation.from_matrix(prim_tf_world[:3, :3]).as_quat(), "wxyz"),
-                cam_cfg_offset_opengl.offset.rot,
-            )
+        np.testing.assert_allclose(
+            convert_quat(tf.Rotation.from_matrix(prim_tf_world[:3, :3]).as_quat(), "wxyz"),
+            cam_cfg_offset_opengl.offset.rot,
+            rtol=1e-5,
         )
 
         # check if transform correctly set in output
-        self.assertTrue(np.allclose(camera_ros.data.pos_w[0], cam_cfg_offset_ros.offset.pos))
-        self.assertTrue(np.allclose(camera_ros.data.quat_w_ros[0], QUAT_ROS))
-        self.assertTrue(np.allclose(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL))
-        self.assertTrue(np.allclose(camera_ros.data.quat_w_world[0], QUAT_WORLD))
+        np.testing.assert_allclose(camera_ros.data.pos_w[0], cam_cfg_offset_ros.offset.pos, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_ros[0], QUAT_ROS, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5)
 
-    def test_multi_camera_init(self) -> None:
-        """Test camera initialization with offset."""
-        # define the same offset in all conventions
-        cam_cfg_1 = copy.copy(self.camera_cfg)
+        # delete all cameras
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera_ros.__del__()
+        camera_opengl.__del__()
+        camera_world.__del__()
+
+    def test_multi_camera_init(self):
+        """Test multi-camera initialization."""
+        # create two cameras with different prim paths
+        # -- camera 1
+        cam_cfg_1 = copy.deepcopy(self.camera_cfg)
         cam_cfg_1.prim_path = "/World/Camera_1"
-
-        cam_cfg_2 = copy.copy(self.camera_cfg)
-        cam_cfg_2.prim_path = "/World/Camera_2"
-
         cam_1 = Camera(cam_cfg_1)
+        # -- camera 2
+        cam_cfg_2 = copy.deepcopy(self.camera_cfg)
+        cam_cfg_2.prim_path = "/World/Camera_2"
         cam_2 = Camera(cam_cfg_2)
 
         # play sim
-        self.sim.play()
+        self.sim.reset()
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -251,34 +254,45 @@ class TestCamera(unittest.TestCase):
                 for im_data in cam.data.output.to_dict().values():
                     self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
 
-    def test_camera_set_world_poses(self) -> None:
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        cam_1.__del__()
+        cam_2.__del__()
+
+    def test_camera_set_world_poses(self):
         """Test camera function to set specific world pose."""
         camera = Camera(self.camera_cfg)
         # play sim
-        self.sim.play()
+        self.sim.reset()
         # set new pose
         camera.set_world_poses([POSITION], [QUAT_WORLD], convention="world")
-        self.assertTrue(np.allclose(camera.data.pos_w, [POSITION]))
-        self.assertTrue(np.allclose(camera.data.quat_w_world, [QUAT_WORLD]))
+        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
+        np.testing.assert_allclose(camera.data.quat_w_world, [QUAT_WORLD], rtol=1e-5)
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
-    def test_camera_set_world_poses_from_view(self) -> None:
+    def test_camera_set_world_poses_from_view(self):
         """Test camera function to set specific world pose from view."""
         camera = Camera(self.camera_cfg)
         # play sim
-        self.sim.play()
+        self.sim.reset()
         # set new pose
         camera.set_world_poses_from_view([POSITION], [[0.0, 0.0, 0.0]])
-        self.assertTrue(np.allclose(camera.data.pos_w, [POSITION]))
-        self.assertTrue(np.allclose(camera.data.quat_w_ros, [QUAT_ROS]))
+        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
+        np.testing.assert_allclose(camera.data.quat_w_ros, [QUAT_ROS], rtol=1e-5)
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
-    def test_intrinsic_matrix(self) -> None:
+    def test_intrinsic_matrix(self):
         """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
-        camera_cfg = copy.copy(self.camera_cfg)
+        camera_cfg = copy.deepcopy(self.camera_cfg)
         camera_cfg.height = 240
         camera_cfg.width = 320
         camera = Camera(camera_cfg)
         # play sim
-        self.sim.play()
+        self.sim.reset()
         # Desired properties (obtained from realsense camera at 320x240 resolution)
         rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
         rs_intrinsic_matrix = np.array(rs_intrinsic_matrix).reshape(3, 3)
@@ -302,6 +316,9 @@ class TestCamera(unittest.TestCase):
             #       This is a bug in the simulator.
             self.assertAlmostEqual(rs_intrinsic_matrix[0, 0], K[0, 0], 4)
             # self.assertAlmostEqual(rs_intrinsic_matrix[1, 1], K[1, 1], 4)
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
@@ -312,15 +329,14 @@ class TestCamera(unittest.TestCase):
         # Create replicator writer
         rep_writer = rep.BasicWriter(output_dir=temp_dir, frame_padding=3)
         # create camera
-        camera_cfg = copy.copy(self.camera_cfg)
+        camera_cfg = copy.deepcopy(self.camera_cfg)
         camera_cfg.height = 480
         camera_cfg.width = 640
         camera = Camera(camera_cfg)
         # Play simulator
-        self.sim.play()
+        self.sim.reset()
         # Set camera pose
         camera.set_world_poses_from_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-        self.sim.reset()
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -350,6 +366,9 @@ class TestCamera(unittest.TestCase):
             # Check image data
             for im_data in camera.data.output.values():
                 self.assertTrue(im_data.shape == (1, camera_cfg.height, camera_cfg.width))
+        # delete camera
+        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
+        camera.__del__()
 
     """
     Helper functions.
@@ -382,21 +401,22 @@ class TestCamera(unittest.TestCase):
             position *= np.asarray([1.5, 1.5, 0.5])
             # create prim
             prim_type = random.choice(["Cube", "Sphere", "Cylinder"])
-            _ = prim_utils.create_prim(
+            prim = prim_utils.create_prim(
                 f"/World/Objects/Obj_{i:02d}",
                 prim_type,
                 translation=position,
                 scale=(0.25, 0.25, 0.25),
                 semantic_label=prim_type,
             )
-            # add rigid properties
-            rigid_obj = RigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
             # cast to geom prim
-            geom_prim = getattr(UsdGeom, prim_type)(rigid_obj.prim)
+            geom_prim = getattr(UsdGeom, prim_type)(prim)
             # set random color
             color = Gf.Vec3f(random.random(), random.random(), random.random())
             geom_prim.CreateDisplayColorAttr()
             geom_prim.GetDisplayColorAttr().Set([color])
+            # add rigid properties
+            GeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
+            RigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--gpu", action="store_true", default=False, help="Use GPU device for camera rendering output.")
 parser.add_argument("--draw", action="store_true", default=False, help="Draw the obtained pointcloud on viewport.")
@@ -43,8 +43,8 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
-import omni.isaac.orbit.utils.kit as kit_utils
-from omni.isaac.orbit.sensors.camera import Camera, PinholeCameraCfg
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
 from omni.isaac.orbit.utils.math import project_points, transform_points, unproject_depth
 
@@ -55,22 +55,16 @@ Helpers
 
 def design_scene():
     """Add prims to the scene."""
+    # Spawn things into stage
     # Ground-plane
-    kit_utils.create_ground_plane("/World/defaultGroundPlane")
+    cfg = sim_utils.GroundPlaneCfg()
+    cfg.func("/World/defaultGroundPlane", cfg)
     # Lights-1
-    prim_utils.create_prim(
-        "/World/Light/GreySphere",
-        "SphereLight",
-        translation=(4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
-    )
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
+    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
     # Lights-2
-    prim_utils.create_prim(
-        "/World/Light/WhiteSphere",
-        "SphereLight",
-        translation=(-4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
-    )
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
+    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
     # Xform to hold objects
     prim_utils.create_prim("/World/Objects", "Xform")
     # Random objects
@@ -109,7 +103,6 @@ def main():
     sim = SimulationContext(
         physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu"
     )
-    # sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="numpy")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # Acquire draw interface
@@ -118,20 +111,21 @@ def main():
     # Populate scene
     design_scene()
     # Setup camera sensor
-    camera_cfg = PinholeCameraCfg(
+    camera_cfg = CameraCfg(
+        prim_path="/World/CameraSensor_.*/Cam",
         update_period=0,
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors", "semantic_segmentation"],
-        usd_params=PinholeCameraCfg.UsdCameraCfg(
+        spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
     )
-    camera = Camera(cfg=camera_cfg)
-
-    # Spawn camera
-    camera.spawn("/World/CameraSensor/Cam_00")
-    camera.spawn("/World/CameraSensor/Cam_01")
+    # Manually spawn the camera because we want to be fancy
+    camera_cfg.spawn.func("/World/CameraSensor_00/Cam", camera_cfg.spawn)
+    camera_cfg.spawn.func("/World/CameraSensor_01/Cam", camera_cfg.spawn)
+    # Create camera
+    camera = Camera(cfg=camera_cfg.replace(spawn=None))
 
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
@@ -139,8 +133,6 @@ def main():
 
     # Play simulator
     sim.play()
-    # Initialize camera
-    camera.initialize("/World/CameraSensor/Cam_*")
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -205,7 +197,7 @@ def main():
 
         # Pointcloud in world frame
         points_3d_cam = unproject_depth(camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices)
-        points_3d_world = transform_points(points_3d_cam, camera.data.position, camera.data.orientation)
+        points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
 
         # Check methods are valid
         im_height, im_width = camera.image_shape

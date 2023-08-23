@@ -36,7 +36,7 @@ from omni.isaac.core.utils.torch import set_seed
 from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.compat.sensors.camera import Camera, PinholeCameraCfg
 from omni.isaac.orbit.utils.math import convert_quat
 from omni.isaac.orbit.utils.timer import Timer

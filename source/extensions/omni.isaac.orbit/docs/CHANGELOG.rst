@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.9.3 (2023-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled the `faulthander <https://docs.python.org/3/library/faulthandler.html>`_ to catch segfaults and print
+  the stack trace. This is enabled by default in the :class:`omni.isaac.orbit.app.AppLauncher` class.
+
+Fixed
+^^^^^
+
+* Re-added the :mod:`omni.isaac.orbit.utils.kit` to the ``compat`` directory and fixed all the references to it.
+* Fixed the deletion of Replicator nodes for the :class:`omni.isaac.orbit.sensors.Camera` class. Earlier, the
+  Replicator nodes were not being deleted when the camera was deleted. However, this does not prevent the random
+  crashes that happen when the camera is deleted.
+* Fixed the :meth:`omni.isaac.orbit.utils.math.convert_quat` to support both numpy and torch tensors.
+
+Changed
+^^^^^^^
+
+* Renamed all the scripts inside the ``test`` directory to follow the convention:
+
+  * ``test_<module_name>.py``: Tests for the module ``<module_name>`` using unittest.
+  * ``check_<module_name>``: Check for the module ``<module_name>`` using python main function.
+
+
 0.9.2 (2023-08-22)
 ~~~~~~~~~~~~~~~~~~~
 

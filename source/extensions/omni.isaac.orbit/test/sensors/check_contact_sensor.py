@@ -34,16 +34,15 @@ simulation_app = SimulationApp(config)
 
 import torch
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.articulation.config.anymal import ANYMAL_C_CFG
+from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 
 """
@@ -129,7 +128,8 @@ def main():
 
     # Define simulation stepping
     decimation = 4
-    sim_dt = decimation * sim.get_physics_dt()
+    physics_dt = sim.get_physics_dt()
+    sim_dt = decimation * physics_dt
     sim_time = 0.0
     count = 0
     # Simulate physics
@@ -153,19 +153,18 @@ def main():
         # perform 4 steps
         for _ in range(decimation):
             # apply actions
-            robot.set_joint_position_targets(robot.data.default_joint_pos)
+            robot.set_joint_position_target(robot.data.default_joint_pos)
             # write commands to sim
             robot.write_data_to_sim()
             # perform step
             sim.step(render=not args_cli.headless)
             # fetch data
-            robot.fetch_data_from_sim()
+            robot.update(physics_dt)
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update the buffers
         if sim.is_playing():
-            robot.update(sim_dt)
             contact_sensor.update(sim_dt, force_recompute=True)
             if count % 100 == 0:
                 print("Sim-time: ", sim_time)

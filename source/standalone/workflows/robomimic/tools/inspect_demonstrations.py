@@ -25,7 +25,7 @@ def check_group(f, num: int):
 
 if __name__ == "__main__":
     # parse arguments
-    parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+    parser = argparse.ArgumentParser(description="Check structure of hdf5 file.")
     parser.add_argument("file", type=str, default=None, help="The path to HDF5 file to analyze.")
     args_cli = parser.parse_args()
 

@@ -17,7 +17,9 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(
+    description="This script demonstrates how to use the RMPFlow controller with the simulator."
+)
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--robot", type=str, default="ur10", help="Name of the robot. Options: franka_panda, ur10.")
 parser.add_argument("--num_envs", type=int, default=5, help="Number of environments to spawn.")
@@ -38,7 +40,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.compat.markers import StaticMarker
 from omni.isaac.orbit.controllers.config.rmp_flow import FRANKA_RMPFLOW_CFG, UR10_RMPFLOW_CFG
 from omni.isaac.orbit.controllers.rmp_flow import RmpFlowController

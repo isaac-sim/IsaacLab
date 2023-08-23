@@ -21,7 +21,6 @@ omni.isaac.orbit extension
    orbit.command_generators
    orbit.utils
    orbit.utils.assets
-   orbit.utils.kit
    orbit.utils.math
    orbit.utils.mdp
    orbit.compat

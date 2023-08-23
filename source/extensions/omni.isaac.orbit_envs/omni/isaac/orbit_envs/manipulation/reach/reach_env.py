@@ -9,7 +9,7 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.compat.markers import PointMarker, StaticMarker
 from omni.isaac.orbit.compat.utils.mdp import ObservationManager, RewardManager
 from omni.isaac.orbit.controllers.differential_inverse_kinematics import DifferentialInverseKinematics

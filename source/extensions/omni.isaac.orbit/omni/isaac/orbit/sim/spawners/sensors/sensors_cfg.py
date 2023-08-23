@@ -33,8 +33,8 @@ class PinholeCameraCfg(SpawnerCfg):
     Note:
         Currently only "pinhole" is supported.
     """
-    clipping_range: tuple[float, float] = (1.0, 1000000.0)
-    """Near and far clipping distances (in m). Defaults to (1.0, 1000000.0)."""
+    clipping_range: tuple[float, float] = (1.0, 1e6)
+    """Near and far clipping distances (in m). Defaults to (1.0, 1e6)."""
     focal_length: float = 24.0
     """Perspective focal length (in cm). Defaults to 24.0cm.
 

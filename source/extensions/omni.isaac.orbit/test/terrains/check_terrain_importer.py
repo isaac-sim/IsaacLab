@@ -33,7 +33,7 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="This script shows how to use the terrain importer.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--geom_sphere", action="store_true", default=False, help="Whether to use sphere mesh or shape.")
 parser.add_argument(

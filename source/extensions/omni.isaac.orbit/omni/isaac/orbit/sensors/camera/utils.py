@@ -321,7 +321,7 @@ def convert_orientation_convention(
         torch.Tensor: Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
     """
     if target == origin:
-        return orientation
+        return orientation.clone()
 
     # -- unify input type
     if origin == "ros":
@@ -363,4 +363,4 @@ def convert_orientation_convention(
         )
         return math_utils.quat_from_matrix(rotm)
     else:
-        return quat_gl
+        return quat_gl.clone()

@@ -190,7 +190,8 @@ class TerrainImporter:
         if key in self.meshes:
             raise ValueError(f"Mesh with key {key} already exists. Existing keys: {self.meshes.keys()}.")
         # add the prim path
-        prim_utils.create_prim(self.cfg.prim_path + f"/{key}", usd_path=usd_path)
+        cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
+        cfg.func(self.cfg.prim_path + f"/{key}", cfg)
 
         # traverse the prim and get the collision mesh
         # THINK: Should the user specify the collision mesh?

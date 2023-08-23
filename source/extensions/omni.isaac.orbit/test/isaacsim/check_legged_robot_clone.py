@@ -17,7 +17,9 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(
+    description="This script shows the issue in Isaac Sim with GPU simulation of floating robots."
+)
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
 parser.add_argument(

@@ -74,6 +74,7 @@ class Camera(SensorBase):
             cfg (CameraCfg): The configuration parameters.
 
         Raises:
+            RuntimeError: If no camera prim is found at the given path.
             ValueError: If the sensor types intersect with in the unsupported list.
         """
         # initialize base class
@@ -89,10 +90,10 @@ class Camera(SensorBase):
             self.cfg.spawn.func(
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
             )
-            # check that spawn was successful
-            matching_prim_paths = prim_utils.find_matching_prim_paths(self.cfg.prim_path)
-            if len(matching_prim_paths) == 0:
-                raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+        # check that spawn was successful
+        matching_prim_paths = prim_utils.find_matching_prim_paths(self.cfg.prim_path)
+        if len(matching_prim_paths) == 0:
+            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
@@ -110,6 +111,15 @@ class Camera(SensorBase):
                 "\n\tHint: If you need to work with these sensor types, we recommend using the single camera"
                 " implementation from the omni.isaac.orbit.compat.camera module."
             )
+
+    def __del__(self):
+        """Unsubscribes from callbacks and detach from the replicator registry."""
+        # unsubscribe callbacks
+        super().__del__()
+        # delete from replicator registry
+        for _, annotators in self._rep_registry.items():
+            for annotator, render_product_path in zip(annotators, self._render_product_paths):
+                annotator.detach([render_product_path])
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -272,7 +282,7 @@ class Camera(SensorBase):
         if orientations is not None:
             if isinstance(orientations, np.ndarray):
                 orientations = torch.from_numpy(orientations).to(device=self._device)
-            elif not isinstance(orientations, torch.tensor):
+            elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
@@ -476,8 +486,8 @@ class Camera(SensorBase):
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_ros = torch.zeros((self._view.count, 4), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
-        self._data.quat_w_opengl = torch.zeros((self._view.count, 4), device=self._device)
+        self._data.quat_w_world = torch.zeros_like(self._data.quat_w_ros)
+        self._data.quat_w_opengl = torch.zeros_like(self._data.quat_w_ros)
         # -- intrinsic matrix
         self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
         self._data.image_shape = self.image_shape
@@ -551,12 +561,8 @@ class Camera(SensorBase):
         self._data.quat_w_opengl[env_ids] = quat_opengl
 
         # save world and ros convention
-        self._data.quat_w_world[env_ids] = convert_orientation_convention(
-            quat_opengl.clone(), origin="opengl", target="world"
-        )
-        self._data.quat_w_ros[env_ids] = convert_orientation_convention(
-            quat_opengl.clone(), origin="opengl", target="ros"
-        )
+        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat_opengl, origin="opengl", target="world")
+        self._data.quat_w_ros[env_ids] = convert_orientation_convention(quat_opengl, origin="opengl", target="ros")
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.

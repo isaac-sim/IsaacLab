@@ -59,7 +59,7 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         # check number of markers
         self.assertEqual(test_marker.num_prototypes, 1)
 
-    def test_usd_cpu_marker(self):
+    def test_usd_marker(self):
         """Test with marker from a USD."""
         # create a marker
         test_marker = VisualizationMarkers("/World/Visuals/test_frames", FRAME_MARKER_CFG)
@@ -74,29 +74,6 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
             if count % 50 == 0:
                 num_frames = torch.randint(10, 1000, (1,)).item()
                 frame_translations = torch.randn((num_frames, 3))
-                frame_rotations = random_orientation(num_frames, device=self.sim.device)
-                # set the marker
-                test_marker.visualize(translations=frame_translations, orientations=frame_rotations)
-            # update the kit
-            self.sim.step()
-            # asset that count is correct
-            self.assertEqual(test_marker.count, num_frames)
-
-    def test_usd_gpu_marker(self):
-        """Test with marker from a USD."""
-        # create a marker
-        test_marker = VisualizationMarkers("/World/Visuals/test_frames", FRAME_MARKER_CFG)
-
-        # play the simulation
-        self.sim.reset()
-        # create a buffer
-        num_frames = 0
-        # run with randomization of poses
-        for count in range(1000):
-            # sample random poses
-            if count % 50 == 0:
-                num_frames = torch.randint(10, 1000, (1,)).item()
-                frame_translations = torch.randn((num_frames, 3), device=self.sim.device)
                 frame_rotations = random_orientation(num_frames, device=self.sim.device)
                 # set the marker
                 test_marker.visualize(translations=frame_translations, orientations=frame_rotations)

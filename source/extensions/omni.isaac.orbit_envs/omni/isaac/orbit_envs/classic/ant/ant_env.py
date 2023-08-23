@@ -13,7 +13,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.torch as torch_utils
 from omni.isaac.core.articulations import ArticulationView
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 
 from omni.isaac.orbit_envs.isaac_env import IsaacEnv, VecEnvIndices, VecEnvObs
 from omni.isaac.orbit_envs.isaac_env_cfg import EnvCfg, IsaacEnvCfg

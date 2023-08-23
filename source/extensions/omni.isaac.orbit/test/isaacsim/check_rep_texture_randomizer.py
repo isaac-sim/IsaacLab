@@ -19,7 +19,9 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(
+    description="This script shows how to use replicator to randomly change the textures of a USD scene."
+)
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 args_cli = parser.parse_args()
 

@@ -3,10 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
-import matplotlib.pyplot as plt
-import numpy as np
+"""Launch Isaac Sim Simulator first."""
+
 import os
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+# note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+app_launcher = AppLauncher(headless=True, experience=app_experience)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
+import argparse
 import trimesh
 
 import omni.isaac.orbit.terrains.height_field as hf_gen
@@ -242,3 +253,6 @@ if __name__ == "__main__":
     test_discrete_obstacles_terrain(difficulty=0.25, obstacle_height_mode="fixed")
     test_wave_terrain(difficulty=0.25)
     test_stepping_stones_terrain(difficulty=1.0)
+
+    # close the app
+    simulation_app.close()

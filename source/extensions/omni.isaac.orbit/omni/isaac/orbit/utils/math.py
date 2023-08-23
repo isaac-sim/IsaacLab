@@ -12,7 +12,8 @@ Some of these are imported from the module `omni.isaac.core.utils.torch` for con
 import numpy as np
 import torch
 import torch.nn.functional
-from typing import Optional, Sequence, Tuple, Union
+from typing import Optional, Tuple, Union
+from typing_extensions import Literal
 
 from omni.isaac.core.utils.torch.maths import normalize, scale_transform, unscale_transform
 from omni.isaac.core.utils.torch.rotations import (
@@ -135,6 +136,7 @@ def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     Args:
         quaternions: quaternions with real part first,
             as tensor of shape (..., 4).
+
     Returns:
         Rotation matrices as tensor of shape (..., 3, 3).
 
@@ -162,42 +164,52 @@ def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     return o.reshape(quaternions.shape[:-1] + (3, 3))
 
 
-def convert_quat(quat: Union[torch.Tensor, Sequence[float]], to: Optional[str] = "xyzw") -> torch.Tensor:
+def convert_quat(
+    quat: Union[torch.Tensor, np.ndarray], to: Literal["xyzw", "wxyz"] = "xyzw"
+) -> Union[torch.Tensor, np.ndarray]:
     """Converts quaternion from one convention to another.
 
     The convention to convert TO is specified as an optional argument. If to == 'xyzw',
     then the input is in 'wxyz' format, and vice-versa.
 
     Args:
-        quat (Union[torch.Tensor, Sequence[float]]): Input quaternion of shape (..., 4).
-        to (Optional[str], optional): Convention to convert quaternion to.. Defaults to "xyzw".
+        quat (Union[torch.Tensor, np.ndarray]): Input quaternion of shape (..., 4).
+        to (Literal["xyzw", "wxyz"], optional): Convention to convert quaternion to.. Defaults to "xyzw".
+
+    Returns:
+        Union[torch.Tensor, np.ndarray]: The converted quaternion in specified convention.
 
     Raises:
         ValueError: Invalid input argument `to`, i.e. not "xyzw" or "wxyz".
         ValueError: Invalid shape of input `quat`, i.e. not (..., 4,).
-
-    Returns:
-        torch.Tensor: The converted quaternion in specified convention.
     """
-    # convert to torch (sanity check)
-    if not isinstance(quat, torch.Tensor):
-        if isinstance(quat, np.ndarray):
-            quat = torch.from_numpy(quat)
-        else:
-            quat = torch.tensor(quat, dtype=float)
     # check input is correct
     if quat.shape[-1] != 4:
         msg = f"Expected input quaternion shape mismatch: {quat.shape} != (..., 4)."
         raise ValueError(msg)
-    # convert to specified quaternion type
-    if to == "xyzw":
-        # wxyz -> xyzw
-        return quat.roll(-1, dims=-1)
-    elif to == "wxyz":
-        # xyzw -> wxyz
-        return quat.roll(1, dims=-1)
+    if to not in ["xyzw", "wxyz"]:
+        msg = f"Expected input argument `to` to be 'xyzw' or 'wxyz'. Received: {to}."
+        raise ValueError(msg)
+    # check if input is numpy array (we support this backend since some classes use numpy)
+    if isinstance(quat, np.ndarray):
+        # use numpy functions
+        if to == "xyzw":
+            # wxyz -> xyzw
+            return np.roll(quat, -1, axis=-1)
+        else:
+            # xyzw -> wxyz
+            return np.roll(quat, 1, axis=-1)
     else:
-        raise ValueError(f"Choose a valid `to` argument (xyzw or wxyz). Received: {to}")
+        # convert to torch (sanity check)
+        if not isinstance(quat, torch.Tensor):
+            quat = torch.tensor(quat, dtype=float)
+        # convert to specified quaternion type
+        if to == "xyzw":
+            # wxyz -> xyzw
+            return quat.roll(-1, dims=-1)
+        else:
+            # xyzw -> wxyz
+            return quat.roll(1, dims=-1)
 
 
 @torch.jit.script
@@ -245,9 +257,7 @@ def quat_from_euler_xyz(roll: torch.Tensor, pitch: torch.Tensor, yaw: torch.Tens
 
 @torch.jit.script
 def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
-    """
-    Returns torch.sqrt(torch.max(0, x))
-    but with a zero subgradient where x is 0.
+    """Returns torch.sqrt(torch.max(0, x)) but with a zero sub-gradient where x is 0.
 
     Reference:
         Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L91-L99)
@@ -323,13 +333,12 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
 
 
 def _axis_angle_rotation(axis: str, angle: torch.Tensor) -> torch.Tensor:
-    """
-    Return the rotation matrices for one of the rotations about an axis
-    of which Euler angles describe, for each value of the angle given.
+    """Return the rotation matrices for one of the rotations about an axis of which Euler angles describe,
+    for each value of the angle given.
 
     Args:
         axis: Axis label "X" or "Y or "Z".
-        angle: any shape tensor of Euler angles in radians
+        angle: Any shape tensor of Euler angles in radians.
 
     Returns:
         Rotation matrices as tensor of shape (..., 3, 3).

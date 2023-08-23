@@ -38,7 +38,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.compat.markers import StaticMarker
 from omni.isaac.orbit.controllers.differential_inverse_kinematics import (
     DifferentialInverseKinematics,

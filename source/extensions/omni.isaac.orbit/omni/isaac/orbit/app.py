@@ -72,6 +72,7 @@ Alternatively, one can set the environment variables to the python script direct
 
 """
 
+import faulthandler
 import os
 import re
 import sys
@@ -135,6 +136,9 @@ class AppLauncher:
         .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
         .. _documentation: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
         """
+        # Enable call-stack on crash
+        faulthandler.enable()
+
         # Headless is always true for remote deployment
         remote_deployment = int(os.environ.get("REMOTE_DEPLOYMENT", 0))
         # resolve headless execution of simulation app

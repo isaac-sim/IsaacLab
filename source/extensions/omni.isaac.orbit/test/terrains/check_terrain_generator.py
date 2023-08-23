@@ -3,9 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Launch Isaac Sim Simulator first."""
 
-import argparse
+
 import os
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+# note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+app_launcher = AppLauncher(headless=True, experience=app_experience)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import shutil
 
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -26,3 +38,6 @@ if __name__ == "__main__":
     ROUGH_TERRAINS_CFG.curriculum = False
     # generate terrains
     terrain_generator = TerrainGenerator(cfg=ROUGH_TERRAINS_CFG)
+
+    # close the simulation app
+    simulation_app.close()

@@ -13,7 +13,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser("Welcome to Orbit: Omniverse Robotics Environments!")
+parser = argparse.ArgumentParser(description="This script creates an empty stage in Isaac Sim.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 args_cli = parser.parse_args()
 

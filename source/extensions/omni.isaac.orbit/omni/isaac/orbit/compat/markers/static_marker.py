@@ -15,7 +15,7 @@ from omni.isaac.core.materials import PreviewSurface
 from omni.isaac.core.prims import GeometryPrim
 from pxr import Gf, UsdGeom
 
-import omni.isaac.orbit.utils.kit as kit_utils
+import omni.isaac.orbit.compat.utils.kit as kit_utils
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, check_file_path
 
 

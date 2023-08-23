@@ -3,8 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
+"""Launch Isaac Sim Simulator first."""
+
 import os
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+# note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+app_launcher = AppLauncher(headless=True, experience=app_experience)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
+import argparse
 import trimesh
 
 import omni.isaac.orbit.terrains.trimesh as mesh_gen
@@ -404,3 +417,6 @@ if __name__ == "__main__":
     test_repeated_objects_terrain(difficulty=0.75, object_type="pyramid")
     test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder")
     test_repeated_objects_terrain(difficulty=0.75, object_type="box")
+
+    # close the app
+    simulation_app.close()
