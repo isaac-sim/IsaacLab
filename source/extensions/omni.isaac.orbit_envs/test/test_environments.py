@@ -61,7 +61,7 @@ class TestEnvironments(unittest.TestCase):
             # parse configuration
             env_cfg = parse_env_cfg(task_name, use_gpu=True, num_envs=self.num_envs)
             # create environment
-            env = gym.make(task_name, cfg=env_cfg, headless=self.headless)
+            env = gym.make(task_name, cfg=env_cfg)
 
             # reset environment
             obs = env.reset()

@@ -81,7 +81,7 @@ def main():
     n_timesteps = agent_cfg.pop("n_timesteps")
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make(args_cli.task, cfg=env_cfg)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`IsaacEnv` instance to RSL-RL vectorized environment.
+"""Wrapper to configure an :class:`RLEnv` instance to RSL-RL vectorized environment.
 
 The following example shows how to wrap an environment for RSL-RL:
 
@@ -23,7 +23,7 @@ import os
 import torch
 from typing import Dict, Optional, Tuple
 
-from omni.isaac.orbit_envs.isaac_env import IsaacEnv
+from omni.isaac.orbit.envs import RLEnv
 
 __all__ = ["RslRlVecEnvWrapper", "export_policy_as_jit", "export_policy_as_onnx"]
 
@@ -54,30 +54,26 @@ class RslRlVecEnvWrapper(gym.Wrapper):
         https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/env/vec_env.py
     """
 
-    def __init__(self, env: IsaacEnv):
+    def __init__(self, env: RLEnv):
         """Initializes the wrapper.
 
         Args:
-            env (IsaacEnv): The environment to wrap around.
+            env (RLEnv): The environment to wrap around.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`IsaacEnv`.
+            ValueError: When the environment is not an instance of :class:`RLEnv`.
             ValueError: When the observation space is not a :obj:`gym.spaces.Box`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, IsaacEnv):
-            raise ValueError(f"The environment must be inherited from IsaacEnv. Environment type: {type(env)}")
+        if not isinstance(env.unwrapped, RLEnv):
+            raise ValueError(f"The environment must be inherited from RLEnv. Environment type: {type(env)}")
         # initialize the wrapper
         gym.Wrapper.__init__(self, env)
-        # check that environment only provides flatted obs
-        if not isinstance(env.observation_space, gym.spaces.Box):
-            raise ValueError(
-                f"RSL-RL only supports flattened observation spaces. Input observation space: {env.observation_space}"
-            )
         # store information required by wrapper
-        self.num_envs = self.env.unwrapped.num_envs
-        self.num_actions = self.env.action_space.shape[0]
-        self.num_obs = self.env.observation_space.shape[0]
+        orbit_env: RLEnv = self.env.unwrapped
+        self.num_envs = orbit_env.num_envs
+        self.num_actions = orbit_env.action_manager.total_action_dim
+        self.num_obs = orbit_env.observation_manager.group_obs_dim["policy"][0]
         # reset at the start since the RSL-RL runner does not call reset
         self.env.reset()
 
@@ -87,16 +83,16 @@ class RslRlVecEnvWrapper(gym.Wrapper):
 
     def get_observations(self) -> torch.Tensor:
         """Returns the current observations of the environment."""
-        obs_dict = self.env.unwrapped._get_observations()
+        obs_dict = self.env.unwrapped.observation_manager.compute()
         return obs_dict["policy"], {"observations": obs_dict}
 
     @property
-    def episode_length_buf(self):
+    def episode_length_buf(self) -> torch.Tensor:
         """The episode length buffer."""
         return self.env.unwrapped.episode_length_buf
 
     @episode_length_buf.setter
-    def episode_length_buf(self, value):
+    def episode_length_buf(self, value: torch.Tensor):
         """Set the episode length buffer.
 
         Note: This is needed to perform random initialization of episode lengths in RSL-RL.

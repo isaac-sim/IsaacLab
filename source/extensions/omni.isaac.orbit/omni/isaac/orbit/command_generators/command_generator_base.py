@@ -10,11 +10,18 @@ tasks. Each command generator class should inherit from this class and implement
 methods.
 """
 
+from __future__ import annotations
+
 import torch
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
 
-from .command_generator_cfg import CommandGeneratorBaseCfg
+import omni.kit.app
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import BaseEnv
+
+    from .command_generator_cfg import CommandGeneratorBaseCfg
 
 
 class CommandGeneratorBase(ABC):
@@ -30,19 +37,16 @@ class CommandGeneratorBase(ABC):
     to the command generator that can be used to visualize the command in the simulator.
     """
 
-    def __init__(self, cfg: CommandGeneratorBaseCfg, env: object):
+    def __init__(self, cfg: CommandGeneratorBaseCfg, env: BaseEnv):
         """Initialize the command generator class.
 
         Args:
             cfg (CommandGeneratorBaseCfg): The configuration parameters for the command generator.
-            env (object): The environment object.
+            env (BaseEnv): The environment object.
         """
         # store the inputs
         self.cfg = cfg
-        # extract the environment parameters
-        self.dt = env.dt
-        self.num_envs = env.num_envs
-        self.device = env.device
+        self._env = env
         # create buffers to store the command
         # -- metrics that can be used for logging
         self.metrics = dict()
@@ -51,9 +55,33 @@ class CommandGeneratorBase(ABC):
         # -- counter for the number of times the command has been resampled within the current episode
         self.command_counter = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
+        # add callback for debug visualization
+        if self.cfg.debug_vis:
+            app_interface = omni.kit.app.get_app_interface()
+            self._debug_visualization_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                self._debug_vis_callback
+            )
+        else:
+            self._debug_visualization_handle = None
+
+    def __del__(self):
+        """Unsubscribe from the callbacks."""
+        if self._debug_visualization_handle is not None:
+            self._debug_visualization_handle.unsubscribe()
+
     """
     Properties
     """
+
+    @property
+    def num_envs(self) -> int:
+        """Number of environments."""
+        return self._env.num_envs
+
+    @property
+    def device(self) -> str:
+        """Device on which to perform computations."""
+        return self._env.device
 
     @property
     @abstractmethod
@@ -65,14 +93,29 @@ class CommandGeneratorBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Optional[Sequence[int]] = None):
-        """Reset the command generator.
+    def set_debug_vis(self, debug_vis: bool):
+        """Sets whether to visualize the command data.
+
+        Args:
+            debug_vis (bool): Whether to visualize the command data.
+
+        Raises:
+            RuntimeError: If the command debug visualization is not enabled.
+        """
+        if not self.cfg.debug_vis:
+            raise RuntimeError("Debug visualization is not enabled for this sensor.")
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        """Reset the command generator and log metrics.
 
         This function resets the command counter and resamples the command. It should be called
         at the beginning of each episode.
 
         Args:
             env_ids (Optional[Sequence[int]], optional): The list of environment IDs to reset. Defaults to None.
+
+        Returns:
+            Dict[str, float]: A dictionary containing the information to log under the "Metrics/{name}" key.
         """
         # resolve the environment IDs
         if env_ids is None:
@@ -81,29 +124,7 @@ class CommandGeneratorBase(ABC):
         self.command_counter[env_ids] = 0
         # resample the command
         self._resample(env_ids)
-
-    def compute(self):
-        """Compute the command."""
-        # update the metrics based on current state
-        self._update_metrics()
-        # reduce the time left before resampling
-        self.time_left -= self.dt
-        # resample the command if necessary
-        resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
-        if len(resample_env_ids) > 0:
-            self._resample(resample_env_ids)
-        # update the command
-        self._update_command()
-
-    def log_info(self, env_ids: Sequence[int]) -> Dict[str, float]:
-        """Log information such as metrics.
-
-        Args:
-            env_ids (Sequence[int]): The list of environment IDs to log the information for.
-
-        Returns:
-            Dict[str, float]: A dictionary containing the information to log under the "Metrics/{name}" key.
-        """
+        # add logging metrics
         extras = {}
         for metric_name, metric_value in self.metrics.items():
             # compute the mean metric value
@@ -112,13 +133,22 @@ class CommandGeneratorBase(ABC):
             metric_value[env_ids] = 0.0
         return extras
 
-    def debug_vis(self):
-        """Visualize the command in the simulator.
+    def compute(self, dt: float):
+        """Compute the command.
 
-        This is an optional function that can be used to visualize the command in the simulator.
+        Args:
+            dt (float): The time step passed since the last call to compute.
         """
-        if self.cfg.debug_vis:
-            pass
+        # update the metrics based on current state
+        self._update_metrics()
+        # reduce the time left before resampling
+        self.time_left -= dt
+        # resample the command if necessary
+        resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
+        if len(resample_env_ids) > 0:
+            self._resample(resample_env_ids)
+        # update the command
+        self._update_command()
 
     """
     Helper functions.
@@ -141,6 +171,14 @@ class CommandGeneratorBase(ABC):
         self._resample_command(env_ids)
 
     """
+    Simulation callbacks.
+    """
+
+    def _debug_vis_callback(self, event):
+        """Visualizes the sensor data."""
+        self._debug_vis_impl()
+
+    """
     Implementation specific functions.
     """
 
@@ -158,3 +196,10 @@ class CommandGeneratorBase(ABC):
     def _update_metrics(self):
         """Update the metrics based on the current state."""
         raise NotImplementedError
+
+    def _debug_vis_impl(self):
+        """Visualize the command in the simulator.
+
+        This is an optional function that can be used to visualize the command in the simulator.
+        """
+        pass

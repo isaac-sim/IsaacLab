@@ -89,13 +89,6 @@ def main():
     count = 0
     # Simulate physics
     while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
-            continue
         # reset
         if count % 1000 == 0:
             # reset counters
@@ -117,11 +110,9 @@ def main():
         # update sim-time
         sim_time += sim_dt
         count += 1
-        # note: to deal with timeline events such as stopping, we need to check if the simulation is playing
-        if sim.is_playing():
-            # update buffers
-            for robot in [robot_a, robot_b, robot_c]:
-                robot.update(sim_dt)
+        # update buffers
+        for robot in [robot_a, robot_b, robot_c]:
+            robot.update(sim_dt)
 
 
 if __name__ == "__main__":

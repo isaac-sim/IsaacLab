@@ -137,11 +137,11 @@ class ContactSensor(SensorBase):
         if env_ids is None:
             env_ids = ...
         # reset accumulative data buffers
-        self._data.current_air_time[env_ids].zero_()
-        self._data.last_air_time[env_ids].zero_()
-        self._data.net_forces_w[env_ids].zero_()
+        self._data.current_air_time[env_ids] = 0.0
+        self._data.last_air_time[env_ids] = 0.0
+        self._data.net_forces_w[env_ids] = 0.0
         # reset the data history
-        self._data.net_forces_w_history[env_ids].zero_()
+        self._data.net_forces_w_history[env_ids] = 0.0
         # Set all reset sensors to not outdated since their value won't be updated till next sim step.
         self._is_outdated[env_ids] = False
 

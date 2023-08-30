@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`IsaacEnv` instance to RL-Games vectorized environment.
+"""Wrapper to configure an :class:`RLEnv` instance to RL-Games vectorized environment.
 
 The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games :class:`Runner` class:
@@ -39,7 +39,7 @@ from typing import Dict, Union
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
-from omni.isaac.orbit_envs.isaac_env import IsaacEnv, VecEnvObs
+from omni.isaac.orbit.envs import RLEnv, VecEnvObs
 
 __all__ = ["RlGamesVecEnvWrapper", "RlGamesGpuEnv"]
 
@@ -74,21 +74,21 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
         https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
     """
 
-    def __init__(self, env: IsaacEnv, rl_device: str, clip_obs: float, clip_actions: float):
+    def __init__(self, env: RLEnv, rl_device: str, clip_obs: float, clip_actions: float):
         """Initializes the wrapper instance.
 
         Args:
-            env (IsaacEnv): The environment to wrap around.
+            env (RLEnv): The environment to wrap around.
             rl_device (str): The device on which agent computations are performed.
             clip_obs (float): The clipping value for observations.
             clip_actions (float): The clipping value for actions.
 
         Raises:
-            ValueError: The environment is not inherited from :class:`IsaacEnv`.
+            ValueError: The environment is not inherited from :class:`RLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, IsaacEnv):
-            raise ValueError(f"The environment must be inherited from IsaacEnv. Environment type: {type(env)}")
+        if not isinstance(env.unwrapped, RLEnv):
+            raise ValueError(f"The environment must be inherited from RLEnv. Environment type: {type(env)}")
         # initialize gym wrapper
         gym.Wrapper.__init__(self, env)
         # initialize rl-games vec-env

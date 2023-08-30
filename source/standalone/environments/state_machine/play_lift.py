@@ -240,7 +240,7 @@ def main():
     # -- robot configuration
     env_cfg.robot.robot_type = "franka"
     # create environment
-    env = gym.make("Isaac-Lift-Franka-v0", cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make("Isaac-Lift-Franka-v0", cfg=env_cfg)
 
     # create action buffers
     actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)

@@ -5,17 +5,23 @@
 
 """Sub-module containing command generators for the position-based locomotion task."""
 
-import torch
-from typing import Sequence
+from __future__ import annotations
 
+import torch
+from typing import TYPE_CHECKING, Sequence
+
+from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import CUBOID_MARKER_CFG
-from omni.isaac.orbit.robots.robot_base import RobotBase
 from omni.isaac.orbit.terrains import TerrainImporter
 from omni.isaac.orbit.utils.math import quat_rotate_inverse, wrap_to_pi, yaw_quat
 
 from .command_generator_base import CommandGeneratorBase
-from .command_generator_cfg import TerrainBasedPositionCommandGeneratorCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import BaseEnv
+
+    from .command_generator_cfg import TerrainBasedPositionCommandGeneratorCfg
 
 
 class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
@@ -28,19 +34,18 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
     cfg: TerrainBasedPositionCommandGeneratorCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: TerrainBasedPositionCommandGeneratorCfg, env: object):
+    def __init__(self, cfg: TerrainBasedPositionCommandGeneratorCfg, env: BaseEnv):
         """Initialize the command generator class.
 
         Args:
             cfg (TerrainBasedPositionCommandGeneratorCfg): The configuration parameters for the command generator.
-            env (object): The environment object.
+            env (BaseEnv): The environment object.
         """
         super().__init__(cfg, env)
         # -- robot
-        # TODO: Should we make this configurable like this?
-        self.robot: RobotBase = getattr(env, cfg.robot_attr)
+        self.robot: Articulation = env.scene[cfg.asset_name]
         # -- terrain
-        self.terrain: TerrainImporter = env.terrain
+        self.terrain: TerrainImporter = env.scene.terrain
         # -- commands: (x, y, z, heading)
         self.pos_command_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.heading_command_w = torch.zeros(self.num_envs, device=self.device)
@@ -50,7 +55,7 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         self.metrics["error_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_heading"] = torch.zeros(self.num_envs, device=self.device)
         # -- debug vis
-        self._box_goal_marker = None
+        self.box_goal_visualizer = None
 
     def __str__(self) -> str:
         msg = "TerrainBasedPositionCommandGenerator:\n"
@@ -72,16 +77,10 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
     Operations.
     """
 
-    def debug_vis(self):
-        if self.cfg.debug_vis:
-            # create the box marker if necessary
-            if self._box_goal_marker is None:
-                marker_cfg = CUBOID_MARKER_CFG
-                marker_cfg.markers["cuboid"].color = (1.0, 0.0, 0.0)
-                marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
-                self._box_goal_marker = VisualizationMarkers("/Visuals/Command/position_goal", marker_cfg)
-            # update the box marker
-            self._box_goal_marker.visualize(self.pos_command_w)
+    def set_debug_vis(self, debug_vis: bool):
+        super().set_debug_vis(debug_vis)
+        if self.box_goal_visualizer is not None:
+            self.box_goal_visualizer.set_visibility(debug_vis)
 
     """
     Implementation specific functions.
@@ -92,7 +91,7 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         # TODO: need to add that here directly
         self.pos_command_w[env_ids] = self.terrain.sample_new_targets(env_ids)
         # offset the position command by the current root position
-        self.pos_command_w[env_ids, 2] += self.robot.get_default_root_states(clone=False)[env_ids, 2]
+        self.pos_command_w[env_ids, 2] += self.robot.data.default_root_state_w[env_ids, 2]
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
@@ -111,12 +110,22 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
             self.heading_command_w[env_ids] = r.uniform_(*self.cfg.ranges.heading)
 
     def _update_command(self):
-        """Retargets the position command to the current root position and heading."""
-        target_vec = self.pos_command_w - self.robot.root_pos_w[:, :3]
-        self.pos_command_b[:] = quat_rotate_inverse(yaw_quat(self.robot.root_quat_w), target_vec)
+        """Re-target the position command to the current root position and heading."""
+        target_vec = self.pos_command_w - self.robot.data.root_pos_w[:, :3]
+        self.pos_command_b[:] = quat_rotate_inverse(yaw_quat(self.robot.data.root_quat_w), target_vec)
         self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - self.robot.heading_w)
 
     def _update_metrics(self):
         # logs data
-        self.metrics["error_pos"] = torch.norm(self.pos_command_w - self.robot.root_pos_w[:, :3], dim=1)
+        self.metrics["error_pos"] = torch.norm(self.pos_command_w - self.robot.data.root_pos_w[:, :3], dim=1)
         self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.heading_w))
+
+    def _debug_vis_impl(self):
+        # create the box marker if necessary
+        if self.box_goal_visualizer is None:
+            marker_cfg = CUBOID_MARKER_CFG
+            marker_cfg.markers["cuboid"].color = (1.0, 0.0, 0.0)
+            marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
+            self.box_goal_visualizer = VisualizationMarkers("/Visuals/Command/position_goal", marker_cfg)
+        # update the box marker
+        self.box_goal_visualizer.visualize(self.pos_command_w)

@@ -28,9 +28,11 @@ Usage:
 """
 
 
-import gym
 import os
 import toml
+
+# TODO: include classics, manipulation again when updated on newest version
+from . import locomotion  # noqa: F401
 
 # Conveniences to other module directories via relative paths
 ORBIT_ENVS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
@@ -44,57 +46,3 @@ ORBIT_ENVS_METADATA = toml.load(os.path.join(ORBIT_ENVS_EXT_DIR, "config", "exte
 
 # Configure the module-level variables
 __version__ = ORBIT_ENVS_METADATA["package"]["version"]
-
-##
-# Classic control
-##
-
-gym.register(
-    id="Isaac-Cartpole-v0",
-    entry_point="omni.isaac.orbit_envs.classic.cartpole:CartpoleEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.classic.cartpole:cartpole_cfg.yaml"},
-)
-
-gym.register(
-    id="Isaac-Ant-v0",
-    entry_point="omni.isaac.orbit_envs.classic.ant:AntEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.classic.ant:ant_cfg.yaml"},
-)
-
-gym.register(
-    id="Isaac-Humanoid-v0",
-    entry_point="omni.isaac.orbit_envs.classic.humanoid:HumanoidEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.classic.humanoid:humanoid_cfg.yaml"},
-)
-
-##
-# Locomotion
-##
-
-gym.register(
-    id="Isaac-Velocity-Rough-Anymal-C-v0",
-    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnvRoughCfg"},
-)
-
-gym.register(
-    id="Isaac-Velocity-Rough-Anymal-C-Play-v0",
-    entry_point="omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.locomotion.velocity:LocomotionEnvRoughCfg_PLAY"},
-)
-
-##
-# Manipulation
-##
-
-gym.register(
-    id="Isaac-Reach-Franka-v0",
-    entry_point="omni.isaac.orbit_envs.manipulation.reach:ReachEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.manipulation.reach:ReachEnvCfg"},
-)
-
-gym.register(
-    id="Isaac-Lift-Franka-v0",
-    entry_point="omni.isaac.orbit_envs.manipulation.lift:LiftEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.manipulation.lift:LiftEnvCfg"},
-)

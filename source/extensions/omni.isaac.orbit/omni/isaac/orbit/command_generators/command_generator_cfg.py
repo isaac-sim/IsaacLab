@@ -3,10 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import ClassVar, Tuple
 
 from omni.isaac.orbit.utils import configclass
+
+from .command_generator_base import CommandGeneratorBase
+from .position_command_generator import TerrainBasedPositionCommandGenerator
+from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
 
 """
 Base command generator.
@@ -17,9 +22,9 @@ Base command generator.
 class CommandGeneratorBaseCfg:
     """Configuration for the base command generator."""
 
-    class_name: ClassVar[str] = MISSING
-    """Name of the command generator class."""
-    resampling_time_range: Tuple[float, float] = MISSING
+    class_name: type[CommandGeneratorBase] = MISSING
+    """The command generator class to use."""
+    resampling_time_range: tuple[float, float] = MISSING
     """Time before commands are changed [s]."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
@@ -34,10 +39,10 @@ Locomotion-specific command generators.
 class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
     """Configuration for the uniform velocity command generator."""
 
-    class_name = "UniformVelocityCommandGenerator"
+    class_name = UniformVelocityCommandGenerator
 
-    robot_attr: str = MISSING
-    """Name of the robot attribute from the environment."""
+    asset_name: str = MISSING
+    """Name of the asset in the environment for which the commands are generated."""
     heading_command: bool = MISSING
     """Whether to use heading command or angular velocity command.
 
@@ -55,10 +60,10 @@ class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
     class Ranges:
         """Uniform distribution ranges for the velocity commands."""
 
-        lin_vel_x: Tuple[float, float] = MISSING  # min max [m/s]
-        lin_vel_y: Tuple[float, float] = MISSING  # min max [m/s]
-        ang_vel_z: Tuple[float, float] = MISSING  # min max [rad/s]
-        heading: Tuple[float, float] = MISSING  # [rad]
+        lin_vel_x: tuple[float, float] = MISSING  # min max [m/s]
+        lin_vel_y: tuple[float, float] = MISSING  # min max [m/s]
+        ang_vel_z: tuple[float, float] = MISSING  # min max [rad/s]
+        heading: tuple[float, float] = MISSING  # min max [rad]
 
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
@@ -68,24 +73,24 @@ class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
 class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
     """Configuration for the normal velocity command generator."""
 
-    class_name = "NormalVelocityCommandGenerator"
+    class_name = NormalVelocityCommandGenerator
     heading_command: bool = False  # --> we don't use heading command for normal velocity command.
 
     @configclass
     class Ranges:
         """Normal distribution ranges for the velocity commands."""
 
-        mean_vel: Tuple[float, float, float] = MISSING
+        mean_vel: tuple[float, float, float] = MISSING
         """Mean velocity for the normal distribution.
 
         The tuple contains the mean linear-x, linear-y, and angular-z velocity.
         """
-        std_vel: Tuple[float, float, float] = MISSING
+        std_vel: tuple[float, float, float] = MISSING
         """Standard deviation for the normal distribution.
 
         The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.
         """
-        zero_prob: Tuple[float, float, float] = MISSING
+        zero_prob: tuple[float, float, float] = MISSING
         """Probability of zero velocity for the normal distribution.
 
         The tuple contains the probability of zero linear-x, linear-y, and angular-z velocity.
@@ -99,10 +104,10 @@ class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
 class TerrainBasedPositionCommandGeneratorCfg(CommandGeneratorBaseCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_name = "TerrainBasedPositionCommandGenerator"
+    class_name = TerrainBasedPositionCommandGenerator
 
-    robot_attr: str = MISSING
-    """Name of the robot attribute from the environment."""
+    asset_name: str = MISSING
+    """Name of the asset in the environment for which the commands are generated."""
     rel_standing_envs: float = MISSING
     """Probability threshold for environments where the robots that are standing still."""
     simple_heading: bool = MISSING
@@ -115,7 +120,7 @@ class TerrainBasedPositionCommandGeneratorCfg(CommandGeneratorBaseCfg):
     class Ranges:
         """Uniform distribution ranges for the velocity commands."""
 
-        heading: Tuple[float, float] = MISSING
+        heading: tuple[float, float] = MISSING
         """Heading range for the position commands (in rad).
 
         Used only if :attr:`simple_heading` is False.

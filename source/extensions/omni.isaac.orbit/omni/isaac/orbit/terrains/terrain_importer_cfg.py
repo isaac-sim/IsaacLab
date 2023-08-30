@@ -92,3 +92,6 @@ class TerrainImporterCfg:
     Note:
       This parameter is used only when sub-terrain origins are defined.
     """
+
+    debug_vis: bool = False
+    """Whether to enable visualization of terrain origins for the terrain. Defaults to False."""

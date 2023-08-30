@@ -6,12 +6,17 @@
 
 """Reward manager for computing reward signals for a given world."""
 
+from __future__ import annotations
+
 import torch
 from prettytable import PrettyTable
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from .manager_base import ManagerBase
 from .manager_cfg import RewardTermCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import RLEnv
 
 
 class RewardManager(ManagerBase):
@@ -32,12 +37,15 @@ class RewardManager(ManagerBase):
 
     """
 
-    def __init__(self, cfg: object, env: object):
+    _env: RLEnv
+    """The environment instance."""
+
+    def __init__(self, cfg: object, env: RLEnv):
         """Initialize the reward manager.
 
         Args:
             cfg (object): The configuration object or dictionary (``dict[str, RewardTermCfg]``).
-            env (object): The environment instance.
+            env (RLEnv): The environment instance.
         """
         super().__init__(cfg, env)
         # prepare extra info to store individual reward term information
@@ -71,12 +79,7 @@ class RewardManager(ManagerBase):
     """
 
     @property
-    def dt(self) -> float:
-        """The environment time-step (in seconds)."""
-        return self._env.dt
-
-    @property
-    def active_terms(self) -> List[str]:
+    def active_terms(self) -> list[str]:
         """Name of active reward terms."""
         return self._term_names
 
@@ -84,7 +87,7 @@ class RewardManager(ManagerBase):
     Operations.
     """
 
-    def log_info(self, env_ids: Optional[Sequence[int]] = None) -> Dict[str, torch.Tensor]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Returns the episodic sum of individual reward terms.
 
         Args:
@@ -92,7 +95,7 @@ class RewardManager(ManagerBase):
                 individual reward terms is to be returned. Defaults to all the environment ids.
 
         Returns:
-            Dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
+            dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
         """
         # resolve environment ids
         if env_ids is None:
@@ -100,17 +103,22 @@ class RewardManager(ManagerBase):
         # store information
         extras = {}
         for key in self._episode_sums.keys():
-            extras["Episode Reward/" + key] = torch.mean(self._episode_sums[key][env_ids]) / (
-                self._env.max_episode_length * self.dt
-            )  # FIXME
+            # store information
+            # r_1 + r_2 + ... + r_n
+            episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
+            extras["Episode Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
+            # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
         return extras
 
-    def compute(self) -> torch.Tensor:
+    def compute(self, dt: float) -> torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
         This function calls each reward term managed by the class and adds them to compute the net
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
+
+        Args:
+            dt (float): The time-step interval of the environment.
 
         Returns:
             torch.Tensor: The net reward signal of shape (num_envs,).
@@ -120,7 +128,7 @@ class RewardManager(ManagerBase):
         # iterate over all the reward terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
             # compute term's value
-            value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight
+            value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
             # update total reward
             self._reward_buf += value
             # update episodic sum
@@ -135,8 +143,8 @@ class RewardManager(ManagerBase):
     def _prepare_terms(self):
         """Prepares a list of reward functions."""
         # parse remaining reward terms and decimate their information
-        self._term_names: List[str] = list()
-        self._term_cfgs: List[RewardTermCfg] = list()
+        self._term_names: list[str] = list()
+        self._term_cfgs: list[RewardTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -159,7 +167,6 @@ class RewardManager(ManagerBase):
             # note: we multiply weights by dt to make them agnostic to control decimation
             if term_cfg.weight == 0:
                 continue
-            term_cfg.weight *= self.dt
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)

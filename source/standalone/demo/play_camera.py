@@ -152,13 +152,6 @@ def main():
 
     # Simulate physics
     while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
-            continue
         # Step simulation
         sim.step(render=app_launcher.RENDER)
         # Update camera data

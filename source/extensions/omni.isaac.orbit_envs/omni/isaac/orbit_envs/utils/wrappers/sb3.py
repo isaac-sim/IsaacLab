@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`IsaacEnv` instance to Stable-Baselines3 vectorized environment.
+"""Wrapper to configure an :class:`RLEnv` instance to Stable-Baselines3 vectorized environment.
 
 The following example shows how to wrap an environment for Stable-Baselines3:
 
@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 # stable-baselines3
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
-from omni.isaac.orbit_envs.isaac_env import IsaacEnv
+from omni.isaac.orbit.envs import RLEnv
 
 __all__ = ["Sb3VecEnvWrapper"]
 
@@ -41,7 +41,7 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     still considered a single environment instance, Stable Baselines tries to wrap
     around it using the :class:`DummyVecEnv`. This is only done if the environment
     is not inheriting from their :class:`VecEnv`. Thus, this class thinly wraps
-    over the environment from :class:`IsaacEnv`.
+    over the environment from :class:`RLEnv`.
 
     We also add monitoring functionality that computes the un-discounted episode
     return and length. This information is added to the info dicts under key `episode`.
@@ -66,18 +66,18 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
         https://stable-baselines3.readthedocs.io/en/master/common/monitor.html
     """
 
-    def __init__(self, env: IsaacEnv):
+    def __init__(self, env: RLEnv):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`IsaacEnv`.
+            ValueError: When the environment is not an instance of :class:`RLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, IsaacEnv):
-            raise ValueError(f"The environment must be inherited from IsaacEnv. Environment type: {type(env)}")
+        if not isinstance(env.unwrapped, RLEnv):
+            raise ValueError(f"The environment must be inherited from RLEnv. Environment type: {type(env)}")
         # initialize the wrapper
         gym.Wrapper.__init__(self, env)
         # initialize vec-env
@@ -121,7 +121,7 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
         reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
-        # Note: IsaacEnv uses torch backend (by default).
+        # Note: RLEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)
         rew = rew.cpu().numpy()
         dones = dones.cpu().numpy()
@@ -167,7 +167,7 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
         obs = obs_dict["policy"]
-        # Note: IsaacEnv uses torch backend (by default).
+        # Note: RLEnv uses torch backend (by default).
         if self.env.sim.backend == "torch":
             if isinstance(obs, dict):
                 for key, value in obs.items():

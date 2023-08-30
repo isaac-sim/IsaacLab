@@ -51,7 +51,7 @@ def main():
     env_cfg.observations.return_dict_obs_in_group = True
 
     # create environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
     # acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)

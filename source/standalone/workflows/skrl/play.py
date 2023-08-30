@@ -54,7 +54,7 @@ def main():
     experiment_cfg = parse_skrl_cfg(args_cli.task)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make(args_cli.task, cfg=env_cfg)
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
 

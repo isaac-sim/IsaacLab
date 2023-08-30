@@ -11,31 +11,42 @@ from __future__ import annotations
 import torch
 from abc import ABC, abstractmethod
 from prettytable import PrettyTable
+from typing import TYPE_CHECKING, Sequence
+
+from omni.isaac.orbit.assets import AssetBase
 
 from .manager_base import ManagerBase
 from .manager_cfg import ActionTermCfg
 
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import BaseEnv
+
 
 class ActionTerm(ABC):
-    """Base class for action terms."""
+    """Base class for action terms.
 
-    # TODO: Should this be here or a property?
-    # Are they even exposed to the user?
-    raw_actions: torch.Tensor
-    processed_actions: torch.Tensor
+    The action term is responsible for processing the raw actions sent to the environment
+    and applying them to the asset managed by the term. The action term is comprised of two
+    operations:
 
-    def __init__(self, cfg: ActionTermCfg, env: object):
+    * Processing of actions: This operation is performed once per **environment step** and
+      is responsible for pre-processing the raw actions sent to the environment.
+    * Applying actions: This operation is performed once per **simulation step** and is
+      responsible for applying the processed actions to the asset managed by the term.
+    """
+
+    def __init__(self, cfg: ActionTermCfg, env: BaseEnv):
         """Initialize the action term.
 
         Args:
             cfg (ActionTermCfg): The configuration object.
-            env (object): The environment instance.
+            env (BaseEnv): The environment instance.
         """
         # store the inputs
-        self._cfg = cfg
+        self.cfg = cfg
         self._env = env
         # parse config to obtain asset to which the term is applied
-        self._asset = getattr(env, cfg.asset_name)
+        self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
 
     """
     Properties.
@@ -49,7 +60,7 @@ class ActionTerm(ABC):
     @property
     def device(self) -> str:
         """Device on which to perform computations."""
-        return self._env.device
+        return self._asset.device
 
     @property
     @abstractmethod
@@ -57,10 +68,23 @@ class ActionTerm(ABC):
         """Dimension of the action term."""
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def raw_actions(self) -> torch.Tensor:
+        """The input/raw actions sent to the term."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def processed_actions(self) -> torch.Tensor:
+        """The actions computed by the term after applying any processing."""
+        raise NotImplementedError
+
     """
     Operations.
     """
 
+    @abstractmethod
     def process_actions(self, actions: torch.Tensor):
         """Processes the actions sent to the environment.
 
@@ -70,9 +94,7 @@ class ActionTerm(ABC):
         Args:
             actions (torch.Tensor): The actions to process.
         """
-        # TODO: Why not make this an abstract method?
-        # This one line can be implemented in the child class.
-        self.raw_actions[:] = actions
+        raise NotImplementedError
 
     @abstractmethod
     def apply_actions(self):
@@ -99,14 +121,17 @@ class ActionManager(ManagerBase):
       scene (such as robots). It should be called before every simulation step.
     """
 
-    def __init__(self, cfg: object, env: object):
+    def __init__(self, cfg: object, env: BaseEnv):
         """Initialize the action manager.
 
         Args:
             cfg (object): The configuration object or dictionary (``dict[str, ActionTermCfg]``).
-            env (object): The environment instance.
+            env (BaseEnv): The environment instance.
         """
         super().__init__(cfg, env)
+        # create buffers to store actions
+        self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
+        self._prev_action = torch.zeros_like(self._action)
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""
@@ -146,30 +171,62 @@ class ActionManager(ManagerBase):
         """Shape of each action term."""
         return [term.action_dim for term in self._terms]
 
+    @property
+    def action(self) -> torch.Tensor:
+        """The actions sent to the environment. Shape: ``(num_envs, total_action_dim)``."""
+        return self._action
+
+    @property
+    def prev_action(self) -> torch.Tensor:
+        """The previous actions sent to the environment. Shape: ``(num_envs, total_action_dim)``."""
+        return self._prev_action
+
     """
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor):
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        """Resets the action history.
+
+        Args:
+            env_ids (Optional[Sequence[int]], optional): The environment ids. Defaults to None, in which case
+                all environments are considered.
+
+        Returns:
+            Dict[str, torch.Tensor]: An empty dictionary.
+        """
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = ...
+        # reset the action history
+        self._prev_action[env_ids] = 0.0
+        self._action[env_ids] = 0.0
+        # reset the terms
+        return {}
+
+    def process_action(self, action: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
             This function should be called once per environment step.
 
         Args:
-            actions (torch.Tensor): The actions to process.
+            action (torch.Tensor): The actions to process.
         """
         # check if action dimension is valid
-        if self.total_action_dim != actions.shape[1]:
-            raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {actions.shape[1]}")
+        if self.total_action_dim != action.shape[1]:
+            raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}")
+        # store the input actions
+        self._prev_action[:] = self._action
+        self._action[:] = action.to(self.device)
 
         # split the actions and apply to each tensor
         idx = 0
         for term in self._terms:
-            term_actions = actions[:, idx : idx + term.action_dim]
+            term_actions = action[:, idx : idx + term.action_dim]
             term.process_actions(term_actions)
 
-    def apply_actions(self) -> None:
+    def apply_action(self) -> None:
         """Applies the actions to the environment/simulation.
 
         Note:

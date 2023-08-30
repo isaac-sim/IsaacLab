@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+0.9.4 (2023-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.orbit.scene.InteractiveScene`, as the central scene unit that contains all entities
+  that are part of the simulation. These include the terrain, sensors, articulations, rigid objects etc.
+  The scene groups the common operations of these entities and allows to access them via their unique names.
+* Added :mod:`omni.isaac.orbit.envs` module that contains environment definitions that encapsulate the different
+  general (scene, action manager, observation manager) and RL-specific (reward and termination manager) managers.
+* Added :class:`omni.isaac.orbit.managers.SceneEntityCfg` to handle which scene elements are required by the
+  manager's terms. This allows the manager to parse useful information from the scene elements, such as the
+  joint and body indices, and pass them to the term.
+* Added :class:`omni.isaac.orbit.sim.SimulationContext.RenderMode` to handle different rendering modes based on
+  what the user wants to update (viewport, cameras, or UI elements).
+
+Fixed
+^^^^^
+
+* Fixed the :class:`omni.isaac.orbit.command_generators.CommandGeneratorBase` to register a debug visualization
+  callback similar to how sensors and robots handle visualization.
+
+
 0.9.3 (2023-08-23)
 ~~~~~~~~~~~~~~~~~~
 
@@ -29,7 +53,7 @@ Changed
 
 
 0.9.2 (2023-08-22)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

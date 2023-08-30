@@ -255,3 +255,13 @@ class SimulationCfg:
 
     The material is created at the path: ``{physics_prim_path}/defaultMaterial``.
     """
+
+    shutdown_app_on_stop: bool = True
+    """Enable/disable shutting down the application when the simulation is stopped. Default is True.
+
+    This flag is only used when running the simulation as a standalone application.
+
+    .. note::
+        When the simulation is stopped, the physics handles become invalidated. Thus, in the simplest case,
+        it is better to shutdown the application.
+    """

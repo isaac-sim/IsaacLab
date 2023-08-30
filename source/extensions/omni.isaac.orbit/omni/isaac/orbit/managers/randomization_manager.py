@@ -5,14 +5,19 @@
 
 
 """Randomization manager for randomizing different elements in the scene."""
+from __future__ import annotations
 
-import logging
 import torch
 from prettytable import PrettyTable
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
+
+import carb
 
 from .manager_base import ManagerBase
 from .manager_cfg import RandomizationTermCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import RLEnv
 
 
 class RandomizationManager(ManagerBase):
@@ -44,12 +49,15 @@ class RandomizationManager(ManagerBase):
 
     """
 
-    def __init__(self, cfg: object, env: object):
+    _env: RLEnv
+    """The environment instance."""
+
+    def __init__(self, cfg: object, env: RLEnv):
         """Initialize the randomization manager.
 
         Args:
             cfg (object): A configuration object or dictionary (``dict[str, RandomizationTermCfg]``).
-            env (object): An environment object.
+            env (RLEnv): An environment object.
         """
         super().__init__(cfg, env)
 
@@ -84,12 +92,7 @@ class RandomizationManager(ManagerBase):
     """
 
     @property
-    def dt(self) -> float:
-        """The environment time-step (in seconds)."""
-        return self._env.dt
-
-    @property
-    def active_terms(self) -> Dict[str, List[str]]:
+    def active_terms(self) -> dict[str, list[str]]:
         """Name of active randomization terms."""
         return self._mode_term_names
 
@@ -97,7 +100,7 @@ class RandomizationManager(ManagerBase):
     Operations.
     """
 
-    def randomize(self, mode: str, env_ids: Optional[Sequence[int]] = None, dt: Optional[float] = None):
+    def randomize(self, mode: str, env_ids: Sequence[int] | None = None, dt: float | None = None):
         """Calls each randomization term in the specified mode.
 
         Note:
@@ -108,19 +111,24 @@ class RandomizationManager(ManagerBase):
             mode (str): The mode of randomization.
             env_ids (Optional[Sequence[int]]): The indices of the environments to apply randomization to.
                 Defaults to None, in which case the randomization is applied to all environments.
-            dt (Optional[float]): The time step of the environment. Defaults to None, in which case the time
-                step of the environment is used.
+            dt (Optional[float], optional): The time step of the environment. This is only used for the "interval" mode.
+                Defaults to None, in which case the randomization is not applied.
+
+        Raises:
+            ValueError: If the mode is ``"interval"`` and the time step is not provided.
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
-            logging.warning(f"Randomization mode '{mode}' is not defined. Skipping randomization.")
+            carb.log_warn(f"Randomization mode '{mode}' is not defined. Skipping randomization.")
             return
         # iterate over all the randomization terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # resample interval if needed
             if mode == "interval":
                 if dt is None:
-                    dt = self.dt
+                    raise ValueError(
+                        f"Randomization mode '{mode}' requires the time step of the environment to be passed to the randomization manager."
+                    )
                 # extract time left for this term
                 time_left = self._interval_mode_time_left[index]
                 # update the time left for each environment
@@ -140,10 +148,10 @@ class RandomizationManager(ManagerBase):
     def _prepare_terms(self):
         """Prepares a list of randomization functions."""
         # parse remaining randomization terms and decimate their information
-        self._mode_term_names: Dict[str, List[str]] = dict()
-        self._mode_term_cfgs: Dict[str, List[RandomizationTermCfg]] = dict()
+        self._mode_term_names: dict[str, list[str]] = dict()
+        self._mode_term_cfgs: dict[str, list[RandomizationTermCfg]] = dict()
         # buffer to store the time left for each environment for "interval" mode
-        self._interval_mode_time_left: List[torch.Tensor] = list()
+        self._interval_mode_time_left: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

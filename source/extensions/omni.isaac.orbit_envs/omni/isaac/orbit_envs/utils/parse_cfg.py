@@ -88,7 +88,7 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
     if task_name is None:
         raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
     # create a dictionary to update from
-    args_cfg = {"sim": {"physx": dict()}, "env": dict()}
+    args_cfg = {"sim": {"physx": dict()}, "scene": dict()}
     # resolve pipeline to use (based on input)
     if not use_gpu:
         args_cfg["sim"]["use_gpu_pipeline"] = False
@@ -107,8 +107,7 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
 
     # number of environments
     if num_envs is not None:
-        args_cfg["env"]["num_envs"] = num_envs
-        print(f"[Config]: Overriding number of environments to: {num_envs}")
+        args_cfg["scene"]["num_envs"] = num_envs
 
     # load the configuration
     cfg = load_default_env_cfg(task_name)
@@ -117,9 +116,5 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
         cfg = update_dict(cfg, args_cfg)
     else:
         update_class_from_dict(cfg, args_cfg)
-
-    # print information about pipeline
-    print("[INFO]: Simulation pipeline: ", "GPU" if args_cfg["sim"]["use_gpu_pipeline"] else "CPU")
-    print("[INFO]: Simulation device  : ", "GPU" if args_cfg["sim"]["physx"]["use_gpu"] else "CPU")
 
     return cfg

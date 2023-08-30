@@ -94,7 +94,7 @@ def main():
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), experiment_cfg)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make(args_cli.task, cfg=env_cfg)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {

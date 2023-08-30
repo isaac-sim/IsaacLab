@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import enum
+import gc
 import numpy as np
 from typing import Any
 
@@ -25,7 +27,7 @@ class SimulationContext(_SimulationContext):
 
     The simulation context helps control various simulation aspects. This includes:
 
-    * configure the simulator with different settings such as the physics timestep, the number of physics substeps,
+    * configure the simulator with different settings such as the physics time-step, the number of physics substeps,
       and the physics solver parameters (for more information, see :class:`omni.isaac.orbit.sim.SimulationCfg`)
     * playing, pausing, stepping and stopping the simulation
     * adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.
@@ -63,6 +65,40 @@ class SimulationContext(_SimulationContext):
     .. _omni.isaac.core.simulation_context.SimulationContext: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#module-omni.isaac.core.simulation_context
     """
 
+    class RenderMode(enum.Enum):
+        """Different rendering modes for the simulation.
+
+        Render modes correspond to how the viewport and other UI elements (such as listeners to keyboard or mouse
+        events) are updated. There are three main components that can be updated when the simulation is rendered:
+
+        1. **`Viewports`_**: These are windows where you can see the rendered scene.
+        2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
+           viewpoints. They can be attached to a viewport or be used independently to render the scene.
+        3. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
+           extensions that are running in the background that need to be updated when the simulation is running.
+
+        Updating each of the above components has a different overhead. For example, updating the viewports is
+        computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to
+        control what is updated when the simulation is rendered. This is where the render mode comes in. There are
+        four different render modes:
+
+        * :attr:`HEADLESS`: Headless mode, where the simulation is running without a GUI.
+        * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
+        * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 2 and 3 are updated.
+        * :attr:`NO_RENDERING`: No rendering, where only 3 is updated at a lower rate.
+
+        .. _Viewports: https://docs.omniverse.nvidia.com/extensions/latest/ext_viewport.html
+        """
+
+        HEADLESS = -1
+        """Headless mode, where the simulation is running without a GUI."""
+        NO_RENDERING = 0
+        """No rendering, where only other UI elements are updated at a lower rate."""
+        PARTIAL_RENDERING = 1
+        """Partial rendering, where the simulation cameras and UI elements are updated."""
+        FULL_RENDERING = 2
+        """Full rendering, where all the simulation viewports, cameras and UI elements are updated."""
+
     def __init__(self, cfg: SimulationCfg | None = None):
         """Creates a simulation context to control the simulator.
 
@@ -91,11 +127,40 @@ class SimulationContext(_SimulationContext):
         # note: helpful when creating contact reporting over limited number of objects in the scene
         if self.cfg.disable_contact_processing:
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
-
+        # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
+        # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Geometry.html?highlight=capsule#geometry
+        carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
+        carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # read flag for whether headless mode is enabled
         # note: we read this once since it is not expected to change during runtime
         self._is_headless = not carb_settings_iface.get("/app/window/enabled")
-        # enable scene querying if rendering is enabled
+        # store the default render mode
+        if self._is_headless:
+            # set default render mode
+            self.render_mode = self.RenderMode.HEADLESS
+            # set viewport context to None
+            self._viewport_context = None
+            self._viewport_window = None
+        else:
+            # note: need to import here in case the UI is not available (ex. headless mode)
+            import omni.ui as ui
+            from omni.kit.viewport.utility import get_active_viewport
+
+            # set default render mode
+            self.render_mode = self.RenderMode.FULL_RENDERING
+            # acquire viewport context
+            self._viewport_context = get_active_viewport()
+            self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
+            # acquire viewport window
+            # TODO @mayank: Why not just use get_active_viewport_and_window() directly?
+            self._viewport_window = ui.Workspace.get_window("Viewport")
+            # counter for periodic rendering
+            self._render_throttle_counter = 0
+            # rendering frequency in terms of number of render calls
+            self._render_throttle_period = 5
+
+        # override enable scene querying if rendering is enabled
         # this is needed for some GUI features
         if not self._is_headless:
             self.cfg.enable_scene_query_support = True
@@ -174,6 +239,42 @@ class SimulationContext(_SimulationContext):
         """
         set_camera_view(eye, target, camera_prim_path)
 
+    def set_render_mode(self, mode: RenderMode):
+        """Change the current render mode of the simulation.
+
+        Please see :class:`RenderMode` for more information on the different render modes.
+
+        .. note::
+            When running in headless mode, we do not need to choose whether the viewport needs to render or not (since
+            there is no GUI). Thus, in this case, calling the function will not change the render mode.
+
+        Args:
+            mode (RenderMode | None, optional): The rendering mode. Defaults to None, in which case the
+                current rendering mode is used.
+        """
+        # check if there is a mode change
+        # note: this is mostly needed for GUI when we want to switch between full rendering and no rendering.
+        #   for headless mode, we don't need to do anything.
+        if mode != self.render_mode and self.render_mode != self.RenderMode.HEADLESS:
+            if mode == self.RenderMode.FULL_RENDERING:
+                # display the viewport and enable updates
+                self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
+                self._viewport_window.visible = True  # pyright: ignore [reportOptionalMemberAccess]
+            elif mode == self.RenderMode.PARTIAL_RENDERING:
+                # hide the viewport and disable updates
+                self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
+                self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
+            elif mode == self.RenderMode.NO_RENDERING:
+                # hide the viewport and disable updates
+                self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
+                self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
+                # reset the throttle counter
+                self._render_throttle_counter = 0
+            else:
+                raise ValueError(f"Unsupported rendering mode: {mode}. Supported modes are: {self.RenderMode}.")
+            # update render mode
+            self.render_mode = mode
+
     def set_setting(self, name: str, value: Any):
         """Set simulation settings using the Carbonite SDK.
 
@@ -213,25 +314,75 @@ class SimulationContext(_SimulationContext):
             omni.physx.acquire_physx_interface().force_load_physics_from_usd()
         # play the simulation
         super().reset(soft=soft)
+        # add callback to shutdown the simulation when it is stopped.
+        # we do this because physics views go invalid once we stop the simulation. So there is
+        # no point in keeping the simulation running.
+        if self.cfg.shutdown_app_on_stop and not self.timeline_callback_exists("shutdown_app_on_stop"):
+            self.add_timeline_callback("shutdown_app_on_stop", self._shutdown_app_on_stop_callback)
 
     def step(self, render: bool = True):
-        # override render settings if we are in headless mode
-        if self._is_headless:
-            render = False
+        """Steps the physics simulation with the pre-defined time-step.
+
+        .. note::
+            This function blocks if the timeline is paused. It only returns when the timeline is playing.
+
+        Args:
+            render (bool, optional): Whether to render the scene after stepping the physics simulation.
+                If set to False, the scene is not rendered and only the physics simulation is stepped.
+                Defaults to True.
+        """
+        # check if the simulation timeline is paused. in that case keep stepping until it is playing
+        if not self.is_playing():
+            # step the simulator (but not the physics) to have UI still active
+            while not self.is_playing():
+                self.render()
+                # meantime if someone stops, break out of the loop
+                if self.is_stopped():
+                    break
+            # need to do one step to refresh the app
+            # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
+            #   without this the app becomes unresponsive.
+            # FIXME: This steps physics as well, which we is not good in general.
+            self.app.update()
         # step the simulation
         super().step(render=render)
 
-    def render(self, flush: bool = True):
-        """Refreshes the rendering components including UI elements and view-ports.
+    def render(self, mode: RenderMode | None = None):
+        """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
+
+        This function is used to refresh the rendering components of the simulation. This includes updating the
+        view-ports, UI elements, and other extensions (besides physics simulation) that are running in the
+        background. The rendering components are refreshed based on the render mode.
+
+        Please see :class:`RenderMode` for more information on the different render modes.
+
+        .. note::
+            When running in headless mode, we do not need to choose whether the viewport needs to render or not (since
+            there is no GUI). Thus, in this case, calling the function always render the viewport and
+            it is not possible to change the render mode.
 
         Args:
-            flush (bool, optional): Whether to flush the flatcache data to update Hydra textures.
+            mode (RenderMode | None, optional): The rendering mode. Defaults to None, in which case the
+                current rendering mode is used.
         """
-        # manually flush the flatcache data to update Hydra textures
-        if self._fabric_iface is not None and flush:
-            self._fabric_iface.update(0.0, 0.0)
-        # render the simulation
-        super().render()
+        # check if we need to change the render mode
+        if mode is not None:
+            self.set_render_mode(mode)
+        # render based on the render mode
+        # -- no rendering: throttle the rendering frequency to keep the UI responsive
+        if self.render_mode == self.RenderMode.NO_RENDERING:
+            self._render_throttle_counter += 1
+            if self._render_throttle_counter % self._render_throttle_period == 0:
+                self._render_throttle_counter = 0
+                # here we don't render viewport so don't need to flush flatcache
+                super().render()
+        else:
+            # this is called even if we are in headless mode - we allow this for off-screen rendering
+            # manually flush the flatcache data to update Hydra textures
+            if self._fabric_iface is not None:
+                self._fabric_iface.update(0.0, 0.0)
+            # render the simulation
+            super().render()
 
     """
     Operations - Override (extension)
@@ -335,3 +486,28 @@ class SimulationContext(_SimulationContext):
 
                 # acquire fabric interface
                 self._fabric_iface = get_physx_fabric_interface()
+
+    """
+    Callbacks.
+    """
+
+    def _shutdown_app_on_stop_callback(self, event: carb.events.IEvent):
+        """Callback to shutdown the app when the simulation is stopped.
+
+        This is used only when running the simulation in a standalone python script. This is because
+        the physics views go invalid once we stop the simulation. So there is no point in keeping the
+        simulation running.
+        """
+        # check if the simulation is stopped
+        if event.type == int(omni.timeline.TimelineEventType.STOP):
+            self.app.print_and_log("Simulation is stopped. Shutting down the app.")
+            # clear the stage
+            stage_utils.close_stage()
+            # shutdown the simulator
+            self.app.shutdown()
+            # disabled on linux to avoid a crash
+            carb.get_framework().unload_all_plugins()
+            # garbage collect
+            gc.collect()
+            # exit the application
+            print("Exiting the application complete.")

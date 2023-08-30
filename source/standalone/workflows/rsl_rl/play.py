@@ -48,7 +48,7 @@ def main():
     agent_cfg = parse_rslrl_cfg(args_cli.task)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
+    env = gym.make(args_cli.task, cfg=env_cfg)
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
@@ -91,6 +91,8 @@ def main():
         actions = policy(obs)
         # env stepping
         obs, _, _, _ = env.step(actions)
+        # env rendering
+        env.render()
         # check if simulator is stopped
         if env.unwrapped.sim.is_stopped():
             break

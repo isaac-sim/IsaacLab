@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import torch
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any, Callable, Sequence
+from typing import TYPE_CHECKING, Any, Callable
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.noise import NoiseCfg
@@ -20,8 +20,56 @@ if TYPE_CHECKING:
 
 
 @configclass
+class SceneEntityCfg:
+    """Configuration for a scene entity that is used by the manager's term.
+
+    This class is used to specify the name of the scene entity that is queried from the
+    :class:`InteractiveScene` and passed to the manager's term function.
+    """
+
+    name: str = MISSING
+    """The name of the scene entity.
+
+    This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
+    class for more details.
+    """
+
+    joint_names: str | list[str] | None = None
+    """The names of the joints from the scene entity. Defaults to None.
+
+    The names can be either joint names or a regular expression matching the joint names.
+
+    These are converted to joint indices on initialization of the manager and passed to the term
+    function as a list of joint indices under :attr:`dof_ids`.
+    """
+
+    joint_ids: list[int] | None = None
+    """The indices of the joints from the asset required by the term. Defaults to None.
+
+    If ``joint_names`` is specified, this is filled in automatically on initialization of the
+    manager.
+    """
+
+    body_names: str | list[str] | None = None
+    """The names of the bodies from the asset required by the term. Defaults to None.
+
+    The names can be either body names or a regular expression matching the body names.
+
+    These are converted to body indices on initialization of the manager and passed to the term
+    function as a list of body indices under :attr:`body_ids`.
+    """
+
+    body_ids: list[int] | None = None
+    """The indices of the bodies from the asset required by the term. Defaults to None.
+
+    If ``body_names`` is specified, this is filled in automatically on initialization of the
+    manager.
+    """
+
+
+@configclass
 class ManagerBaseTermCfg:
-    """Configuration for a curriculum term."""
+    """Configuration for a manager term."""
 
     func: Callable = MISSING
     """The function to be called for the term.
@@ -32,38 +80,23 @@ class ManagerBaseTermCfg:
         It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
         method.
 
-    ..`callable objects`: https://docs.python.org/3/reference/datamodel.html#object.__call__
+    .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
 
     """
-    sensor_name: str | None = None
-    """The name of the sensor required by the term. Defaults to None.
 
-    If the sensor is not already enabled, it will be enabled in the environment on initialization
-    of the manager and passed to the term function as a string under :attr:`sensor_name`.
+    params: dict[str, Any | SceneEntityCfg] = dict()
+    """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
+
+    .. note::
+        If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
+        from the :class:`InteractiveScene` and process the entity's joints and bodies as specified
+        in the :class:`SceneEntityCfg` object.
     """
-    asset_name: str | None = None
-    """The name of the asset used to resolve the joints and bodies required by the term. Defaults to None."""
-    dof_names: Sequence[str] | None = None
-    """The names of the joints from the asset required by the term. Defaults to None.
-
-    The names can be either joint names or a regular expression matching the joint names.
-
-    These are converted to joint indices on initialization of the manager and passed to the term
-    function as a list of joint indices under :attr:`dof_ids`.
-    """
-    body_names: Sequence[str] | None = None
-    """The names of the bodies from the asset required by the term. Defaults to None.
-
-    The names can be either body names or a regular expression matching the body names.
-
-    These are converted to body indices on initialization of the manager and passed to the term
-    function as a list of body indices under :attr:`body_ids`.
-    """
-    params: dict[str, Any] = dict()
-    """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict."""
 
 
-"""Action manager."""
+##
+# Action manager.
+##
 
 
 @configclass
@@ -77,7 +110,9 @@ class ActionTermCfg:
     """Name of the asset (object or robot) on which action is applied."""
 
 
-"""Curriculum manager."""
+##
+# Curriculum manager.
+##
 
 
 @configclass
@@ -93,7 +128,9 @@ class CurriculumTermCfg(ManagerBaseTermCfg):
     """
 
 
-"""Observation manager."""
+##
+# Observation manager.
+##
 
 
 @configclass
@@ -139,7 +176,9 @@ class ObservationGroupCfg:
     """
 
 
-"""Randomization manager."""
+##
+# Randomization manager
+##
 
 
 @configclass
@@ -173,7 +212,9 @@ class RandomizationTermCfg(ManagerBaseTermCfg):
     """
 
 
-"""Reward manager."""
+##
+# Reward manager.
+##
 
 
 @configclass
@@ -199,7 +240,9 @@ class RewardTermCfg(ManagerBaseTermCfg):
     """
 
 
-"""Termination manager."""
+##
+# Termination manager.
+##
 
 
 @configclass

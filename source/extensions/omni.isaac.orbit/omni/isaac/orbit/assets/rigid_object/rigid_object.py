@@ -102,8 +102,8 @@ class RigidObject(AssetBase):
         if env_ids is None:
             env_ids = ...
         # reset external wrench
-        self._external_force_b[env_ids].zero_()
-        self._external_torque_b[env_ids].zero_()
+        self._external_force_b[env_ids] = 0.0
+        self._external_torque_b[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -238,7 +238,7 @@ class RigidObject(AssetBase):
             # -- env_ids
             if env_ids is None:
                 env_ids = self._ALL_INDICES
-            elif not isinstance(body_ids, torch.Tensor):
+            elif not isinstance(env_ids, torch.Tensor):
                 env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
             # -- body_ids
             if body_ids is None:

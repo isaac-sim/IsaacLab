@@ -6,12 +6,17 @@
 
 """Termination manager for computing done signals for a given world."""
 
+from __future__ import annotations
+
 import torch
 from prettytable import PrettyTable
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from .manager_base import ManagerBase
 from .manager_cfg import TerminationTermCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import RLEnv
 
 
 class TerminationManager(ManagerBase):
@@ -26,12 +31,15 @@ class TerminationManager(ManagerBase):
     parameters. Each termination term should instantiate the :class:`TerminationTermCfg` class.
     """
 
-    def __init__(self, cfg: object, env: object):
+    _env: RLEnv
+    """The environment instance."""
+
+    def __init__(self, cfg: object, env: RLEnv):
         """Initializes the termination manager.
 
         Args:
             cfg (object): The configuration object or dictionary (``dict[str, TerminationTermCfg]``).
-            env (object): An environment object.
+            env (RLEnv): An environment object.
         """
         super().__init__(cfg, env)
         # prepare extra info to store individual termination term information
@@ -65,7 +73,7 @@ class TerminationManager(ManagerBase):
     """
 
     @property
-    def active_terms(self) -> List[str]:
+    def active_terms(self) -> list[str]:
         """Name of active termination terms."""
         return self._term_names
 
@@ -83,7 +91,7 @@ class TerminationManager(ManagerBase):
     Operations.
     """
 
-    def log_info(self, env_ids: Optional[Sequence[int]] = None) -> Dict[str, torch.Tensor]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Returns the episodic counts of individual termination terms.
 
         Args:
@@ -91,7 +99,7 @@ class TerminationManager(ManagerBase):
                 all environments are considered.
 
         Returns:
-            Dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
+            dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
         """
         # resolve environment ids
         if env_ids is None:
@@ -99,7 +107,9 @@ class TerminationManager(ManagerBase):
         # add to episode dict
         extras = {}
         for key in self._episode_dones.keys():
-            extras["Episode Termination/" + key] = torch.count_nonzero(self._episode_dones[key][env_ids])
+            # store information
+            extras["Episode Termination/" + key] = torch.count_nonzero(self._episode_dones[key][env_ids]).item()
+            # reset episode dones
             self._episode_dones[key][env_ids] = False
         return extras
 
@@ -135,8 +145,8 @@ class TerminationManager(ManagerBase):
     def _prepare_terms(self):
         """Prepares a list of termination functions."""
         # parse remaining termination terms and decimate their information
-        self._term_names: List[str] = list()
-        self._term_cfgs: List[TerminationTermCfg] = list()
+        self._term_names: list[str] = list()
+        self._term_cfgs: list[TerminationTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

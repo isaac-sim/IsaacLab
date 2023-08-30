@@ -65,7 +65,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
             # parse configuration
             env_cfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
             # create environment
-            env = gym.make(task_name, cfg=env_cfg, headless=self.headless, viewport=True)
+            env = gym.make(task_name, cfg=env_cfg)
 
             # directory to save videos
             videos_dir = os.path.join(self.videos_dir, task_name)

@@ -6,12 +6,17 @@
 
 """Curriculum manager for updating environment quantities subject to a training curriculum."""
 
+from __future__ import annotations
+
 import torch
 from prettytable import PrettyTable
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from .manager_base import ManagerBase
 from .manager_cfg import CurriculumTermCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import RLEnv
 
 
 class CurriculumManager(ManagerBase):
@@ -25,12 +30,15 @@ class CurriculumManager(ManagerBase):
     parameters. Each curriculum term should instantiate the :class:`CurriculumTermCfg` class.
     """
 
-    def __init__(self, cfg: object, env: object):
+    _env: RLEnv
+    """The environment instance."""
+
+    def __init__(self, cfg: object, env: RLEnv):
         """Initialize the manager.
 
         Args:
             cfg (object): The configuration object or dictionary (``dict[str, CurriculumTermCfg]``)
-            env (object): An environment object.
+            env (RLEnv): An environment object.
 
         Raises:
             TypeError: If curriculum term is not of type :class:`CurriculumTermCfg`.
@@ -65,7 +73,7 @@ class CurriculumManager(ManagerBase):
     """
 
     @property
-    def active_terms(self) -> List[str]:
+    def active_terms(self) -> list[str]:
         """Name of active curriculum terms."""
         return self._term_names
 
@@ -73,7 +81,7 @@ class CurriculumManager(ManagerBase):
     Operations.
     """
 
-    def log_info(self, env_ids: Optional[Sequence[int]] = None) -> Dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         """Returns the current state of individual curriculum terms.
 
         Note:
@@ -82,7 +90,7 @@ class CurriculumManager(ManagerBase):
             to maintain consistency with other classes.
 
         Returns:
-            Dict[str, float]: Dictionary of curriculum terms and their states.
+            dict[str, float]: Dictionary of curriculum terms and their states.
         """
         extras = {}
         for term_name, term_state in self._curriculum_state.items():
@@ -101,7 +109,7 @@ class CurriculumManager(ManagerBase):
                     extras[f"Curriculum/{term_name}"] = term_state
         return extras
 
-    def compute(self, env_ids: Optional[Sequence[int]] = None):
+    def compute(self, env_ids: Sequence[int] | None = None):
         """Update the curriculum terms.
 
         This function calls each curriculum term managed by the class.
@@ -124,8 +132,8 @@ class CurriculumManager(ManagerBase):
 
     def _prepare_terms(self):
         # parse remaining curriculum terms and decimate their information
-        self._term_names: List[str] = list()
-        self._term_cfgs: List[CurriculumTermCfg] = list()
+        self._term_names: list[str] = list()
+        self._term_cfgs: list[CurriculumTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

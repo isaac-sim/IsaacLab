@@ -91,13 +91,6 @@ def main():
     ep_step_count = 0
     # Simulate physics
     while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
-            continue
         # reset
         if ep_step_count % 1000 == 0:
             sim_time = 0.0
@@ -156,10 +149,8 @@ def main():
         # update sim-time
         sim_time += sim_dt
         ep_step_count += 1
-        # note: to deal with timeline events such as stopping, we need to check if the simulation is playing
-        if sim.is_playing():
-            # update buffers
-            robot.update(sim_dt)
+        # update buffers
+        robot.update(sim_dt)
 
 
 if __name__ == "__main__":

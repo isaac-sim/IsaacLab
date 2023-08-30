@@ -87,6 +87,13 @@ class TestSimulationContext(unittest.TestCase):
         sim.set_setting("/myExt/using_omniverse_version", sim.get_version())
         self.assertSequenceEqual(sim.get_setting("/myExt/using_omniverse_version"), sim.get_version())
 
+    def test_render_modes(self):
+        """Test that you can change render modes."""
+
+        sim = SimulationContext()
+        # check default render mode
+        self.assertEqual(sim.render_mode, sim.RenderMode.HEADLESS)
+
 
 if __name__ == "__main__":
     try:

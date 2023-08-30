@@ -54,13 +54,6 @@ def main():
 
     # Simulate physics
     while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
-            sim.step()
-            continue
         # perform step
         sim.step()
 

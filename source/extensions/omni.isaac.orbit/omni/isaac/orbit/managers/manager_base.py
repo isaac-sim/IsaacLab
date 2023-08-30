@@ -3,26 +3,32 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
 
 import copy
 import inspect
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Sequence
+
+import carb
 
 from omni.isaac.orbit.utils import string_to_callable
 
-from .manager_cfg import ManagerBaseTermCfg
+from .manager_cfg import ManagerBaseTermCfg, SceneEntityCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import BaseEnv
 
 
 class ManagerBase(ABC):
     """Base class for all managers."""
 
-    def __init__(self, cfg: object, env: object):
+    def __init__(self, cfg: object, env: BaseEnv):
         """Initialize the manager.
 
         Args:
             cfg (object): The configuration object.
-            env (object): The environment instance.
+            env (BaseEnv): The environment instance.
         """
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
@@ -46,7 +52,7 @@ class ManagerBase(ABC):
 
     @property
     @abstractmethod
-    def active_terms(self) -> Union[List[str], Dict[str, List[str]]]:
+    def active_terms(self) -> list[str] | dict[str, list[str]]:
         """Name of active terms."""
         raise NotImplementedError
 
@@ -54,15 +60,15 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def log_info(self, env_ids: Optional[Sequence[int]] = None) -> Dict[str, float]:
-        """Returns logging information for the current time-step.
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        """Resets the manager and returns logging information for the current time-step.
 
         Args:
             env_ids (Sequence[int], optional): The environment ids for which to log data. Defaults
                 :obj:`None`, which logs data for all environments.
 
         Returns:
-            Dict[str, float]: Dictionary containing the logging information.
+            dict[str, float]: Dictionary containing the logging information.
         """
         return {}
 
@@ -99,6 +105,7 @@ class ManagerBase(ABC):
 
         Raises:
             TypeError: If the term configuration is not of type :class:`ManagerBaseTermCfg`.
+            ValueError: If the scene entity defined in the term configuration does not exist.
             AttributeError: If the term function is not callable.
             ValueError: If the term function's arguments are not matched by the parameters.
         """
@@ -107,29 +114,44 @@ class ManagerBase(ABC):
             raise TypeError(
                 f"Configuration for the term '{term_name}' is not of type ManagerBaseTermCfg. Received '{type(term_cfg)}'."
             )
-        # check if a sensor should be enabled
-        if term_cfg.sensor_name is not None:
-            # TODO: This is a hack. We should not be enabling sensors here.
-            #    Instead, we should be enabling sensors in the sensor manager or somewhere else.
-            self._env.enable_sensor(term_cfg.sensor_name)
-            term_cfg.params["sensor_name"] = term_cfg.sensor_name
-        # convert joint names to indices based on regex
-        # TODO: What is user wants to penalize joints on one asset and bodies on another?
-        if term_cfg.dof_names is not None:
-            # check that the asset name is provided
-            if term_cfg.asset_name is None:
-                raise ValueError(f"The term '{term_name}' requires the asset name to be provided.")
-            # acquire the dof indices
-            dof_ids, _ = getattr(self._env, term_cfg.asset_name).find_dofs(term_cfg.dof_names)
-            term_cfg.params["dof_ids"] = dof_ids
-        # convert body names to indices based on regex
-        if term_cfg.body_names is not None:
-            # check that the asset name is provided
-            if term_cfg.asset_name is None:
-                raise ValueError(f"The term '{term_name}' requires the asset name to be provided.")
-            # acquire the body indices
-            body_ids, _ = getattr(self._env, term_cfg.asset_name).find_bodies(term_cfg.body_names)
-            term_cfg.params["body_ids"] = body_ids
+        # iterate over all the entities and parse the joint and body names
+        for key, value in term_cfg.params.items():
+            # deal with string
+            if isinstance(value, SceneEntityCfg):
+                # check if the entity is valid
+                if value.name not in self._env.scene.keys():
+                    raise ValueError(f"For the term '{term_name}', the scene entity '{value.name}' does not exist.")
+                # convert joint names to indices based on regex
+                if value.joint_names is not None and value.joint_ids is not None:
+                    raise ValueError(
+                        f"For the term '{term_name}', both 'joint_names' and 'joint_ids' are specified in '{key}'."
+                    )
+                if value.joint_names is not None:
+                    if isinstance(value.joint_names, str):
+                        value.joint_names = [value.joint_names]
+                    joint_ids, _ = self._env.scene[value.name].find_joints(value.joint_names)
+                    value.joint_ids = joint_ids
+                # convert body names to indices based on regex
+                if value.body_names is not None and value.body_ids is not None:
+                    raise ValueError(
+                        f"For the term '{term_name}', both 'body_names' and 'body_ids' are specified in '{key}'."
+                    )
+                if value.body_names is not None:
+                    if isinstance(value.body_names, str):
+                        value.body_names = [value.body_names]
+                    body_ids, _ = self._env.scene[value.name].find_bodies(value.body_names)
+                    value.body_ids = body_ids
+                # log the entity for checking later
+                msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
+                if value.joint_ids is not None:
+                    msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
+                if value.body_ids is not None:
+                    msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
+                # print the information
+                carb.log_info(msg)
+            # store the entity
+            term_cfg.params[key] = value
+
         # get the corresponding function or functional class
         if isinstance(term_cfg.func, str):
             term_cfg.func = string_to_callable(term_cfg.func)
@@ -141,7 +163,7 @@ class ManagerBase(ABC):
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
-        # check if curriculum term's arguments are matched by params
+        # check if term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
         args = inspect.getfullargspec(term_cfg.func).args
         # ignore first two arguments for env and env_ids

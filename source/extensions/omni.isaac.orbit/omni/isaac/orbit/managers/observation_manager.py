@@ -6,12 +6,17 @@
 
 """Observation manager for computing observation signals for a given world."""
 
+from __future__ import annotations
+
 import torch
 from prettytable import PrettyTable
-from typing import Dict, List, Tuple
+from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase
 from .manager_cfg import ObservationGroupCfg, ObservationTermCfg
+
+if TYPE_CHECKING:
+    from omni.isaac.orbit.envs import BaseEnv
 
 
 class ObservationManager(ManagerBase):
@@ -26,16 +31,16 @@ class ObservationManager(ManagerBase):
     observation term should instantiate the :class:`ObservationTermCfg` class.
     """
 
-    def __init__(self, cfg: object, env: object):
+    def __init__(self, cfg: object, env: BaseEnv):
         """Initialize observation manager.
 
         Args:
             cfg (object): The configuration object or dictionary (``dict[str, ObservationGroupCfg]``).
-            env (object): The environment instance.
+            env (BaseEnv): The environment instance.
         """
         super().__init__(cfg, env)
         # compute combined vector for obs group
-        self._group_obs_dim: Dict[str, Tuple[int, ...]] = dict()
+        self._group_obs_dim: dict[str, tuple[int, ...]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
             self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
@@ -73,17 +78,17 @@ class ObservationManager(ManagerBase):
     """
 
     @property
-    def active_terms(self) -> Dict[str, List[str]]:
+    def active_terms(self) -> dict[str, list[str]]:
         """Name of active observation terms in each group."""
         return self._group_obs_term_names
 
     @property
-    def group_obs_dim(self) -> Dict[str, Tuple[int, ...]]:
+    def group_obs_dim(self) -> dict[str, tuple[int, ...]]:
         """Shape of observation tensor in each group."""
         return self._group_obs_dim
 
     @property
-    def group_obs_term_dim(self) -> Dict[str, List[Tuple[int, ...]]]:
+    def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...]]]:
         """Shape of observation tensor for each term in each group."""
         return self._group_obs_term_dim
 
@@ -91,7 +96,7 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def compute(self) -> Dict[str, torch.Tensor]:
+    def compute(self) -> dict[str, torch.Tensor]:
         """Compute the observations per group.
 
         The method computes the observations for each group and returns a dictionary with keys as
@@ -148,10 +153,10 @@ class ObservationManager(ManagerBase):
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
-        self._group_obs_term_names: Dict[str, List[str]] = dict()
-        self._group_obs_term_dim: Dict[str, List[int]] = dict()
-        self._group_obs_term_cfgs: Dict[str, List[ObservationTermCfg]] = dict()
-        self._group_obs_concatenate: Dict[str, bool] = dict()
+        self._group_obs_term_names: dict[str, list[str]] = dict()
+        self._group_obs_term_dim: dict[str, list[int]] = dict()
+        self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
+        self._group_obs_concatenate: dict[str, bool] = dict()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

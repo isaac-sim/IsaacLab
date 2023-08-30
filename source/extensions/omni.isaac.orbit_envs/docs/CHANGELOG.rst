@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.4.2 (2023-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the base environment definition to the :class:`omni.isaac.orbit.envs.RLEnv` class. The :class:`RLEnv`
+  contains RL-specific managers such as the reward, termination, randomization and curriculum managers. These
+  are all configured using the :class:`omni.isaac.orbit.envs.RLEnvConfig` class. The :class:`RLEnv` class
+  inherits from the :class:`omni.isaac.orbit.envs.BaseEnv` and ``gym.Env`` classes.
+
+Fixed
+^^^^^
+
+* Adapted the wrappers to use the new :class:`omni.isaac.orbit.envs.RLEnv` class.
+
+
 0.4.1 (2023-08-02)
 ~~~~~~~~~~~~~~~~~~
 

@@ -79,8 +79,12 @@ class TerrainImporter:
         self.env_origins = None
         self.terrain_origins = None
         # marker for visualization
-        self.origin_visualizer = None
+        if self.cfg.debug_vis:
+            self.origin_visualizer = VisualizationMarkers("/Visuals/TerrainOrigin", cfg=FRAME_MARKER_CFG)
+        else:
+            self.origin_visualizer = None
 
+        # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
             # check config is provided
             if self.cfg.terrain_generator is None:
@@ -105,6 +109,21 @@ class TerrainImporter:
             self.configure_env_origins()
         else:
             raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
+
+    """
+    Operations - Visibility.
+    """
+
+    def set_debug_vis(self, debug_vis: bool):
+        """Set the debug visualization of the terrain importer.
+
+        Args:
+            debug_vis (bool): Whether to visualize the terrain origins.
+        """
+        if not self.cfg.debug_vis:
+            raise RuntimeError("Debug visualization is not enabled for this sensor.")
+        # set visibility
+        self.origin_visualizer.set_visibility(debug_vis)
 
     """
     Operations - Import.
@@ -221,8 +240,6 @@ class TerrainImporter:
         Args:
             origins (Optional[np.ndarray]): The origins of the sub-terrains. Shape: (num_rows, num_cols, 3).
         """
-        # create markers for the origins
-        markers = VisualizationMarkers("/Visuals/TerrainOrigin", cfg=FRAME_MARKER_CFG)
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:
             # convert to numpy
@@ -233,7 +250,8 @@ class TerrainImporter:
             # compute environment origins
             self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
             # put markers on the sub-terrain origins
-            markers.visualize(self.terrain_origins.reshape(-1, 3))
+            if self.origin_visualizer is not None:
+                self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
         else:
             self.terrain_origins = None
             # check if env spacing is valid
@@ -242,7 +260,8 @@ class TerrainImporter:
             # compute environment origins
             self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
             # put markers on the grid origins
-            markers.visualize(self.env_origins.reshape(-1, 3))
+            if self.origin_visualizer is not None:
+                self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
         """Update the environment origins based on the terrain levels."""
