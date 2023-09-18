@@ -337,11 +337,11 @@ class IsaacEnv(gym.Env):
             # cleanup the scene and callbacks
             self.sim.clear_all_callbacks()
             self.sim.clear()
+            self.sim.clear_instance()
             # fix warnings at stage close
             omni.usd.get_context().get_stage().GetRootLayer().Clear()
             # update closing status
             self._is_closed = True
-        self.sim.__del__()
 
     """
     Implementation specifics.
