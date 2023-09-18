@@ -341,6 +341,7 @@ class IsaacEnv(gym.Env):
             omni.usd.get_context().get_stage().GetRootLayer().Clear()
             # update closing status
             self._is_closed = True
+        self.sim.__del__()
 
     """
     Implementation specifics.
