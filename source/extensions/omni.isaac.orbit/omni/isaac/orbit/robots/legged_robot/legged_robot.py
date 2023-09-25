@@ -149,11 +149,11 @@ class LeggedRobot(RobotBase):
         # TODO: contact forces -- Waiting for contact sensors in IsaacSim.
         #   For now, use heuristics for flat terrain to say feet are in contact.
         # air times
-        # -- update ongoing timer for feet air
-        self._ongoing_feet_air_time += dt
         # -- check contact state of feet
         is_feet_contact = self._data.feet_state_w[:, :, 2] < 0.03
         is_feet_first_contact = (self._ongoing_feet_air_time > 0) * is_feet_contact
+        # -- update ongoing timer for feet air
+        self._ongoing_feet_air_time += dt
         # -- update buffers
         self._data.feet_air_time = self._ongoing_feet_air_time * is_feet_first_contact
         # -- reset timers for feet that are in contact for the first time

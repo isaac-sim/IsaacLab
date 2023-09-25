@@ -521,8 +521,7 @@ class LocomotionVelocityRewardManager(RewardManager):
 
     def feet_air_time(self, env: VelocityEnv, time_threshold: float):
         """Reward long steps taken by the feet."""
-        first_contact = env.robot.data.feet_air_time > 0.0
-        reward = torch.sum((env.robot.data.feet_air_time - time_threshold) * first_contact, dim=1)
+        reward = torch.sum((env.robot.data.feet_air_time - time_threshold), dim=1)
         # no reward for zero command
         reward *= torch.norm(env.commands[:, :2], dim=1) > 0.1
         return reward
