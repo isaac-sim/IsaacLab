@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.3.3 (2023-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the closing of a `SimulationContext` instance in an `isaac_env.py` environment.
+
+
 0.3.2 (2023-04-27)
 ~~~~~~~~~~~~~~~~~~
 
