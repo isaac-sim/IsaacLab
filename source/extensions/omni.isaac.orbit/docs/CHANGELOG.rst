@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the closing of a `SimulationContext` instance in an `isaac_env.py` environment.
+* Fixed the closing of a `SimulationContext` instance in an ``isaac_env.py`` environment.
 
 
 0.3.2 (2023-04-27)
