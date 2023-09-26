@@ -582,7 +582,7 @@ def subtract_frame_transforms(
     return t12, q12
 
 
-@torch.jit.script
+# @torch.jit.script
 def compute_pose_error(
     t01: torch.Tensor,
     q01: torch.Tensor,
@@ -668,7 +668,7 @@ def apply_delta_pose(
     return target_pos, target_rot
 
 
-@torch.jit.script
+# @torch.jit.script
 def transform_points(
     points: torch.Tensor, pos: torch.Tensor | None = None, quat: torch.Tensor | None = None
 ) -> torch.Tensor:
