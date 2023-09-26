@@ -231,7 +231,7 @@ class OutsideClassCfg:
 
             u: list[int] = [1, 2, 3]
 
-        class_name: type = DummyClass
+        class_type: type = DummyClass
         b: str = "dummy"
 
     inside: InsideClassCfg = InsideClassCfg()
@@ -638,7 +638,7 @@ class TestConfigClass(unittest.TestCase):
         self.assertNotIn("InsideInsideClassCfg", OutsideClassCfg.InsideClassCfg.__annotations__)
         self.assertNotIn("InsideInsideClassCfg", cfg.inside.__annotations__)
         # check values
-        self.assertEqual(cfg.inside.class_name, DummyClass)
+        self.assertEqual(cfg.inside.class_type, DummyClass)
         self.assertEqual(cfg.inside.b, "dummy_changed")
         self.assertEqual(cfg.x, 20)
 

@@ -29,7 +29,7 @@ from .actuator_control_cfg import ActuatorControlCfg
 class ActuatorGroupCfg:
     """Configuration for default group of actuators in an articulation."""
 
-    cls_name: ClassVar[str] = "ActuatorGroup"
+    class_type: ClassVar[str] = "ActuatorGroup"
     """Name of the associated actuator group class. Used to construct the actuator group."""
 
     dof_names: list[str] = MISSING
@@ -46,7 +46,7 @@ class ActuatorGroupCfg:
 class GripperActuatorGroupCfg(ActuatorGroupCfg):
     """Configuration for mimicking actuators in a gripper."""
 
-    cls_name: ClassVar[str] = "GripperActuatorGroup"
+    class_type: ClassVar[str] = "GripperActuatorGroup"
 
     speed: float = MISSING
     """The speed at which gripper should close. (used with velocity command type.)"""
@@ -74,4 +74,4 @@ class GripperActuatorGroupCfg(ActuatorGroupCfg):
 class NonHolonomicKinematicsGroupCfg(ActuatorGroupCfg):
     """Configuration for formulating non-holonomic base constraint."""
 
-    cls_name: ClassVar[str] = "NonHolonomicKinematicsGroup"
+    class_type: ClassVar[str] = "NonHolonomicKinematicsGroup"

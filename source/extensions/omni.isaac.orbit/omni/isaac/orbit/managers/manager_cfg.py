@@ -103,11 +103,18 @@ class ManagerBaseTermCfg:
 class ActionTermCfg:
     """Configuration for an action term."""
 
-    cls: type[ActionTerm] = MISSING
-    """Class of the action term."""
+    class_type: type[ActionTerm] = MISSING
+    """The associated action term class.
+
+    The class should inherit from :class:`omni.isaac.orbit.managers.action_manager.ActionTerm`.
+    """
 
     asset_name: str = MISSING
-    """Name of the asset (object or robot) on which action is applied."""
+    """The name of the scene entity.
+
+    This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
+    class for more details.
+    """
 
 
 ##

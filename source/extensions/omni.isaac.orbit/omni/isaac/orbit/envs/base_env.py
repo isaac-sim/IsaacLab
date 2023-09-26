@@ -147,7 +147,7 @@ class BaseEnv:
         # prepare the managers
         # note: this order is important since observation manager needs to know the command and action managers
         # -- command manager
-        self.command_manager: CommandGeneratorBase = self.cfg.commands.class_name(self.cfg.commands, self)
+        self.command_manager: CommandGeneratorBase = self.cfg.commands.class_type(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)

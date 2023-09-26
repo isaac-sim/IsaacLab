@@ -17,7 +17,7 @@ from .articulation import Articulation
 class ArticulationCfg(RigidObjectCfg):
     """Configuration parameters for an articulation."""
 
-    cls_name = Articulation
+    class_type: type = Articulation
 
     @configclass
     class InitialStateCfg(RigidObjectCfg.InitialStateCfg):

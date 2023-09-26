@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.physx
 
-from .asset_base_cfg import AssetBaseCfg
+if TYPE_CHECKING:
+    from .asset_base_cfg import AssetBaseCfg
 
 
 class AssetBase(ABC):

@@ -6,17 +6,21 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import ClassVar
 
 from omni.isaac.orbit.utils import configclass
+
+from .sensor_base import SensorBase
 
 
 @configclass
 class SensorBaseCfg:
     """Configuration parameters for a sensor."""
 
-    cls_name: ClassVar[type] = MISSING
-    """The associated sensor class."""
+    class_type: type[SensorBase] = MISSING
+    """The associated sensor class.
+
+    The class should inherit from :class:`omni.isaac.orbit.sensors.sensor_base.SensorBase`.
+    """
 
     prim_path: str = MISSING
     """Prim path (or expression) to the asset.

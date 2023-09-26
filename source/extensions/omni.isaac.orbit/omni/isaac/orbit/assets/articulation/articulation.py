@@ -492,8 +492,7 @@ class Articulation(RigidObject):
             if len(joint_names) == self.num_joints:
                 joint_ids = ...
             # create actuator collection
-            actuator_cls = actuator_cfg.cls
-            actuator: ActuatorBase = actuator_cls(
+            actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
                 joint_ids=joint_ids,
@@ -502,7 +501,7 @@ class Articulation(RigidObject):
             )
             # log information on actuator groups
             carb.log_info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cls.__name__}' and "
+                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}' and "
                 f"joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group

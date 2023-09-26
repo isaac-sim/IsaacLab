@@ -6,11 +6,12 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import ClassVar
 from typing_extensions import Literal
 
 from omni.isaac.orbit.sim import SpawnerCfg
 from omni.isaac.orbit.utils import configclass
+
+from .asset_base import AssetBase
 
 
 @configclass
@@ -29,8 +30,11 @@ class AssetBaseCfg:
         Defaults to (1.0, 0.0, 0.0, 0.0).
         """
 
-    cls_name: ClassVar[str] = MISSING
-    """Class name of the asset."""
+    class_type: type[AssetBase] = MISSING
+    """The associated asset class.
+
+    The class should inherit from :class:`omni.isaac.orbit.assets.asset_base.AssetBase`.
+    """
 
     prim_path: str = MISSING
     """Prim path (or expression) to the asset.

@@ -22,8 +22,11 @@ if TYPE_CHECKING:
 class TerrainImporterCfg:
     """Configuration for the terrain manager."""
 
-    cls_name: type = TerrainImporter
-    """The class name of the terrain importer."""
+    class_type: type = TerrainImporter
+    """The class to use for the terrain importer.
+
+    Defaults to :class:`omni.isaac.orbit.terrains.terrain_importer.TerrainImporter`.
+    """
 
     collision_group: int = -1
     """The collision group of the terrain. Defaults to -1."""

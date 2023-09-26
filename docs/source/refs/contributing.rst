@@ -67,6 +67,29 @@ For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napol
 for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.
 
+Circular Imports
+^^^^^^^^^^^^^^^^
+
+Circular imports happen when two modules import each other, which is a common issue in Python.
+You can prevent circular imports by adhering to the best practices outlined in this
+`StackOverflow post <https://stackoverflow.com/questions/744373/circular-or-cyclic-imports-in-python>`__.
+
+In general, it is essential to avoid circular imports as they can lead to unpredictable behavior.
+
+However, in our codebase, we encounter circular imports at a sub-package level. This situation arises
+due to our specific code structure. We organize classes or functions and their corresponding configuration
+objects into separate files. This separation enhances code readability and maintainability. Nevertheless,
+it can result in circular imports because, in many configuration objects, we specify classes or functions
+as default values using the attributes ``class_type`` and ``func`` respectively.
+
+To address circular imports, we leverage the `typing.TYPE_CHECKING
+<https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ variable. This special variable is
+evaluated only during type-checking, allowing us to import classes or functions in the configuration objects
+without triggering circular imports.
+
+It is important to note that this is the sole instance within our codebase where circular imports are used
+and are acceptable. In all other scenarios, we adhere to best practices and recommend that you do the same.
+
 Type-hinting
 ^^^^^^^^^^^^
 

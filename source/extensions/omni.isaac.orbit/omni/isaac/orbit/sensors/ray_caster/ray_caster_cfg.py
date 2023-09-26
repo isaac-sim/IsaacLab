@@ -29,7 +29,7 @@ class RayCasterCfg(SensorBaseCfg):
         rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
-    cls_name = RayCaster
+    class_type: type = RayCaster
 
     mesh_prim_paths: list[str] = MISSING
     """The list of mesh primitive paths to ray cast against.

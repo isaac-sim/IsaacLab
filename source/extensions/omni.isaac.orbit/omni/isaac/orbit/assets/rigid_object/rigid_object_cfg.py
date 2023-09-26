@@ -15,7 +15,7 @@ from .rigid_object import RigidObject
 class RigidObjectCfg(AssetBaseCfg):
     """Configuration parameters for a rigid object."""
 
-    cls_name = RigidObject
+    class_type: type = RigidObject
 
     @configclass
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):

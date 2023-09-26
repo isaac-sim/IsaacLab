@@ -18,8 +18,11 @@ from .actuator_base import ActuatorBase
 class ActuatorBaseCfg:
     """Configuration for default actuators in an articulation."""
 
-    cls: type[ActuatorBase] = MISSING
-    """Actuator class."""
+    class_type: type[ActuatorBase] = MISSING
+    """The associated actuator class.
+
+    The class should inherit from :class:`omni.isaac.orbit.actuators.actuator_base.ActuatorBase`.
+    """
 
     joint_names_expr: list[str] = MISSING
     """Articulation's joint names that are part of the group.
@@ -66,7 +69,7 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
         The PD control is handled implicitly by the simulation.
     """
 
-    cls = actuator_pd.ImplicitActuator
+    class_type: type = actuator_pd.ImplicitActuator
 
 
 """
@@ -78,14 +81,14 @@ Explicit Actuator Models.
 class IdealPDActuatorCfg(ActuatorBaseCfg):
     """Configuration for an ideal PD actuator."""
 
-    cls = actuator_pd.IdealPDActuator
+    class_type: type = actuator_pd.IdealPDActuator
 
 
 @configclass
 class DCMotorCfg(IdealPDActuatorCfg):
     """Configuration for direct control (DC) motor actuator model."""
 
-    cls = actuator_pd.DCMotor
+    class_type: type = actuator_pd.DCMotor
 
     saturation_effort: float = MISSING
     """Peak motor force/torque of the electric DC motor (in N-m)."""
@@ -95,7 +98,7 @@ class DCMotorCfg(IdealPDActuatorCfg):
 class ActuatorNetLSTMCfg(DCMotorCfg):
     """Configuration for LSTM-based actuator model."""
 
-    cls = actuator_net.ActuatorNetLSTM
+    class_type: type = actuator_net.ActuatorNetLSTM
     # we don't use stiffness and damping for actuator net
     stiffness = None
     damping = None
@@ -108,7 +111,7 @@ class ActuatorNetLSTMCfg(DCMotorCfg):
 class ActuatorNetMLPCfg(DCMotorCfg):
     """Configuration for MLP-based actuator model."""
 
-    cls = actuator_net.ActuatorNetMLP
+    class_type: type = actuator_net.ActuatorNetMLP
     # we don't use stiffness and damping for actuator net
     stiffness = None
     damping = None

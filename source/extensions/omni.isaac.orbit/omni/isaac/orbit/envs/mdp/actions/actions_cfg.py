@@ -39,7 +39,7 @@ class JointPositionActionCfg(JointActionCfg):
     See :class:`JointPositionAction` for more details.
     """
 
-    cls: type[ActionTerm] = joint_actions.JointPositionAction
+    class_type: type[ActionTerm] = joint_actions.JointPositionAction
 
     use_default_offset: bool = True
     """Whether to use default joint positions configured in the articulation asset as offset.
@@ -56,7 +56,7 @@ class JointVelocityActionCfg(JointActionCfg):
     See :class:`JointVelocityAction` for more details.
     """
 
-    cls: type[ActionTerm] = joint_actions.JointVelocityAction
+    class_type: type[ActionTerm] = joint_actions.JointVelocityAction
 
     use_default_offset: bool = True
     """Whether to use default joint velocities configured in the articulation asset as offset.
@@ -73,7 +73,7 @@ class JointEffortActionCfg(JointActionCfg):
     See :class:`JointEffortAction` for more details.
     """
 
-    cls: type[ActionTerm] = joint_actions.JointEffortAction
+    class_type: type[ActionTerm] = joint_actions.JointEffortAction
 
 
 ##
@@ -103,7 +103,7 @@ class BinaryJointPositionActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointPositionAction` for more details.
     """
 
-    cls: type[ActionTerm] = binary_joint_actions.BinaryJointPositionAction
+    class_type: type[ActionTerm] = binary_joint_actions.BinaryJointPositionAction
 
 
 @configclass
@@ -113,7 +113,7 @@ class BinaryJointVelocityActionCfg(BinaryJointActionCfg):
     See :class:`BinaryJointVelocityAction` for more details.
     """
 
-    cls: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
+    class_type: type[ActionTerm] = binary_joint_actions.BinaryJointVelocityAction
 
 
 ##
@@ -128,7 +128,7 @@ class NonHolonomicActionCfg(ActionTermCfg):
     See :class:`NonHolonomicAction` for more details.
     """
 
-    cls: type[ActionTerm] = non_holonomic_actions.NonHolonomicAction
+    class_type: type[ActionTerm] = non_holonomic_actions.NonHolonomicAction
 
     body_name: str = MISSING
     """Name of the body which has the dummy mechanism connected to."""

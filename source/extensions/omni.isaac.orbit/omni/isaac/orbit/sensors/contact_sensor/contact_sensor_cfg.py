@@ -16,7 +16,7 @@ from .contact_sensor import ContactSensor
 class ContactSensorCfg(SensorBaseCfg):
     """Configuration for the contact sensor."""
 
-    cls_name = ContactSensor
+    class_type: type = ContactSensor
 
     filter_prim_paths_expr: list[str] = list()
     """The list of primitive paths to filter contacts with.

@@ -38,7 +38,7 @@ class CameraCfg(SensorBaseCfg):
 
         """
 
-    cls_name = Camera
+    class_type: type = Camera
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity.

@@ -22,8 +22,12 @@ Base command generator.
 class CommandGeneratorBaseCfg:
     """Configuration for the base command generator."""
 
-    class_name: type[CommandGeneratorBase] = MISSING
-    """The command generator class to use."""
+    class_type: type[CommandGeneratorBase] = MISSING
+    """The associated command generator class to use.
+
+    The class should inherit from :class:`omni.isaac.orbit.command_generators.command_generator_base.CommandGeneratorBase`.
+    """
+
     resampling_time_range: tuple[float, float] = MISSING
     """Time before commands are changed [s]."""
     debug_vis: bool = False
@@ -39,7 +43,7 @@ Locomotion-specific command generators.
 class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
     """Configuration for the uniform velocity command generator."""
 
-    class_name = UniformVelocityCommandGenerator
+    class_type: type = UniformVelocityCommandGenerator
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -73,7 +77,7 @@ class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
 class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
     """Configuration for the normal velocity command generator."""
 
-    class_name = NormalVelocityCommandGenerator
+    class_type: type = NormalVelocityCommandGenerator
     heading_command: bool = False  # --> we don't use heading command for normal velocity command.
 
     @configclass
@@ -104,7 +108,7 @@ class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
 class TerrainBasedPositionCommandGeneratorCfg(CommandGeneratorBaseCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_name = TerrainBasedPositionCommandGenerator
+    class_type: type = TerrainBasedPositionCommandGenerator
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""

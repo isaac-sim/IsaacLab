@@ -336,13 +336,13 @@ class InteractiveScene:
                 # terrains are special entities since they define environment origins
                 asset_cfg.num_envs = self.cfg.num_envs
                 asset_cfg.env_spacing = self.cfg.env_spacing
-                self.terrain = asset_cfg.cls_name(asset_cfg)
+                self.terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
-                self.articulations[asset_name] = asset_cfg.cls_name(asset_cfg)
+                self.articulations[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
-                self.rigid_objects[asset_name] = asset_cfg.cls_name(asset_cfg)
+                self.rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
-                self.sensors[asset_name] = asset_cfg.cls_name(asset_cfg)
+                self.sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset
                 if asset_cfg.spawn is not None:

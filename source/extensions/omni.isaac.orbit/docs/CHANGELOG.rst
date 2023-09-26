@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.6 (2023-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed class-level configuration classes to refer to class types using ``class_type`` attribute instead
+  of ``cls`` or ``cls_name``.
+
+
 0.9.5 (2023-09-25)
 ~~~~~~~~~~~~~~~~~~
 

@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import torch
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.physx
 from omni.isaac.core.simulation_context import SimulationContext
 
-from .sensor_base_cfg import SensorBaseCfg
+if TYPE_CHECKING:
+    from .sensor_base_cfg import SensorBaseCfg
 
 
 class SensorBase(ABC):

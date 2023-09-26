@@ -93,7 +93,7 @@ class ActuatorGroup:
         # process configuration
         # -- create actuator model
         if self.model_type == "explicit":
-            actuator_model_cls = eval(self.cfg.model_cfg.cls_name)
+            actuator_model_cls = eval(self.cfg.model_cfg.class_type)
             self.model = actuator_model_cls(
                 cfg=self.cfg.model_cfg,
                 num_actuators=self.num_actuators,
