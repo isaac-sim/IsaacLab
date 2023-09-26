@@ -67,6 +67,19 @@ For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napol
 for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.
 
+Type-hinting
+^^^^^^^^^^^^
+
+To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
+all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
+this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
+
+To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
+However, if your function or class is not self-explanatory, please add a docstring with the type hints.
+
+Tools
+^^^^^
+
 We use the following tools for maintaining code quality:
 
 * `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.

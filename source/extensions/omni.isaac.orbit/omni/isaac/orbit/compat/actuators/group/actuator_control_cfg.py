@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import Dict, List, Optional
 
 from omni.isaac.orbit.utils import configclass
 
@@ -31,7 +32,7 @@ class ActuatorControlCfg:
     documentation of the :class:`ActuatorGroup` class.
     """
 
-    command_types: List[str] = MISSING
+    command_types: list[str] = MISSING
     """
     Command types applied on the DOF in the group.
 
@@ -40,14 +41,14 @@ class ActuatorControlCfg:
         "p" (position-controlled), "v" (velocity-controlled), or "t" (torque-controlled).
     """
 
-    stiffness: Optional[Dict[str, float]] = None
+    stiffness: dict[str, float] | None = None
     """
     Stiffness gains of the DOFs in the group. Defaults to :obj:`None`.
 
     If :obj:`None`, these are loaded from the articulation prim.
     """
 
-    damping: Optional[Dict[str, float]] = None
+    damping: dict[str, float] | None = None
     """
     Damping gains of the DOFs in the group. Defaults to :obj:`None`.
 

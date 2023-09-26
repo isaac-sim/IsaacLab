@@ -51,9 +51,9 @@ class Se3Gamepad(DeviceBase):
         """Initialize the gamepad layer.
 
         Args:
-            pos_sensitivity (float): Magnitude of input position command scaling. Defaults to 1.0.
-            rot_sensitivity (float): Magnitude of scale input rotation commands scaling. Defaults to 1.6.
-            dead_zone (float): Magnitude of dead zone for gamepad. An event value from the gamepad less than
+            pos_sensitivity: Magnitude of input position command scaling. Defaults to 1.0.
+            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 1.6.
+            dead_zone: Magnitude of dead zone for gamepad. An event value from the gamepad less than
                 this value will be ignored. Defaults to 0.01.
         """
         # turn off simulator gamepad control
@@ -117,8 +117,8 @@ class Se3Gamepad(DeviceBase):
         `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=gamepadeventtype#carb.input.GamepadInput>`__.
 
         Args:
-            key (carb.input.GamepadInput): The gamepad button to check against.
-            func (Callable): The function to call when key is pressed. The callback function should not
+            key: The gamepad button to check against.
+            func: The function to call when key is pressed. The callback function should not
                 take any arguments.
         """
         self._additional_callbacks[key] = func
@@ -127,7 +127,7 @@ class Se3Gamepad(DeviceBase):
         """Provides the result from gamepad event state.
 
         Returns:
-            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
+            A tuple containing the delta pose command and gripper commands.
         """
         # -- resolve position command
         delta_pos = self._resolve_command_buffer(self._delta_pose_raw[:, :3])
@@ -218,13 +218,13 @@ class Se3Gamepad(DeviceBase):
         """Resolves the command buffer.
 
         Args:
-            raw_command (np.ndarray): The raw command from the gamepad. Shape: (2, 3)
+            raw_command: The raw command from the gamepad. Shape is (2, 3)
                 This is a 2D array since gamepad dpad/stick returns two values corresponding to
                 the positive and negative direction. The first index is the direction (0: positive, 1: negative)
                 and the second index is value (absolute) of the command.
 
         Returns:
-            np.ndarray: resolved command. Shape: (3,)
+            Resolved command. Shape is (3,)
         """
         # compare the positive and negative value decide the sign of the value
         #   if the positive value is larger, the sign is positive (i.e. False, 0)

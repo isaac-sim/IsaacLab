@@ -5,6 +5,8 @@
 
 """Subpackage for handling actuator models."""
 
+from __future__ import annotations
+
 from .actuator_base import ActuatorBase
 from .actuator_cfg import (
     ActuatorBaseCfg,

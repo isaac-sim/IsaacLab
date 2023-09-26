@@ -13,6 +13,8 @@ We currently support the following robots:
 * A1 (from Unitree Robotics)
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

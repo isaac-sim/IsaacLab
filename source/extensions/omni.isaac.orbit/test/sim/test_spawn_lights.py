@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher
@@ -128,8 +130,8 @@ class TestSpawningLights(unittest.TestCase):
         """Validate the properties on the prim.
 
         Args:
-            prim_path (str): The prim name.
-            cfg (sim_utils.LightCfg): The configuration for the light source.
+            prim_path: The prim name.
+            cfg: The configuration for the light source.
         """
         prim = prim_utils.get_prim_at_path(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():

@@ -61,7 +61,7 @@ class TerrainImporter:
         """Initialize the terrain importer.
 
         Args:
-            cfg (TerrainImporterCfg): The configuration for the terrain importer.
+            cfg: The configuration for the terrain importer.
 
         Raises:
             ValueError: If input terrain type is not supported.
@@ -118,7 +118,7 @@ class TerrainImporter:
         """Set the debug visualization of the terrain importer.
 
         Args:
-            debug_vis (bool): Whether to visualize the terrain origins.
+            debug_vis: Whether to visualize the terrain origins.
         """
         if not self.cfg.debug_vis:
             raise RuntimeError("Debug visualization is not enabled for this sensor.")
@@ -133,8 +133,8 @@ class TerrainImporter:
         """Add a plane to the terrain importer.
 
         Args:
-            key (str): The key to store the mesh.
-            size (Tuple[int, int], optional): The size of the plane. Defaults to (2.0e6, 2.0e6).
+            key: The key to store the mesh.
+            size: The size of the plane. Defaults to (2.0e6, 2.0e6).
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -161,8 +161,8 @@ class TerrainImporter:
         contains the mesh as a :class:`pxr.UsdGeom` instance along with visual or physics material prims.
 
         Args:
-            key (str): The key to store the mesh.
-            mesh (trimesh.Trimesh): The mesh to import.
+            key: The key to store the mesh.
+            mesh: The mesh to import.
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -199,8 +199,8 @@ class TerrainImporter:
             be defined in the USD file.
 
         Args:
-            key (str): The key to store the mesh.
-            usd_path (str): The path to the USD file.
+            key: The key to store the mesh.
+            usd_path: The path to the USD file.
 
         Raises:
             ValueError: If a terrain with the same key already exists.
@@ -238,7 +238,7 @@ class TerrainImporter:
         """Configure the origins of the environments based on the added terrain.
 
         Args:
-            origins (Optional[np.ndarray]): The origins of the sub-terrains. Shape: (num_rows, num_cols, 3).
+            origins: The origins of the sub-terrains. Shape is (num_rows, num_cols, 3).
         """
         # decide whether to compute origins in a grid or based on curriculum
         if origins is not None:

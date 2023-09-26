@@ -5,6 +5,8 @@
 
 """Installation script for the 'omni.isaac.contrib_envs' python package."""
 
+from __future__ import annotations
+
 import os
 import toml
 

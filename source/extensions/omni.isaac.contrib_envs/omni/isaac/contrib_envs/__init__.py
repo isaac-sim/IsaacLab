@@ -27,6 +27,7 @@ Usage:
     >>> env = gym.make(task_name, cfg=cfg)
 """
 
+from __future__ import annotations
 
 import gym  # noqa: F401
 import os

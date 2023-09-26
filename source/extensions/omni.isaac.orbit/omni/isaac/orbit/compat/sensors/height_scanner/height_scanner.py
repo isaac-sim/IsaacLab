@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
 
 import numpy as np
 import scipy.spatial.transform as tf
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import Sequence
 
 import omni
 import omni.isaac.core.utils.prims as prim_utils
@@ -73,7 +74,7 @@ class HeightScanner(SensorBase):
         """Initializes the scanner object.
 
         Args:
-            cfg (HeightScannerCfg): The configuration parameters.
+            cfg: The configuration parameters.
         """
         # TODO: Use generic range sensor from Isaac Sim?
         # Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_range_sensor.html#isaac-sim-generic-range-sensor-example
@@ -132,20 +133,20 @@ class HeightScanner(SensorBase):
         """Enables drawing of the scan points in the viewport.
 
         Args:
-            visible (bool) -- Whether to draw scan points or not.
+            visible: Whether to draw scan points or not.
         """
         # copy argument
         self._visualize = visible
         # set visibility
         self._height_scanner_vis.set_visibility(visible)
 
-    def set_filter_prims(self, names: List[str]):
+    def set_filter_prims(self, names: list[str]):
         """Set the names of prims to ignore ray-casting collisions with.
 
         If None is passed into argument, then no filtering is performed.
 
         Args:
-            names (List[str]): A list of prim names to ignore ray-cast collisions with.
+            names: A list of prim names to ignore ray-cast collisions with.
         """
         # default
         if names is None:
@@ -200,9 +201,9 @@ class HeightScanner(SensorBase):
         """Updates the buffers at sensor frequency.
 
         Args:
-            dt (float): The simulation time-step.
-            pos (Sequence[float]): Position of the frame to which the sensor is attached.
-            quat (Sequence[float]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
+            dt: The simulation time-step.
+            pos: Position of the frame to which the sensor is attached.
+            quat: Quaternion (w, x, y, z) of the frame to which the sensor is attached.
         """
         super().update(dt, pos, quat)
 
@@ -214,8 +215,8 @@ class HeightScanner(SensorBase):
         Otherwise, the hit distance is set to the maximum value specified in the configuration.
 
         Args:
-            pos (Sequence[float]): Position of the frame to which the sensor is attached.
-            quat (Sequence[float]): Quaternion (w, x, y, z) of the frame to which the sensor is attached.
+            pos: Position of the frame to which the sensor is attached.
+            quat: Quaternion (w, x, y, z) of the frame to which the sensor is attached.
         """
         # convert to numpy for sanity
         pos = np.asarray(pos)
@@ -266,7 +267,7 @@ class HeightScanner(SensorBase):
         """A PhysX callback to filter out hit-reports that are on the collision bodies.
 
         Returns:
-            bool: If True, continue casting the ray. Otherwise, stop and report the result.
+            If True, continue casting the ray. Otherwise, stop and report the result.
         """
         # unset the query info
         self._query_info = None

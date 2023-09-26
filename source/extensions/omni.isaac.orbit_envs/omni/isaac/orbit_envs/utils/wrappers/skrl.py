@@ -23,10 +23,11 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 """
 
+from __future__ import annotations
+
 import copy
 import torch
 import tqdm
-from typing import List, Optional, Union
 
 # skrl
 from skrl.agents.torch import Agent
@@ -93,18 +94,18 @@ class SkrlSequentialLogTrainer(Trainer):
     def __init__(
         self,
         env: Wrapper,
-        agents: Union[Agent, List[Agent]],
-        agents_scope: Optional[List[int]] = None,
-        cfg: Optional[dict] = None,
+        agents: Agent | list[Agent],
+        agents_scope: list[int] | None = None,
+        cfg: dict | None = None,
     ):
         """Initializes the trainer.
 
         Args:
-            env (Wrapper): Environment to train on.
-            agents (Union[Agent, List[Agent]]): Agents to train.
-            agents_scope (Optional[List[int]], optional): Number of environments for each agent to
+            env: Environment to train on.
+            agents: Agents to train.
+            agents_scope: Number of environments for each agent to
                 train on. Defaults to None.
-            cfg (Optional[dict], optional): Configuration dictionary. Defaults to None.
+            cfg: Configuration dictionary. Defaults to None.
         """
         # update the config
         _cfg = copy.deepcopy(SEQUENTIAL_TRAINER_DEFAULT_CONFIG)

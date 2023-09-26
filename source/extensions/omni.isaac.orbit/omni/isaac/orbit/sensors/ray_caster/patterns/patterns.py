@@ -22,11 +22,11 @@ def grid_pattern(cfg: patterns_cfg.GridPatternCfg, device: str) -> tuple[torch.T
     by the ``size = (length, width)`` and ``resolution`` parameters in the config.
 
     Args:
-        cfg (GridPatternCfg): The configuration instance for the pattern.
-        device (str): The device to create the pattern on.
+        cfg: The configuration instance for the pattern.
+        device: The device to create the pattern on.
 
     Returns:
-        tuple[torch.Tensor, torch.Tensor]: The starting positions and directions of the rays.
+        The starting positions and directions of the rays.
     """
     x = torch.arange(start=-cfg.size[0] / 2, end=cfg.size[0] / 2 + 1.0e-9, step=cfg.resolution, device=device)
     y = torch.arange(start=-cfg.size[1] / 2, end=cfg.size[1] / 2 + 1.0e-9, step=cfg.resolution, device=device)
@@ -45,11 +45,11 @@ def pinhole_camera_pattern(cfg: patterns_cfg.PinholeCameraPatternCfg, device: st
     """The depth-image pattern for ray casting.
 
     Args:
-        cfg (DepthImagePatternCfg): The configuration instance for the pattern.
-        device (str): The device to create the pattern on.
+        cfg: The configuration instance for the pattern.
+        device: The device to create the pattern on.
 
     Returns:
-        tuple[torch.Tensor, torch.Tensor]: The starting positions and directions of the rays.
+        The starting positions and directions of the rays.
     """
     x_grid = torch.full((cfg.height, cfg.width), cfg.far_plane, device=device)
     y_range = np.tan(np.deg2rad(cfg.horizontal_fov) / 2.0) * cfg.far_plane
@@ -73,11 +73,11 @@ def bpearl_pattern(cfg: patterns_cfg.BpearlPatternCfg, device: str) -> tuple[tor
     .. _Robosense RS-Bpearl: https://www.roscomponents.com/en/lidar-laser-scanner/267-rs-bpearl.html
 
     Args:
-        cfg (BpearlPatternCfg): The configuration instance for the pattern.
-        device (str): The device to create the pattern on.
+        cfg: The configuration instance for the pattern.
+        device: The device to create the pattern on.
 
     Returns:
-        tuple[torch.Tensor, torch.Tensor]: The starting positions and directions of the rays.
+        The starting positions and directions of the rays.
     """
     h = torch.arange(-cfg.horizontal_fov / 2, cfg.horizontal_fov / 2, cfg.horizontal_res, device=device)
     v = torch.tensor(list(cfg.vertical_ray_angles), device=device)

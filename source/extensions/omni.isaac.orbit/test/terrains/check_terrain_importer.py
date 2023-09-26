@@ -25,6 +25,8 @@ Example usage:
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/test_terrain_importer.py --terrain_type plane
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse

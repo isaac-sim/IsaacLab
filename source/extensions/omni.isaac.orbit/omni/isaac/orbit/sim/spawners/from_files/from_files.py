@@ -42,17 +42,17 @@ def spawn_from_usd(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.UsdFileCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim
             w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
+        orientation: The orientation in (w, x, y, z) to apply to
             the prim w.r.t. its parent prim. Defaults to None.
-        scale (tuple[float, float, float], optional): The scale of the imported prim. Defaults to None.
+        scale: The scale of the imported prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The prim of the spawned asset.
+        The prim of the spawned asset.
     """
     # -- spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
@@ -103,17 +103,15 @@ def spawn_from_urdf(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.UrdfFileCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
-        scale (tuple[float, float, float], optional): The scale of the imported prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        scale: The scale of the imported prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The prim of the spawned asset.
+        The prim of the spawned asset.
     """
     # -- spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
@@ -155,11 +153,11 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
         use any of the kwargs.
 
     Args:
-        prim_path (str): The path to spawn the asset at.
-        cfg (spawner_cfg.GroundPlaneCfg): The configuration instance.
+        prim_path: The path to spawn the asset at.
+        cfg: The configuration instance.
 
     Returns:
-        Usd.Prim: The prim of the spawned asset.
+        The prim of the spawned asset.
 
     Raises:
         ValueError: If the prim path already exists.

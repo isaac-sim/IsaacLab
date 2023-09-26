@@ -3,27 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import numpy as np
 import trimesh
-from typing import List
 
 
-def color_meshes_by_height(meshes: List[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
+def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
     """
     Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,
     using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored
     with a single color.
 
     Args:
-        meshes (List[trimesh.Trimesh]): A list of trimesh objects.
+        meshes: A list of trimesh objects.
 
     Keyword Args:
-        color (List[int]): A list of 3 integers in the range [0,255] representing the RGB
+        color: A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
-        color_map (str): The name of the color map to be used. Defaults to "turbo".
+        color_map: The name of the color map to be used. Defaults to "turbo".
 
     Returns:
-        trimesh.Trimesh: A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
+        A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
     """
     # Combine all meshes into a single mesh
     mesh = trimesh.util.concatenate(meshes)
@@ -62,14 +63,14 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     - Assign a visual material to the mesh at the path :obj:`{prim_path}/visualMaterial`.
 
     Args:
-        prim_path (str): The path to the primitive to be created.
-        mesh (trimesh.Trimesh): The mesh to be used for the primitive.
+        prim_path: The path to the primitive to be created.
+        mesh: The mesh to be used for the primitive.
 
     Keyword Args:
-        translation (Optional[Sequence[float]]): The translation of the terrain. Defaults to None.
-        orientation (Optional[Sequence[float]]): The orientation of the terrain. Defaults to None.
-        visual_material (Optional[sim_utils.VisualMaterialCfg]): The visual material to apply. Defaults to None.
-        physics_material (Optional[sim_utils.RigidBodyMaterialCfg]): The physics material to apply. Defaults to None.
+        translation: The translation of the terrain. Defaults to None.
+        orientation: The orientation of the terrain. Defaults to None.
+        visual_material: The visual material to apply. Defaults to None.
+        physics_material: The physics material to apply. Defaults to None.
     """
     # need to import these here to prevent isaacsim launching when importing this module
     import omni.isaac.core.utils.prims as prim_utils

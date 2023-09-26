@@ -18,6 +18,7 @@ For more information: https://docs.blender.org/api/current/index.html
 The script was tested on Blender 3.2 on Ubuntu 20.04LTS.
 """
 
+from __future__ import annotations
 
 import bpy
 import os
@@ -62,8 +63,8 @@ def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
     """Convert a mesh file to `.obj` using blender.
 
     Args:
-        in_file (str): Input mesh file to process.
-        out_file (str): Path to store output obj file.
+        in_file: Input mesh file to process.
+        out_file: Path to store output obj file.
     """
     # check valid input file
     if not os.path.exists(in_file):

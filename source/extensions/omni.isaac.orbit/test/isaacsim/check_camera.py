@@ -16,6 +16,8 @@ _isaac_sim/python.sh source/extensions/omni.isaac.orbit/test/isaacsim/check_came
 ```
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse

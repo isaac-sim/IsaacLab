@@ -152,10 +152,10 @@ class RLEnv(BaseEnv, gym.Env):
         """Set the seed for the environment.
 
         Args:
-            seed (int, optional): The seed for random generator. Defaults to -1.
+            seed: The seed for random generator. Defaults to -1.
 
         Returns:
-            int: The seed used for random generator.
+            The seed used for random generator.
         """
         import omni.replicator.core as rep
 
@@ -171,7 +171,7 @@ class RLEnv(BaseEnv, gym.Env):
             of terminated sub-environments.
 
         Returns:
-            VecEnvObs: Observations from the environment.
+            Observations from the environment.
         """
         # reset state of scene
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
@@ -192,7 +192,7 @@ class RLEnv(BaseEnv, gym.Env):
         3. If the simulation is playing, we set the actions and step the simulator.
 
         Args:
-            action (torch.Tensor): Actions to apply on the simulator.
+            action: Actions to apply on the simulator.
 
         Returns:
             VecEnvStepReturn: A tuple containing:
@@ -245,10 +245,10 @@ class RLEnv(BaseEnv, gym.Env):
           x-by-y pixel image, suitable for turning into a video.
 
         Args:
-            mode (str, optional): The mode to render with. Defaults to "human".
+            mode: The mode to render with. Defaults to "human".
 
         Returns:
-            np.ndarray | None: The rendered image as a numpy array if mode is "rgb_array" and offscreen
+            The rendered image as a numpy array if mode is "rgb_array" and offscreen
                 rendering is enabled.
 
         Raises:
@@ -305,7 +305,7 @@ class RLEnv(BaseEnv, gym.Env):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids (list[int]): List of environment ids which must be reset
+            env_ids: List of environment ids which must be reset
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)

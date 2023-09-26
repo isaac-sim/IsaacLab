@@ -39,8 +39,8 @@ class ActionTerm(ABC):
         """Initialize the action term.
 
         Args:
-            cfg (ActionTermCfg): The configuration object.
-            env (BaseEnv): The environment instance.
+            cfg: The configuration object.
+            env: The environment instance.
         """
         # store the inputs
         self.cfg = cfg
@@ -92,7 +92,7 @@ class ActionTerm(ABC):
             This function is called once per environment step by the manager.
 
         Args:
-            actions (torch.Tensor): The actions to process.
+            actions: The actions to process.
         """
         raise NotImplementedError
 
@@ -125,8 +125,8 @@ class ActionManager(ManagerBase):
         """Initialize the action manager.
 
         Args:
-            cfg (object): The configuration object or dictionary (``dict[str, ActionTermCfg]``).
-            env (BaseEnv): The environment instance.
+            cfg: The configuration object or dictionary (``dict[str, ActionTermCfg]``).
+            env: The environment instance.
         """
         super().__init__(cfg, env)
         # create buffers to store actions
@@ -173,12 +173,12 @@ class ActionManager(ManagerBase):
 
     @property
     def action(self) -> torch.Tensor:
-        """The actions sent to the environment. Shape: ``(num_envs, total_action_dim)``."""
+        """The actions sent to the environment. Shape is ``(num_envs, total_action_dim)``."""
         return self._action
 
     @property
     def prev_action(self) -> torch.Tensor:
-        """The previous actions sent to the environment. Shape: ``(num_envs, total_action_dim)``."""
+        """The previous actions sent to the environment. Shape is ``(num_envs, total_action_dim)``."""
         return self._prev_action
 
     """
@@ -189,11 +189,11 @@ class ActionManager(ManagerBase):
         """Resets the action history.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The environment ids. Defaults to None, in which case
+            env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
 
         Returns:
-            Dict[str, torch.Tensor]: An empty dictionary.
+            An empty dictionary.
         """
         # resolve environment ids
         if env_ids is None:
@@ -211,7 +211,7 @@ class ActionManager(ManagerBase):
             This function should be called once per environment step.
 
         Args:
-            action (torch.Tensor): The actions to process.
+            action: The actions to process.
         """
         # check if action dimension is valid
         if self.total_action_dim != action.shape[1]:

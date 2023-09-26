@@ -5,9 +5,11 @@
 
 """Utilities for working with different array backends."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
-from typing import Optional, Union
+from typing import Union
 
 import warp as wp
 
@@ -45,7 +47,7 @@ inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.
 def convert_to_torch(
     array: TensorData,
     dtype: torch.dtype = None,
-    device: Optional[Union[torch.device, str]] = None,
+    device: torch.device | str | None = None,
 ) -> torch.Tensor:
     """Converts a given array into a torch tensor.
 
@@ -57,12 +59,12 @@ def convert_to_torch(
     this defaults to "cpu", for torch tensors it is "cpu" or "cuda", and for warp arrays it is "cuda".
 
     Args:
-        array (TensorData): The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
-        dtype (torch.dtype, optional): Target data-type for the tensor.
-        device (Optional[Union[torch.device, str]], optional): The target device for the tensor. Defaults to None.
+        array: The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
+        dtype: Target data-type for the tensor.
+        device: The target device for the tensor. Defaults to None.
 
     Returns:
-        torch.Tensor: The converted array as torch tensor.
+        The converted array as torch tensor.
     """
     # Convert array to tensor
     if isinstance(array, torch.Tensor):

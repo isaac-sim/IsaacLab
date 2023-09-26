@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 """
 This script shows how to use a teleoperation device with Isaac Sim.
 
@@ -11,6 +13,7 @@ It is possible to add additional callbacks to it for user-defined operations.
 """
 
 """Launch Isaac Sim Simulator first."""
+
 
 from omni.isaac.kit import SimulationApp
 

@@ -32,7 +32,7 @@ class RigidObject(AssetBase):
         """Initialize the rigid object.
 
         Args:
-            cfg (RigidObjectCfg): A configuration instance.
+            cfg: A configuration instance.
         """
         super().__init__(cfg)
         # container for data access
@@ -134,11 +134,11 @@ class RigidObject(AssetBase):
         """Find bodies in the articulation based on the name keys.
 
         Args:
-            name_keys (Union[str, Sequence[str]]): A regular expression or a list of regular expressions
+            name_keys: A regular expression or a list of regular expressions
                 to match the body names.
 
         Returns:
-            Tuple[List[int], List[str]]: A tuple of lists containing the body indices and names.
+            A tuple of lists containing the body indices and names.
         """
         return string_utils.resolve_matching_names(name_keys, self.body_names)
 
@@ -153,8 +153,8 @@ class RigidObject(AssetBase):
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
-            root_state (torch.Tensor): Root state in simulation frame. Shape: ``(len(env_ids), 13)``.
-            env_ids (Optional[Sequence[int]]): Environment indices. If :obj:`None`, then all indices are used.
+            root_state: Root state in simulation frame. Shape is ``(len(env_ids), 13)``.
+            env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
@@ -166,8 +166,8 @@ class RigidObject(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
-            root_pose (torch.Tensor): Root poses in simulation frame. Shape: ``(len(env_ids), 7)``.
-            env_ids (Optional[Sequence[int]]): Environment indices. If :obj:`None`, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is ``(len(env_ids), 7)``.
+            env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
         if env_ids is None:
@@ -185,8 +185,8 @@ class RigidObject(AssetBase):
         """Set the root velocity over selected environment indices into the simulation.
 
         Args:
-            root_velocity (torch.Tensor): Root velocities in simulation frame. Shape: ``(len(env_ids), 6)``.
-            env_ids (Optional[Sequence[int]]): Environment indices. If :obj:`None`, then all indices are used.
+            root_velocity: Root velocities in simulation frame. Shape is ``(len(env_ids), 6)``.
+            env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
         if env_ids is None:
@@ -227,10 +227,10 @@ class RigidObject(AssetBase):
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function.
 
         Args:
-            forces (torch.Tensor): External forces in bodies' local frame. Shape: ``(len(env_ids), len(body_ids), 3)``.
-            torques (torch.Tensor): External torques in bodies' local frame. Shape: ``(len(env_ids), len(body_ids), 3)``.
-            body_ids (Optional[Sequence[int]], optional): Body indices to apply external wrench to. Defaults to None (all bodies).
-            env_ids (Optional[Sequence[int]], optional): Environment indices to apply external wrench to. Defaults to None (all instances).
+            forces: External forces in bodies' local frame. Shape is ``(len(env_ids), len(body_ids), 3)``.
+            torques: External torques in bodies' local frame. Shape is ``(len(env_ids), len(body_ids), 3)``.
+            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
+            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
         """
         if forces.any() or torques.any():
             self.has_external_force = True

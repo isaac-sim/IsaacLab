@@ -35,8 +35,8 @@ class ObservationManager(ManagerBase):
         """Initialize observation manager.
 
         Args:
-            cfg (object): The configuration object or dictionary (``dict[str, ObservationGroupCfg]``).
-            env (BaseEnv): The environment instance.
+            cfg: The configuration object or dictionary (``dict[str, ObservationGroupCfg]``).
+            env: The environment instance.
         """
         super().__init__(cfg, env)
         # compute combined vector for obs group
@@ -112,8 +112,7 @@ class ObservationManager(ManagerBase):
         settings. By default, no scaling or clipping is applied.
 
         Returns:
-            Dict[str, torch.Tensor]: A dictionary with keys as the group names and values as the
-                computed observations.
+            A dictionary with keys as the group names and values as the computed observations.
         """
         self._obs_buffer = dict()
         # iterate over all the terms in each group

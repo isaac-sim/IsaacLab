@@ -5,9 +5,9 @@
 
 """Configuration for the camera sensor."""
 
+from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import List, Tuple
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import configclass
@@ -32,7 +32,7 @@ class PinholeCameraCfg:
             * https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
         """
 
-        clipping_range: Tuple[float, float] = None
+        clipping_range: tuple[float, float] = None
         """Near and far clipping distances (in stage units)."""
         focal_length: float = None
         """Perspective focal length (in mm). Longer lens lengths narrower FOV, shorter lens lengths wider FOV."""
@@ -55,13 +55,13 @@ class PinholeCameraCfg:
 
     sensor_tick: float = 0.0
     """Simulation seconds between sensor buffers. Defaults to 0.0."""
-    data_types: List[str] = ["rgb"]
+    data_types: list[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
     width: int = MISSING
     """Width of the image in pixels."""
     height: int = MISSING
     """Height of the image in pixels."""
-    semantic_types: List[str] = ["class"]
+    semantic_types: list[str] = ["class"]
     """List of allowed semantic types the types. Defaults to ["class"].
 
     For example, if semantic types is [“class”], only the bounding boxes for prims with semantics of

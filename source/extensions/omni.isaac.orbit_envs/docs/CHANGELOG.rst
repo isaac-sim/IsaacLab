@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+
+0.4.3 (2023-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added future import of ``annotations`` to have a consistent behavior across Python versions.
+* Removed the type-hinting from docstrings to simplify maintenance of the documentation. All type-hints are
+  now in the code itself.
+
 0.4.2 (2023-08-29)
 ~~~~~~~~~~~~~~~~~~
 

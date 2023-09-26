@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
 from __future__ import annotations
+
+"""Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -184,9 +184,9 @@ class TestPhysicsSchema(unittest.TestCase):
             and all its children.
 
         Args:
-            prim_path (str): The prim name.
-            schema_names (list[str]): The list of schema names to validate.
-            verbose (bool, optional): Whether to print verbose logs. Defaults to False.
+            prim_path: The prim name.
+            schema_names: The list of schema names to validate.
+            verbose: Whether to print verbose logs. Defaults to False.
         """
         # the root prim
         root_prim = prim_utils.get_prim_at_path(prim_path)

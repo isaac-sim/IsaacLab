@@ -5,6 +5,7 @@
 
 """Tool to check structure of hdf5 files."""
 
+from __future__ import annotations
 
 import argparse
 import h5py

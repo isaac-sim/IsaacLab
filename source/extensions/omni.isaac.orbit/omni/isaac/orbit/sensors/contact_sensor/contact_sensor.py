@@ -50,7 +50,7 @@ class ContactSensor(SensorBase):
         """Initializes the contact sensor object.
 
         Args:
-            cfg (ContactSensorCfg): The configuration parameters.
+            cfg: The configuration parameters.
         """
         # initialize base class
         super().__init__(cfg)
@@ -149,11 +149,11 @@ class ContactSensor(SensorBase):
         """Find bodies in the articulation based on the name keys.
 
         Args:
-            name_keys (Union[str, Sequence[str]]): A regular expression or a list of regular expressions
+            name_keys: A regular expression or a list of regular expressions
                 to match the body names.
 
         Returns:
-            Tuple[List[int], List[str]]: A tuple of lists containing the body indices and names.
+            A tuple of lists containing the body indices and names.
         """
         return string_utils.resolve_matching_names(name_keys, self.body_names)
 

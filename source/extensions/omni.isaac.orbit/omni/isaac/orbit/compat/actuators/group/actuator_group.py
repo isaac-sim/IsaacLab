@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import re
 import torch
-from typing import List, Optional, Sequence
+from typing import Sequence
 
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.types import ArticulationActions
@@ -41,19 +43,19 @@ class ActuatorGroup:
     """Number of articulations in the view."""
     device: str
     """Device used for processing."""
-    dof_names: List[str]
+    dof_names: list[str]
     """Articulation's DOF names that are part of the group."""
-    dof_indices: List[int]
+    dof_indices: list[int]
     """Articulation's DOF indices that are part of the group."""
-    model: Optional[IdealActuator]
+    model: IdealActuator | None
     """Actuator model used by the group."""
 
     def __init__(self, cfg: ActuatorGroupCfg, view: ArticulationView):
         """Initialize the actuator group.
 
         Args:
-            cfg (ActuatorGroupCfg): The configuration of the actuator group.
-            view (ArticulationView): The simulation articulation view.
+            cfg: The configuration of the actuator group.
+            view: The simulation articulation view.
 
         Raises:
             ValueError: When no command types are specified in the configuration.
@@ -154,7 +156,7 @@ class ActuatorGroup:
         return self.cfg.model_cfg.model_type
 
     @property
-    def command_types(self) -> List[str]:
+    def command_types(self) -> list[str]:
         """Command type applied on the DOF in the group.
 
         It contains a list of strings. Each string has two sub-strings joined by underscore:
@@ -229,7 +231,7 @@ class ActuatorGroup:
         return self._applied_torques
 
     @property
-    def velocity_limit(self) -> Optional[torch.Tensor]:
+    def velocity_limit(self) -> torch.Tensor | None:
         """DOF velocity limits from actuator.
 
         Returns :obj:`None` for implicit and ideal actuator.
@@ -247,7 +249,7 @@ class ActuatorGroup:
         """Reset the internals within the group.
 
         Args:
-            env_ids (Sequence[int]): List of environment IDs to reset.
+            env_ids: List of environment IDs to reset.
         """
         # actuator
         if self.model is not None:
@@ -264,9 +266,9 @@ class ActuatorGroup:
         4. computes the articulation actions based on the actuator model type
 
         Args:
-            group_actions (torch.Tensor): The actuator group actions of shape (num_articulation, control_dim).
-            dof_pos (torch.Tensor): The current joint positions of the joints in the group.
-            dof_vel (torch.Tensor): The current joint velocities of the joints in the group.
+            group_actions: The actuator group actions of shape (num_articulation, control_dim).
+            dof_pos: The current joint positions of the joints in the group.
+            dof_vel: The current joint velocities of the joints in the group.
 
         Raises:
             ValueError: When the group actions has the wrong shape. Expected shape: (num_articulation, control_dim).
@@ -274,7 +276,7 @@ class ActuatorGroup:
             ValueError: Invalid actuator model type in group. Expected: 'explicit' or 'implicit'.
 
         Returns:
-            ArticulationActions: An instance of the articulation actions.
+            An instance of the articulation actions.
               a. for explicit actuator models, it returns the computed joint torques (after clipping)
               b. for implicit actuator models, it returns the actions with the processed desired joint
                  positions, velocities, and efforts (based on the command types)
@@ -352,7 +354,7 @@ class ActuatorGroup:
         commands and the joint commands.
 
         Returns:
-            torch.Tensor: Desired commands for the DOFs in the group.
+            Desired commands for the DOFs in the group.
                 Shape is ``(num_articulation, num_actuators * len(command_types))``.
         """
         return command

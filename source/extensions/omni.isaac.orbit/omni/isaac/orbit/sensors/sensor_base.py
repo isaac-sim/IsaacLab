@@ -39,7 +39,7 @@ class SensorBase(ABC):
         """Initialize the sensor class.
 
         Args:
-            cfg (SensorBaseCfg): The configuration parameters for the sensor.
+            cfg: The configuration parameters for the sensor.
         """
         # check that config is valid
         if cfg.history_length < 0:
@@ -112,7 +112,7 @@ class SensorBase(ABC):
         """Sets whether to visualize the sensor data.
 
         Args:
-            debug_vis (bool): Whether to visualize the sensor data.
+            debug_vis: Whether to visualize the sensor data.
 
         Raises:
             RuntimeError: If the asset debug visualization is not enabled.
@@ -124,7 +124,7 @@ class SensorBase(ABC):
         """Resets the sensor internals.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The sensor ids to reset. Defaults to None.
+            env_ids: The sensor ids to reset. Defaults to None.
         """
         # Resolve sensor ids
         if env_ids is None:
@@ -177,7 +177,7 @@ class SensorBase(ABC):
         data container.
 
         Args:
-            env_ids (Sequence[int]): The indices of the sensors that are ready to capture.
+            env_ids: The indices of the sensors that are ready to capture.
         """
         raise NotImplementedError
 

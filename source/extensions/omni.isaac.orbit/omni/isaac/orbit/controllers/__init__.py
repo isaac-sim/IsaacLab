@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 # enable motion generation extension
 from omni.isaac.core.utils.extensions import enable_extension
 

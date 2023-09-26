@@ -37,8 +37,8 @@ class CurriculumManager(ManagerBase):
         """Initialize the manager.
 
         Args:
-            cfg (object): The configuration object or dictionary (``dict[str, CurriculumTermCfg]``)
-            env (RLEnv): An environment object.
+            cfg: The configuration object or dictionary (``dict[str, CurriculumTermCfg]``)
+            env: An environment object.
 
         Raises:
             TypeError: If curriculum term is not of type :class:`CurriculumTermCfg`.
@@ -90,7 +90,7 @@ class CurriculumManager(ManagerBase):
             to maintain consistency with other classes.
 
         Returns:
-            dict[str, float]: Dictionary of curriculum terms and their states.
+            Dictionary of curriculum terms and their states.
         """
         extras = {}
         for term_name, term_state in self._curriculum_state.items():
@@ -115,7 +115,7 @@ class CurriculumManager(ManagerBase):
         This function calls each curriculum term managed by the class.
 
         Args:
-            env_ids (Optional[Sequence[int]]): The list of environment IDs to update.
+            env_ids: The list of environment IDs to update.
                 If None, all the environments are updated. Defaults to None.
         """
         # resolve environment indices

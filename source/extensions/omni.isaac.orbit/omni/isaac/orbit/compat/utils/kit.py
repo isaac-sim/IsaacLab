@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import contextlib
 import math
-from typing import Optional, Sequence
+from typing import Sequence
 
 import carb
 import omni.isaac.core.utils.nucleus as nucleus_utils
@@ -22,7 +24,7 @@ def create_ground_plane(
     static_friction: float = 1.0,
     dynamic_friction: float = 1.0,
     restitution: float = 0.0,
-    color: Optional[Sequence[float]] = (0.065, 0.0725, 0.080),
+    color: Sequence[float] | None = (0.065, 0.0725, 0.080),
     **kwargs,
 ):
     """Spawns a ground plane into the scene.
@@ -31,22 +33,22 @@ def create_ground_plane(
     It applies a physics material to the ground plane and sets the color of the ground plane.
 
     Args:
-        prim_path (str): The prim path to spawn the ground plane at.
-        z_position (float, optional): The z-location of the plane. Defaults to 0.
-        static_friction (float, optional): The static friction coefficient. Defaults to 1.0.
-        dynamic_friction (float, optional): The dynamic friction coefficient. Defaults to 1.0.
-        restitution (float, optional): The coefficient of restitution. Defaults to 0.0.
-        color (Optional[Sequence[float]], optional): The color of the ground plane.
+        prim_path: The prim path to spawn the ground plane at.
+        z_position: The z-location of the plane. Defaults to 0.
+        static_friction: The static friction coefficient. Defaults to 1.0.
+        dynamic_friction: The dynamic friction coefficient. Defaults to 1.0.
+        restitution: The coefficient of restitution. Defaults to 0.0.
+        color: The color of the ground plane.
             Defaults to (0.065, 0.0725, 0.080).
 
     Keyword Args:
-        usd_path (str): The USD path to the ground plane. Defaults to the asset path
+        usd_path: The USD path to the ground plane. Defaults to the asset path
             `Isaac/Environments/Grid/default_environment.usd` on the Isaac Sim Nucleus server.
-        improve_patch_friction (bool): Whether to enable patch friction. Defaults to False.
-        combine_mode (str): Determines the way physics materials will be combined during collisions.
+        improve_patch_friction: Whether to enable patch friction. Defaults to False.
+        combine_mode: Determines the way physics materials will be combined during collisions.
             Available options are `average`, `min`, `multiply`, `multiply`, and `max`. Defaults to `average`.
-        light_intensity (Optional[float]): The power intensity of the light source. Defaults to 1e7.
-        light_radius (Optional[float]): The radius of the light source. Defaults to 50.0.
+        light_intensity: The power intensity of the light source. Defaults to 1e7.
+        light_radius: The radius of the light source. Defaults to 50.0.
     """
     # Retrieve path to the plane
     if "usd_path" in kwargs:
@@ -140,8 +142,8 @@ def move_nested_prims(source_ns: str, target_ns: str):
     to the target prim path.
 
     Args:
-        source_ns (str): The source prim path.
-        target_ns (str): The target prim path.
+        source_ns: The source prim path.
+        target_ns: The target prim path.
     """
     # check if target namespace exists
     prim_utils.define_prim(target_ns)
@@ -156,20 +158,20 @@ def move_nested_prims(source_ns: str, target_ns: str):
 def set_drive_dof_properties(
     prim_path: str,
     dof_name: str,
-    stiffness: Optional[float] = None,
-    damping: Optional[float] = None,
-    max_velocity: Optional[float] = None,
-    max_force: Optional[float] = None,
+    stiffness: float | None = None,
+    damping: float | None = None,
+    max_velocity: float | None = None,
+    max_force: float | None = None,
 ) -> None:
     """Set the DOF properties of a drive on an articulation.
 
     Args:
-        prim_path (str): The prim path to the articulation root.
-        dof_name (str): The name of the DOF/joint.
-        stiffness (Optional[float]): The stiffness of the drive.
-        damping (Optional[float]): The damping of the drive.
-        max_velocity (Optional[float]): The max velocity of the drive.
-        max_force (Optional[float]): The max effort of the drive.
+        prim_path: The prim path to the articulation root.
+        dof_name: The name of the DOF/joint.
+        stiffness: The stiffness of the drive.
+        damping: The damping of the drive.
+        max_velocity: The max velocity of the drive.
+        max_force: The max effort of the drive.
 
     Raises:
         ValueError: When no joint of given name found under the provided prim path.
@@ -244,25 +246,25 @@ def set_drive_dof_properties(
 
 def set_articulation_properties(
     prim_path: str,
-    articulation_enabled: Optional[bool] = None,
-    solver_position_iteration_count: Optional[int] = None,
-    solver_velocity_iteration_count: Optional[int] = None,
-    sleep_threshold: Optional[float] = None,
-    stabilization_threshold: Optional[float] = None,
-    enable_self_collisions: Optional[bool] = None,
+    articulation_enabled: bool | None = None,
+    solver_position_iteration_count: int | None = None,
+    solver_velocity_iteration_count: int | None = None,
+    sleep_threshold: float | None = None,
+    stabilization_threshold: float | None = None,
+    enable_self_collisions: bool | None = None,
 ) -> None:
     """Set PhysX parameters for an articulation prim.
 
     Args:
-        prim_path (str): The prim path to the articulation root.
-        articulation_enabled (Optional[bool]): Whether the articulation should be enabled/disabled.
-        solver_position_iteration_count (Optional[int]): Solver position iteration counts for the body.
-        solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
-        sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an
+        prim_path: The prim path to the articulation root.
+        articulation_enabled: Whether the articulation should be enabled/disabled.
+        solver_position_iteration_count: Solver position iteration counts for the body.
+        solver_velocity_iteration_count: Solver velocity iteration counts for the body.
+        sleep_threshold: Mass-normalized kinetic energy threshold below which an
             actor may go to sleep.
-        stabilization_threshold (Optional[float]): The mass-normalized kinetic energy threshold below
+        stabilization_threshold: The mass-normalized kinetic energy threshold below
             which an articulation may participate in stabilization.
-        enable_self_collisions (Optional[bool]): Boolean defining whether self collisions should be
+        enable_self_collisions: Boolean defining whether self collisions should be
             enabled or disabled.
 
     Raises:
@@ -299,46 +301,46 @@ def set_articulation_properties(
 
 def set_rigid_body_properties(
     prim_path: str,
-    rigid_body_enabled: Optional[bool] = None,
-    solver_position_iteration_count: Optional[int] = None,
-    solver_velocity_iteration_count: Optional[int] = None,
-    linear_damping: Optional[float] = None,
-    angular_damping: Optional[float] = None,
-    max_linear_velocity: Optional[float] = None,
-    max_angular_velocity: Optional[float] = None,
-    sleep_threshold: Optional[float] = None,
-    stabilization_threshold: Optional[float] = None,
-    max_depenetration_velocity: Optional[float] = None,
-    max_contact_impulse: Optional[float] = None,
-    enable_gyroscopic_forces: Optional[bool] = None,
-    disable_gravity: Optional[bool] = None,
-    retain_accelerations: Optional[bool] = None,
+    rigid_body_enabled: bool | None = None,
+    solver_position_iteration_count: int | None = None,
+    solver_velocity_iteration_count: int | None = None,
+    linear_damping: float | None = None,
+    angular_damping: float | None = None,
+    max_linear_velocity: float | None = None,
+    max_angular_velocity: float | None = None,
+    sleep_threshold: float | None = None,
+    stabilization_threshold: float | None = None,
+    max_depenetration_velocity: float | None = None,
+    max_contact_impulse: float | None = None,
+    enable_gyroscopic_forces: bool | None = None,
+    disable_gravity: bool | None = None,
+    retain_accelerations: bool | None = None,
 ):
     """Set PhysX parameters for a rigid body prim.
 
     Args:
-        prim_path (str): The prim path to the rigid body.
-        rigid_body_enabled (Optional[bool]): Whether to enable or disable rigid body API.
-        solver_position_iteration_count (Optional[int]): Solver position iteration counts for the body.
-        solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
-        linear_damping (Optional[float]): Linear damping coefficient.
-        angular_damping (Optional[float]): Angular damping coefficient.
-        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body (in m/s).
-        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body (in rad/s).
-        sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an actor
+        prim_path: The prim path to the rigid body.
+        rigid_body_enabled: Whether to enable or disable rigid body API.
+        solver_position_iteration_count: Solver position iteration counts for the body.
+        solver_velocity_iteration_count: Solver velocity iteration counts for the body.
+        linear_damping: Linear damping coefficient.
+        angular_damping: Angular damping coefficient.
+        max_linear_velocity: Max allowable linear velocity for rigid body (in m/s).
+        max_angular_velocity: Max allowable angular velocity for rigid body (in rad/s).
+        sleep_threshold: Mass-normalized kinetic energy threshold below which an actor
             may go to sleep.
-        stabilization_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which
+        stabilization_threshold: Mass-normalized kinetic energy threshold below which
             an actor may participate in stabilization.
-        max_depenetration_velocity (Optional[float]): The maximum depenetration velocity permitted to
+        max_depenetration_velocity: The maximum depenetration velocity permitted to
             be introduced by the solver (in m/s).
-        max_contact_impulse (Optional[float]): The limit on the impulse that may be applied at a contact.
-        enable_gyroscopic_forces (Optional[bool]): Enables computation of gyroscopic forces on the
+        max_contact_impulse: The limit on the impulse that may be applied at a contact.
+        enable_gyroscopic_forces: Enables computation of gyroscopic forces on the
             rigid body.
-        disable_gravity (Optional[bool]): Disable gravity for the actor.
-        retain_accelerations (Optional[bool]): Carries over forces/accelerations over sub-steps.
+        disable_gravity: Disable gravity for the actor.
+        retain_accelerations: Carries over forces/accelerations over sub-steps.
 
     Raises:
-        ValueError:  When no rigid-body schema found at specified prim path.
+        ValueError: When no rigid-body schema found at specified prim path.
     """
     # get rigid-body USD prim
     rigid_body_prim = prim_utils.get_prim_at_path(prim_path)
@@ -398,22 +400,22 @@ def set_rigid_body_properties(
 
 def set_collision_properties(
     prim_path: str,
-    collision_enabled: Optional[bool] = None,
-    contact_offset: Optional[float] = None,
-    rest_offset: Optional[float] = None,
-    torsional_patch_radius: Optional[float] = None,
-    min_torsional_patch_radius: Optional[float] = None,
+    collision_enabled: bool | None = None,
+    contact_offset: float | None = None,
+    rest_offset: float | None = None,
+    torsional_patch_radius: float | None = None,
+    min_torsional_patch_radius: float | None = None,
 ):
     """Set PhysX properties of collider prim.
 
     Args:
-        prim_path (str): The prim path of parent.
-        collision_enabled (Optional[bool], optional): Whether to enable/disable collider.
-        contact_offset (Optional[float], optional): Contact offset of a collision shape (in m).
-        rest_offset (Optional[float], optional): Rest offset of a collision shape (in m).
-        torsional_patch_radius (Optional[float], optional): Defines the radius of the contact patch
+        prim_path: The prim path of parent.
+        collision_enabled: Whether to enable/disable collider.
+        contact_offset: Contact offset of a collision shape (in m).
+        rest_offset: Rest offset of a collision shape (in m).
+        torsional_patch_radius: Defines the radius of the contact patch
             used to apply torsional friction (in m).
-        min_torsional_patch_radius (Optional[float], optional): Defines the minimum radius of the
+        min_torsional_patch_radius: Defines the minimum radius of the
             contact patch used to apply torsional friction (in m).
 
     Raises:
@@ -452,8 +454,8 @@ def apply_physics_material(prim_path: str, material_path: str, weaker_than_desce
     a collision APIs, or deformable body APIs, or being a particle system.
 
     Args:
-        prim_path (str): The prim path of parent.
-        material_path (str): The prim path of the material to apply.
+        prim_path: The prim path of parent.
+        material_path: The prim path of the material to apply.
 
     Raises:
         ValueError: If the material path does not exist on stage.
@@ -495,17 +497,17 @@ def set_nested_articulation_properties(prim_path: str, **kwargs) -> None:
         Check the method meth:`set_articulation_properties` for keyword arguments.
 
     Args:
-        prim_path (str): The prim path under which to search and apply articulation properties.
+        prim_path: The prim path under which to search and apply articulation properties.
 
     Keyword Args:
-        articulation_enabled (Optional[bool]): Whether the articulation should be enabled/disabled.
-        solver_position_iteration_count (Optional[int]): Solver position iteration counts for the body.
-        solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
-        sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an
+        articulation_enabled: Whether the articulation should be enabled/disabled.
+        solver_position_iteration_count: Solver position iteration counts for the body.
+        solver_velocity_iteration_count: Solver velocity iteration counts for the body.
+        sleep_threshold: Mass-normalized kinetic energy threshold below which an
             actor may go to sleep.
-        stabilization_threshold (Optional[float]): The mass-normalized kinetic energy threshold below
+        stabilization_threshold: The mass-normalized kinetic energy threshold below
             which an articulation may participate in stabilization.
-        enable_self_collisions (Optional[bool]): Boolean defining whether self collisions should be
+        enable_self_collisions: Boolean defining whether self collisions should be
             enabled or disabled.
     """
     # get USD prim
@@ -529,27 +531,27 @@ def set_nested_rigid_body_properties(prim_path: str, **kwargs):
         Check the method meth:`set_rigid_body_properties` for keyword arguments.
 
     Args:
-        prim_path (str): The prim path under which to search and apply rigid-body properties.
+        prim_path: The prim path under which to search and apply rigid-body properties.
 
     Keyword Args:
-        rigid_body_enabled (Optional[bool]): Whether to enable or disable rigid body API.
-        solver_position_iteration_count (Optional[int]): Solver position iteration counts for the body.
-        solver_velocity_iteration_count (Optional[int]): Solver velocity iteration counts for the body.
-        linear_damping (Optional[float]): Linear damping coefficient.
-        angular_damping (Optional[float]): Angular damping coefficient.
-        max_linear_velocity (Optional[float]): Max allowable linear velocity for rigid body (in m/s).
-        max_angular_velocity (Optional[float]): Max allowable angular velocity for rigid body (in rad/s).
-        sleep_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which an actor
+        rigid_body_enabled: Whether to enable or disable rigid body API.
+        solver_position_iteration_count: Solver position iteration counts for the body.
+        solver_velocity_iteration_count: Solver velocity iteration counts for the body.
+        linear_damping: Linear damping coefficient.
+        angular_damping: Angular damping coefficient.
+        max_linear_velocity: Max allowable linear velocity for rigid body (in m/s).
+        max_angular_velocity: Max allowable angular velocity for rigid body (in rad/s).
+        sleep_threshold: Mass-normalized kinetic energy threshold below which an actor
             may go to sleep.
-        stabilization_threshold (Optional[float]): Mass-normalized kinetic energy threshold below which
+        stabilization_threshold: Mass-normalized kinetic energy threshold below which
             an actor may participate in stabilization.
-        max_depenetration_velocity (Optional[float]): The maximum depenetration velocity permitted to
+        max_depenetration_velocity: The maximum depenetration velocity permitted to
             be introduced by the solver (in m/s).
-        max_contact_impulse (Optional[float]): The limit on the impulse that may be applied at a contact.
-        enable_gyroscopic_forces (Optional[bool]): Enables computation of gyroscopic forces on the
+        max_contact_impulse: The limit on the impulse that may be applied at a contact.
+        enable_gyroscopic_forces: Enables computation of gyroscopic forces on the
             rigid body.
-        disable_gravity (Optional[bool]): Disable gravity for the actor.
-        retain_accelerations (Optional[bool]): Carries over forces/accelerations over sub-steps.
+        disable_gravity: Disable gravity for the actor.
+        retain_accelerations: Carries over forces/accelerations over sub-steps.
     """
     # get USD prim
     prim = prim_utils.get_prim_at_path(prim_path)
@@ -572,15 +574,15 @@ def set_nested_collision_properties(prim_path: str, **kwargs):
         Check the method meth:`set_collision_properties` for keyword arguments.
 
     Args:
-        prim_path (str): The prim path under which to search and apply collider properties.
+        prim_path: The prim path under which to search and apply collider properties.
 
     Keyword Args:
-        collision_enabled (Optional[bool], optional): Whether to enable/disable collider.
-        contact_offset (Optional[float], optional): Contact offset of a collision shape (in m).
-        rest_offset (Optional[float], optional): Rest offset of a collision shape (in m).
-        torsional_patch_radius (Optional[float], optional): Defines the radius of the contact patch
+        collision_enabled: Whether to enable/disable collider.
+        contact_offset: Contact offset of a collision shape (in m).
+        rest_offset: Rest offset of a collision shape (in m).
+        torsional_patch_radius: Defines the radius of the contact patch
             used to apply torsional friction (in m).
-        min_torsional_patch_radius (Optional[float], optional): Defines the minimum radius of the
+        min_torsional_patch_radius: Defines the minimum radius of the
             contact patch used to apply torsional friction (in m).
     """
     # get USD prim
@@ -604,9 +606,9 @@ def apply_nested_physics_material(prim_path: str, material_path: str, weaker_tha
     a collision APIs, or deformable body APIs, or being a particle system.
 
     Args:
-        prim_path (str): The prim path under which to search and apply physics material.
-        material_path (str): The path to the physics material to apply.
-        weaker_than_descendants (bool, optional): Whether the material should override the
+        prim_path: The prim path under which to search and apply physics material.
+        material_path: The path to the physics material to apply.
+        weaker_than_descendants: Whether the material should override the
             descendants materials. Defaults to False.
 
     Raises:

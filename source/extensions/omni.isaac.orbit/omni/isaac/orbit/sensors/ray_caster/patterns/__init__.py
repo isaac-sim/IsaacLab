@@ -7,6 +7,8 @@
 Utility functions for different ray-casting patterns that are used by the ray-caster.
 """
 
+from __future__ import annotations
+
 from .patterns import bpearl_pattern, grid_pattern, pinhole_camera_pattern
 from .patterns_cfg import BpearlPatternCfg, GridPatternCfg, PatternBaseCfg, PinholeCameraPatternCfg
 

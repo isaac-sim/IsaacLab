@@ -5,6 +5,8 @@
 
 """Script to run an environment with zero action agent."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

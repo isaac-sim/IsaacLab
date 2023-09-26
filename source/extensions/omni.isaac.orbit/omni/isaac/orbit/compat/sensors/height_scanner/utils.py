@@ -5,17 +5,17 @@
 
 """Utilities to create and visualize 2D height-maps."""
 
+from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.image import AxesImage
-from typing import Tuple
 
 __all__ = ["create_points_from_grid", "plot_height_grid"]
 
 
-def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.ndarray:
+def create_points_from_grid(size: tuple[float, float], resolution: float) -> np.ndarray:
     """Creates a list of points from 2D mesh-grid.
 
     The terrain scan is approximated with a grid map of the input resolution.
@@ -36,11 +36,11 @@ def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.
             ]
 
     Args:
-        size (Tuple[float, float]): The 2D scan region along x and y directions (in meters).
-        resolution (float): The resolution of the scanner (in meters/cell).
+        size: The 2D scan region along x and y directions (in meters).
+        resolution: The resolution of the scanner (in meters/cell).
 
     Returns:
-        np.ndarray:  A set of points of shape (N, 2) or (N, 3), where first x is fixed while y changes.
+        A set of points of shape (N, 2) or (N, 3), where first x is fixed while y changes.
     """
     # Compute the scan grid
     # Note: np.arange does not include end-point when dealing with floats. That is why we add resolution.
@@ -52,7 +52,7 @@ def create_points_from_grid(size: Tuple[float, float], resolution: float) -> np.
 
 
 def plot_height_grid(
-    hit_distance: np.ndarray, size: Tuple[float, float], resolution: float, ax: Axes = None
+    hit_distance: np.ndarray, size: tuple[float, float], resolution: float, ax: Axes = None
 ) -> AxesImage:
     """Plots the sensor height-map distances using matplotlib.
 
@@ -63,13 +63,13 @@ def plot_height_grid(
         :meth:`create_points_from_grid` method.
 
     Args:
-        hit_distance (dict): The ray hit distance measured from the sensor.
-        size (Tuple[float, float]): The 2D scan region along x and y directions (in meters).
-        resolution (float): The resolution of the scanner (in meters/cell).
-        ax (Axes, optional): The current matplotlib axes to plot in.. Defaults to None.
+        hit_distance: The ray hit distance measured from the sensor.
+        size: The 2D scan region along x and y directions (in meters).
+        resolution: The resolution of the scanner (in meters/cell).
+        ax: The current matplotlib axes to plot in.. Defaults to None.
 
     Returns:
-        AxesImage: Image axes of the created plot.
+        Image axes of the created plot.
     """
     # Check that request of keys has same length as available axes.
     if ax is None:

@@ -122,10 +122,10 @@ class IdealPDActuator(ActuatorBase):
         """Clip the desired torques based on the motor limits.
 
         Args:
-            desired_torques (torch.Tensor): The desired torques to clip.
+            desired_torques: The desired torques to clip.
 
         Returns:
-            torch.Tensor: The clipped torques.
+            The clipped torques.
         """
         return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
 

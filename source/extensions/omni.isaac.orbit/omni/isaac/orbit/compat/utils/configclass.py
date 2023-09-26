@@ -5,10 +5,11 @@
 
 """Wrapper around the Python 3.7 onwards `dataclasses` module."""
 
+from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import Field, dataclass, field
-from typing import Any, Callable, ClassVar, Dict
+from typing import Any, Callable, ClassVar
 
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
 
@@ -88,22 +89,22 @@ These are redefined here to add new docstrings.
 """
 
 
-def _class_to_dict(obj: object) -> Dict[str, Any]:
+def _class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Returns:
-        Dict[str, Any]: Converted dictionary mapping.
+        Converted dictionary mapping.
     """
     return class_to_dict(obj)
 
 
-def _update_class_from_dict(obj, data: Dict[str, Any]) -> None:
+def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
 
     Args:
-        data (Dict[str, Any]): Input (nested) dictionary to update from.
+        data: Input (nested) dictionary to update from.
 
     Raises:
         TypeError: When input is not a dictionary.

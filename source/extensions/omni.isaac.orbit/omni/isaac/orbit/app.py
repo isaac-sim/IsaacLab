@@ -72,6 +72,8 @@ Alternatively, one can set the environment variables to the python script direct
 
 """
 
+from __future__ import annotations
+
 import faulthandler
 import os
 import re

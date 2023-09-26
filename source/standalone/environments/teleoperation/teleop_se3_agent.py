@@ -5,6 +5,8 @@
 
 """Script to run a keyboard teleoperation with Orbit manipulation environments."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

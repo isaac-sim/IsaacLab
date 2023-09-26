@@ -108,7 +108,7 @@ class InteractiveScene:
             as we call heterogeneous environments). This limitation is fixed in Isaac Sim 2023.1.
 
         Args:
-            cfg (InteractiveSceneCfg): The configuration class for the scene.
+            cfg: The configuration class for the scene.
         """
         # store inputs
         self.cfg = cfg
@@ -230,7 +230,7 @@ class InteractiveScene:
         """Resets the scene entities.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The indices of the environments to reset.
+            env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
         """
         # -- assets
@@ -268,7 +268,7 @@ class InteractiveScene:
         """Update the scene entities.
 
         Args:
-            dt (float): The amount of time passed from last :meth:`update` call.
+            dt: The amount of time passed from last :meth:`update` call.
         """
         # -- assets
         for articulation in self.articulations.values():
@@ -287,7 +287,7 @@ class InteractiveScene:
         """Returns the keys of the scene entities.
 
         Returns:
-            list[str]: The keys of the scene entities.
+            The keys of the scene entities.
         """
         all_keys = ["terrain"]
         for asset_family in [self.articulations, self.rigid_objects, self.sensors, self.extras]:
@@ -298,10 +298,10 @@ class InteractiveScene:
         """Returns the scene entity with the given key.
 
         Args:
-            key (str): The key of the scene entity.
+            key: The key of the scene entity.
 
         Returns:
-            Any: The scene entity.
+            The scene entity.
         """
         # check if it is a terrain
         if key == "terrain":

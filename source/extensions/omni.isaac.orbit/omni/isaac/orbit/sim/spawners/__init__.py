@@ -23,6 +23,8 @@ Usage:
         cfg.func(prim_path, cfg)
 """
 
+from __future__ import annotations
+
 from .from_files import *  # noqa: F401, F403
 from .lights import *  # noqa: F401, F403
 from .materials import *  # noqa: F401, F403

@@ -41,8 +41,8 @@ class CommandGeneratorBase(ABC):
         """Initialize the command generator class.
 
         Args:
-            cfg (CommandGeneratorBaseCfg): The configuration parameters for the command generator.
-            env (BaseEnv): The environment object.
+            cfg: The configuration parameters for the command generator.
+            env: The environment object.
         """
         # store the inputs
         self.cfg = cfg
@@ -97,7 +97,7 @@ class CommandGeneratorBase(ABC):
         """Sets whether to visualize the command data.
 
         Args:
-            debug_vis (bool): Whether to visualize the command data.
+            debug_vis: Whether to visualize the command data.
 
         Raises:
             RuntimeError: If the command debug visualization is not enabled.
@@ -112,10 +112,10 @@ class CommandGeneratorBase(ABC):
         at the beginning of each episode.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The list of environment IDs to reset. Defaults to None.
+            env_ids: The list of environment IDs to reset. Defaults to None.
 
         Returns:
-            Dict[str, float]: A dictionary containing the information to log under the "Metrics/{name}" key.
+            A dictionary containing the information to log under the "Metrics/{name}" key.
         """
         # resolve the environment IDs
         if env_ids is None:
@@ -137,7 +137,7 @@ class CommandGeneratorBase(ABC):
         """Compute the command.
 
         Args:
-            dt (float): The time step passed since the last call to compute.
+            dt: The time step passed since the last call to compute.
         """
         # update the metrics based on current state
         self._update_metrics()
@@ -161,7 +161,7 @@ class CommandGeneratorBase(ABC):
         specified environment indices.
 
         Args:
-            env_ids (Sequence[int]): The list of environment IDs to resample.
+            env_ids: The list of environment IDs to resample.
         """
         # resample the time left before resampling
         self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 
 from omni.isaac.core.articulations import ArticulationView
@@ -48,8 +50,8 @@ class NonHolonomicKinematicsGroup(ActuatorGroup):
         """Initialize the actuator group.
 
         Args:
-            cfg (NonHolonomicKinematicsGroupCfg): The configuration of the actuator group.
-            view (ArticulationView): The simulation articulation view.
+            cfg: The configuration of the actuator group.
+            view: The simulation articulation view.
 
         Raises:
             ValueError: When command type is not "v_abs".
@@ -87,7 +89,7 @@ class NonHolonomicKinematicsGroup(ActuatorGroup):
         The input command is the base velocity and turning rate command.
 
         Returns:
-            torch.Tensor: The target joint commands for the gripper.
+            The target joint commands for the gripper.
         """
         # obtain current heading
         quat_w = self.view.get_world_poses(clone=False)[1]

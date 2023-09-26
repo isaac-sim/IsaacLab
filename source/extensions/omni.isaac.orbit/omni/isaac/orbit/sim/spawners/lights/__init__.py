@@ -12,6 +12,8 @@ Please check the Omniverse documentation for `lighting overview
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/103/lighting.html>`_.
 """
 
+from __future__ import annotations
+
 from .lights import spawn_light
 from .lights_cfg import CylinderLightCfg, DiskLightCfg, DistantLightCfg, DomeLightCfg, LightCfg, SphereLightCfg
 

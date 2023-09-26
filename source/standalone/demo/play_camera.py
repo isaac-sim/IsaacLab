@@ -9,6 +9,8 @@ The camera sensor is created and interfaced through the Omniverse Replicator API
 the simulator or OpenGL convention for the camera, we use the robotics or ROS convention.
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse

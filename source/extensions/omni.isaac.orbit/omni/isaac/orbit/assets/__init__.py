@@ -37,6 +37,8 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
+from __future__ import annotations
+
 from .articulation import Articulation, ArticulationCfg, ArticulationData
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg

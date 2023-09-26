@@ -26,9 +26,9 @@ def define_articulation_root_properties(
     See :func:`set_articulation_root_properties` for more details on how the properties are set.
 
     Args:
-        prim_path (str): The prim path where to apply the articulation root schema.
-        cfg (schemas_cfg.ArticulationRootPropertiesCfg): The configuration for the articulation root.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the articulation root schema.
+        cfg: The configuration for the articulation root.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
     Raises:
@@ -81,9 +81,9 @@ def modify_articulation_root_properties(
     .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
 
     Args:
-        prim_path (str): The prim path to the articulation root.
-        cfg (schemas_cfg.ArticulationRootPropertiesCfg): The configuration for the articulation root.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path to the articulation root.
+        cfg: The configuration for the articulation root.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -121,9 +121,9 @@ def define_rigid_body_properties(
     See :func:`set_rigid_body_properties` for more details on how the properties are set.
 
     Args:
-        prim_path (str): The prim path where to apply the rigid body schema.
-        cfg (schemas_cfg.RigidBodyPropertiesCfg): The configuration for the rigid body.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the rigid body schema.
+        cfg: The configuration for the rigid body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
     Raises:
@@ -173,9 +173,9 @@ def modify_rigid_body_properties(
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
 
     Args:
-        prim_path (str): The prim path to the rigid body.
-        cfg (schemas_cfg.RigidBodyPropertiesCfg): The configuration for the rigid body.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path to the rigid body.
+        cfg: The configuration for the rigid body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -219,9 +219,9 @@ def define_collision_properties(
     See :func:`set_collision_properties` for more details on how the properties are set.
 
     Args:
-        prim_path (str): The prim path where to apply the rigid body schema.
-        cfg (schemas_cfg.CollisionPropertiesCfg): The configuration for the collider.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the rigid body schema.
+        cfg: The configuration for the collider.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
     Raises:
@@ -269,9 +269,9 @@ def modify_collision_properties(
     .. PhysxSchema.PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
 
     Args:
-        prim_path (str): The prim path of parent.
-        cfg (schemas_cfg.CollisionPropertiesCfg): The configuration for the collider.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path of parent.
+        cfg: The configuration for the collider.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -313,9 +313,9 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     See :func:`set_mass_properties` for more details on how the properties are set.
 
     Args:
-        prim_path (str): The prim path where to apply the rigid body schema.
-        cfg (schemas_cfg.MassPropertiesCfg): The configuration for the mass properties.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the rigid body schema.
+        cfg: The configuration for the mass properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
     Raises:
@@ -358,9 +358,9 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     .. UsdPhysics.MassAPI: https://openusd.org/dev/api/class_usd_physics_mass_a_p_i.html
 
     Args:
-        prim_path (str): The prim path of the rigid body.
-        cfg (schemas_cfg.MassPropertiesCfg): The configuration for the mass properties.
-        stage (Usd.Stage | None, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path of the rigid body.
+        cfg: The configuration for the mass properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
     """
     # obtain stage
@@ -392,9 +392,9 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
     reporting API can only be added to rigid bodies.
 
     Args:
-        prim_path (str): The prim path under which to search and prepare contact sensors.
-        threshold (float, optional): The threshold for the contact sensor. Defaults to 0.0.
-        stage (Usd.Stage, optional): The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path under which to search and prepare contact sensors.
+        threshold: The threshold for the contact sensor. Defaults to 0.0.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
 
     Raises:

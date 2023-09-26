@@ -20,10 +20,10 @@ def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = Non
     The checkpoint file is resolved as: <log_path>/<run_dir>/<checkpoint>.
 
     Args:
-        log_path (str): The log directory path to find models in.
-        run_dir (int, optional): The name of the directory containing the run. Defaults to the most
+        log_path: The log directory path to find models in.
+        run_dir: The name of the directory containing the run. Defaults to the most
             recent directory created inside :obj:`log_dir`.
-        checkpoint (str, optional): The model checkpoint file or directory name. Defaults to the most recent
+        checkpoint: The model checkpoint file or directory name. Defaults to the most recent
             recent torch-model saved in the :obj:`run_dir` directory.
 
     Raises:
@@ -31,7 +31,7 @@ def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = Non
         ValueError: When no checkpoints are found in the input directory.
 
     Returns:
-        str: The path to the model checkpoint.
+        The path to the model checkpoint.
 
     Reference:
         https://github.com/leggedrobotics/legged_gym/blob/master/legged_gym/utils/helpers.py#L103

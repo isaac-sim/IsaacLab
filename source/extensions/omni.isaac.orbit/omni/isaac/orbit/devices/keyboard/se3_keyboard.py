@@ -51,8 +51,8 @@ class Se3Keyboard(DeviceBase):
         """Initialize the keyboard layer.
 
         Args:
-            pos_sensitivity (float): Magnitude of input position command scaling. Defaults to 0.05.
-            rot_sensitivity (float): Magnitude of scale input rotation commands scaling. Defaults to 0.5.
+            pos_sensitivity: Magnitude of input position command scaling. Defaults to 0.05.
+            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 0.5.
         """
         # store inputs
         self.pos_sensitivity = pos_sensitivity
@@ -107,8 +107,8 @@ class Se3Keyboard(DeviceBase):
         `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
 
         Args:
-            key (str): The keyboard button to check against.
-            func (Callable): The function to call when key is pressed. The callback function should not
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
                 take any arguments.
         """
         self._additional_callbacks[key] = func
@@ -117,7 +117,7 @@ class Se3Keyboard(DeviceBase):
         """Provides the result from keyboard event state.
 
         Returns:
-            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
+            A tuple containing the delta pose command and gripper commands.
         """
         # convert to rotation vector
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()

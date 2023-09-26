@@ -30,13 +30,16 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
         The :obj:`difficulty` parameter is ignored for this terrain.
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfRandomUniformTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
+
+    Raises:
+        ValueError: When the downsampled scale is smaller than the horizontal scale.
     """
     # check parameters
     # -- horizontal scale
@@ -94,13 +97,13 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
        :width: 40%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfPyramidSlopedTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
     """
     # resolve terrain configuration
     if cfg.inverted:
@@ -161,13 +164,13 @@ def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStai
        :width: 40%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfPyramidStairsTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
     """
     # resolve terrain configuration
     step_height = cfg.step_height_range[0] + difficulty * (cfg.step_height_range[1] - cfg.step_height_range[0])
@@ -220,13 +223,13 @@ def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscret
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
     """
     # resolve terrain configuration
     obs_height = cfg.obstacle_height_range[0] + difficulty * (
@@ -305,13 +308,16 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfWaveTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
+
+    Raises:
+        ValueError: When the number of waves is non-positive.
     """
     # check number of waves
     if cfg.num_waves < 0:
@@ -354,13 +360,13 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (hf_terrains_cfg.HfSteppingStonesTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        np.ndarray: The height field of the terrain as a 2D numpy array with discretized heights.
-            The shape of the array is (width, length), where width and length are the number of points
-            along the x and y axis, respectively.
+        The height field of the terrain as a 2D numpy array with discretized heights.
+        The shape of the array is (width, length), where width and length are the number of points
+        along the x and y axis, respectively.
     """
     # resolve terrain configuration
     stone_width = cfg.stone_width_range[1] - difficulty * (cfg.stone_width_range[1] - cfg.stone_width_range[0])

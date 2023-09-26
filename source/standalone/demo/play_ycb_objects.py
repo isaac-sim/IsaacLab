@@ -7,6 +7,8 @@
 This script demonstrates how to import and use the YCB objects in Orbit
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

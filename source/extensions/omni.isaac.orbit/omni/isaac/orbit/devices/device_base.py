@@ -5,6 +5,7 @@
 
 """Base class for teleoperation interface."""
 
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Callable
@@ -35,8 +36,8 @@ class DeviceBase(ABC):
         """Add additional functions to bind keyboard.
 
         Args:
-            key (Any): The button to check against.
-            func (Callable): The function to call when key is pressed. The callback function should not
+            key: The button to check against.
+            func: The function to call when key is pressed. The callback function should not
                 take any arguments.
         """
         raise NotImplementedError
@@ -46,6 +47,6 @@ class DeviceBase(ABC):
         """Provides the joystick event state.
 
         Returns:
-            Any: The processed output form the joystick.
+            The processed output form the joystick.
         """
         raise NotImplementedError

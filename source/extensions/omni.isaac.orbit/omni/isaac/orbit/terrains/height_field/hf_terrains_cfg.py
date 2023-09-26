@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import Optional, Tuple
 
 from omni.isaac.orbit.utils import configclass
 
@@ -26,7 +27,7 @@ class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1."""
     vertical_scale: float = 0.005
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005."""
-    slope_threshold: Optional[float] = None
+    slope_threshold: float | None = None
     """The slope threshold above which surfaces are made vertical. Defaults to :obj:`None`.
 
     If :obj:`None` no correction is applied.
@@ -44,11 +45,11 @@ class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
 
     function = hf_terrains.random_uniform_terrain
 
-    noise_range: Tuple[float, float] = MISSING
+    noise_range: tuple[float, float] = MISSING
     """The minimum and maximum height noise (i.e. along z) of the terrain (in m)."""
     noise_step: float = MISSING
     """The minimum height (in m) change between two points."""
-    downsampled_scale: Optional[float] = None
+    downsampled_scale: float | None = None
     """The distance between two randomly sampled points on the terrain. Defaults to None,
     in which case the :obj:`horizontal scale` is used.
 
@@ -63,7 +64,7 @@ class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
 
     function = hf_terrains.pyramid_sloped_terrain
 
-    slope_range: Tuple[float, float] = MISSING
+    slope_range: tuple[float, float] = MISSING
     """The slope of the terrain (in radians)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -93,7 +94,7 @@ class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
 
     function = hf_terrains.pyramid_stairs_terrain
 
-    step_height_range: Tuple[float, float] = MISSING
+    step_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the steps (in m)."""
     step_width: float = MISSING
     """The width of the steps (in m)."""
@@ -130,9 +131,9 @@ class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
 
     The following modes are supported: "choice", "fixed".
     """
-    obstacle_width_range: Tuple[float, float] = MISSING
+    obstacle_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the obstacles (in m)."""
-    obstacle_height_range: Tuple[float, float] = MISSING
+    obstacle_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the obstacles (in m)."""
     num_obstacles: int = MISSING
     """The number of obstacles to generate."""
@@ -146,7 +147,7 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
 
     function = hf_terrains.wave_terrain
 
-    amplitude_range: Tuple[float, float] = MISSING
+    amplitude_range: tuple[float, float] = MISSING
     """The minimum and maximum amplitude of the wave (in m)."""
     num_waves: int = 1.0
     """The number of waves to generate. Defaults to 1.0."""
@@ -160,9 +161,9 @@ class HfSteppingStonesTerrainCfg(HfTerrainBaseCfg):
 
     stone_height_max: float = MISSING
     """The maximum height of the stones (in m)."""
-    stone_width_range: Tuple[float, float] = MISSING
+    stone_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the stones (in m)."""
-    stone_distance_range: Tuple[float, float] = MISSING
+    stone_distance_range: tuple[float, float] = MISSING
     """The minimum and maximum distance between stones (in m)."""
     holes_depth: float = -10.0
     """The depth of the holes (negative obstacles). Defaults to -10.0."""

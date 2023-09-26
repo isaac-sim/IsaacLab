@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import numpy as np
 import os
 import torch
 import trimesh
-from typing import List, Tuple
 
 from omni.isaac.orbit.utils.dict import dict_to_md5_hash
 from omni.isaac.orbit.utils.io import dump_yaml
@@ -48,7 +49,7 @@ class TerrainGenerator:
 
     terrain_mesh: trimesh.Trimesh
     """A single trimesh.Trimesh object for all the generated sub-terrains."""
-    terrain_meshes: List[trimesh.Trimesh]
+    terrain_meshes: list[trimesh.Trimesh]
     """List of trimesh.Trimesh objects for all the generated sub-terrains."""
     terrain_origins: np.ndarray
     """The origin of each sub-terrain. Shape is (num_rows, num_cols, 3)."""
@@ -57,7 +58,7 @@ class TerrainGenerator:
         """Initialize the terrain generator.
 
         Args:
-            cfg (TerrainMeshGeneratorCfg): Configuration for the terrain generator.
+            cfg: Configuration for the terrain generator.
         """
         # check inputs
         if len(cfg.sub_terrains) == 0:
@@ -189,10 +190,10 @@ class TerrainGenerator:
         """Add input sub-terrain to the list of sub-terrains meshes and origins.
 
         Args:
-            mesh (trimesh.Trimesh): The mesh of the sub-terrain.
-            origin (np.ndarray): The origin of the sub-terrain.
-            row (int): The row index of the sub-terrain.
-            col (int): The column index of the sub-terrain.
+            mesh: The mesh of the sub-terrain.
+            origin: The origin of the sub-terrain.
+            row: The row index of the sub-terrain.
+            col: The column index of the sub-terrain.
         """
         transform = np.eye(4)
         transform[0:2, -1] = (row + 0.5) * self.cfg.size[0], (col + 0.5) * self.cfg.size[1]
@@ -202,7 +203,7 @@ class TerrainGenerator:
         # add origin to the list
         self.terrain_origins[row, col] = origin + transform[:3, -1]
 
-    def _get_terrain_mesh(self, difficulty: float, cfg: SubTerrainBaseCfg) -> Tuple[trimesh.Trimesh, np.ndarray]:
+    def _get_terrain_mesh(self, difficulty: float, cfg: SubTerrainBaseCfg) -> tuple[trimesh.Trimesh, np.ndarray]:
         """Generate a sub-terrain mesh based on the input difficulty parameter.
 
         If caching is enabled, the sub-terrain is cached and loaded from the cache if it exists.
@@ -213,11 +214,11 @@ class TerrainGenerator:
             2D center becomes :math:`(0, 0)` instead of :math:`(size[0] / 2, size[1] / 2).
 
         Args:
-            difficulty (float): The difficulty parameter.
-            cfg (SubTerrainBaseCfg): The configuration of the sub-terrain.
+            difficulty: The difficulty parameter.
+            cfg: The configuration of the sub-terrain.
 
         Returns:
-            Tuple[trimesh.Trimesh, np.ndarray]: The sub-terrain mesh and origin.
+            The sub-terrain mesh and origin.
         """
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)

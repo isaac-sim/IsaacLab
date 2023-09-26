@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
 from ..visualization_markers import VisualizationMarkersCfg

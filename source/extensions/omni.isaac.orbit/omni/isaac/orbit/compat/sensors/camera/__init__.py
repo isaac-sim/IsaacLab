@@ -7,6 +7,7 @@
 Camera wrapper around USD camera prim to provide an interface that follows the robotics convention.
 """
 
+from __future__ import annotations
 
 from .camera import Camera, CameraData
 from .camera_cfg import FisheyeCameraCfg, PinholeCameraCfg

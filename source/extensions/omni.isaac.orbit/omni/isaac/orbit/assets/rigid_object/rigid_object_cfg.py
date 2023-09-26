@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Tuple
+from __future__ import annotations
 
 from omni.isaac.orbit.utils import configclass
 
@@ -21,9 +21,9 @@ class RigidObjectCfg(AssetBaseCfg):
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):
         """Initial state of the rigid body."""
 
-        lin_vel: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        lin_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Linear velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        ang_vel: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        ang_vel: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Angular velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
 
     ##

@@ -31,10 +31,10 @@ for RL-Games :class:`Runner` class:
 
 """
 
+from __future__ import annotations
 
 import gym
 import torch
-from typing import Dict, Union
 
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
@@ -78,10 +78,10 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
         """Initializes the wrapper instance.
 
         Args:
-            env (RLEnv): The environment to wrap around.
-            rl_device (str): The device on which agent computations are performed.
-            clip_obs (float): The clipping value for observations.
-            clip_actions (float): The clipping value for actions.
+            env: The environment to wrap around.
+            rl_device: The device on which agent computations are performed.
+            clip_obs: The clipping value for observations.
+            clip_actions: The clipping value for actions.
 
         Raises:
             ValueError: The environment is not inherited from :class:`RLEnv`.
@@ -158,7 +158,7 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
     Helper functions
     """
 
-    def _process_obs(self, obs_dict: VecEnvObs) -> Union[torch.Tensor, Dict[str, torch.Tensor]]:
+    def _process_obs(self, obs_dict: VecEnvObs) -> torch.Tensor | dict[str, torch.Tensor]:
         """Processing of the observations and states from the environment.
 
         Note:
@@ -166,10 +166,10 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
             asymmetric actor-critic algorithms [1].
 
         Args:
-            obs (VecEnvObs): The current observations from environment.
+            obs: The current observations from environment.
 
         Returns:
-            Union[torch.Tensor, Dict[str, torch.Tensor]]: If environment provides states, then a dictionary
+            If environment provides states, then a dictionary
                 containing the observations and states is returned. Otherwise just the observations tensor
                 is returned.
 
@@ -215,8 +215,8 @@ class RlGamesGpuEnv(IVecEnv):
         """Initialize the environment.
 
         Args:
-            config_name (str): The name of the environment configuration.
-            num_actors (int): The number of actors in the environment. This is not used in this wrapper.
+            config_name: The name of the environment configuration.
+            num_actors: The number of actors in the environment. This is not used in this wrapper.
         """
         self.env: RlGamesVecEnvWrapper = env_configurations.configurations[config_name]["env_creator"](**kwargs)
 
@@ -230,7 +230,7 @@ class RlGamesGpuEnv(IVecEnv):
         """Get number of agents in the environment.
 
         Returns:
-            int: The number of agents in the environment.
+            The number of agents in the environment.
         """
         return self.env.get_number_of_agents()
 
@@ -238,6 +238,6 @@ class RlGamesGpuEnv(IVecEnv):
         """Get the Gym spaces for the environment.
 
         Returns:
-            dict: The Gym spaces for the environment.
+            The Gym spaces for the environment.
         """
         return self.env.get_env_info()

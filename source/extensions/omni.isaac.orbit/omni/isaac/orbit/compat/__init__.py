@@ -10,3 +10,5 @@ This submodule contains code from previous release of Orbit that is kept for com
 
     This module is not part of the public API and may be removed in future releases.
 """
+
+from __future__ import annotations

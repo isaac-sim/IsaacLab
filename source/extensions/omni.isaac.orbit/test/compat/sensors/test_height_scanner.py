@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 
@@ -299,7 +301,7 @@ class TestHeightScannerSensor(unittest.TestCase):
         """Computes the query height-scan points relative to base frame of robot.
 
         Returns:
-            np.ndarray: A numpy array of shape (N, 3) comprising of quey scan points.
+            A numpy array of shape (N, 3) comprising of quey scan points.
         """
         # offset from the base frame - over each leg
         offsets = [[0.45, 0.3, 0.0], [-0.46, 0.3, 0.0], [0.45, -0.3, 0.0], [-0.46, -0.3, 0.0]]

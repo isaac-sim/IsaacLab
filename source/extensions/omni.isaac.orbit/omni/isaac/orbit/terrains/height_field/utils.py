@@ -23,12 +23,12 @@ def height_field_to_mesh(func: Callable) -> Callable:
     Additionally, it adds a border around the terrain to avoid artifacts at the edges.
 
     Args:
-        func (Callable): The height field function to convert. The function should return a 2D
-            numpy array with the heights of the terrain.
+        func: The height field function to convert. The function should return a 2D numpy array
+            with the heights of the terrain.
 
     Returns:
-        Callable: The mesh function. The mesh function returns a tuple containing a list of ``trimesh``
-            mesh objects and the origin of the terrain.
+        The mesh function. The mesh function returns a tuple containing a list of ``trimesh``
+        mesh objects and the origin of the terrain.
     """
 
     @functools.wraps(func)
@@ -102,15 +102,14 @@ def convert_height_field_to_mesh(
         (x_1,y_1)A---A'(x_1',y_1)
 
     Args:
-        height_field (np.ndarray): The input height-field array.
-        horizontal_scale (float): The discretization of the terrain along the x and y axis.
-        vertical_scale (float): The discretization of the terrain along the z axis.
-        slope_threshold (Optional[float], optional): The slope threshold above which surfaces
-            are made vertical. If :obj:`None` no correction is applied. Defaults to :obj:`None`.
+        height_field: The input height-field array.
+        horizontal_scale: The discretization of the terrain along the x and y axis.
+        vertical_scale: The discretization of the terrain along the z axis.
+        slope_threshold: The slope threshold above which surfaces are made vertical.
+            If :obj:`None` no correction is applied. Defaults to :obj:`None`.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray]: The vertices and triangles of the mesh:
-
+        The vertices and triangles of the mesh:
         - **vertices** (np.ndarray(float)): Array of shape (num_vertices, 3).
           Each row represents the location of each vertex (in m).
         - **triangles** (np.ndarray(int)): Array of shape (num_triangles, 3).

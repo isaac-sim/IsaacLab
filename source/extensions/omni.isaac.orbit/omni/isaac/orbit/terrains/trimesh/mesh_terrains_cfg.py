@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import Tuple, Union
+from typing_extensions import Literal
 
 import omni.isaac.orbit.terrains.trimesh.mesh_terrains as mesh_terrains
 import omni.isaac.orbit.terrains.trimesh.utils as mesh_utils_terrains
@@ -35,7 +37,7 @@ class MeshPyramidStairsTerrainCfg(SubTerrainBaseCfg):
 
     The border is a flat terrain with the same height as the terrain.
     """
-    step_height_range: Tuple[float, float] = MISSING
+    step_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the steps (in m)."""
     step_width: float = MISSING
     """The width of the steps (in m)."""
@@ -69,7 +71,7 @@ class MeshRandomGridTerrainCfg(SubTerrainBaseCfg):
 
     grid_width: float = MISSING
     """The width of the grid cells (in m)."""
-    grid_height_range: Tuple[float, float] = MISSING
+    grid_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the grid cells (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -87,9 +89,9 @@ class MeshRailsTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.rails_terrain
 
-    rail_thickness_range: Tuple[float, float] = MISSING
+    rail_thickness_range: tuple[float, float] = MISSING
     """The thickness of the inner and outer rails (in m)."""
-    rail_height_range: Tuple[float, float] = MISSING
+    rail_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the rails (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -101,7 +103,7 @@ class MeshPitTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.pit_terrain
 
-    pit_depth_range: Tuple[float, float] = MISSING
+    pit_depth_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the pit (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -115,7 +117,7 @@ class MeshBoxTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.box_terrain
 
-    box_height_range: Tuple[float, float] = MISSING
+    box_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the box (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -129,7 +131,7 @@ class MeshGapTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.gap_terrain
 
-    gap_width_range: Tuple[float, float] = MISSING
+    gap_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the gap (in m)."""
     platform_width: float = 1.0
     """The width of the square platform at the center of the terrain. Defaults to 1.0."""
@@ -141,9 +143,9 @@ class MeshFloatingRingTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.floating_ring_terrain
 
-    ring_width_range: Tuple[float, float] = MISSING
+    ring_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the ring (in m)."""
-    ring_height_range: Tuple[float, float] = MISSING
+    ring_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the ring (in m)."""
     ring_thickness: float = MISSING
     """The thickness (along z) of the ring (in m)."""
@@ -159,9 +161,9 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
     num_bars: int = MISSING
     """The number of bars per-side the star. Must be greater than 2."""
-    bar_width_range: Tuple[float, float] = MISSING
+    bar_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the bars in the star (in m)."""
-    bar_height_range: Tuple[float, float] = MISSING
+    bar_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the bars in the star (in m)."""
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
@@ -182,7 +184,7 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
 
     function = mesh_terrains.repeated_objects_terrain
 
-    object_type: Union[str, callable] = MISSING
+    object_type: Literal["cylinder", "box", "cone"] | callable = MISSING
     """The type of object to generate.
 
     The type can be a string or a callable. If it is a string, the function will look for a function called
@@ -231,7 +233,7 @@ class MeshRepeatedBoxesTerrainCfg(MeshRepeatedObjectsTerrainCfg):
     class ObjectCfg(MeshRepeatedObjectsTerrainCfg.ObjectCfg):
         """Configuration for repeated boxes."""
 
-        size: Tuple[float, float] = MISSING
+        size: tuple[float, float] = MISSING
         """The width (along x) and length (along y) of the box (in m)."""
         max_yx_angle: float = 0.0
         """The maximum angle along the y and x axis. Defaults to 0.0."""

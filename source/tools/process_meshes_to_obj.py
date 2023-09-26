@@ -6,11 +6,12 @@
 
 """Convert all mesh files to `.obj` in given folders."""
 
+from __future__ import annotations
+
 import argparse
 import os
 import shutil
 import subprocess
-from typing import List
 
 # Constants
 # Path to blender
@@ -44,8 +45,8 @@ def run_blender_convert2obj(in_file: str, out_file: str):
     """Calls the python script using `subprocess` to perform processing of mesh file.
 
     Args:
-        in_file (str): Input mesh file.
-        out_file (str): Output obj file.
+        in_file: Input mesh file.
+        out_file: Output obj file.
     """
     # resolve for python file
     tools_dirname = os.path.dirname(os.path.abspath(__file__))
@@ -58,12 +59,12 @@ def run_blender_convert2obj(in_file: str, out_file: str):
     subprocess.run(command_exe_list)
 
 
-def convert_meshes(source_folders: List[str], destination_folders: List[str]):
+def convert_meshes(source_folders: list[str], destination_folders: list[str]):
     """Processes all mesh files of supported format into OBJ file using blender.
 
     Args:
-        source_folders (List[str]): List of directories to search for meshes.
-        destination_folders (List[str]): List of directories to dump converted files.
+        source_folders: List of directories to search for meshes.
+        destination_folders: List of directories to dump converted files.
     """
     # create folder for corresponding destination
     for folder in destination_folders:

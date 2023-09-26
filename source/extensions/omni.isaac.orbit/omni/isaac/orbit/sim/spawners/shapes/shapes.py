@@ -34,16 +34,14 @@ def spawn_sphere(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.SphereCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -76,19 +74,17 @@ def spawn_cuboid(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.CuboidCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
-        ValueError: If a prim already exists at the given path.
+        If a prim already exists at the given path.
     """
     # resolve the scale
     size = min(cfg.size)
@@ -117,16 +113,14 @@ def spawn_cylinder(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.CylinderCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -155,16 +149,14 @@ def spawn_capsule(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.CapsuleCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -193,16 +185,14 @@ def spawn_cone(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (spawner_cfg.ConeCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -243,15 +233,13 @@ def _spawn_geom_from_prim_type(
       If instancing is enabled, this prim will be an instanceable reference to the prototype prim.
 
     Args:
-        prim_path (str): The prim path to spawn the asset at.
-        cfg (spawner_cfg.GeometryCfg): The config containing the properties to apply.
-        prim_type (str): The type of prim to create.
-        attributes (dict): The attributes to apply to the prim.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
-        scale (tuple[float, float, float], optional): The scale to apply to the prim. Defaults to None.
+        prim_path: The prim path to spawn the asset at.
+        cfg: The config containing the properties to apply.
+        prim_type: The type of prim to create.
+        attributes: The attributes to apply to the prim.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        scale: The scale to apply to the prim. Defaults to None.
 
     Raises:
         ValueError: If a prim already exists at the given path.

@@ -5,6 +5,8 @@
 
 """Script to play a checkpoint if an RL agent from Stable-Baselines3."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

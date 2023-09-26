@@ -5,6 +5,8 @@
 
 """Spacemouse controller for SE(2) control."""
 
+from __future__ import annotations
+
 import hid
 import numpy as np
 import threading
@@ -38,9 +40,9 @@ class Se2SpaceMouse(DeviceBase):
         """Initialize the spacemouse layer.
 
         Args:
-            v_x_sensitivity (float): Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
-            v_y_sensitivity (float): Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
-            omega_z_sensitivity (float): Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
+            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
+            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
+            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
         """
         # store inputs
         self.v_x_sensitivity = v_x_sensitivity
@@ -92,7 +94,7 @@ class Se2SpaceMouse(DeviceBase):
         """Provides the result from spacemouse event state.
 
         Returns:
-            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
+            A 3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

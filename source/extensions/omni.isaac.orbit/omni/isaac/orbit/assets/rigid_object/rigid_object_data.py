@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -16,7 +17,7 @@ class RigidObjectData:
     # Properties.
     ##
 
-    body_names: List[str] = None
+    body_names: list[str] = None
     """Body names in the order parsed by the simulation view."""
 
     ##

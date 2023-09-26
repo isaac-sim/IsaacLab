@@ -5,11 +5,12 @@
 
 """Utilities for working with dictionaries."""
 
+from __future__ import annotations
 
 import collections.abc
 import hashlib
 import json
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable
@@ -28,20 +29,20 @@ Dictionary <-> Class operations.
 """
 
 
-def class_to_dict(obj: object) -> Dict[str, Any]:
+def class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Note:
         Ignores all names starting with "__" (i.e. built-in methods).
 
     Args:
-        obj (object): An instance of a class to convert.
+        obj: An instance of a class to convert.
 
     Raises:
         ValueError: When input argument is not an object.
 
     Returns:
-        Dict[str, Any]: Converted dictionary mapping.
+        Converted dictionary mapping.
     """
     # check that input data is class instance
     if not hasattr(obj, "__class__"):
@@ -68,15 +69,15 @@ def class_to_dict(obj: object) -> Dict[str, Any]:
     return data
 
 
-def update_class_from_dict(obj, data: Dict[str, Any], _ns: str = "") -> None:
+def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
 
     Args:
-        obj (object): An instance of a class to update.
-        data (Dict[str, Any]): Input dictionary to update from.
-        _ns (str): Namespace of the current object. This is useful for nested configuration
+        obj: An instance of a class to update.
+        data: Input dictionary to update from.
+        _ns: Namespace of the current object. This is useful for nested configuration
             classes or dictionaries. Defaults to "".
 
     Raises:
@@ -132,10 +133,10 @@ def dict_to_md5_hash(data: object) -> str:
     """Convert a dictionary into a hashable key using MD5 hash.
 
     Args:
-        data (object): Input dictionary or configuration object to convert.
+        data: Input dictionary or configuration object to convert.
 
     Returns:
-        str: A string object of double length containing only hexadecimal digits.
+        A string object of double length containing only hexadecimal digits.
     """
     # convert to dictionary
     if isinstance(data, dict):
@@ -169,10 +170,10 @@ def convert_dict_to_backend(
         (e.g. lists) are referenced by the new dictionary, so they are not copied.
 
     Args:
-        data (dict): An input dict containing array or tensor data as values.
-        backend(str): The backend ("numpy", "torch", "warp") to which arrays in this dict should be converted.
+        data: An input dict containing array or tensor data as values.
+        backend: The backend ("numpy", "torch", "warp") to which arrays in this dict should be converted.
             Defaults to "numpy".
-        array_types(Iterable[str]): A list containing the types of arrays that should be converted to
+        array_types: A list containing the types of arrays that should be converted to
             the desired backend. Defaults to ("numpy", "torch", "warp").
 
     Raises:
@@ -180,7 +181,7 @@ def convert_dict_to_backend(
             backends ("numpy", "torch", "warp").
 
     Returns:
-        dict: The updated dict with the data converted to the desired backend.
+        The updated dict with the data converted to the desired backend.
     """
     # THINK: Should we also support converting to a specific device, e.g. "cuda:0"?
     # Check the backend is valid.
@@ -233,11 +234,11 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
         https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
 
     Args:
-        orig_dict (dict): The original dictionary to insert items to.
-        new_dict (collections.abc.Mapping): The new dictionary to insert items from.
+        orig_dict: The original dictionary to insert items to.
+        new_dict: The new dictionary to insert items from.
 
     Returns:
-        dict: The updated dictionary.
+        The updated dictionary.
     """
     for keyname, value in new_dict.items():
         if isinstance(value, collections.abc.Mapping):

@@ -50,11 +50,12 @@ class ActuatorBase(ABC):
         """Initialize the actuator.
 
         Args:
-            cfg (ActuatorBaseCfg): The configuration of the actuator model.
-            joint_names (list[str]): The joint names in the articulation.
-            joint_ids (list[int] | Ellipsis): The joint indices in the articulation.
-            num_envs (int): Number of articulations in the view.
-            device (str): Device used for processing.
+            cfg: The configuration of the actuator model.
+            joint_names: The joint names in the articulation.
+            joint_ids: The joint indices in the articulation. If :obj:`Ellipsis`, then all the joints in the
+                articulation are part of the group.
+            num_envs: Number of articulations in the view.
+            device: Device used for processing.
         """
         # save parameters
         self.cfg = cfg
@@ -95,7 +96,7 @@ class ActuatorBase(ABC):
                 self.damping[:, indices] = torch.tensor(values, device=self._device)
 
     def __str__(self) -> str:
-        """A string representation of the actuator group."""
+        """Returns: A string representation of the actuator group."""
         # resolve joint indices for printing
         joint_indices = self.joint_indices
         if joint_indices is Ellipsis:
@@ -140,7 +141,7 @@ class ActuatorBase(ABC):
         """Reset the internals within the group.
 
         Args:
-            env_ids (Sequence[int]): List of environment IDs to reset.
+            env_ids: List of environment IDs to reset.
         """
         raise NotImplementedError
 
@@ -153,14 +154,12 @@ class ActuatorBase(ABC):
         It computes the articulation actions based on the actuator model type
 
         Args:
-            control_action (ArticulationActions): The joint action instance comprising of the desired joint
-                positions, joint velocities and (feed-forward) joint efforts.
-            joint_pos (torch.Tensor): The current joint positions of the joints in the group.
-                Shape is ``(num_envs, num_joints)``.
-            joint_vel (torch.Tensor): The current joint velocities of the joints in the group.
-                Shape is ``(num_envs, num_joints)``.
+            control_action: The joint action instance comprising of the desired joint positions, joint velocities
+                and (feed-forward) joint efforts.
+            joint_pos: The current joint positions of the joints in the group. Shape is ``(num_envs, num_joints)``.
+            joint_vel: The current joint velocities of the joints in the group. Shape is ``(num_envs, num_joints)``.
 
         Returns:
-            ArticulationActions: The computed desired joint positions, joint velocities and joint efforts.
+            The computed desired joint positions, joint velocities and joint efforts.
         """
         raise NotImplementedError

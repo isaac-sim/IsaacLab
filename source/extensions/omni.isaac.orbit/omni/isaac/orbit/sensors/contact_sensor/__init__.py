@@ -7,6 +7,8 @@
 Rigid contact sensor based on :class:`omni.isaac.core.prims.RigidContactView`.
 """
 
+from __future__ import annotations
+
 from .contact_sensor import ContactSensor
 from .contact_sensor_cfg import ContactSensorCfg
 from .contact_sensor_data import ContactSensorData

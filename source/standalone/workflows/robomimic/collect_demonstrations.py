@@ -5,6 +5,8 @@
 
 """Script to collect demonstrations with Isaac Orbit environments."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

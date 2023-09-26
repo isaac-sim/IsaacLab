@@ -23,7 +23,7 @@ class AssetBase(ABC):
         """Initialize the asset base.
 
         Args:
-            cfg (AssetBaseCfg): The configuration class for the asset.
+            cfg: The configuration class for the asset.
 
         Raises:
             RuntimeError: If no prims found at input prim path or prim path expression.
@@ -102,7 +102,7 @@ class AssetBase(ABC):
         """Sets whether to visualize the asset data.
 
         Args:
-            debug_vis (bool): Whether to visualize the asset data.
+            debug_vis: Whether to visualize the asset data.
 
         Raises:
             RuntimeError: If the asset debug visualization is not enabled.
@@ -115,8 +115,7 @@ class AssetBase(ABC):
         """Resets all internal buffers of selected environments.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The indices of the object to reset.
-                Defaults to None (all instances).
+            env_ids: The indices of the object to reset. Defaults to None (all instances).
         """
         raise NotImplementedError
 
@@ -133,7 +132,7 @@ class AssetBase(ABC):
         accelerations which are not provided by the simulator.
 
         Args:
-            dt (float): The amount of time passed from last ``update`` call.
+            dt: The amount of time passed from last ``update`` call.
         """
         raise NotImplementedError
 

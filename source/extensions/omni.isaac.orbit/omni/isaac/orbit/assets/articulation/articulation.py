@@ -37,8 +37,9 @@ class Articulation(RigidObject):
 
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
+
         Args:
-            cfg (ArticulationCfg): A configuration instance.
+            cfg: A configuration instance.
         """
         super().__init__(cfg)
         # container for data access
@@ -136,13 +137,12 @@ class Articulation(RigidObject):
         """Find joints in the articulation based on the name keys.
 
         Args:
-            name_keys (Union[str, Sequence[str]]): A regular expression or a list of regular expressions
-                to match the joint names.
-            joint_subset (Optional[List[str]], optional): A subset of joints to search for. Defaults to None,
-                which means all joints in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the joint names.
+            joint_subset: A subset of joints to search for. Defaults to None, which means all joints
+                in the articulation are searched.
 
         Returns:
-            Tuple[List[int], List[str]]: A tuple of lists containing the joint indices and names.
+            A tuple of lists containing the joint indices and names.
         """
         if joint_subset is None:
             joint_subset = self.joint_names
@@ -186,12 +186,10 @@ class Articulation(RigidObject):
         """Write joint positions and velocities to the simulation.
 
         Args:
-            position (torch.Tensor): Joint positions. Shape is ``(len(env_ids), len(joint_ids))``.
-            velocity (torch.Tensor): Joint velocities. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the targets for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the targets for.
-                Defaults to None (all environments).
+            position: Joint positions. Shape is ``(len(env_ids), len(joint_ids))``.
+            velocity: Joint velocities. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
         if env_ids is None:
@@ -216,11 +214,9 @@ class Articulation(RigidObject):
         """Write joint stiffness into the simulation.
 
         Args:
-            stiffness (torch.Tensor): Joint stiffness. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the stiffness for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the stiffness for.
-                Defaults to None (all environments).
+            stiffness: Joint stiffness. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the stiffness for. Defaults to None (all joints).
+            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
@@ -240,10 +236,10 @@ class Articulation(RigidObject):
         """Write joint damping into the simulation.
 
         Args:
-            damping (torch.Tensor): Joint damping. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the damping for.
+            damping: Joint damping. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the damping for.
                 Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the damping for.
+            env_ids: The environment indices to set the damping for.
                 Defaults to None (all environments).
         """
         # note: This function isn't setting the values for actuator models. (#128)
@@ -267,11 +263,9 @@ class Articulation(RigidObject):
         """Write joint torque limits into the simulation.
 
         Args:
-            limits (torch.Tensor): Joint torque limits. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the joint torque limits for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the joint torque limits for.
-                Defaults to None (all environments).
+            limits: Joint torque limits. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
@@ -300,11 +294,9 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target (torch.Tensor): Joint position targets. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the targets for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the targets for.
-                Defaults to None (all environments).
+            target: Joint position targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
         if env_ids is None:
@@ -324,11 +316,9 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target (torch.Tensor): Joint velocity targets. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the targets for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the targets for.
-                Defaults to None (all environments).
+            target: Joint velocity targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
         if env_ids is None:
@@ -348,11 +338,9 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target (torch.Tensor): Joint effort targets. Shape is ``(len(env_ids), len(joint_ids))``.
-            joint_ids (Optional[Sequence[int]], optional): The joint indices to set the targets for.
-                Defaults to None (all joints).
-            env_ids (Optional[Sequence[int]], optional): The environment indices to set the targets for.
-                Defaults to None (all environments).
+            target: Joint effort targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
+            env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
         # resolve indices
         if env_ids is None:

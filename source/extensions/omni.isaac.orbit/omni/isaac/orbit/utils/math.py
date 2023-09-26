@@ -8,11 +8,11 @@
 Some of these are imported from the module `omni.isaac.core.utils.torch` for convenience.
 """
 
+from __future__ import annotations
 
 import numpy as np
 import torch
 import torch.nn.functional
-from typing import Optional, Tuple, Union
 from typing_extensions import Literal
 
 from omni.isaac.core.utils.torch.maths import normalize, scale_transform, unscale_transform
@@ -79,10 +79,10 @@ def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
     """Wraps input angles (in radians) to the range [-pi, pi].
 
     Args:
-        angles (torch.Tensor): Input angles.
+        angles: Input angles.
 
     Returns:
-        torch.Tensor: Angles in the range [-pi, pi].
+        Angles in the range [-pi, pi].
     """
     angles %= 2 * np.pi
     angles -= 2 * np.pi * (angles > np.pi)
@@ -114,11 +114,11 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
         The implementation follows from `torch.copysign`. The function allows a scalar magnitude.
 
     Args:
-        mag (float): The magnitude scalar.
-        other (torch.Tensor): The tensor containing values whose signbits are applied to magnitude.
+        mag: The magnitude scalar.
+        other: The tensor containing values whose signbits are applied to magnitude.
 
     Returns:
-        torch.Tensor: The output tensor.
+        The output tensor.
     """
     mag = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
     return torch.abs(mag) * torch.sign(other)
@@ -164,20 +164,18 @@ def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     return o.reshape(quaternions.shape[:-1] + (3, 3))
 
 
-def convert_quat(
-    quat: Union[torch.Tensor, np.ndarray], to: Literal["xyzw", "wxyz"] = "xyzw"
-) -> Union[torch.Tensor, np.ndarray]:
+def convert_quat(quat: torch.Tensor | np.ndarray, to: Literal["xyzw", "wxyz"] = "xyzw") -> torch.Tensor | np.ndarray:
     """Converts quaternion from one convention to another.
 
     The convention to convert TO is specified as an optional argument. If to == 'xyzw',
     then the input is in 'wxyz' format, and vice-versa.
 
     Args:
-        quat (Union[torch.Tensor, np.ndarray]): Input quaternion of shape (..., 4).
-        to (Literal["xyzw", "wxyz"], optional): Convention to convert quaternion to.. Defaults to "xyzw".
+        quat: Input quaternion of shape (..., 4).
+        to: Convention to convert quaternion to.. Defaults to "xyzw".
 
     Returns:
-        Union[torch.Tensor, np.ndarray]: The converted quaternion in specified convention.
+        The converted quaternion in specified convention.
 
     Raises:
         ValueError: Invalid input argument `to`, i.e. not "xyzw" or "wxyz".
@@ -217,10 +215,10 @@ def quat_inv(q: torch.Tensor) -> torch.Tensor:
     """Compute the inverse of a quaternion.
 
     Args:
-        q (torch.Tensor): The input quaternion (w, x, y, z).
+        q: The input quaternion (w, x, y, z).
 
     Returns:
-        torch.Tensor: The inverse quaternion (w, x, y, z).
+        The inverse quaternion (w, x, y, z).
     """
     return normalize(quat_conjugate(q))
 
@@ -233,12 +231,12 @@ def quat_from_euler_xyz(roll: torch.Tensor, pitch: torch.Tensor, yaw: torch.Tens
         The euler angles are assumed in XYZ convention.
 
     Args:
-        roll: Rotation around x-axis (in radians). Shape: [N,]
-        pitch: Rotation around y-axis (in radians). Shape: [N,]
-        yaw: Rotation around z-axis (in radians). Shape: [N,]
+        roll: Rotation around x-axis (in radians). Shape is ``(N,)``
+        pitch: Rotation around y-axis (in radians). Shape is ``(N,)``
+        yaw: Rotation around z-axis (in radians). Shape is ``(N,)``
 
     Returns:
-        torch.Tensor: Quaternion with real part in the start. Shape: [N, 4,]
+        Quaternion with real part in the start. Shape is ``(N, 4)``
     """
     cy = torch.cos(yaw * 0.5)
     sy = torch.sin(yaw * 0.5)
@@ -270,8 +268,7 @@ def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
 
 @torch.jit.script
 def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
-    """
-    Convert rotations given as rotation matrices to quaternions.
+    """Convert rotations given as rotation matrices to quaternions.
 
     Args:
         matrix: Rotation matrices as tensor of shape (..., 3, 3).
@@ -332,7 +329,7 @@ def quat_from_matrix(matrix: torch.Tensor) -> torch.Tensor:
     )
 
 
-def _axis_angle_rotation(axis: str, angle: torch.Tensor) -> torch.Tensor:
+def _axis_angle_rotation(axis: Literal["X", "Y", "Z"], angle: torch.Tensor) -> torch.Tensor:
     """Return the rotation matrices for one of the rotations about an axis of which Euler angles describe,
     for each value of the angle given.
 
@@ -370,15 +367,15 @@ def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tens
 
     Args:
         euler_angles: Euler angles in radians as tensor of shape (..., 3).
-        convention: Convention string of three uppercase letters from
-            {"X", "Y", and "Z"}.
+        convention: Convention string of three uppercase letters from {"X", "Y", and "Z"}.
+            For example, "XYZ" means that the rotations should be applied first about x,
+            then y, then z.
 
     Returns:
         Rotation matrices as tensor of shape (..., 3, 3).
 
     Reference:
         Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L194-L220)
-
     """
     if euler_angles.dim() == 0 or euler_angles.shape[-1] != 3:
         raise ValueError("Invalid input euler angles.")
@@ -395,9 +392,8 @@ def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tens
 
 
 @torch.jit.script
-def euler_xyz_from_quat(quat: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """
-    Convert rotations given as quaternions to Euler angles in radians.
+def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Convert rotations given as quaternions to Euler angles in radians.
 
     Note:
         The euler angles are assumed in XYZ convention.
@@ -406,10 +402,10 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor,
         https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 
     Args:
-        quat: Quaternion with real part in the start. Shape: [N, 4,]
+        quat: Quaternion with real part in the start. Shape is ``(N, 4)``
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: A tuple containing roll-pitch-yaw.
+        A tuple containing roll-pitch-yaw.
     """
     q_w, q_x, q_y, q_z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
     # roll (x-axis rotation)
@@ -434,10 +430,10 @@ def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
     """Extract the yaw component of a quaternion.
 
     Args:
-        quat (torch.Tensor): Input orientation to extract yaw from.
+        quat: Input orientation in ``(w, x, y, z)`` to extract yaw from.
 
     Returns:
-        torch.Tensor: A quaternion with only yaw component.
+        A quaternion with only yaw component.
     """
     quat_yaw = quat.clone().view(-1, 4)
     qw = quat_yaw[:, 0]
@@ -457,11 +453,11 @@ def quat_apply_yaw(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Rotate a vector only around the yaw-direction.
 
     Args:
-        quat (torch.Tensor): Input orientation to extract yaw from.
-        vec (torch.Tensor): Input vector.
+        quat: Input orientation in ``(w, x, y, z)`` to extract yaw from.
+        vec: Input vector.
 
     Returns:
-        torch.Tensor: Rotated vector.
+        Rotated vector.
     """
     quat_yaw = yaw_quat(quat)
     return quat_apply(quat_yaw, vec)
@@ -472,11 +468,11 @@ def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """Implements box-minus operator (quaternion difference).
 
     Args:
-        q1 (torch.Tensor): A (N, 4) tensor for quaternion (w, x, y, z).
-        q2 (torch.Tensor): A (N, 4) tensor for quaternion (w, x, y, z).
+        q1: A (N, 4) tensor for quaternion (w, x, y, z).
+        q2: A (N, 4) tensor for quaternion (w, x, y, z).
 
     Returns:
-        torch.Tensor: q1 box-minus q2
+        q1 box-minus q2
 
     Reference:
         https://docs.leggedrobotics.com/kindr/cheatsheet_latest.pdf
@@ -494,13 +490,13 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     """Convert rotations given as quaternions to axis/angle.
 
     Args:
-        quat (torch.Tensor): quaternions with real part first, as tensor of shape (..., 4).
-        eps (float): The tolerance for Taylor approximation. Defaults to 1.0e-6.
+        quat: quaternions with real part first, as tensor of shape (..., 4).
+        eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
 
     Returns:
-        torch.Tensor: Rotations given as a vector in axis angle form, as a tensor
-                of shape (..., 3), where the magnitude is the angle turned
-                anti-clockwise in radians around the vector's direction.
+        Rotations given as a vector in axis angle form, as a tensor
+            of shape (..., 3), where the magnitude is the angle turned
+            anti-clockwise in radians around the vector's direction.
 
     Reference:
         Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554)
@@ -530,21 +526,20 @@ Transformations
 # @torch.jit.script
 def combine_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor = None, q12: torch.Tensor = None
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Combine transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{02} = T_{01} \times T_{12}`,
     where :math:`T_{AB}` is the homogeneous transformation matrix from frame A to B.
 
     Args:
-        t01 (torch.Tensor): Position of frame 1 w.r.t. frame 0.
-        q01 (torch.Tensor): Quaternion orientation of frame 1 w.r.t. frame 0.
-        t12 (torch.Tensor): Position of frame 2 w.r.t. frame 1.
-        q12 (torch.Tensor): Quaternion orientation of frame 2 w.r.t. frame 1.
+        t01: Position of frame 1 w.r.t. frame 0.
+        q01: Quaternion orientation of frame 1 w.r.t. frame 0.
+        t12: Position of frame 2 w.r.t. frame 1.
+        q12: Quaternion orientation of frame 2 w.r.t. frame 1.
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]: A tuple containing the position and orientation of
-            frame 2 w.r.t. frame 0.
+        A tuple containing the position and orientation of frame 2 w.r.t. frame 0.
     """
     # compute orientation
     if q12 is not None:
@@ -563,21 +558,20 @@ def combine_frame_transforms(
 @torch.jit.script
 def subtract_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Subtract transformations between two reference frames into a stationary frame.
 
     It performs the following transformation operation: :math:`T_{12} = T_{01}^{-1} \times T_{02}`,
     where :math:`T_{AB}` is the homogeneous transformation matrix from frame A to B.
 
     Args:
-        t01 (torch.Tensor): Position of frame 1 w.r.t. frame 0.
-        q01 (torch.Tensor): Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z).
-        t02 (torch.Tensor): Position of frame 2 w.r.t. frame 0.
-        q02 (torch.Tensor): Quaternion orientation of frame 2 w.r.t. frame 0 in (w, x, y, z).
+        t01: Position of frame 1 w.r.t. frame 0.
+        q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z).
+        t02: Position of frame 2 w.r.t. frame 0.
+        q02: Quaternion orientation of frame 2 w.r.t. frame 0 in (w, x, y, z).
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]: A tuple containing the position and orientation of
-            frame 2 w.r.t. frame 1.
+        A tuple containing the position and orientation of frame 2 w.r.t. frame 1.
     """
     # compute orientation
     q10 = quat_inv(q01)
@@ -589,18 +583,27 @@ def subtract_frame_transforms(
 
 
 @torch.jit.script
-def compute_pose_error(t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor, rot_error_type: str):
+def compute_pose_error(
+    t01: torch.Tensor,
+    q01: torch.Tensor,
+    t02: torch.Tensor,
+    q02: torch.Tensor,
+    rot_error_type: Literal["quat", "axis_angle"],
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute the position and orientation error between source and target frames.
 
     Args:
-        t01 (torch.Tensor): Position of source frame.
-        q01 (torch.Tensor): Quaternion orientation of source frame.
-        t02 (torch.Tensor): Position of target frame.
-        q02 (torch.Tensor): Quaternion orientation of target frame.
-        rot_error_type (str): The rotation error type to return: "quat", "axis_angle".
+        t01: Position of source frame.
+        q01: Quaternion orientation of source frame.
+        t02: Position of target frame.
+        q02: Quaternion orientation of target frame.
+        rot_error_type: The rotation error type to return: "quat", "axis_angle".
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]: A tuple containing position and orientation error.
+        A tuple containing position and orientation error.
+
+    Raises:
+        ValueError: Invalid rotation error type.
     """
     # Compute quaternion error (i.e., difference quaternion)
     # Reference: https://personal.utdallas.edu/~sxb027100/dock/quaternion.html
@@ -627,8 +630,8 @@ def compute_pose_error(t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, 
 
 @torch.jit.script
 def apply_delta_pose(
-    source_pos: torch.Tensor, source_rot, delta_pose: torch.Tensor, eps: float = 1.0e-6
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    source_pos: torch.Tensor, source_rot: torch.Tensor, delta_pose: torch.Tensor, eps: float = 1.0e-6
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Applies delta pose transformation on source pose.
 
     The first three elements of `delta_pose` are interpreted as cartesian position displacement.
@@ -636,13 +639,13 @@ def apply_delta_pose(
     in the angle-axis format.
 
     Args:
-        frame_pos (torch.Tensor): Position of source frame. Shape: [N, 3]
-        frame_rot (torch.Tensor): Quaternion orientation of source frame in (w, x, y, z). Shape [N, 4].
-        delta_pose (torch.Tensor): Position and orientation displacements. Shape [N, 6].
-        eps (float): The tolerance to consider orientation displacement as zero.
+        source_pos: Position of source frame. Shape is (N, 3).
+        source_rot: Quaternion orientation of source frame in (w, x, y, z). Shape is (N, 4)..
+        delta_pose: Position and orientation displacements. Shape is (N, 6).
+        eps: The tolerance to consider orientation displacement as zero.
 
     Returns:
-        torch.Tensor: A tuple containing the displaced position and orientation frames. Shape: ([N, 3], [N, 4])
+        A tuple containing the displaced position and orientation frames.
     """
     # number of poses given
     num_poses = source_pos.shape[0]
@@ -667,7 +670,7 @@ def apply_delta_pose(
 
 @torch.jit.script
 def transform_points(
-    points: torch.Tensor, pos: Optional[torch.Tensor] = None, quat: Optional[torch.Tensor] = None
+    points: torch.Tensor, pos: torch.Tensor | None = None, quat: torch.Tensor | None = None
 ) -> torch.Tensor:
     r"""Transform input points in a given frame to a target frame.
 
@@ -684,13 +687,12 @@ def transform_points(
     If either the inputs `pos` and `quat` are :obj:`None`, the corresponding transformation is not applied.
 
     Args:
-        points (torch.Tensor): Points to transform. Shape: (N, P, 3) or (P, 3).
-        pos (torch.Tensor): Position of the target frame. Shape: (N, 3) or (3,).
-        quat (torch.Tensor): Quaternion orientation of the target frame in (w, x, y, z).
-            Shape: (N, 4) or (4,).
+        points: Points to transform. Shape is (N, P, 3) or (P, 3).
+        pos: Position of the target frame. Shape is (N, 3) or (3,).
+        quat: Quaternion orientation of the target frame in (w, x, y, z). Shape is (N, 4) or (4,).
 
     Returns:
-        torch.Tensor: Transformed points in the target frame. Shape: (N, P, 3) or (P, 3).
+        Transformed points in the target frame. Shape is (N, P, 3) or (P, 3).
 
     Raises:
         ValueError: If the inputs `points` is not of shape (N, P, 3) or (P, 3).
@@ -760,11 +762,11 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     deal with many possible shapes of depth images and intrinsics matrices.
 
     Args:
-        depth (torch.Tensor): The depth measurement. Shape: (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
-        intrinsics (torch.Tensor): A tensor providing camera's calibration matrix. Shape: (3, 3) or (N, 3, 3).
+        depth: The depth measurement. Shape is (H, W) or or (H, W, 1) or (N, H, W) or (N, H, W, 1).
+        intrinsics: A tensor providing camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
 
     Returns:
-        torch.Tensor: The 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
+        The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
 
     Raises:
         ValueError: When depth is not of shape (H, W) or (H, W, 1) or (N, H, W) or (N, H, W, 1).
@@ -837,11 +839,11 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     calibration matrix is applied to all points in the batch.
 
     Args:
-        points (torch.Tensor): The 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
-        intrinsics (torch.Tensor): Camera's calibration matrix. Shape: (3, 3) or (N, 3, 3).
+        points: The 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
+        intrinsics: Camera's calibration matrix. Shape is (3, 3) or (N, 3, 3).
 
     Returns:
-        torch.Tensor: Projected 3D coordinates of points. Shape: (P, 3) or (N, P, 3).
+        Projected 3D coordinates of points. Shape is (P, 3) or (N, P, 3).
     """
     points_batch = points.clone()
     intrinsics_batch = intrinsics.clone()
@@ -880,11 +882,11 @@ def default_orientation(num: int, device: str) -> torch.Tensor:
     """Returns identity rotation transform.
 
     Args:
-        num (int): The number of rotations to sample.
-        device (str): Device to create tensor on.
+        num: The number of rotations to sample.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Identity quaternion (w, x, y, z).
+        Identity quaternion (w, x, y, z).
     """
     quat = torch.zeros((num, 4), dtype=torch.float, device=device)
     quat[..., 0] = 1.0
@@ -900,11 +902,11 @@ def random_orientation(num: int, device: str) -> torch.Tensor:
         https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.random.html
 
     Args:
-        num (int): The number of rotations to sample.
-        device (str): Device to create tensor on.
+        num: The number of rotations to sample.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Sampled quaternion (w, x, y, z).
+        Sampled quaternion (w, x, y, z).
     """
     # sample random orientation from normal distribution
     quat = torch.randn((num, 4), dtype=torch.float, device=device)
@@ -917,11 +919,11 @@ def random_yaw_orientation(num: int, device: str) -> torch.Tensor:
     """Returns sampled rotation around z-axis.
 
     Args:
-        num (int): The number of rotations to sample.
-        device (str): Device to create tensor on.
+        num: The number of rotations to sample.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Sampled quaternion (w, x, y, z).
+        Sampled quaternion (w, x, y, z).
     """
     roll = torch.zeros(num, dtype=torch.float, device=device)
     pitch = torch.zeros(num, dtype=torch.float, device=device)
@@ -930,17 +932,17 @@ def random_yaw_orientation(num: int, device: str) -> torch.Tensor:
     return quat_from_euler_xyz(roll, pitch, yaw)
 
 
-def sample_triangle(lower: float, upper: float, size: Union[int, Tuple[int, ...]], device: str) -> torch.Tensor:
+def sample_triangle(lower: float, upper: float, size: int | tuple[int, ...], device: str) -> torch.Tensor:
     """Randomly samples tensor from a triangular distribution.
 
     Args:
-        lower (float): The lower range of the sampled tensor.
-        upper (float): The upper range of the sampled tensor.
-        size (Union[int, Tuple[int, ...]]): The shape of the tensor.
-        device (str): Device to create tensor on.
+        lower: The lower range of the sampled tensor.
+        upper: The upper range of the sampled tensor.
+        size: The shape of the tensor.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Sampled tensor of shape :obj:`size`.
+        Sampled tensor of shape :obj:`size`.
     """
     # convert to tuple
     if isinstance(size, int):
@@ -956,18 +958,18 @@ def sample_triangle(lower: float, upper: float, size: Union[int, Tuple[int, ...]
 
 
 def sample_uniform(
-    lower: Union[torch.Tensor, float], upper: Union[torch.Tensor, float], size: Union[int, Tuple[int, ...]], device: str
+    lower: torch.Tensor | float, upper: torch.Tensor | float, size: int | tuple[int, ...], device: str
 ) -> torch.Tensor:
     """Sample uniformly within a range.
 
     Args:
-        lower (Union[torch.Tensor, float]): Lower bound of uniform range.
-        upper (Union[torch.Tensor, float]): Upper bound of uniform range.
-        size (Union[int, Tuple[int, ...]]): The shape of the tensor.
-        device (str): Device to create tensor on.
+        lower: Lower bound of uniform range.
+        upper: Upper bound of uniform range.
+        size: The shape of the tensor.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Sampled tensor of shape :obj:`size`.
+        Sampled tensor of shape :obj:`size`.
     """
     # convert to tuple
     if isinstance(size, int):
@@ -977,7 +979,7 @@ def sample_uniform(
 
 
 def sample_cylinder(
-    radius: float, h_range: Tuple[float, float], size: Union[int, Tuple[int, ...]], device: str
+    radius: float, h_range: tuple[float, float], size: int | tuple[int, ...], device: str
 ) -> torch.Tensor:
     """Sample 3D points uniformly on a cylinder's surface.
 
@@ -988,13 +990,13 @@ def sample_cylinder(
     contains the x, y, and z coordinates of the sampled points.
 
     Args:
-        radius (float): The radius of the cylinder.
-        h_range (Tuple[float, float]): The minimum and maximum height of the cylinder.
-        size (Union[int, Tuple[int, ...]]): The shape of the tensor.
-        device (str): Device to create tensor on.
+        radius: The radius of the cylinder.
+        h_range: The minimum and maximum height of the cylinder.
+        size: The shape of the tensor.
+        device: Device to create tensor on.
 
     Returns:
-        torch.Tensor: Sampled tensor of shape :obj:`(*size, 3)`.
+        Sampled tensor of shape :obj:`(*size, 3)`.
     """
     # sample angles
     angles = (torch.rand(size, device=device) * 2 - 1) * np.pi

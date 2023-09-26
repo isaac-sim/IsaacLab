@@ -6,11 +6,13 @@
 
 """Reward manager for computing reward signals for a given world."""
 
+from __future__ import annotations
+
 import copy
 import inspect
 import torch
 from prettytable import PrettyTable
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class RewardManager:
@@ -94,15 +96,15 @@ class RewardManager:
 
     """
 
-    def __init__(self, cfg: Dict[str, Dict[str, Any]], env, num_envs: int, dt: float, device: str):
+    def __init__(self, cfg: dict[str, dict[str, Any]], env, num_envs: int, dt: float, device: str):
         """Construct a list of reward functions which are used to compute the total reward.
 
         Args:
-            cfg (Dict[str, Dict[str, Any]]): Configuration for reward terms.
-            env (IsaacEnv): A world instance used for accessing state.
-            num_envs (int): Number of environment instances.
-            dt (float): The time-stepping for the environment.
-            device (int): The device on which create buffers.
+            cfg: Configuration for reward terms.
+            env: A world instance used for accessing state.
+            num_envs: Number of environment instances.
+            dt: The time-stepping for the environment.
+            device: The device on which create buffers.
         """
         # store input
         self._cfg = copy.deepcopy(cfg)
@@ -154,12 +156,12 @@ class RewardManager:
         return self._device
 
     @property
-    def active_terms(self) -> List[str]:
+    def active_terms(self) -> list[str]:
         """Name of active reward terms."""
         return self._reward_term_names
 
     @property
-    def episode_sums(self) -> Dict[str, torch.Tensor]:
+    def episode_sums(self) -> dict[str, torch.Tensor]:
         """Contains the current episodic sum of individual reward terms."""
         return self._episode_sums
 
@@ -167,15 +169,15 @@ class RewardManager:
     Operations.
     """
 
-    def reset_idx(self, env_ids: torch.Tensor, episodic_extras: Optional[dict] = None):
+    def reset_idx(self, env_ids: torch.Tensor, episodic_extras: dict | None = None):
         """Reset the reward terms computation for input environment indices.
 
         If `episodic_extras` is not None, then the collected sum of individual reward terms is stored
         in the dictionary. This is useful for logging episodic information.
 
         Args:
-            env_ids (torch.Tensor): Indices of environment instances to reset.
-            episodic_extras (Optional[dict], optional): Dictionary to store episodic information.
+            env_ids: Indices of environment instances to reset.
+            episodic_extras: Dictionary to store episodic information.
                 Defaults to None.
         """
         if episodic_extras is None:
@@ -200,7 +202,7 @@ class RewardManager:
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
         Returns:
-            torch.Tensor: The net reward signal of shape (num_envs,).
+            The net reward signal of shape (num_envs,).
         """
         # reset computation
         self._reward_buf[:] = 0.0

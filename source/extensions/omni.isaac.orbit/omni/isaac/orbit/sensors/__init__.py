@@ -11,6 +11,8 @@ require creating a USD prim for them. Custom sensors, on the other hand, are the
 implemented in Python and do not require creating a USD prim for them.
 """
 
+from __future__ import annotations
+
 from .camera import *  # noqa: F401, F403
 from .contact_sensor import *  # noqa: F401, F403
 from .ray_caster import *  # noqa: F401, F403

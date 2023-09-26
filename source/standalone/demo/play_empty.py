@@ -5,6 +5,8 @@
 
 """This script demonstrates how to create a simple stage in Isaac Sim with lights and a ground plane."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

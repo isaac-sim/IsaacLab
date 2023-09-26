@@ -36,12 +36,12 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (visual_materials_cfg.PreviewSurfaceCfg): The configuration instance.
+        cfg: The configuration instance.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.
@@ -81,12 +81,12 @@ def spawn_from_mdl_file(prim_path: str, cfg: visual_materials_cfg.MdlMaterialCfg
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (visual_materials_cfg.MdlMaterialCfg): The configuration instance.
+        cfg: The configuration instance.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.

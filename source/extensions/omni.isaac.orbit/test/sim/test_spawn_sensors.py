@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher
@@ -95,9 +97,9 @@ class TestSpawningSensors(unittest.TestCase):
         """Validate the properties on the prim.
 
         Args:
-            prim_path (str): The prim name.
-            cfg (object): The configuration object.
-            custom_attr (dict[str, [str, Sdf.ValueType]]): The custom attributes for sensor.
+            prim_path: The prim name.
+            cfg: The configuration object.
+            custom_attr: The custom attributes for sensor.
         """
         prim = prim_utils.get_prim_at_path(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():

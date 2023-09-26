@@ -5,6 +5,7 @@
 
 """Utility functions for parsing robomimic configuration files."""
 
+from __future__ import annotations
 
 import os
 

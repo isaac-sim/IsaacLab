@@ -33,6 +33,8 @@ Locally, the schemas are defined in the following files:
 
 """
 
+from __future__ import annotations
+
 from .schemas import (
     activate_contact_sensors,
     define_articulation_root_properties,

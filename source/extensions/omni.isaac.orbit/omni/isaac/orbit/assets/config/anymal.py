@@ -14,6 +14,7 @@ Reference:
 * https://github.com/ANYbotics/anymal_c_simple_description
 """
 
+from __future__ import annotations
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ActuatorNetLSTMCfg, DCMotorCfg

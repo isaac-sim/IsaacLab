@@ -5,6 +5,7 @@
 
 """Keyboard controller for SE(2) control."""
 
+from __future__ import annotations
 
 import numpy as np
 from typing import Callable
@@ -43,9 +44,9 @@ class Se2Keyboard(DeviceBase):
         """Initialize the keyboard layer.
 
         Args:
-            v_x_sensitivity (float): Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
-            v_y_sensitivity (float): Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
-            omega_z_sensitivity (float): Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
+            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
+            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
+            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
         """
         # store inputs
         self.v_x_sensitivity = v_x_sensitivity
@@ -97,8 +98,8 @@ class Se2Keyboard(DeviceBase):
         `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
 
         Args:
-            key (str): The keyboard button to check against.
-            func (Callable): The function to call when key is pressed. The callback function should not
+            key: The keyboard button to check against.
+            func: The function to call when key is pressed. The callback function should not
                 take any arguments.
         """
         self._additional_callbacks[key] = func
@@ -107,7 +108,7 @@ class Se2Keyboard(DeviceBase):
         """Provides the result from keyboard event state.
 
         Returns:
-            np.ndarray: A 3D array containing the linear (x,y) and angular velocity (z).
+            3D array containing the linear (x,y) and angular velocity (z).
         """
         return self._base_command
 

@@ -4,8 +4,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import Optional
 from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
@@ -18,14 +19,14 @@ class UrdfLoaderCfg:
     urdf_path: str = MISSING
     """The path to the urdf file (e.g. path/to/urdf/robot.urdf)."""
 
-    usd_dir: Optional[str] = None
+    usd_dir: str | None = None
     """The output directory path to store the generated USD file. Defaults to :obj:`None`.
 
     If set to :obj:`None`, it is resolved as ``/tmp/Orbit/usd_{date}_{time}_{random}``, where
     the parameters in braces are runtime generated.
     """
 
-    usd_file_name: Optional[str] = None
+    usd_file_name: str | None = None
     """The name of the generated usd file. Defaults to :obj:`None`.
 
     If set to :obj:`None`, it is resolved from the urdf file name.

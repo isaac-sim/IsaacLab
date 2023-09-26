@@ -5,13 +5,14 @@
 
 """Interface to collect and store data from the environment using format from `robomimic`."""
 
+from __future__ import annotations
 
 import h5py
 import json
 import numpy as np
 import os
 import torch
-from typing import Iterable, Union
+from typing import Iterable
 
 import carb
 
@@ -50,12 +51,12 @@ class RobomimicDataCollector:
         """Initializes the data collection wrapper.
 
         Args:
-            env_name (str): The name of the environment.
-            directory_path (str): The path to store collected data.
-            filename (str, optional): The basename of the saved file. Defaults to "test".
-            num_demos (int, optional): Number of demonstrations to record until stopping. Defaults to 1.
-            flush_freq (int, optional): Frequency to dump data to disk. Defaults to 1.
-            env_config (dict): The configuration for the environment. Defaults to None.
+            env_name: The name of the environment.
+            directory_path: The path to store collected data.
+            filename: The basename of the saved file. Defaults to "test".
+            num_demos: Number of demonstrations to record until stopping. Defaults to 1.
+            flush_freq: Frequency to dump data to disk. Defaults to 1.
+            env_config: The configuration for the environment. Defaults to None.
         """
         # save input arguments
         self._env_name = env_name
@@ -115,7 +116,7 @@ class RobomimicDataCollector:
         """Whether data collection is stopped or not.
 
         Returns:
-            bool: True if data collection has stopped.
+            True if data collection has stopped.
         """
         return self._is_stop
 
@@ -129,15 +130,15 @@ class RobomimicDataCollector:
         # clear out existing buffers
         self._dataset = dict()
 
-    def add(self, key: str, value: Union[np.ndarray, torch.Tensor]):
+    def add(self, key: str, value: np.ndarray | torch.Tensor):
         """Add a key-value pair to the dataset.
 
         The key can be nested by using the "/" character. For example:
         "obs/joint_pos". Currently only two-level nesting is supported.
 
         Args:
-            key (str): The key name.
-            value (Union[np.ndarray, torch.Tensor]): The corresponding value
+            key: The key name.
+            value: The corresponding value
                  of shape (N, ...), where `N` is number of environments.
 
         Raises:
@@ -186,7 +187,7 @@ class RobomimicDataCollector:
         """Flush the episode data based on environment indices.
 
         Args:
-            env_ids (Iterable[int], optional): Environment indices to write data for. Defaults to (0).
+            env_ids: Environment indices to write data for. Defaults to (0).
         """
         # check that data is being recorded
         if self._h5_file_stream is None or self._h5_data_group is None:
@@ -245,7 +246,7 @@ class RobomimicDataCollector:
             https://robomimic.github.io/docs/datasets/overview.html
 
         Args:
-            fname (str): The base name of the file.
+            fname: The base name of the file.
         """
         if not fname.endswith(".hdf5"):
             fname += ".hdf5"

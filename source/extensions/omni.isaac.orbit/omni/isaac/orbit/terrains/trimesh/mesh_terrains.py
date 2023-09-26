@@ -32,12 +32,11 @@ def flat_terrain(
         The :obj:`difficulty` parameter is ignored for this terrain.
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshPlaneTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # compute the position of the terrain
     origin = (cfg.size[0] / 2.0, cfg.size[1] / 2.0, 0.0)
@@ -65,12 +64,11 @@ def pyramid_stairs_terrain(
        :width: 45%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshPyramidStairsTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     step_height = cfg.step_height_range[0] + difficulty * (cfg.step_height_range[1] - cfg.step_height_range[0])
@@ -166,12 +164,11 @@ def inverted_pyramid_stairs_terrain(
        :width: 45%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     step_height = cfg.step_height_range[0] + difficulty * (cfg.step_height_range[1] - cfg.step_height_range[0])
@@ -269,12 +266,11 @@ def random_grid_terrain(
        :width: 45%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshRandomGridTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
 
     Raises:
         ValueError: If the terrain is not square. This method only supports square terrains.
@@ -393,12 +389,11 @@ def rails_terrain(
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshRailsTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. this is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     rail_height = cfg.rail_height_range[1] - difficulty * (cfg.rail_height_range[1] - cfg.rail_height_range[0])
@@ -451,12 +446,11 @@ def pit_terrain(
        :width: 40%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshPitTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     pit_depth = cfg.pit_depth_range[0] + difficulty * (cfg.pit_depth_range[1] - cfg.pit_depth_range[0])
@@ -514,12 +508,11 @@ def box_terrain(
        :width: 40%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshBoxTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     box_height = cfg.box_height_range[0] + difficulty * (cfg.box_height_range[1] - cfg.box_height_range[0])
@@ -574,12 +567,11 @@ def gap_terrain(
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshGapTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     gap_width = cfg.gap_width_range[0] + difficulty * (cfg.gap_width_range[1] - cfg.gap_width_range[0])
@@ -619,12 +611,11 @@ def floating_ring_terrain(
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshFloatingRingTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
     # resolve the terrain configuration
     ring_height = cfg.ring_height_range[1] - difficulty * (cfg.ring_height_range[1] - cfg.ring_height_range[0])
@@ -666,12 +657,11 @@ def star_terrain(
        :align: center
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshStarTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
 
     Raises:
         ValueError: If :obj:`num_bars` is less than 2.
@@ -751,12 +741,14 @@ def repeated_objects_terrain(
        :width: 30%
 
     Args:
-        difficulty (float): The difficulty of the terrain. This is a value between 0 and 1.
-        cfg (mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg): The configuration for the terrain.
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
 
     Returns:
-        Tuple[List[trimesh.Trimesh], np.ndarray]: A tuple containing the tri-mesh of the terrain and the origin
-            of the terrain (in m).
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
+
+    Raises:
+        ValueError: If the object type is not supported. It must be either a string or a callable.
     """
     # import the object functions -- this is done here to avoid circular imports
     from .mesh_terrains_cfg import (

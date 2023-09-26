@@ -33,6 +33,8 @@ Example pseudo-code for a manager:
 
 """
 
+from __future__ import annotations
+
 from .action_manager import ActionManager, ActionTerm
 from .curriculum_manager import CurriculumManager
 from .manager_base import ManagerBase

@@ -58,7 +58,7 @@ class BaseEnv:
         """Initialize the environment.
 
         Args:
-            cfg (BaseEnvCfg): The configuration object for the environment.
+            cfg: The configuration object for the environment.
 
         Raises:
             RuntimeError: If a simulation context already exists. The environment must always create one

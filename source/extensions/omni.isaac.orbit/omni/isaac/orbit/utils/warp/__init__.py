@@ -23,12 +23,12 @@ def raycast_mesh(ray_starts: torch.Tensor, ray_directions: torch.Tensor, mesh: w
     and data types to ensure proper execution. Additionally, they all must be in the same frame.
 
     Args:
-        ray_starts (torch.Tensor): The starting position of the rays. Shape (N, 3).
-        ray_directions (torch.Tensor): The ray directions for each ray. Shape (N, 3).
-        mesh (wp.Mesh): The warp mesh to ray-cast against.
+        ray_start: The starting position of the rays. Shape (N, 3).
+        ray_directions: The ray directions for each ray. Shape (N, 3).
+        mesh: The warp mesh to ray-cast against.
 
     Returns:
-        torch.Tensor: The ray hit position. Shape (N, 3).
+        The ray hit position. Shape (N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
     """
     # extract device and shape information
@@ -65,14 +65,14 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
     """Create a warp mesh object with a mesh defined from vertices and triangles.
 
     Args:
-        points (np.ndarray): The vertices of the mesh. Shape is :math:`(N, 3)`, where :math:`N`
+        points: The vertices of the mesh. Shape is :math:`(N, 3)`, where :math:`N`
             is the number of vertices.
-        indices (np.ndarray): The triangles of the mesh as references to vertices for each triangle.
+        indices: The triangles of the mesh as references to vertices for each triangle.
             Shape is :math:`(M, 3)`, where :math:`M` is the number of triangles / faces.
-        device (str): The device to use for the mesh.
+        device: The device to use for the mesh.
 
     Returns:
-        wp.Mesh: The warp mesh object.
+        The warp mesh object.
     """
     # create warp mesh
     return wp.Mesh(

@@ -5,9 +5,11 @@
 
 """A class to coordinate groups of visual markers (loaded from USD)."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
-from typing import Optional, Sequence, Tuple, Union
+from typing import Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
@@ -48,9 +50,9 @@ class StaticMarker:
         self,
         prim_path: str,
         count: int,
-        usd_path: Optional[str] = None,
-        scale: Tuple[float, float, float] = (1.0, 1.0, 1.0),
-        color: Optional[Tuple[float, float, float]] = None,
+        usd_path: str | None = None,
+        scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        color: tuple[float, float, float] | None = None,
     ):
         """Initialize the class.
 
@@ -58,17 +60,16 @@ class StaticMarker:
         and the marker prim is registered into it.
 
         Args:
-            prim_path (str): The prim path where the PointInstancer will be created.
-            count (int): The number of marker duplicates to create.
-            usd_path (Optional[str], optional): The USD file path to the marker. Defaults to the USD path
-                for the RGB frame axis marker.
-            scale (Tuple[float, float, float], optional): The scale of the marker. Defaults to (1.0, 1.0, 1.0).
-            color (Optional[Tuple[float, float, float]], optional): The color of the marker.
-                If provided, it overrides the existing color on all the prims of the marker.
-                Defaults to None.
+            prim_path: The prim path where the PointInstancer will be created.
+            count: The number of marker duplicates to create.
+            usd_path: The USD file path to the marker. Defaults to the USD path for the RGB frame axis marker.
+            scale: The scale of the marker. Defaults to (1.0, 1.0, 1.0).
+            color: The color of the marker. If provided, it overrides the existing color on all the
+                prims of the marker. Defaults to None.
 
         Raises:
-            ValueError: When a prim already exists at the :obj:`prim_path` and it is not a :class:`UsdGeom.PointInstancer`.
+            ValueError: When a prim already exists at the :obj:`prim_path` and it is not a
+                :class:`UsdGeom.PointInstancer`.
             FileNotFoundError: When the USD file at :obj:`usd_path` does not exist.
         """
         # resolve default markers in the UI elements
@@ -133,7 +134,7 @@ class StaticMarker:
         The method does this through the USD API.
 
         Args:
-            visible (bool): flag to set the visibility.
+            visible: flag to set the visibility.
         """
         imageable = UsdGeom.Imageable(self._instancer_manager)
         if visible:
@@ -143,20 +144,18 @@ class StaticMarker:
 
     def set_world_poses(
         self,
-        positions: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        orientations: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        indices: Optional[Sequence[int]] = None,
+        positions: np.ndarray | torch.Tensor | None = None,
+        orientations: np.ndarray | torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
     ):
         """Update marker poses in the simulation world frame.
 
         Args:
-            positions (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Positions in the world frame. Shape: (M, 3). Defaults to :obj:`None`, which means left unchanged.
-            orientations (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape: (M, 4).
+            positions: Positions in the world frame. Shape is (M, 3). Defaults to :obj:`None`, which means left unchanged.
+            orientations: Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape is (M, 4).
                 Defaults to :obj:`None`, which means left unchanged.
-            indices (Optional[Sequence[int]], optional): Indices to specify which alter poses.
-                Shape: (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+            indices: Indices to specify which alter poses. Shape is ``(M,),`` where M <= total number of markers.
+                Defaults to :obj:`None` (i.e: all markers).
         """
         # resolve inputs
         if positions is not None:
@@ -176,13 +175,13 @@ class StaticMarker:
         self._instancer_manager.GetPositionsAttr().Set(self._gf_positions)
         self._instancer_manager.GetOrientationsAttr().Set(self._gf_orientations)
 
-    def set_scales(self, scales: Union[np.ndarray, torch.Tensor], indices: Optional[Sequence[int]] = None):
+    def set_scales(self, scales: np.ndarray | torch.Tensor, indices: Sequence[int] | None = None):
         """Update marker poses in the simulation world frame.
 
         Args:
-            scales (Union[np.ndarray, torch.Tensor]): Scale applied before any rotation is applied. Shape: (M, 3).
-            indices (Optional[Sequence[int]], optional): Indices to specify which alter poses.
-                Shape: (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+            scales: Scale applied before any rotation is applied. Shape is (M, 3).
+            indices: Indices to specify which alter poses.
+                Shape is (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
         """
         # default arguments
         if indices is None:

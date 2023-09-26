@@ -9,7 +9,8 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from typing import Tuple
+from __future__ import annotations
+
 from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
@@ -180,7 +181,7 @@ class SimulationCfg:
     substeps: int = 1
     """The number of physics simulation steps per rendering step. Default is 1."""
 
-    gravity: Tuple[float, float, float] = (0.0, 0.0, -9.81)
+    gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
     """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
 
     enable_scene_query_support: bool = False

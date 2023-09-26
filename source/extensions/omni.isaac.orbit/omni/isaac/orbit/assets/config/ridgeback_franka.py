@@ -12,6 +12,7 @@ The following configurations are available:
 Reference: https://github.com/ridgeback/ridgeback_manipulation
 """
 
+from __future__ import annotations
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg

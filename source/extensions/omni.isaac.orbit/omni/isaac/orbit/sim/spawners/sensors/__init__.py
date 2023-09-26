@@ -13,6 +13,8 @@ Currently, the following sensors are supported:
 
 """
 
+from __future__ import annotations
+
 from .sensors import spawn_camera
 from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
 

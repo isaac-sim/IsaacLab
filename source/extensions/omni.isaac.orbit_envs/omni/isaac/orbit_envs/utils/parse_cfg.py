@@ -5,28 +5,29 @@
 
 """Utilities for parsing and loading environments configurations."""
 
+from __future__ import annotations
 
 import gym
 import importlib
 import inspect
 import os
 import yaml
-from typing import Any, Union
+from typing import Any
 
 from omni.isaac.orbit.utils import update_class_from_dict, update_dict
 
 
-def load_default_env_cfg(task_name: str) -> Union[dict, Any]:
+def load_default_env_cfg(task_name: str) -> dict | Any:
     """Load default configuration file for an environment from Gym registry.
 
     This function resolves the configuration file for environment based on the file type.
     It supports both YAML and Python configuration files.
 
     Args:
-        task_name (str): The name of the environment.
+        task_name: The name of the environment.
 
     Returns:
-        Union[dict, Any]: The parsed configuration object.
+        The parsed configuration object.
 
     Raises:
         ValueError: If the task name is not provided, i.e. None.
@@ -70,16 +71,16 @@ def load_default_env_cfg(task_name: str) -> Union[dict, Any]:
     return cfg
 
 
-def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **kwargs) -> Union[dict, Any]:
+def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **kwargs) -> dict | Any:
     """Parse configuration file for an environment and override based on inputs.
 
     Args:
-        task_name (str): The name of the environment.
-        use_gpu (bool, optional): Whether to use GPU/CPU pipeline. Defaults to True.
-        num_envs (int, optional): Number of environments to create. Defaults to True.
+        task_name: The name of the environment.
+        use_gpu: Whether to use GPU/CPU pipeline. Defaults to True.
+        num_envs: Number of environments to create. Defaults to True.
 
     Returns:
-        Union[dict, Any]: The parsed configuration object.
+        The parsed configuration object.
 
     Raises:
         ValueError: If the task name is not provided, i.e. None.

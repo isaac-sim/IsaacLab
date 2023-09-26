@@ -27,8 +27,8 @@ class ManagerBase(ABC):
         """Initialize the manager.
 
         Args:
-            cfg (object): The configuration object.
-            env (BaseEnv): The environment instance.
+            cfg: The configuration object.
+            env: The environment instance.
         """
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
@@ -64,11 +64,11 @@ class ManagerBase(ABC):
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
-            env_ids (Sequence[int], optional): The environment ids for which to log data. Defaults
-                :obj:`None`, which logs data for all environments.
+            env_ids: The environment ids for which to log data.
+                Defaults :obj:`None`, which logs data for all environments.
 
         Returns:
-            dict[str, float]: Dictionary containing the logging information.
+            Dictionary containing the logging information.
         """
         return {}
 
@@ -98,10 +98,10 @@ class ManagerBase(ABC):
             required by the term function to be called correctly by the manager.
 
         Args:
-            term_name (str): The name of the term.
-            term_cfg (ManagerBaseTermCfg): The term configuration.
-            min_argc (int): The minimum number of arguments required by the term function to
-                be called correctly by the manager.
+            term_name: The name of the term.
+            term_cfg: The term configuration.
+            min_argc: The minimum number of arguments required by the term function to be called correctly
+                by the manager.
 
         Raises:
             TypeError: If the term configuration is not of type :class:`ManagerBaseTermCfg`.

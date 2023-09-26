@@ -33,7 +33,7 @@ def terrain_levels_vel(env: RLEnv, env_ids: Sequence[int], asset_cfg: SceneEntit
         on different terrain types, check the :class:`omni.isaac.orbit.terrains.TerrainImporter` class.
 
     Returns:
-        torch.Tensor: The mean terrain level for the given environment ids.
+        The mean terrain level for the given environment ids.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]

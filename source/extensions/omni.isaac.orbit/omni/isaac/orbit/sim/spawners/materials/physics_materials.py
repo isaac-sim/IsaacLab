@@ -31,9 +31,12 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (schemas_cfg.RigidBodyMaterialCfg): The configuration for the physics material.
+        cfg: The configuration for the physics material.
+
+    Returns:
+        The spawned rigid body material prim.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path and is not a material.

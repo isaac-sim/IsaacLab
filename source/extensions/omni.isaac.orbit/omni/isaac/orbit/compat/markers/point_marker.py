@@ -5,9 +5,11 @@
 
 """A class to coordinate groups of visual markers (loaded from USD)."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
-from typing import List, Optional, Sequence, Union
+from typing import Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
@@ -54,9 +56,9 @@ class PointMarker:
         """Initialize the class.
 
         Args:
-            prim_path (str): The prim path where the PointInstancer will be created.
-            count (int): The number of marker duplicates to create.
-            radius (float, optional): The radius of the sphere. Defaults to 1.0.
+            prim_path: The prim path where the PointInstancer will be created.
+            count: The number of marker duplicates to create.
+            radius: The radius of the sphere. Defaults to 1.0.
 
         Raises:
             ValueError: When a prim already exists at the :obj:`prim_path` and it is not a :class:`UsdGeom.PointInstancer`.
@@ -117,7 +119,7 @@ class PointMarker:
         The method does this through the USD API.
 
         Args:
-            visible (bool): flag to set the visibility.
+            visible: flag to set the visibility.
         """
         imageable = UsdGeom.Imageable(self._instancer_manager)
         if visible:
@@ -127,20 +129,20 @@ class PointMarker:
 
     def set_world_poses(
         self,
-        positions: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        orientations: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        indices: Optional[Sequence[int]] = None,
+        positions: np.ndarray | torch.Tensor | None = None,
+        orientations: np.ndarray | torch.Tensor | None = None,
+        indices: Sequence[int] | None = None,
     ):
         """Update marker poses in the simulation world frame.
 
         Args:
-            positions (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Positions in the world frame. Shape: (M, 3). Defaults to :obj:`None`, which means left unchanged.
-            orientations (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape: (M, 4).
+            positions:
+                Positions in the world frame. Shape is (M, 3). Defaults to :obj:`None`, which means left unchanged.
+            orientations:
+                Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape is (M, 4).
                 Defaults to :obj:`None`, which means left unchanged.
-            indices (Optional[Sequence[int]], optional): Indices to specify which alter poses.
-                Shape: (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+            indices: Indices to specify which alter poses.
+                Shape is (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
         """
         # resolve inputs
         if positions is not None:
@@ -160,13 +162,13 @@ class PointMarker:
         self._instancer_manager.GetPositionsAttr().Set(self._gf_positions)
         self._instancer_manager.GetOrientationsAttr().Set(self._gf_orientations)
 
-    def set_status(self, status: Union[List[int], np.ndarray, torch.Tensor], indices: Optional[Sequence[int]] = None):
+    def set_status(self, status: list[int] | np.ndarray | torch.Tensor, indices: Sequence[int] | None = None):
         """Updates the marker activated by the instance manager.
 
         Args:
-            status (Union[List[int], np.ndarray, torch.Tensor]): Decides which prototype marker to visualize. Shape: (M)
-            indices (Optional[Sequence[int]], optional): Indices to specify which alter poses.
-                Shape: (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+            status: Decides which prototype marker to visualize. Shape is (M)
+            indices: Indices to specify which alter poses.
+                Shape is (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
         """
         # default values
         if indices is None:

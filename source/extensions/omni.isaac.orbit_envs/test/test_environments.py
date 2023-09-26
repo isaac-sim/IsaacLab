@@ -5,6 +5,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
+from __future__ import annotations
+
 import os
 
 from omni.isaac.kit import SimulationApp
@@ -89,14 +91,14 @@ class TestEnvironments(unittest.TestCase):
     """
 
     @staticmethod
-    def _check_valid_tensor(data: Union[torch.Tensor, Dict]) -> bool:
+    def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
         """Checks if given data does not have corrupted values.
 
         Args:
-            data (Union[torch.Tensor, Dict]): Data buffer.
+            data: Data buffer.
 
         Returns:
-            bool: True if the data is valid.
+            True if the data is valid.
         """
         if isinstance(data, torch.Tensor):
             return not torch.any(torch.isnan(data))

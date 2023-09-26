@@ -71,7 +71,7 @@ class Camera(SensorBase):
         """Initializes the camera sensor.
 
         Args:
-            cfg (CameraCfg): The configuration parameters.
+            cfg: The configuration parameters.
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
@@ -185,9 +185,9 @@ class Camera(SensorBase):
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
-            matrices (torch.Tensor): The intrinsic matrices for the camera. Shape: :math:`(N, 3, 3)`.
-            focal_length (float, optional): Focal length to use when computing aperture values. Defaults to 1.0.
-            indices (Sequence[int], optional): A list of indices of length :obj:`N` to specify the prims to manipulate.
+            matrices: The intrinsic matrices for the camera. Shape is :math:`(N, 3, 3)`.
+            focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
+            indices: A list of indices of length :obj:`N` to specify the prims to manipulate.
                 Defaults to None, which means all prims will be manipulated.
         """
         # resolve indices
@@ -254,13 +254,13 @@ class Camera(SensorBase):
         on the conventions.
 
         Args:
-            positions (torch.Tensor | None, optional): The cartesian coordinates (in meters).
-                Shape: :math:`(N, 3)`. Defaults to None, in which case the camera position in not changed.
-            orientations (torch.Tensor | None, optional): The quaternion orientation in (w, x, y, z).
-                Shape: :math:`(N, 4)`. Defaults to None, in which case the camera orientation in not changed.
-            indices (Sequence[int], optional): A list of indices of length :obj:`N` to specify the prims to manipulate.
+            positions: The cartesian coordinates (in meters). Shape is :math:`(N, 3)`.
+                Defaults to None, in which case the camera position in not changed.
+            orientations: The quaternion orientation in (w, x, y, z). Shape is :math:`(N, 4)`.
+                Defaults to None, in which case the camera orientation in not changed.
+            indices: A list of indices of length :obj:`N` to specify the prims to manipulate.
                 Defaults to None, which means all prims will be manipulated.
-            convention (Literal["opengl", "ros", "world"], optional): The convention in which the poses are fed.
+            convention: The convention in which the poses are fed.
                 Defaults to "ros".
 
         Raises:
@@ -294,9 +294,9 @@ class Camera(SensorBase):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes (torch.Tensor): The positions of the camera's eye. Shape is :math:`(N, 3)`.
-            targets (torch.Tensor): The target locations to look at. Shape is :math:`(N, 3)`.
-            indices (Sequence[int], optional): A list of indices of length :math:`N` to specify the prims to manipulate.
+            eyes: The positions of the camera's eye. Shape is :math:`(N, 3)`.
+            targets: The target locations to look at. Shape is :math:`(N, 3)`.
+            indices: A list of indices of length :math:`N` to specify the prims to manipulate.
                 Defaults to None, which means all prims will be manipulated.
 
         Raises:
@@ -381,6 +381,9 @@ class Camera(SensorBase):
 
         This function creates handles and registers the provided data types with the replicator registry to
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
+
+        Raises:
+            RuntimeError: If the number of camera prims in the view does not match the number of environments.
         """
         import omni.replicator.core as rep
 
@@ -534,7 +537,7 @@ class Camera(SensorBase):
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (w, x, y, z).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:

@@ -22,6 +22,8 @@ Currently, the module provides the following classes:
 
 """
 
+from __future__ import annotations
+
 from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
 
 __all__ = ["VisualizationMarkersCfg", "VisualizationMarkers"]

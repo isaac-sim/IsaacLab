@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
 
 import logging
 

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import re
 import torch
 from typing import Sequence
@@ -44,8 +46,8 @@ class GripperActuatorGroup(ActuatorGroup):
         """Initialize the actuator group.
 
         Args:
-            cfg (GripperActuatorGroupCfg): The configuration of the actuator group.
-            view (ArticulationView): The simulation articulation view.
+            cfg: The configuration of the actuator group.
+            view: The simulation articulation view.
 
         Raises:
             ValueError: When command type is not "p_abs" or "v_abs".
@@ -115,7 +117,7 @@ class GripperActuatorGroup(ActuatorGroup):
         * Negative command: close grippers
 
         Returns:
-            torch.Tensor: The target joint commands for the gripper.
+            The target joint commands for the gripper.
         """
         # FIXME: mimic joint positions -- Gazebo plugin seems to do this.
         # The following is commented out because Isaac Sim doesn't support setting joint positions

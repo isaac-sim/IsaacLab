@@ -44,8 +44,8 @@ class RewardManager(ManagerBase):
         """Initialize the reward manager.
 
         Args:
-            cfg (object): The configuration object or dictionary (``dict[str, RewardTermCfg]``).
-            env (RLEnv): The environment instance.
+            cfg: The configuration object or dictionary (``dict[str, RewardTermCfg]``).
+            env: The environment instance.
         """
         super().__init__(cfg, env)
         # prepare extra info to store individual reward term information
@@ -91,11 +91,11 @@ class RewardManager(ManagerBase):
         """Returns the episodic sum of individual reward terms.
 
         Args:
-            env_ids (Sequence[int], optional): The environment ids for which the episodic sum of
+            env_ids: The environment ids for which the episodic sum of
                 individual reward terms is to be returned. Defaults to all the environment ids.
 
         Returns:
-            dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
+            Dictionary of episodic sum of individual reward terms.
         """
         # resolve environment ids
         if env_ids is None:
@@ -118,10 +118,10 @@ class RewardManager(ManagerBase):
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
         Args:
-            dt (float): The time-step interval of the environment.
+            dt: The time-step interval of the environment.
 
         Returns:
-            torch.Tensor: The net reward signal of shape (num_envs,).
+            The net reward signal of shape (num_envs,).
         """
         # reset computation
         self._reward_buf[:] = 0.0

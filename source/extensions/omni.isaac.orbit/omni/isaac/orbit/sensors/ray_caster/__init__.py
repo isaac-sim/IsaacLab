@@ -7,6 +7,7 @@
 Ray-caster based on warp.
 """
 
+from __future__ import annotations
 
 from . import patterns
 from .ray_caster import RayCaster

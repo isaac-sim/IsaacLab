@@ -5,6 +5,8 @@
 
 """Spacemouse device for SE(2) and SE(3) control."""
 
+from __future__ import annotations
+
 from .se2_spacemouse import Se2SpaceMouse
 from .se3_spacemouse import Se3SpaceMouse
 

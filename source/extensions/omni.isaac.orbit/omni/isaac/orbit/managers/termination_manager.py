@@ -38,8 +38,8 @@ class TerminationManager(ManagerBase):
         """Initializes the termination manager.
 
         Args:
-            cfg (object): The configuration object or dictionary (``dict[str, TerminationTermCfg]``).
-            env (RLEnv): An environment object.
+            cfg: The configuration object or dictionary (``dict[str, TerminationTermCfg]``).
+            env: An environment object.
         """
         super().__init__(cfg, env)
         # prepare extra info to store individual termination term information
@@ -95,11 +95,11 @@ class TerminationManager(ManagerBase):
         """Returns the episodic counts of individual termination terms.
 
         Args:
-            env_ids (Optional[Sequence[int]], optional): The environment ids. Defaults to None, in which case
+            env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
 
         Returns:
-            dict[str, torch.Tensor]: Dictionary of episodic sum of individual reward terms.
+            Dictionary of episodic sum of individual reward terms.
         """
         # resolve environment ids
         if env_ids is None:
@@ -120,7 +120,7 @@ class TerminationManager(ManagerBase):
         to compute the net termination signal.
 
         Returns:
-            torch.Tensor: The combined termination signal of shape ``(num_envs,)``.
+            The combined termination signal of shape ``(num_envs,)``.
         """
         # reset computation
         self._done_buf[:] = 0.0

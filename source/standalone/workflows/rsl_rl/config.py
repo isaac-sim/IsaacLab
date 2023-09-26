@@ -5,6 +5,7 @@
 
 """Utility functions for parsing rsl-rl configuration files."""
 
+from __future__ import annotations
 
 import os
 import yaml
@@ -31,10 +32,10 @@ def parse_rslrl_cfg(task_name) -> dict:
     """Parse configuration for RSL-RL agent based on inputs.
 
     Args:
-        task_name (str): The name of the environment.
+        task_name: The name of the environment.
 
     Returns:
-        dict: A dictionary containing the parsed configuration.
+        A dictionary containing the parsed configuration.
     """
     # retrieve the default environment config file
     try:

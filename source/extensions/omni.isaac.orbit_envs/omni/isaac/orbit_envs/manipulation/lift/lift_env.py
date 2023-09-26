@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import gym.spaces
 import math
 import torch
-from typing import List
 
 import omni.isaac.core.utils.prims as prim_utils
 
@@ -72,7 +73,7 @@ class LiftEnv(IsaacEnv):
     Implementation specifics.
     """
 
-    def _design_scene(self) -> List[str]:
+    def _design_scene(self) -> list[str]:
         # ground plane
         kit_utils.create_ground_plane("/World/defaultGroundPlane", z_position=-1.05)
         # table

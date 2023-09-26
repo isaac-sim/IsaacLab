@@ -5,13 +5,14 @@
 
 """Camera class in Omniverse workflows."""
 
+from __future__ import annotations
 
 import builtins
 import math
 import numpy as np
 import scipy.spatial.transform as tf
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, Tuple, Union
+from typing import Any, Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
@@ -41,9 +42,9 @@ class CameraData:
     """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention."""
     intrinsic_matrix: np.ndarray = None
     """The intrinsic matrix for the camera."""
-    image_shape: Tuple[int, int] = None
+    image_shape: tuple[int, int] = None
     """A tuple containing (height, width) of the camera sensor."""
-    output: Dict[str, Any] = None
+    output: dict[str, Any] = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_.
@@ -86,15 +87,15 @@ class Camera(SensorBase):
 
     """
 
-    def __init__(self, cfg: Union[PinholeCameraCfg, FisheyeCameraCfg], device: str = "cpu"):
+    def __init__(self, cfg: PinholeCameraCfg | FisheyeCameraCfg, device: str = "cpu"):
         """Initializes the camera sensor.
 
         If the ``device`` is ``"cpu"``, the output data is returned as a numpy array. If the ``device`` is
         ``"cuda"``, then a Warp array is returned. Note that only the valid sensor types will be moved to GPU.
 
         Args:
-            cfg (Union[PinholeCameraCfg, FisheyeCameraCfg]): The configuration parameters.
-            device (str): The device on which to receive data. Defaults to "cpu".
+            cfg: The configuration parameters.
+            device: The device on which to receive data. Defaults to "cpu".
         """
         # store inputs
         self.cfg = cfg
@@ -152,7 +153,7 @@ class Camera(SensorBase):
         return self._data
 
     @property
-    def image_shape(self) -> Tuple[int, int]:
+    def image_shape(self) -> tuple[int, int]:
         """A tuple containing (height, width) of the camera sensor."""
         return (self.cfg.height, self.cfg.width)
 
@@ -164,7 +165,7 @@ class Camera(SensorBase):
         """Set visibility of the instance in the scene.
 
         Args:
-            visible (bool): Whether to make instance visible or invisible.
+            visible: Whether to make instance visible or invisible.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
@@ -198,8 +199,8 @@ class Camera(SensorBase):
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
-            intrinsic_matrix (np.ndarray): The intrinsic matrix for the camera.
-            focal_length (float, optional): Focal length to use when computing aperture values. Defaults to 1.0.
+            intrinsic_matrix: The intrinsic matrix for the camera.
+            focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
         """
         # convert to numpy for sanity
         intrinsic_matrix = np.asarray(matrix, dtype=float)
@@ -247,8 +248,8 @@ class Camera(SensorBase):
             T_{ROS} = \begin{bmatrix} 1 & 0 & 0 & 0 \\ 0 & -1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 1 \end{bmatrix} T_{USD}
 
         Args:
-            pos (Sequence[float], optional): The cartesian coordinates (in meters). Defaults to None.
-            quat (Sequence[float], optional): The quaternion orientation in (w, x, y, z). Defaults to None.
+            pos: The cartesian coordinates (in meters). Defaults to None.
+            quat: The quaternion orientation in (w, x, y, z). Defaults to None.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
@@ -276,8 +277,8 @@ class Camera(SensorBase):
         """Set the pose of the camera from the eye position and look-at target position.
 
         Args:
-            eye (Sequence[float]): The position of the camera's eye.
-            target (Sequence[float], optional): The target location to look at. Defaults to [0, 0, 0].
+            eye: The position of the camera's eye.
+            target: The target location to look at. Defaults to [0, 0, 0].
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
@@ -332,9 +333,9 @@ class Camera(SensorBase):
         translation and orientation.
 
         Args:
-            parent_prim_path (str): The path of the parent prim to attach sensor to.
-            translation (Sequence[float], optional): The local position offset w.r.t. parent prim. Defaults to None.
-            orientation (Sequence[float], optional): The local rotation offset in ``(w, x, y, z)`` w.r.t.
+            parent_prim_path: The path of the parent prim to attach sensor to.
+            translation: The local position offset w.r.t. parent prim. Defaults to None.
+            orientation: The local rotation offset in ``(w, x, y, z)`` w.r.t.
                 parent prim. Defaults to None.
         """
         # Check if sensor is already spawned
@@ -363,8 +364,8 @@ class Camera(SensorBase):
         the camera prim is used instead of the settings passed in the configuration object.
 
         Args:
-            cam_prim_path (str, optional): The prim path to existing camera. Defaults to None.
-            has_rig (bool, optional): Whether the passed camera prim path is attached to a rig. Defaults to False.
+            cam_prim_path: The prim path to existing camera. Defaults to None.
+            has_rig: Whether the passed camera prim path is attached to a rig. Defaults to False.
 
         Raises:
             RuntimeError: When input `cam_prim_path` is :obj:`None`, the method defaults to using the last
@@ -390,7 +391,7 @@ class Camera(SensorBase):
             self.prim_path, resolution=(self.cfg.width, self.cfg.height)
         )
         # Attach the sensor data types to render node
-        self._rep_registry: Dict[str, rep.annotators.Annotator] = dict.fromkeys(self.cfg.data_types, None)
+        self._rep_registry: dict[str, rep.annotators.Annotator] = dict.fromkeys(self.cfg.data_types, None)
         # -- iterate over each data type
         for name in self.cfg.data_types:
             # init params -- Checked from rep.scripts.writes_default.basic_writer.py
@@ -511,7 +512,7 @@ class Camera(SensorBase):
             The coordinates of points on the image plane are in the homogeneous representation.
 
         Returns:
-            np.ndarray: A 3 x 3 numpy array containing the intrinsic parameters for the camera.
+            A 3 x 3 numpy array containing the intrinsic parameters for the camera.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` first.
@@ -536,14 +537,14 @@ class Camera(SensorBase):
         # return the matrix
         return np.array([[a, 0, b], [0, c, d], [0, 0, 1]], dtype=float)
 
-    def _compute_ros_pose(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _compute_ros_pose(self) -> tuple[np.ndarray, np.ndarray]:
         """Computes the pose of the camera in the world frame with ROS convention.
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: A tuple of the position (in meters) and quaternion (w, x, y, z).
+            A tuple of the position (in meters) and quaternion (w, x, y, z).
         """
         # get camera's location in world space
         prim_tf = self._sensor_prim.ComputeLocalToWorldTransform(Usd.TimeCode.Default())

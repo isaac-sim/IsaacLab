@@ -13,6 +13,8 @@ All the environments are registered in the `omni.isaac.orbit_envs` extension. Th
 with `Isaac` in their name.
 """
 
+from __future__ import annotations
+
 import gym
 from prettytable import PrettyTable
 

@@ -11,6 +11,8 @@ This script demonstrates how to use the contact sensor sensor in Orbit.
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_contact_sensor.py --num_robots 2
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

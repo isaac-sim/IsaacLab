@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import copy
 import os
 import unittest
@@ -155,8 +157,8 @@ class ParentDemoCfg:
     a: int = MISSING  # add new missing field
     b = 2  # type annotation missing on purpose
     c: RobotDefaultStateCfg = MISSING  # add new missing field
-    j: List[str] = MISSING  # add new missing field
-    i: List[str] = MISSING  # add new missing field
+    j: list[str] = MISSING  # add new missing field
+    i: list[str] = MISSING  # add new missing field
     func: Callable = MISSING  # add new missing field
 
 
@@ -169,7 +171,7 @@ class ChildDemoCfg(ParentDemoCfg):
 
     func_2: Callable = MISSING  # add new missing field
     d: int = MISSING  # add new missing field
-    k: List[str] = ["c", "d"]
+    k: list[str] = ["c", "d"]
     e: ViewerCfg = MISSING  # add new missing field
 
     dummy_class = DummyClass
@@ -203,9 +205,9 @@ class DummyClassCfg:
     """Dummy class configuration with class type."""
 
     class_name_1: type = DummyClass
-    class_name_2: Type[DummyClass] = DummyClass
+    class_name_2: type[DummyClass] = DummyClass
     class_name_3 = DummyClass
-    class_name_4: ClassVar[Type[DummyClass]] = DummyClass
+    class_name_4: ClassVar[type[DummyClass]] = DummyClass
 
     b: str = "dummy"
 
@@ -227,7 +229,7 @@ class OutsideClassCfg:
         class InsideInsideClassCfg:
             """Dummy configuration with class type."""
 
-            u: List[int] = [1, 2, 3]
+            u: list[int] = [1, 2, 3]
 
         class_name: type = DummyClass
         b: str = "dummy"

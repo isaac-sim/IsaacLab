@@ -103,7 +103,7 @@ class SimulationContext(_SimulationContext):
         """Creates a simulation context to control the simulator.
 
         Args:
-            cfg (SimulationCfg | None, optional): The configuration of the simulation. Defaults to None,
+            cfg: The configuration of the simulation. Defaults to None,
                 in which case the default configuration is used.
         """
         # store input
@@ -232,9 +232,9 @@ class SimulationContext(_SimulationContext):
             It is provided here for convenience to reduce the amount of imports needed.
 
         Args:
-            eye (tuple[float, float, float]): The location of the camera eye.
-            target (tuple[float, float, float]): The location of the camera target.
-            camera_prim_path (str, optional): The path to the camera primitive in the stage. Defaults to
+            eye: The location of the camera eye.
+            target: The location of the camera target.
+            camera_prim_path: The path to the camera primitive in the stage. Defaults to
                 "/OmniverseKit_Persp".
         """
         set_camera_view(eye, target, camera_prim_path)
@@ -249,7 +249,7 @@ class SimulationContext(_SimulationContext):
             there is no GUI). Thus, in this case, calling the function will not change the render mode.
 
         Args:
-            mode (RenderMode | None, optional): The rendering mode. Defaults to None, in which case the
+            mode: The rendering mode. Defaults to None, in which case the
                 current rendering mode is used.
         """
         # check if there is a mode change
@@ -287,8 +287,8 @@ class SimulationContext(_SimulationContext):
             documentation.
 
         Args:
-            name (str): The name of the setting.
-            value (Any): The value of the setting.
+            name: The name of the setting.
+            value: The value of the setting.
         """
         self._settings.set(name, value)
 
@@ -296,10 +296,10 @@ class SimulationContext(_SimulationContext):
         """Read the simulation setting using the Carbonite SDK.
 
         Args:
-            name (str): The name of the setting.
+            name: The name of the setting.
 
         Returns:
-            Any: The value of the setting.
+            The value of the setting.
         """
         return self._settings.get(name)
 
@@ -327,7 +327,7 @@ class SimulationContext(_SimulationContext):
             This function blocks if the timeline is paused. It only returns when the timeline is playing.
 
         Args:
-            render (bool, optional): Whether to render the scene after stepping the physics simulation.
+            render: Whether to render the scene after stepping the physics simulation.
                 If set to False, the scene is not rendered and only the physics simulation is stepped.
                 Defaults to True.
         """
@@ -362,7 +362,7 @@ class SimulationContext(_SimulationContext):
             it is not possible to change the render mode.
 
         Args:
-            mode (RenderMode | None, optional): The rendering mode. Defaults to None, in which case the
+            mode: The rendering mode. Defaults to None, in which case the
                 current rendering mode is used.
         """
         # check if we need to change the render mode

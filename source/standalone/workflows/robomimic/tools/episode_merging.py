@@ -5,6 +5,7 @@
 
 """Tool to merge multiple episodes with single trajectory into one episode with multiple trajectories."""
 
+from __future__ import annotations
 
 import argparse
 import h5py

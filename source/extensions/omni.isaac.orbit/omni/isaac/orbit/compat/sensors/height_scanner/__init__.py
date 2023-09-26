@@ -7,6 +7,8 @@
 Height-scanner based on ray-casting operations using PhysX ray-caster.
 """
 
+from __future__ import annotations
+
 from .height_scanner import HeightScanner, HeightScannerData
 from .height_scanner_cfg import HeightScannerCfg
 

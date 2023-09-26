@@ -43,10 +43,10 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.
 
     Args:
-        path (str): The path to the file.
+        path: The path to the file.
 
     Returns:
-        int: The status of the file. Possible values are:
+        The status of the file. Possible values are:
 
             * :obj:`0` if the file does not exist
             * :obj:`1` if the file exists locally
@@ -64,13 +64,13 @@ def read_file(path: str) -> io.BytesIO:
     """Reads a file from the Nucleus Server or locally.
 
     Args:
-        path (str): The path to the file.
+        path: The path to the file.
 
     Raises:
         FileNotFoundError: When the file not found locally or on Nucleus Server.
 
     Returns:
-        io.BytesIO: The content of the file.
+        The content of the file.
     """
     # check file status
     file_status = check_file_path(path)

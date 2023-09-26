@@ -7,6 +7,8 @@
 Sub-module containing configuration instances for different assets.
 """
 
+from __future__ import annotations
+
 from .anymal import *
 from .franka import *
 from .ridgeback_franka import *

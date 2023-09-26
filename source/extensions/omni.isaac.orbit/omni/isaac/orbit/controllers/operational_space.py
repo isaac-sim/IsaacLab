@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import MISSING
-from typing import Optional, Sequence, Tuple, Union
+from typing import Sequence
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.math import apply_delta_pose, compute_pose_error
@@ -40,10 +42,10 @@ class OperationSpaceControllerCfg:
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 
-    stiffness: Union[float, Sequence[float]] = MISSING
+    stiffness: float | Sequence[float] = MISSING
     """The positional gain for determining wrenches based on task-space pose error."""
 
-    damping_ratio: Optional[Union[float, Sequence[float]]] = None
+    damping_ratio: float | Sequence[float] | None = None
     """The damping ratio is used in-conjunction with positional gain to compute wrenches
     based on task-space velocity error.
 
@@ -51,27 +53,27 @@ class OperationSpaceControllerCfg:
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
     """
 
-    stiffness_limits: Tuple[float, float] = (0, 300)
+    stiffness_limits: tuple[float, float] = (0, 300)
     """Minimum and maximum values for positional gains.
 
     Note: Used only when :obj:`impedance_mode` is "variable" or "variable_kp".
     """
 
-    damping_ratio_limits: Tuple[float, float] = (0, 100)
+    damping_ratio_limits: tuple[float, float] = (0, 100)
     """Minimum and maximum values for damping ratios used to compute velocity gains.
 
     Note: Used only when :obj:`impedance_mode` is "variable".
     """
 
-    force_stiffness: Union[float, Sequence[float]] = None
+    force_stiffness: float | Sequence[float] = None
     """The positional gain for determining wrenches for closed-loop force control.
 
     If obj:`None`, then open-loop control of desired forces is performed.
     """
 
-    position_command_scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    position_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Scaling of the position command received. Used only in relative mode."""
-    rotation_command_scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    rotation_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Scaling of the rotation command received. Used only in relative mode."""
 
 
@@ -86,10 +88,10 @@ class OperationSpaceController:
         """Initialize operation-space controller.
 
         Args:
-            cfg (OperationSpaceControllerCfg): The configuration for operation-space controller.
-            num_robots (int): The number of robots to control.
-            num_dof (int): The number of degrees of freedom of the robot.
-            device (str): The device to use for computations.
+            cfg: The configuration for operation-space controller.
+            num_robots: The number of robots to control.
+            num_dof: The number of degrees of freedom of the robot.
+            device: The device to use for computations.
 
         Raises:
             ValueError: When invalid control command is provided.
@@ -189,7 +191,7 @@ class OperationSpaceController:
         """Set target end-effector pose or force command.
 
         Args:
-            command (torch.Tensor): The target end-effector pose or force command.
+            command: The target end-effector pose or force command.
         """
         # check input size
         if command.shape != (self.num_robots, self.num_actions):
@@ -225,24 +227,24 @@ class OperationSpaceController:
     def compute(
         self,
         jacobian: torch.Tensor,
-        ee_pose: Optional[torch.Tensor] = None,
-        ee_vel: Optional[torch.Tensor] = None,
-        ee_force: Optional[torch.Tensor] = None,
-        mass_matrix: Optional[torch.Tensor] = None,
-        gravity: Optional[torch.Tensor] = None,
+        ee_pose: torch.Tensor | None = None,
+        ee_vel: torch.Tensor | None = None,
+        ee_force: torch.Tensor | None = None,
+        mass_matrix: torch.Tensor | None = None,
+        gravity: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Performs inference with the controller.
 
         Args:
-            jacobian (torch.Tensor): The Jacobian matrix of the end-effector.
-            ee_pose (Optional[torch.Tensor], optional): The current end-effector pose. It is a tensor of shape
+            jacobian: The Jacobian matrix of the end-effector.
+            ee_pose: The current end-effector pose. It is a tensor of shape
                 (num_robots, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to None.
-            ee_vel (Optional[torch.Tensor], optional): The current end-effector velocity. It is a tensor of shape
+            ee_vel: The current end-effector velocity. It is a tensor of shape
                 (num_robots, 6), which contains the linear and angular velocities. Defaults to None.
-            ee_force (Optional[torch.Tensor], optional): The current external force on the end-effector.
+            ee_force: The current external force on the end-effector.
                 It is a tensor of shape (num_robots, 3), which contains the linear force. Defaults to None.
-            mass_matrix (Optional[torch.Tensor], optional): The joint-space inertial matrix. Defaults to None.
-            gravity (Optional[torch.Tensor], optional): The joint-space gravity vector. Defaults to None.
+            mass_matrix: The joint-space inertial matrix. Defaults to None.
+            gravity: The joint-space gravity vector. Defaults to None.
 
         Raises:
             ValueError: When the end-effector pose is not provided for the 'position_rel' command.
@@ -255,7 +257,7 @@ class OperationSpaceController:
             ValueError: When gravity compensation is enabled but the gravity vector is not provided.
 
         Returns:
-            torch.Tensor: The target joint torques commands.
+            The target joint torques commands.
         """
         # buffers for motion/force control
         desired_ee_pos = None

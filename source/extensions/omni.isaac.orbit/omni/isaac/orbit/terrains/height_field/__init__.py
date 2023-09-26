@@ -31,6 +31,8 @@ parameters for all terrains generated from height fields.
     :show-inheritance:
 """
 
+from __future__ import annotations
+
 from .hf_terrains_cfg import (
     HfDiscreteObstaclesTerrainCfg,
     HfInvertedPyramidSlopedTerrainCfg,

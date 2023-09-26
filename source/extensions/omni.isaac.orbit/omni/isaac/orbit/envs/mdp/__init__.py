@@ -10,6 +10,8 @@ The functions can be provided to different managers that are responsible for the
 the observation, reward, termination, actions, randomization and curriculum managers.
 """
 
+from __future__ import annotations
+
 from .actions import *  # noqa: F401, F403
 from .curriculums import *  # noqa: F401, F403
 from .observations import *  # noqa: F401, F403

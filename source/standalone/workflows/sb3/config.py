@@ -5,6 +5,8 @@
 
 """Utility functions for parsing sb3 configuration files."""
 
+from __future__ import annotations
+
 import os
 import yaml
 from torch import nn as nn  # noqa: F401
@@ -28,10 +30,10 @@ def parse_sb3_cfg(task_name) -> dict:
     """Parse configuration for Stable-baselines3 agent based on inputs.
 
     Args:
-        task_name (str): The name of the environment.
+        task_name: The name of the environment.
 
     Returns:
-        dict: A dictionary containing the parsed configuration.
+        A dictionary containing the parsed configuration.
     """
     # retrieve the default environment config file
     try:

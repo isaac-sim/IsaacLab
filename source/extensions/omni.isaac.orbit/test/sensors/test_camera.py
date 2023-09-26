@@ -6,6 +6,8 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher

@@ -47,17 +47,16 @@ def transform_points(
     If either the inputs `position` and `orientation` are :obj:`None`, the corresponding transformation is not applied.
 
     Args:
-        points (Union[np.ndarray, torch.Tensor, wp.array]): A tensor of shape (P, 3) or (N, P, 3) comprising of 3D points in source frame.
-        position (Optional[Sequence[float]], optional): The position of source frame in target frame. Defaults to None.
-        orientation (Optional[Sequence[float]], optional): The orientation ``(w, x, y, z)`` of source frame in target frame.
+        points: a tensor of shape (p, 3) or (n, p, 3) comprising of 3d points in source frame.
+        position: The position of source frame in target frame. Defaults to None.
+        orientation: The orientation ``(w, x, y, z)`` of source frame in target frame.
             Defaults to None.
-        device (Optional[Union[torch.device, str]], optional): The device for torch where the computation
+        device: The device for torch where the computation
             should be executed. Defaults to None, i.e. takes the device that matches the depth image.
 
     Returns:
-        Union[np.ndarray, torch.Tensor]:
-          A tensor of shape (N, 3) comprising of 3D points in target frame.
-          If the input is a numpy array, the output is a numpy array. Otherwise, it is a torch tensor.
+        A tensor of shape (N, 3) comprising of 3D points in target frame.
+        If the input is a numpy array, the output is a numpy array. Otherwise, it is a torch tensor.
     """
     # check if numpy
     is_numpy = isinstance(points, np.ndarray)
@@ -111,28 +110,19 @@ def create_pointcloud_from_depth(
         p_{target} = R_{target} \times p_{camera} + t_{target}
 
     Args:
-        intrinsic_matrix (Union[np.ndarray, torch.Tensor, wp.array]): A (3, 3) array providing camera's calibration
-            matrix.
-        depth (Union[np.ndarray, torch.Tensor, wp.array]): An array of shape (H, W) with values encoding the depth
-            measurement.
-        keep_invalid (bool, optional): Whether to keep invalid points in the cloud or not. Invalid points
+        intrinsic_matrix: A (3, 3) array providing camera's calibration matrix.
+        depth: An array of shape (H, W) with values encoding the depth measurement.
+        keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
             correspond to pixels with depth values 0.0 or NaN. Defaults to False.
-        position (Optional[Sequence[float]], optional): The position of the camera in a target frame.
-            Defaults to None.
-        orientation (Optional[Sequence[float]], optional): The orientation ``(w, x, y, z)`` of the
-            camera in a target frame. Defaults to None.
-        device (Optional[Union[torch.device, str]], optional): The device for torch where the computation
-            should be executed. Defaults to None, i.e. takes the device that matches the depth image.
-
-    Raises:
-        ValueError: When intrinsic matrix is not of shape (3, 3).
-        ValueError: When depth image is not of shape (H, W) or (H, W, 1).
+        position: The position of the camera in a target frame. Defaults to None.
+        orientation: The orientation ``(w, x, y, z)`` of the camera in a target frame. Defaults to None.
+        device: The device for torch where the computation should be executed.
+            Defaults to None, i.e. takes the device that matches the depth image.
 
     Returns:
-        Union[np.ndarray, torch.Tensor]:
-          An array/tensor of shape (N, 3) comprising of 3D coordinates of points.
-          The returned datatype is torch if input depth is of type torch.tensor or wp.array. Otherwise, a np.ndarray
-          is returned.
+        An array/tensor of shape (N, 3) comprising of 3D coordinates of points.
+        The returned datatype is torch if input depth is of type torch.tensor or wp.array. Otherwise, a np.ndarray
+        is returned.
     """
     # We use PyTorch here for matrix multiplication since it is compiled with Intel MKL while numpy
     # by default uses OpenBLAS. With PyTorch (CPU), we could process a depth image of size (480, 640)
@@ -193,29 +183,23 @@ def create_pointcloud_from_rgbd(
     If the input ``normalize_rgb`` is set to :obj:`True`, then the RGB values are normalized to be in the range [0, 1].
 
     Args:
-        intrinsic_matrix (Union[torch.Tensor, np.ndarray, wp.array]): A (3, 3) array/tensor providing camera's
-            calibration matrix.
-        depth (Union[torch.Tensor, np.ndarray, wp.array]): An array/tensor of shape (H, W) with values encoding
-            the depth measurement.
-        rgb (Union[np.ndarray, Tuple[float, float, float]], optional): Color for generated point cloud.
-            Defaults to None.
-        normalize_rgb (bool, optional): Whether to normalize input rgb. Defaults to False.
-        position (Optional[Sequence[float]], optional): The position of the camera in a target frame.
-            Defaults to None.
-        orientation (Optional[Sequence[float]], optional): The orientation `(w, x, y, z)` of the
-            camera in a target frame. Defaults to None.
-        device (Optional[Union[torch.device, str]], optional): The device for torch where the computation
-            should be executed. Defaults to None, i.e. takes the device that matches the depth image.
-        num_channels (int, optional): Number of channels in RGB pointcloud. Defaults to 3.
+        intrinsic_matrix: A (3, 3) array/tensor providing camera's calibration matrix.
+        depth: An array/tensor of shape (H, W) with values encoding the depth measurement.
+        rgb: Color for generated point cloud. Defaults to None.
+        normalize_rgb: Whether to normalize input rgb. Defaults to False.
+        position: The position of the camera in a target frame. Defaults to None.
+        orientation: The orientation `(w, x, y, z)` of the camera in a target frame. Defaults to None.
+        device: The device for torch where the computation should be executed. Defaults to None, in which case
+            it takes the device that matches the depth image.
+        num_channels: Number of channels in RGB pointcloud. Defaults to 3.
+
+    Returns:
+        A tuple of (N, 3) arrays or tensors containing the 3D coordinates of points and their RGB color respectively.
+        The returned datatype is torch if input depth is of type torch.tensor or wp.array. Otherwise, a np.ndarray
+        is returned.
 
     Raises:
         ValueError:  When rgb image is a numpy array but not of shape (H, W, 3) or (H, W, 4).
-
-    Returns:
-        Union[Tuple[torch.Tensor, torch.Tensor], Tuple[np.ndarray, np.ndarray]]:
-          A tuple of (N, 3) arrays or tensors containing the 3D coordinates of points and their RGB color respectively.
-          The returned datatype is torch if input depth is of type torch.tensor or wp.array. Otherwise, a np.ndarray
-          is returned.
     """
     # check valid inputs
     if rgb is not None and not isinstance(rgb, tuple):
@@ -313,12 +297,12 @@ def convert_orientation_convention(
     - :obj:"world"  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
     Args:
-        orientation torch.Tensor: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention
-        origin (Literal["opengl", "ros", "world"], optional): Convention to convert to. Defaults to "ros".
-        target (Literal["opengl", "ros", "world"], optional): Convention to convert from. Defaults to "opengl".
+        orientation: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention
+        origin: Convention to convert to. Defaults to "ros".
+        target: Convention to convert from. Defaults to "opengl".
 
     Returns:
-        torch.Tensor: Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
+        Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
     """
     if target == origin:
         return orientation.clone()

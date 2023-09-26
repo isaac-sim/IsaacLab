@@ -9,6 +9,7 @@ This class defines an interface for sensors similar to how the :class:`omni.isaa
 Each sensor class should inherit from this class and implement the abstract methods.
 """
 
+from __future__ import annotations
 
 from abc import abstractmethod
 from typing import Any
@@ -31,7 +32,7 @@ class SensorBase:
         buffers are filled at every simulation step.
 
         Args:
-            sensor_tick (float, optional): Simulation seconds between sensor buffers. Defaults to 0.0.
+            sensor_tick: Simulation seconds between sensor buffers. Defaults to 0.0.
         """
         # print warning to notify user that the sensor is not vectorized
         carb.log_warn("This implementation of the sensor is not vectorized yet. Please use the vectorized version.")
@@ -85,7 +86,7 @@ class SensorBase:
             overriding this method is optional.
 
         Args:
-            visible (bool) -- Whether to make instance visible or invisible.
+            visible: Whether to make instance visible or invisible.
         """
         pass
 
@@ -98,7 +99,7 @@ class SensorBase:
         """Spawns the sensor into the stage.
 
         Args:
-            parent_prim_path (str): The path of the parent prim to attach sensor to.
+            parent_prim_path: The path of the parent prim to attach sensor to.
         """
         raise NotImplementedError
 
@@ -123,9 +124,9 @@ class SensorBase:
         not be called directly.
 
         Args:
-            dt (float): The simulation time-step.
-            args (tuple): Other positional arguments passed to function :meth:`buffer()`.
-            kwargs (dict): Other keyword arguments passed to function :meth:`buffer()`.
+            dt: The simulation time-step.
+            args: Other positional arguments passed to function :meth:`buffer()`.
+            kwargs: Other keyword arguments passed to function :meth:`buffer()`.
         """
         # Get current time
         self._timestamp += dt

@@ -38,8 +38,8 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         """Initialize the command generator class.
 
         Args:
-            cfg (TerrainBasedPositionCommandGeneratorCfg): The configuration parameters for the command generator.
-            env (BaseEnv): The environment object.
+            cfg: The configuration parameters for the command generator.
+            env: The environment object.
         """
         super().__init__(cfg, env)
         # -- robot

@@ -5,6 +5,8 @@
 
 """Script to train RL agent with RSL-RL."""
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

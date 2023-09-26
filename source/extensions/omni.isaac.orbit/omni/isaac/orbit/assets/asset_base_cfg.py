@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import ClassVar, Optional, Tuple
+from typing import ClassVar
 from typing_extensions import Literal
 
 from omni.isaac.orbit.sim import SpawnerCfg
@@ -20,9 +22,9 @@ class AssetBaseCfg:
         """Initial state of the asset."""
 
         # root position
-        pos: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Position of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
-        rot: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
         """Quaternion rotation ``(w, x, y, z)`` of the root in simulation world frame.
         Defaults to (1.0, 0.0, 0.0, 0.0).
         """
@@ -43,7 +45,7 @@ class AssetBaseCfg:
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose."""
 
-    spawn: Optional[SpawnerCfg] = MISSING
+    spawn: SpawnerCfg | None = MISSING
     """Spawn configuration for the asset.
 
     If :obj:`None`, then no prims are spawned by the asset class. Instead, it is assumed that the

@@ -34,11 +34,11 @@ def spawn_light(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (lights_cfg.LightCfg): The configuration for the light source.
-        translation (tuple[float, float, float], optional): The translation of the prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation of the prim. Defaults to None.
+        cfg: The configuration for the light source.
+        translation: The translation of the prim. Defaults to None.
+        orientation: The orientation of the prim as ``(w, x, y, z)``. Defaults to None.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path.

@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import MISSING
-from typing import Dict, Optional, Tuple
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.math import (
@@ -27,7 +28,7 @@ class DifferentialInverseKinematicsCfg:
     ik_method: str = MISSING
     """Method for computing inverse of Jacobian: "pinv", "svd", "trans", "dls"."""
 
-    ik_params: Optional[Dict[str, float]] = None
+    ik_params: dict[str, float] | None = None
     """Parameters for the inverse-kinematics method. (default: obj:`None`).
 
     - Moore-Penrose pseudo-inverse ("pinv"):
@@ -41,14 +42,14 @@ class DifferentialInverseKinematicsCfg:
         - "lambda_val": Damping coefficient (default: 0.1).
     """
 
-    position_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    position_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Position offset from parent body to end-effector frame in parent body frame."""
-    rotation_offset: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    rotation_offset: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     """Rotational offset from parent body to end-effector frame in parent body frame."""
 
-    position_command_scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    position_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Scaling of the position command received. Used only in relative mode."""
-    rotation_command_scale: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    rotation_command_scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Scaling of the rotation command received. Used only in relative mode."""
 
 
@@ -84,9 +85,9 @@ class DifferentialInverseKinematics:
         """Initialize the controller.
 
         Args:
-            cfg (DifferentialInverseKinematicsCfg): The configuration for the controller.
-            num_robots (int): The number of robots to control.
-            device (str): The device to use for computations.
+            cfg: The configuration for the controller.
+            num_robots: The number of robots to control.
+            device: The device to use for computations.
 
         Raises:
             ValueError: When configured IK-method is not supported.
@@ -174,7 +175,7 @@ class DifferentialInverseKinematics:
         """Performs inference with the controller.
 
         Returns:
-            torch.Tensor: The target joint positions commands.
+            The target joint positions commands.
         """
         # compute the desired end-effector pose
         if "position_rel" in self.cfg.command_type:
@@ -236,11 +237,11 @@ class DifferentialInverseKinematics:
         position.
 
         Args:
-            delta_pose (torch.Tensor): The desired delta pose in shape [N, 3 or 6].
-            jacobian (torch.Tensor): The geometric jacobian matrix in shape [N, 3 or 6, num-dof]
+            delta_pose: The desired delta pose in shape (N, 3) or (N, 6).
+            jacobian: The geometric jacobian matrix in shape (N, 3, num-dof) or (N, 6, num-dof).
 
         Returns:
-            torch.Tensor: The desired delta in joint space.
+            The desired delta in joint space.
         """
         if self.cfg.ik_method == "pinv":  # Jacobian pseudo-inverse
             # parameters

@@ -108,7 +108,7 @@ def joint_vel_limits(env: RLEnv, asset_cfg: SceneEntityCfg, soft_ratio: float) -
     This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
 
     Args:
-        soft_ratio (float)  -> torch.Tensor: The ratio of the soft limits to be used.
+        soft_ratio: The ratio of the soft limits to be used.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]

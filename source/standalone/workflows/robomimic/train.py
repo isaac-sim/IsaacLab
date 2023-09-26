@@ -30,12 +30,13 @@
 The main entry point for training policies from pre-collected data.
 
 Args:
-    algo (str): name of the algorithm to run.
-    task (str): name of the environment.
-    name (str): if provided, override the experiment name defined in the config
-    dataset (str): if provided, override the dataset path defined in the config
+    algo: name of the algorithm to run.
+    task: name of the environment.
+    name: if provided, override the experiment name defined in the config
+    dataset: if provided, override the dataset path defined in the config
 """
 
+from __future__ import annotations
 
 import argparse
 import json

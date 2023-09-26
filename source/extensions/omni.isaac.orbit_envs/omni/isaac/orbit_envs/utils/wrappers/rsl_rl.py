@@ -15,6 +15,7 @@ The following example shows how to wrap an environment for RSL-RL:
 
 """
 
+from __future__ import annotations
 
 import copy
 import gym
@@ -58,7 +59,7 @@ class RslRlVecEnvWrapper(gym.Wrapper):
         """Initializes the wrapper.
 
         Args:
-            env (RLEnv): The environment to wrap around.
+            env: The environment to wrap around.
 
         Raises:
             ValueError: When the environment is not an instance of :class:`RLEnv`.
@@ -127,9 +128,9 @@ def export_policy_as_jit(actor_critic: object, path: str, filename="policy.pt"):
     """Export policy into a Torch JIT file.
 
     Args:
-        actor_critic (object): The actor-critic torch module.
-        path (str): The path to the saving directory.
-        filename (str, optional): The name of exported JIT file. Defaults to "policy.pt".
+        actor_critic: The actor-critic torch module.
+        path: The path to the saving directory.
+        filename: The name of exported JIT file. Defaults to "policy.pt".
 
     Reference:
         https://github.com/leggedrobotics/legged_gym/blob/master/legged_gym/utils/helpers.py#L180
@@ -142,10 +143,10 @@ def export_policy_as_onnx(actor_critic: object, path: str, filename="policy.onnx
     """Export policy into a Torch ONNX file.
 
     Args:
-        actor_critic (object): The actor-critic torch module.
-        path (str): The path to the saving directory.
-        filename (str, optional): The name of exported JIT file. Defaults to "policy.pt".
-        verbose (bool, optional): Whether to print the model summary. Defaults to False.
+        actor_critic: The actor-critic torch module.
+        path: The path to the saving directory.
+        filename: The name of exported JIT file. Defaults to "policy.pt".
+        verbose: Whether to print the model summary. Defaults to False.
     """
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)

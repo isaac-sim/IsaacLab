@@ -48,8 +48,8 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         """Initialize the command generator.
 
         Args:
-            cfg (UniformVelocityCommandGeneratorCfg): The configuration of the command generator.
-            env (BaseEnv): The environment.
+            cfg: The configuration of the command generator.
+            env: The environment.
         """
         super().__init__(cfg, env)
         # -- robot
@@ -224,7 +224,7 @@ class NormalVelocityCommandGenerator(UniformVelocityCommandGenerator):
         """Initializes the command generator.
 
         Args:
-            cfg (NormalVelocityCommandGeneratorCfg): The command generator configuration.
+            cfg: The command generator configuration.
             env: The environment.
         """
         super().__init__(self, cfg, env)

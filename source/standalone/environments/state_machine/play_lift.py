@@ -8,6 +8,8 @@ Usage:
     python play_lift.py --num_envs 128
 """
 
+from __future__ import annotations
+
 """Launch Omniverse Toolkit first."""
 
 import argparse
@@ -30,7 +32,7 @@ simulation_app = app_launcher.app
 import gym
 import torch
 from enum import Enum
-from typing import Sequence, Union
+from typing import Sequence
 
 import warp as wp
 
@@ -162,13 +164,13 @@ class PickAndLiftSm:
     6. DROP_OBJECT: The robot drops the object.
     """
 
-    def __init__(self, dt: float, num_envs: int, device: Union[torch.device, str] = "cpu"):
+    def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
         """Initialize the state machine.
 
         Args:
-            dt (float): The environment time step.
-            num_envs (int): The number of environments to simulate.
-            device (Union[torch.device, str], optional): The device to run the state machine on.
+            dt: The environment time step.
+            num_envs: The number of environments to simulate.
+            device: The device to run the state machine on.
         """
         # save parameters
         self.dt = dt

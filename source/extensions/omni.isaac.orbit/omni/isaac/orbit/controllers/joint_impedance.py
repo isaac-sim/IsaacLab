@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import MISSING
-from typing import Optional, Sequence, Tuple, Union
+from typing import Sequence
 
 from omni.isaac.orbit.utils import configclass
 
@@ -17,7 +19,7 @@ class JointImpedanceControllerCfg:
     command_type: str = "p_abs"
     """Type of command: p_abs (absolute) or p_rel (relative)."""
 
-    dof_pos_offset: Optional[Sequence[float]] = None
+    dof_pos_offset: Sequence[float] | None = None
     """Offset to DOF position command given to controller. (default: :obj:`None`).
 
     If :obj:`None` then position offsets are set to zero.
@@ -32,10 +34,10 @@ class JointImpedanceControllerCfg:
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 
-    stiffness: Union[float, Sequence[float]] = MISSING
+    stiffness: float | Sequence[float] = MISSING
     """The positional gain for determining desired torques based on joint position error."""
 
-    damping_ratio: Optional[Union[float, Sequence[float]]] = None
+    damping_ratio: float | Sequence[float] | None = None
     """The damping ratio is used in-conjunction with positional gain to compute desired torques
     based on joint velocity error.
 
@@ -43,13 +45,13 @@ class JointImpedanceControllerCfg:
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
     """
 
-    stiffness_limits: Tuple[float, float] = (0, 300)
+    stiffness_limits: tuple[float, float] = (0, 300)
     """Minimum and maximum values for positional gains.
 
     Note: Used only when :obj:`impedance_mode` is "variable" or "variable_kp".
     """
 
-    damping_ratio_limits: Tuple[float, float] = (0, 100)
+    damping_ratio_limits: tuple[float, float] = (0, 100)
     """Minimum and maximum values for damping ratios used to compute velocity gains.
 
     Note: Used only when :obj:`impedance_mode` is "variable".
@@ -67,11 +69,11 @@ class JointImpedanceController:
         """Initialize joint impedance controller.
 
         Args:
-            cfg (JointImpedanceControllerCfg): The configuration for the controller.
-            num_robots (int): The number of robots to control.
-            dof_pos_limits (torch.Tensor): The joint position limits for each robot. This is a tensor of shape
+            cfg: The configuration for the controller.
+            num_robots: The number of robots to control.
+            dof_pos_limits: The joint position limits for each robot. This is a tensor of shape
                 (num_robots, num_dof, 2) where the last dimension contains the lower and upper limits.
-            device (str): The device to use for computations.
+            device: The device to use for computations.
 
         Raises:
             ValueError: When the shape of :obj:`dof_pos_limits` is not (num_robots, num_dof, 2).
@@ -146,7 +148,7 @@ class JointImpedanceController:
         """Set target end-effector pose command.
 
         Args:
-            command (torch.Tensor): The command to set. This is a tensor of shape (num_robots, num_actions) where
+            command: The command to set. This is a tensor of shape (num_robots, num_actions) where
                 :obj:`num_actions` is the dimension of the action space of the controller.
         """
         # check input size
@@ -184,22 +186,22 @@ class JointImpedanceController:
         self,
         dof_pos: torch.Tensor,
         dof_vel: torch.Tensor,
-        mass_matrix: Optional[torch.Tensor] = None,
-        gravity: Optional[torch.Tensor] = None,
+        mass_matrix: torch.Tensor | None = None,
+        gravity: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Performs inference with the controller.
 
         Args:
-            dof_pos (torch.Tensor): The current joint positions.
-            dof_vel (torch.Tensor): The current joint velocities.
-            mass_matrix (Optional[torch.Tensor], optional): The joint-space inertial matrix. Defaults to None.
-            gravity (Optional[torch.Tensor], optional): The joint-space gravity vector. Defaults to None.
+            dof_pos: The current joint positions.
+            dof_vel: The current joint velocities.
+            mass_matrix: The joint-space inertial matrix. Defaults to None.
+            gravity: The joint-space gravity vector. Defaults to None.
 
         Raises:
             ValueError: When the command type is invalid.
 
         Returns:
-            torch.Tensor: The target joint torques commands.
+            The target joint torques commands.
         """
         # resolve the command type
         if self.cfg.command_type == "p_abs":

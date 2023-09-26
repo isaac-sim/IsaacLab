@@ -52,7 +52,7 @@ class RayCaster(SensorBase):
         """Initializes the ray-caster object.
 
         Args:
-            cfg (RayCasterCfg): The configuration parameters.
+            cfg: The configuration parameters.
         """
         # initialize base class
         super().__init__(cfg)

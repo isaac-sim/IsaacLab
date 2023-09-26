@@ -37,10 +37,10 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     attribute exists on the schema and sets the value of the attribute if it exists.
 
     Args:
-        schema_api (Usd.APISchemaBase): The USD schema to set the attribute on.
-        name (str): The name of the attribute.
-        value (Any): The value to set the attribute to.
-        camel_case (bool, optional): Whether to convert the attribute name to camel case. Defaults to True.
+        schema_api: The USD schema to set the attribute on.
+        name: The name of the attribute.
+        value: The value to set the attribute to.
+        camel_case: Whether to convert the attribute name to camel case. Defaults to True.
 
     Raises:
         TypeError: When the input attribute name does not exist on the provided schema API.
@@ -74,10 +74,10 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
     allows us to set the value of the attributes in these cases.
 
     Args:
-        prim (Usd.Prim): The USD prim to set the attribute on.
-        attr_name (str): The name of the attribute.
-        value (Any): The value to set the attribute to.
-        camel_case (bool, optional): Whether to convert the attribute name to camel case. Defaults to True.
+        prim: The USD prim to set the attribute on.
+        attr_name: The name of the attribute.
+        value: The value to set the attribute to.
+        camel_case: Whether to convert the attribute name to camel case. Defaults to True.
     """
     # if value is None, do nothing
     if value is None:
@@ -129,12 +129,12 @@ def apply_nested(func: Callable) -> Callable:
         have nested articulations.
 
     Args:
-        func (Callable): The function to apply to all prims under a specified prim-path. The function
+        func: The function to apply to all prims under a specified prim-path. The function
             must take the prim-path, the configuration object and the stage as inputs. It should return
             a boolean indicating whether the function succeeded or not.
 
     Returns:
-        Callable: The wrapped function that applies the function to all prims under a specified prim-path.
+        The wrapped function that applies the function to all prims under a specified prim-path.
     """
 
     @functools.wraps(func)
@@ -182,10 +182,10 @@ def clone(func: Callable) -> Callable:
         In case no matching prim paths are found, the decorator raises a ``RuntimeError``.
 
     Args:
-        func (callable): The function to decorate.
+        func: The function to decorate.
 
     Returns:
-        callable: The decorated function that spawns the prim and clones it at each matching prim path.
+        The decorated function that spawns the prim and clones it at each matching prim path.
             It returns the spawned prim.
     """
 
@@ -253,11 +253,11 @@ def bind_visual_material(
     .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
 
     Args:
-        prim_path (str): The prim path where to apply the material.
-        material_path (str): The prim path of the material to apply.
-        stage (Usd.Stage | None, optional): The stage where the prim and material exist. Defaults to None,
+        prim_path: The prim path where to apply the material.
+        material_path: The prim path of the material to apply.
+        stage: The stage where the prim and material exist. Defaults to None,
             in which case the current stage is used.
-        stronger_than_descendants (bool): Whether the material should override the material of its descendants.
+        stronger_than_descendants: Whether the material should override the material of its descendants.
             Defaults to True.
 
     Raises:
@@ -307,11 +307,11 @@ def bind_physics_material(
     .. _Physics material: https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/simulation-control/physics-settings.html#physics-materials
 
     Args:
-        prim_path (str): The prim path where to apply the material.
-        material_path (str): The prim path of the material to apply.
-        stage (Usd.Stage | None, optional): The stage where the prim and material exist. Defaults to None,
+        prim_path: The prim path where to apply the material.
+        material_path: The prim path of the material to apply.
+        stage: The stage where the prim and material exist. Defaults to None,
             in which case the current stage is used.
-        stronger_than_descendants (bool): Whether the material should override the material of its descendants.
+        stronger_than_descendants: Whether the material should override the material of its descendants.
             Defaults to True.
 
     Raises:

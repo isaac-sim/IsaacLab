@@ -6,6 +6,8 @@
 
 """Utility functions for parsing skrl configuration files."""
 
+from __future__ import annotations
+
 import os
 import yaml
 
@@ -36,10 +38,10 @@ def parse_skrl_cfg(task_name) -> dict:
     """Parse configuration based on command line arguments.
 
     Args:
-        task_name (str): The name of the environment.
+        task_name: The name of the environment.
 
     Returns:
-        dict: A dictionary containing the parsed configuration.
+        A dictionary containing the parsed configuration.
     """
     # retrieve the default environment config file
     try:
@@ -58,10 +60,10 @@ def convert_skrl_cfg(cfg):
     """Convert simple YAML types to skrl classes/components.
 
     Args:
-        cfg (dict): configuration dictionary.
+        cfg: configuration dictionary.
 
     Returns:
-        dict: A dictionary containing the converted configuration.
+        A dictionary containing the converted configuration.
     """
     _direct_eval = [
         "learning_rate_scheduler",

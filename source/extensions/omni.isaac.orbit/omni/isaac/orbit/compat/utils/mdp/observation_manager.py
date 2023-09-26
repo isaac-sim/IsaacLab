@@ -6,12 +6,14 @@
 
 """Observation manager for computing observation signals for a given world."""
 
+from __future__ import annotations
+
 import copy
 import functools
 import inspect
 import torch
 from prettytable import PrettyTable
-from typing import Any, Callable, Dict, Sequence, Tuple
+from typing import Any, Callable, Sequence
 
 
 class ObservationManager:
@@ -137,14 +139,14 @@ class ObservationManager:
 
     """
 
-    def __init__(self, cfg: Dict[str, Dict[str, Any]], env, device: str):
+    def __init__(self, cfg: dict[str, dict[str, Any]], env, device: str):
         """Initialize observation manager.
 
         Args:
-            cfg (Dict[str, Dict[str, Any]]): A dictionary of configuration settings for each group.
-            env (_type_): The object instance (typically the environment) from which data is read to
+            cfg: A dictionary of configuration settings for each group.
+            env: The object instance (typically the environment) from which data is read to
                 compute the observation terms.
-            device (str): The computation device for observations.
+            device: The computation device for observations.
         """
         # store input
         self._cfg = copy.deepcopy(cfg)
@@ -155,7 +157,7 @@ class ObservationManager:
         # parse config to create observation terms information
         self._prepare_observation_terms()
         # compute combined vector for obs group
-        self._group_obs_dim: Dict[str, Tuple[int, ...]] = dict()
+        self._group_obs_dim: dict[str, tuple[int, ...]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
             self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
@@ -207,12 +209,12 @@ class ObservationManager:
         return self._device
 
     @property
-    def active_terms(self) -> Dict[str, Sequence[str]]:
+    def active_terms(self) -> dict[str, Sequence[str]]:
         """Name of active observation terms in each group."""
         return self._group_obs_term_names
 
     @property
-    def group_obs_dim(self) -> Dict[str, Tuple[int, ...]]:
+    def group_obs_dim(self) -> dict[str, tuple[int, ...]]:
         """Shape of observation tensor in each group."""
         return self._group_obs_dim
 
@@ -224,12 +226,12 @@ class ObservationManager:
         """Reset the terms computation for input environment indices.
 
         Args:
-            env_ids (torch.Tensor): Indices of environment instances to reset.
+            env_ids: Indices of environment instances to reset.
         """
         # Might need this when dealing with history and delays.
         pass
 
-    def compute(self) -> Dict[str, torch.Tensor]:
+    def compute(self) -> dict[str, torch.Tensor]:
         """Compute the observations per group.
 
         The method computes the observations for each group and returns a dictionary with keys as
@@ -245,7 +247,7 @@ class ObservationManager:
         settings. By default, no scaling or clipping is applied.
 
         Returns:
-            Dict[str, torch.Tensor]: A dictionary with keys as the group names and values as the
+            A dictionary with keys as the group names and values as the
                 computed observations.
         """
         self._obs_buffer = dict()
@@ -315,13 +317,13 @@ class ObservationManager:
         """
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
-        self._group_obs_term_names: Dict[str, Sequence[str]] = dict()
-        self._group_obs_term_dim: Dict[str, Sequence[int]] = dict()
-        self._group_obs_term_params: Dict[str, Sequence[Dict[str, float]]] = dict()
-        self._group_obs_term_clip_ranges: Dict[str, Sequence[Tuple[float, float]]] = dict()
-        self._group_obs_term_scales: Dict[str, Sequence[float]] = dict()
-        self._group_obs_term_corruptors: Dict[str, Sequence[Callable]] = dict()
-        self._group_obs_term_functions: Dict[str, Sequence[Callable]] = dict()
+        self._group_obs_term_names: dict[str, Sequence[str]] = dict()
+        self._group_obs_term_dim: dict[str, Sequence[int]] = dict()
+        self._group_obs_term_params: dict[str, Sequence[dict[str, float]]] = dict()
+        self._group_obs_term_clip_ranges: dict[str, Sequence[tuple[float, float]]] = dict()
+        self._group_obs_term_scales: dict[str, Sequence[float]] = dict()
+        self._group_obs_term_corruptors: dict[str, Sequence[Callable]] = dict()
+        self._group_obs_term_functions: dict[str, Sequence[Callable]] = dict()
 
         for group_name, group_cfg in self._cfg.items():
             # skip non-group settings (those should be read above)

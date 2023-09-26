@@ -28,10 +28,10 @@ def raycast_mesh_kernel(
     operation. The maximum ray-cast distance is set to `1e6` units.
 
     Args:
-        mesh (wp.uint64): The input mesh identifier.
-        ray_starts (wp.array): The input ray start positions. Shape (N, 3).
-        ray_directions (wp.array): The input ray directions. Shape (N, 3).
-        ray_hits (wp.array): The output ray hit positions. Shape (N, 3).
+        mesh: The input mesh identifier.
+        ray_starts: The input ray start positions. Shape (N, 3).
+        ray_directions: The input ray directions. Shape (N, 3).
+        ray_hits: The output ray hit positions. Shape (N, 3).
     """
     # get the thread id
     tid = wp.tid()

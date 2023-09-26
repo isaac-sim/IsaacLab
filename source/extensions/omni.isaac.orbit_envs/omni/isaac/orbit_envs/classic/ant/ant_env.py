@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import gym.spaces
 import math
 import torch
-from typing import List
 
 import omni.isaac.core.utils.nucleus as nucleus_utils
 import omni.isaac.core.utils.prims as prim_utils
@@ -30,8 +31,8 @@ class AntEnv(IsaacEnv):
         """Initializes the environment.
 
         Args:
-            cfg (dict): The configuration dictionary.
-            kwargs (dict): Additional keyword arguments. See IsaacEnv for more details.
+            cfg: The configuration dictionary.
+            kwargs: Additional keyword arguments. See IsaacEnv for more details.
         """
         # copy configuration
         self.cfg_dict = cfg.copy()
@@ -80,7 +81,7 @@ class AntEnv(IsaacEnv):
     Implementation specifics.
     """
 
-    def _design_scene(self) -> List[str]:
+    def _design_scene(self) -> list[str]:
         # get nucleus assets path
         assets_root_path = nucleus_utils.get_assets_root_path()
         if assets_root_path is None:

@@ -11,6 +11,8 @@ This script shows how to use the ray caster from the Orbit framework.
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_ray_caster.py --headless
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse

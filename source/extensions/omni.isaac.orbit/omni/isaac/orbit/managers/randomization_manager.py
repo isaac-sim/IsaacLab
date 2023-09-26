@@ -5,6 +5,7 @@
 
 
 """Randomization manager for randomizing different elements in the scene."""
+
 from __future__ import annotations
 
 import torch
@@ -56,8 +57,8 @@ class RandomizationManager(ManagerBase):
         """Initialize the randomization manager.
 
         Args:
-            cfg (object): A configuration object or dictionary (``dict[str, RandomizationTermCfg]``).
-            env (RLEnv): An environment object.
+            cfg: A configuration object or dictionary (``dict[str, RandomizationTermCfg]``).
+            env: An environment object.
         """
         super().__init__(cfg, env)
 
@@ -108,10 +109,10 @@ class RandomizationManager(ManagerBase):
             applied. If the time step is not constant, the user should pass the time step to this function.
 
         Args:
-            mode (str): The mode of randomization.
-            env_ids (Optional[Sequence[int]]): The indices of the environments to apply randomization to.
+            mode: The mode of randomization.
+            env_ids: The indices of the environments to apply randomization to.
                 Defaults to None, in which case the randomization is applied to all environments.
-            dt (Optional[float], optional): The time step of the environment. This is only used for the "interval" mode.
+            dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None, in which case the randomization is not applied.
 
         Raises:

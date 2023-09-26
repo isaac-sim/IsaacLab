@@ -3,9 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from dataclasses import MISSING
-from typing import Tuple
 
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.articulations import Articulation
@@ -43,8 +44,8 @@ class RmpFlowController:
         """Initialize the controller.
 
         Args:
-            cfg (RmpFlowControllerCfg): The configuration for the controller.
-            device (str): The device to use for computation.
+            cfg: The configuration for the controller.
+            device: The device to use for computation.
         """
         # store input
         self.cfg = cfg
@@ -69,7 +70,7 @@ class RmpFlowController:
         """Initialize the controller.
 
         Args:
-            prim_paths_expr (str): The expression to find the articulation prim paths.
+            prim_paths_expr: The expression to find the articulation prim paths.
         """
         # obtain the simulation time
         physics_dt = SimulationContext.instance().get_physics_dt()
@@ -125,11 +126,11 @@ class RmpFlowController:
         # store command
         self._command[:] = command
 
-    def compute(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def compute(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs inference with the controller.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor]: The target joint positions and velocity commands.
+            The target joint positions and velocity commands.
         """
         # convert command to numpy
         command = self._command.cpu().numpy()

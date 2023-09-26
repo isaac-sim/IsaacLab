@@ -9,6 +9,8 @@ This script demonstrates how to use the RMPFlow controller with the simulator.
 The RMP-Flow can be configured in different modes. It uses the LULA library for motion generation.
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

@@ -33,14 +33,14 @@ def to_camel_case(snake_str: str, to: str = "cC") -> str:
     """Converts a string from snake case to camel case.
 
     Args:
-        snake_str (str): A string in snake case (i.e. with '_')
-        to (str, optional): Convention to convert string to. Defaults to "cC".
+        snake_str: A string in snake case (i.e. with '_')
+        to: Convention to convert string to. Defaults to "cC".
 
     Raises:
         ValueError: Invalid input argument `to`, i.e. not "cC" or "CC".
 
     Returns:
-        str: A string in camel-case format.
+        A string in camel-case format.
     """
     # check input is correct
     if to not in ["cC", "CC"]:
@@ -61,10 +61,10 @@ def to_snake_case(camel_str: str) -> str:
     """Converts a string from camel case to snake case.
 
     Args:
-        camel_str (str): A string in camel case.
+        camel_str: A string in camel case.
 
     Returns:
-        str: A string in snake case (i.e. with '_')
+        A string in snake case (i.e. with '_')
     """
     camel_str = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", camel_str)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", camel_str).lower()
@@ -79,10 +79,10 @@ def is_lambda_expression(name: str) -> bool:
     """Checks if the input string is a lambda expression.
 
     Args:
-        name (str): The input string.
+        name: The input string.
 
     Returns:
-        bool: Whether the input string is a lambda expression.
+        Whether the input string is a lambda expression.
     """
     try:
         ast.parse(name)
@@ -95,13 +95,13 @@ def callable_to_string(value: Callable) -> str:
     """Converts a callable object to a string.
 
     Args:
-        callable_object (Callable): A callable object.
+        value: A callable object.
 
     Raises:
         ValueError: When the input argument is not a callable object.
 
     Returns:
-        str: A string representation of the callable object.
+        A string representation of the callable object.
     """
     # check if callable
     if not callable(value):
@@ -121,7 +121,7 @@ def string_to_callable(name: str) -> Callable:
     """Resolves the module and function names to return the function.
 
     Args:
-        name (str): The function name. The format should be 'module:attribute_name' or a
+        name: The function name. The format should be 'module:attribute_name' or a
             lambda expression of format: 'lambda x: x'.
 
     Raises:
@@ -173,12 +173,11 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
         The function does not sort the indices. It returns the indices in the order they are found.
 
     Args:
-        keys (Union[str, Sequence[str]]): A regular expression or a list of regular expressions
-            to match the strings in the list.
-        list_of_strings (Sequence[str]): A list of strings to match.
+        keys: A regular expression or a list of regular expressions to match the strings in the list.
+        list_of_strings: A list of strings to match.
 
     Returns:
-        Tuple[List[int], List[str]]: A tuple of lists containing the matched indices and names.
+        A tuple of lists containing the matched indices and names.
 
     Raises:
         ValueError: When multiple matches are found for a string in the list.
@@ -237,11 +236,11 @@ def resolve_matching_names_values(
         The function does not sort the indices. It returns the indices in the order they are found.
 
     Args:
-        data (dict[str, Any]): A dictionary of regular expressions and values to match the strings in the list.
-        list_of_strings (Sequence[str]): A list of strings to match.
+        data: A dictionary of regular expressions and values to match the strings in the list.
+        list_of_strings: A list of strings to match.
 
     Returns:
-        Tuple[List[int], List[str], List[Any]]: A tuple of lists containing the matched indices, names, and values.
+        A tuple of lists containing the matched indices, names, and values.
 
     Raises:
         TypeError: When the input argument `data` is not a dictionary.

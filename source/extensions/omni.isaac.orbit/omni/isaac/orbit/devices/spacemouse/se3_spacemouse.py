@@ -5,12 +5,14 @@
 
 """Spacemouse controller for SE(3) control."""
 
+from __future__ import annotations
+
 import hid
 import numpy as np
 import threading
 import time
 from scipy.spatial.transform.rotation import Rotation
-from typing import Callable, Tuple
+from typing import Callable
 
 from ..device_base import DeviceBase
 from .utils import convert_buffer
@@ -42,8 +44,8 @@ class Se3SpaceMouse(DeviceBase):
         """Initialize the space-mouse layer.
 
         Args:
-            pos_sensitivity (float): Magnitude of input position command scaling. Defaults to 0.4.
-            rot_sensitivity (float): Magnitude of scale input rotation commands scaling. Defaults to 0.8.
+            pos_sensitivity: Magnitude of input position command scaling. Defaults to 0.4.
+            rot_sensitivity: Magnitude of scale input rotation commands scaling. Defaults to 0.8.
         """
         # store inputs
         self.pos_sensitivity = pos_sensitivity
@@ -99,11 +101,11 @@ class Se3SpaceMouse(DeviceBase):
         # TODO: Improve this to allow multiple buttons on same key.
         self._additional_callbacks[key] = func
 
-    def advance(self) -> Tuple[np.ndarray, bool]:
+    def advance(self) -> tuple[np.ndarray, bool]:
         """Provides the result from spacemouse event state.
 
         Returns:
-            Tuple[np.ndarray, bool]: A tuple containing the delta pose command and gripper commands.
+            A tuple containing the delta pose command and gripper commands.
         """
         rot_vec = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
         # if new command received, reset event flag to False until keyboard updated.

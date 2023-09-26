@@ -67,7 +67,7 @@ class UrdfLoader:
         """Initializes the class.
 
         Args:
-            cfg (UrdfLoaderCfg): The configuration instance for URDF to USD conversion.
+            cfg: The configuration instance for URDF to USD conversion.
 
         Raises:
             ValueError: When provided URDF file does not exist.
@@ -211,7 +211,7 @@ class UrdfLoader:
             It only checks the main urdf file not the mesh files.
 
         Args:
-            config (UrdfLoaderCfg): The urdf loader configuration object.
+            cfg: The urdf loader configuration object.
 
         Returns:
             An MD5 hash of a string.

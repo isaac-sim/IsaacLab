@@ -11,6 +11,8 @@ Module containing different actuator groups.
 - **non-holonomic**: Adds a 2D kinematics skid-steering constraint for the actuator group.
 """
 
+from __future__ import annotations
+
 from .actuator_control_cfg import ActuatorControlCfg
 from .actuator_group import ActuatorGroup
 from .actuator_group_cfg import ActuatorGroupCfg, GripperActuatorGroupCfg, NonHolonomicKinematicsGroupCfg

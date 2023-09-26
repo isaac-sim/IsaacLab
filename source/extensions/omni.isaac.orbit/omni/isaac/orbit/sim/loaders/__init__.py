@@ -13,6 +13,8 @@ to cache the generated USD file based on the contents of the URDF file and the p
 used to generate the USD file.
 """
 
+from __future__ import annotations
+
 from .urdf_loader import UrdfLoader
 from .urdf_loader_cfg import UrdfLoaderCfg
 

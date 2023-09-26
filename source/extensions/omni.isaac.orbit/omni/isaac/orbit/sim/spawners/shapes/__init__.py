@@ -12,6 +12,8 @@ Since this creates a prim manually, we follow the convention recommended by NVID
 `Sim-Ready assets <https://docs.omniverse.nvidia.com/simready/latest/simready-asset-creation.html>`_.
 """
 
+from __future__ import annotations
+
 from .shapes import spawn_capsule, spawn_cone, spawn_cuboid, spawn_cylinder, spawn_sphere
 from .shapes_cfg import CapsuleCfg, ConeCfg, CuboidCfg, CylinderCfg, SphereCfg
 

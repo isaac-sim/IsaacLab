@@ -31,7 +31,7 @@ class CameraData:
     .. note::
         ROS convention follows the camera aligned with forward axis +Z and up axis -Y.
 
-    Shape: (N, 4) where ``N`` is the number of sensors.
+    Shape is (N, 4) where ``N`` is the number of sensors.
     """
 
     quat_w_world: torch.Tensor = None
@@ -40,7 +40,7 @@ class CameraData:
     .. note::
         World frame convention follows the camera aligned with forward axis +X and up axis +Z.
 
-    Shape: (N, 4) where ``N`` is the number of sensors.
+    Shape is ``(N, 4)`` where ``N`` is the number of sensors.
     """
 
     quat_w_opengl: torch.Tensor = None
@@ -49,7 +49,7 @@ class CameraData:
     .. note::
         OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.
 
-    Shape: (N, 4) where ``N`` is the number of sensors.
+    Shape is ``(N, 4)`` where ``N`` is the number of sensors.
     """
 
     ##
@@ -62,7 +62,7 @@ class CameraData:
     intrinsic_matrices: torch.Tensor = None
     """The intrinsic matrices for the camera.
 
-    Shape is (N, 3, 3) where ``N`` is the number of sensors.
+    Shape is ``(N, 3, 3)`` where ``N`` is the number of sensors.
     """
 
     output: TensorDict = None

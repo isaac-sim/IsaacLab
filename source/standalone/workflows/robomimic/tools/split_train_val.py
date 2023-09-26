@@ -30,18 +30,20 @@
 Script for splitting a dataset hdf5 file into training and validation trajectories.
 
 Args:
-    dataset (str): path to hdf5 dataset
+    dataset: path to hdf5 dataset
 
-    filter_key (str): if provided, split the subset of trajectories
+    filter_key: if provided, split the subset of trajectories
         in the file that correspond to this filter key into a training
         and validation set of trajectories, instead of splitting the
         full set of trajectories
 
-    ratio (float): validation ratio, in (0, 1). Defaults to 0.1, which is 10%.
+    ratio: validation ratio, in (0, 1). Defaults to 0.1, which is 10%.
 
 Example usage:
     python split_train_val.py --dataset /path/to/demo.hdf5 --ratio 0.1
 """
+
+from __future__ import annotations
 
 import argparse
 import h5py
@@ -50,17 +52,15 @@ import numpy as np
 from robomimic.utils.file_utils import create_hdf5_filter_key
 
 
-def split_train_val_from_hdf5(hdf5_path, val_ratio=0.1, filter_key=None):
+def split_train_val_from_hdf5(hdf5_path: str, val_ratio=0.1, filter_key=None):
     """
     Splits data into training set and validation set from HDF5 file.
 
     Args:
-        hdf5_path (str): path to the hdf5 file
-            to load the transitions from
+        hdf5_path: path to the hdf5 file to load the transitions from
+        val_ratio: ratio of validation demonstrations to all demonstrations
 
-        val_ratio (float): ratio of validation demonstrations to all demonstrations
-
-        filter_key (str): if provided, split the subset of demonstration keys stored
+        filter_key: if provided, split the subset of demonstration keys stored
             under mask/@filter_key instead of the full set of demonstrations
     """
     # retrieve number of demos

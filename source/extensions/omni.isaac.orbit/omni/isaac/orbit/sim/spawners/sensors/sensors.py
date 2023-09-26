@@ -65,16 +65,14 @@ def spawn_camera(
         from a single and cloning the USD prim at the given path expression.
 
     Args:
-        prim_path (str): The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
-        cfg (sensors_cfg.PinholeCameraCfg | sensors_cfg.FisheyeCameraCfg): The configuration instance.
-        translation (tuple[float, float, float], optional): The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation (tuple[float, float, float, float], optional): The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
-        Usd.Prim: The created prim.
+        The created prim.
 
     Raises:
         ValueError: If a prim already exists at the given path.

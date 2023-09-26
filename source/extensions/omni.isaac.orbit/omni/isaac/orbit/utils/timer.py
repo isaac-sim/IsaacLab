@@ -5,10 +5,11 @@
 
 """Defines timer class for performance measurements."""
 
+from __future__ import annotations
 
 import time
 from contextlib import ContextDecorator
-from typing import Any, Optional
+from typing import Any
 
 
 class TimerError(Exception):
@@ -59,11 +60,11 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    def __init__(self, msg: Optional[str] = None):
+    def __init__(self, msg: str | None = None):
         """Initializes the timer.
 
         Args:
-            msg (Optional[str], optional): The message to display when using the timer
+            msg: The message to display when using the timer
                 class in a context manager. Defaults to None.
         """
         self._msg = msg
@@ -75,7 +76,7 @@ class Timer(ContextDecorator):
         """A string representation of the class object.
 
         Returns:
-            str: A string containing the elapsed time.
+            A string containing the elapsed time.
         """
         return f"{self.time_elapsed:0.6f} seconds"
 
@@ -121,7 +122,7 @@ class Timer(ContextDecorator):
     Context managers
     """
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         """Start timing and return this `Timer` instance."""
         self.start()
         return self

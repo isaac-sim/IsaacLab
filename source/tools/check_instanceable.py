@@ -38,6 +38,8 @@ Output from the above commands:
 
 """
 
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 

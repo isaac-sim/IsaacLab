@@ -100,7 +100,7 @@ def _class_to_dict(obj: object) -> Dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Returns:
-        Dict[str, Any]: Converted dictionary mapping.
+        Converted dictionary mapping.
     """
     return class_to_dict(obj)
 
@@ -111,7 +111,7 @@ def _update_class_from_dict(obj, data: Dict[str, Any]) -> None:
     This function performs in-place update of the class member attributes.
 
     Args:
-        data (Dict[str, Any]): Input (nested) dictionary to update from.
+        data: Input (nested) dictionary to update from.
 
     Raises:
         TypeError: When input is not a dictionary.
@@ -136,11 +136,11 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
       assert c1.x == 3 and c1.y == 2
 
     Args:
-        obj (object): The object to replace.
+        obj: The object to replace.
         **kwargs: The fields to replace and their new values.
 
     Returns:
-        object: The new object.
+        The new object.
     """
     return replace(obj, **kwargs)
 
@@ -324,11 +324,11 @@ def _combined_function(f1: Callable, f2: Callable) -> Callable:
     """Combine two functions into one.
 
     Args:
-        f1 (Callable): The first function.
-        f2 (Callable): The second function.
+        f1: The first function.
+        f2: The second function.
 
     Returns:
-        Callable: The combined function.
+        The combined function.
     """
 
     def _combined(*args, **kwargs):

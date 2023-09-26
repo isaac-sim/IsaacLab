@@ -16,10 +16,12 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
 """
 
+from __future__ import annotations
+
 import numpy as np
 import torch
 from dataclasses import MISSING
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
@@ -48,16 +50,16 @@ class VisualizationMarkersCfg:
 
         This can be any valid USD prim type, such as "Sphere" or "Cone".
         """
-        scale: Optional[List[float]] = None
+        scale: list[float] | None = None
         """The scale of the marker. Defaults to None."""
-        color: Optional[List[float]] = None
+        color: list[float] | None = None
         """The RGB color of the marker. Defaults to None.
 
         If not :obj:`None`, the marker will be colored with the given color. The color is
         applied to the material of the marker prim with a preview surface shader that has a
         precedence over any existing material on the prim.
         """
-        attributes: Optional[Dict[str, Any]] = None
+        attributes: dict[str, Any] | None = None
         """The attributes of the marker. Defaults to None."""
 
     @configclass
@@ -69,7 +71,7 @@ class VisualizationMarkersCfg:
         usd_path: str = MISSING
         """The path to the USD file of the marker."""
 
-    markers: Dict[str, MarkerCfg] = MISSING
+    markers: dict[str, MarkerCfg] = MISSING
     """The dictionary of marker configurations.
 
     The key is the name of the marker, and the value is the configuration of the marker.
@@ -160,8 +162,8 @@ class VisualizationMarkers:
         and the marker prims are registered into it.
 
         Args:
-            prim_path (str): The prim path where the PointInstancer will be created.
-            cfg (VisualizationMarkersCfg): The configuration for the markers.
+            prim_path: The prim path where the PointInstancer will be created.
+            cfg: The configuration for the markers.
 
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
@@ -186,11 +188,11 @@ class VisualizationMarkers:
         self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f()])
         self._count = 1
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a string representation of the class.
 
         Returns:
-            str: A string representation of the class.
+            A string representation of the class.
         """
         msg = f"VisualizationMarkers(prim_path={self.prim_path})"
         msg += f"\n\tCount: {self.count}"
@@ -226,7 +228,7 @@ class VisualizationMarkers:
         The method does this through the USD API.
 
         Args:
-            visible (bool): flag to set the visibility.
+            visible: flag to set the visibility.
         """
         imageable = UsdGeom.Imageable(self._instancer_manager)
         if visible:
@@ -238,16 +240,16 @@ class VisualizationMarkers:
         """Checks the visibility of the markers.
 
         Returns:
-            bool: True if the markers are visible, False otherwise.
+            True if the markers are visible, False otherwise.
         """
         return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
 
     def visualize(
         self,
-        translations: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        orientations: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        scales: Optional[Union[np.ndarray, torch.Tensor]] = None,
-        marker_indices: Optional[Union[List[int], np.ndarray, torch.Tensor]] = None,
+        translations: np.ndarray | torch.Tensor | None = None,
+        orientations: np.ndarray | torch.Tensor | None = None,
+        scales: np.ndarray | torch.Tensor | None = None,
+        marker_indices: list[int] | np.ndarray | torch.Tensor | None = None,
     ):
         """Update markers in the viewport.
 
@@ -281,16 +283,13 @@ class VisualizationMarkers:
             yourself and pass the complete arrays to this function.
 
         Args:
-            translations (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                translations w.r.t. parent prim frame. Shape: (M, 3).
+            translations: Translations w.r.t. parent prim frame. Shape is (M, 3).
                 Defaults to :obj:`None`, which means left unchanged.
-            orientations (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Quaternion orientations (w, x, y, z) w.r.t. parent prim frame. Shape: (M, 4).
+            orientations: Quaternion orientations (w, x, y, z) w.r.t. parent prim frame. Shape is (M, 4).
                 Defaults to :obj:`None`, which means left unchanged.
-            scales (Union[np.ndarray, torch.Tensor]): Scale applied before any rotation is applied. Shape: (M, 3).
+            scales: Scale applied before any rotation is applied. Shape is (M, 3).
                 Defaults to :obj:`None`, which means left unchanged.
-            marker_indices (Optional[Union[np.ndarray, torch.Tensor]], optional):
-                Decides which marker prototype to visualize. Shape: (M).
+            marker_indices: Decides which marker prototype to visualize. Shape is (M).
                 Defaults to :obj:`None`, which means left unchanged provided that the total number of markers
                 is the same as the previous call. If the number of markers is different, the function
                 will update the number of markers in the scene.
@@ -369,7 +368,7 @@ class VisualizationMarkers:
     Helper functions.
     """
 
-    def _add_markers_prototypes(self, markers_cfg: Dict[str, VisualizationMarkersCfg.MarkerCfg]):
+    def _add_markers_prototypes(self, markers_cfg: dict[str, VisualizationMarkersCfg.MarkerCfg]):
         """Adds markers prototypes to the scene and sets the markers instancer to use them."""
         # add markers based on config
         for name, cfg in markers_cfg.items():

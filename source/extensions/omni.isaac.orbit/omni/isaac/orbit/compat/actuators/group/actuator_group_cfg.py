@@ -14,9 +14,10 @@ Currently, the following configuration classes are supported:
 
 """
 
+from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import ClassVar, Dict, List
+from typing import ClassVar
 
 from omni.isaac.orbit.actuators.model.actuator_cfg import BaseActuatorCfg
 from omni.isaac.orbit.utils import configclass
@@ -31,7 +32,7 @@ class ActuatorGroupCfg:
     cls_name: ClassVar[str] = "ActuatorGroup"
     """Name of the associated actuator group class. Used to construct the actuator group."""
 
-    dof_names: List[str] = MISSING
+    dof_names: list[str] = MISSING
     """Articulation's DOF names that are part of the group."""
 
     model_cfg: BaseActuatorCfg = MISSING
@@ -50,7 +51,7 @@ class GripperActuatorGroupCfg(ActuatorGroupCfg):
     speed: float = MISSING
     """The speed at which gripper should close. (used with velocity command type.)"""
 
-    mimic_multiplier: Dict[str, float] = MISSING
+    mimic_multiplier: dict[str, float] = MISSING
     """
     Mapping of command from DOF names to command axis [-1, 1].
 
