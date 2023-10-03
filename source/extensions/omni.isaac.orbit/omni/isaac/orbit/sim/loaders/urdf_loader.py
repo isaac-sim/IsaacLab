@@ -14,6 +14,7 @@ from datetime import datetime
 import omni.kit.commands
 from omni.isaac.urdf import _urdf as omni_urdf
 
+from omni.isaac.orbit.utils.assets import check_file_path
 from omni.isaac.orbit.utils.io import dump_yaml
 
 from .urdf_loader_cfg import UrdfLoaderCfg
@@ -73,7 +74,7 @@ class UrdfLoader:
             ValueError: When provided URDF file does not exist.
         """
         # check if the urdf file exists
-        if not os.path.isfile(cfg.urdf_path):
+        if not check_file_path(cfg.urdf_path):
             raise ValueError(f"The URDF path does not exist: ({cfg.urdf_path})!")
 
         # resolve USD directory name

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Sequence
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import ARROW_X_MARKER_CFG
+from omni.isaac.orbit.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 
 from .command_generator_base import CommandGeneratorBase
 
@@ -163,16 +163,16 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         # create markers if necessary
         # -- goal
         if self.base_vel_goal_visualizer is None:
-            marker_cfg = ARROW_X_MARKER_CFG
-            marker_cfg.markers["arrow"].color = (0.0, 1.0, 0.0)
+            marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
+            marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
             marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
-            self.base_vel_goal_visualizer = VisualizationMarkers("/Visuals/Command/velocity_goal", marker_cfg)
+            self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
         # -- current
         if self.base_vel_visualizer is None:
-            marker_cfg = ARROW_X_MARKER_CFG
-            marker_cfg.markers["arrow"].color = (0.0, 0.0, 1.0)
+            marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
+            marker_cfg.prim_path = "/Visuals/Command/velocity_current"
             marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
-            self.base_vel_visualizer = VisualizationMarkers("/Visuals/Command/velocity_current", marker_cfg)
+            self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
         # get marker location
         # -- base state
         base_pos_w = self.robot.data.root_pos_w.clone()

@@ -50,7 +50,8 @@
         "downsampled",
         "arange",
         "discretization",
-        "trimesh"
+        "trimesh",
+        "uninstanceable"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",

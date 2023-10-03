@@ -24,6 +24,7 @@ Currently, the module provides the following classes:
 
 from __future__ import annotations
 
+from .config import *  # noqa: F401, F403
 from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
 
 __all__ = ["VisualizationMarkersCfg", "VisualizationMarkers"]

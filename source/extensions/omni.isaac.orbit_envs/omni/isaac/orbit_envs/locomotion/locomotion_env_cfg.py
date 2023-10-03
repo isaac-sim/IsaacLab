@@ -66,10 +66,10 @@ class TerrainSceneCfg(InteractiveSceneCfg):
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         attach_yaw_only=True,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
+        debug_vis=True,
         mesh_prim_paths=["/World/ground"],
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, debug_vis=False)
+    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, debug_vis=True)
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
@@ -274,7 +274,7 @@ class LocomotionEnvRoughCfg(RLEnvCfg):
         rel_standing_envs=0.02,
         rel_heading_envs=1.0,
         heading_command=True,
-        debug_vis=False,
+        debug_vis=True,
         ranges=UniformVelocityCommandGeneratorCfg.Ranges(
             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),

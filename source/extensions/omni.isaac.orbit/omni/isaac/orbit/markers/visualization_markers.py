@@ -21,16 +21,15 @@ from __future__ import annotations
 import numpy as np
 import torch
 from dataclasses import MISSING
-from typing import Any
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
-from omni.isaac.core.materials import PreviewSurface
-from omni.isaac.core.prims import GeometryPrim
+import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, Sdf, UsdGeom, Vt
 
-from omni.isaac.orbit.utils.assets import check_file_path
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.sim.spawners import SpawnerCfg
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.math import convert_quat
 
@@ -39,39 +38,10 @@ from omni.isaac.orbit.utils.math import convert_quat
 class VisualizationMarkersCfg:
     """A class to configure a :class:`VisualizationMarkers`."""
 
-    @configclass
-    class MarkerCfg:
-        """A class to configure a marker prototype prim."""
+    prim_path: str = MISSING
+    """The prim path where the :class:`UsdGeom.PointInstancer` will be created."""
 
-        visible: bool = True
-        """The visibility of the marker. Defaults to True."""
-        prim_type: str = MISSING
-        """The prim type of the marker.
-
-        This can be any valid USD prim type, such as "Sphere" or "Cone".
-        """
-        scale: list[float] | None = None
-        """The scale of the marker. Defaults to None."""
-        color: list[float] | None = None
-        """The RGB color of the marker. Defaults to None.
-
-        If not :obj:`None`, the marker will be colored with the given color. The color is
-        applied to the material of the marker prim with a preview surface shader that has a
-        precedence over any existing material on the prim.
-        """
-        attributes: dict[str, Any] | None = None
-        """The attributes of the marker. Defaults to None."""
-
-    @configclass
-    class FileMarkerCfg(MarkerCfg):
-        """A class to configure a marker prototype prim from a USD file."""
-
-        prim_type: str = "Xform"
-        """The prim type of the marker. Defaults to "Xform"."""
-        usd_path: str = MISSING
-        """The path to the USD file of the marker."""
-
-    markers: dict[str, MarkerCfg] = MISSING
+    markers: dict[str, SpawnerCfg] = MISSING
     """The dictionary of marker configurations.
 
     The key is the name of the marker, and the value is the configuration of the marker.
@@ -110,27 +80,28 @@ class VisualizationMarkers:
 
         .. code-block:: python
 
+            import omni.isaac.orbit.sim as sim_utils
             from omni.isaac.orbit.markers import VisualizationMarkersCfg, VisualizationMarkers
 
             # Create the markers configuration
             # This creates two marker prototypes, "marker1" and "marker2" which are spheres with a radius of 1.0.
             # The color of "marker1" is red and the color of "marker2" is green.
             cfg = VisualizationMarkersCfg(
+                prim_path="/World/Visuals/testMarkers",
                 markers={
-                    "marker1": VisualizationMarkersCfg.MarkerCfg(
-                        prim_type="Sphere",
-                        attributes={"radius": 1.0},
-                        color=(1.0, 0.0, 0.0),
+                    "marker1": sim_utils.SphereCfg(
+                        radius=1.0,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
                     ),
-                    "marker2": VisualizationMarkersCfg.MarkerCfg(
-                        prim_type="Sphere",
-                        attributes={"radius": 1.0},
-                        color=(0.0, 1.0, 0.0),
+                    "marker2": VisualizationMarkersCfg.SphereCfg(
+                        radius=1.0,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                    ),
                 }
             )
             # Create the markers instance
             # This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.
-            marker = VisualizationMarkers("/World/Visuals/testMarkers", cfg)
+            marker = VisualizationMarkers(cfg)
 
             # Set position of the marker
             # -- randomly sample translations between -1.0 and 1.0
@@ -155,21 +126,24 @@ class VisualizationMarkers:
 
     """
 
-    def __init__(self, prim_path: str, cfg: VisualizationMarkersCfg):
+    def __init__(self, cfg: VisualizationMarkersCfg):
         """Initialize the class.
 
         When the class is initialized, the :class:`UsdGeom.PointInstancer` is created into the stage
         and the marker prims are registered into it.
 
+        .. note::
+            If a prim already exists at the given path, the function will find the next free path
+            and create the :class:`UsdGeom.PointInstancer` prim there.
+
         Args:
-            prim_path: The prim path where the PointInstancer will be created.
             cfg: The configuration for the markers.
 
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
         # get next free path for the prim
-        prim_path = stage_utils.get_next_free_path(prim_path)
+        prim_path = stage_utils.get_next_free_path(cfg.prim_path)
         # create a new prim
         prim = prim_utils.define_prim(prim_path, "PointInstancer")
         self._instancer_manager = UsdGeom.PointInstancer(prim)
@@ -189,11 +163,7 @@ class VisualizationMarkers:
         self._count = 1
 
     def __str__(self) -> str:
-        """Return a string representation of the class.
-
-        Returns:
-            A string representation of the class.
-        """
+        """Return: A string representation of the class."""
         msg = f"VisualizationMarkers(prim_path={self.prim_path})"
         msg += f"\n\tCount: {self.count}"
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
@@ -368,40 +338,19 @@ class VisualizationMarkers:
     Helper functions.
     """
 
-    def _add_markers_prototypes(self, markers_cfg: dict[str, VisualizationMarkersCfg.MarkerCfg]):
+    def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]):
         """Adds markers prototypes to the scene and sets the markers instancer to use them."""
         # add markers based on config
         for name, cfg in markers_cfg.items():
-            # handle basic marker config
-            # if it is a file marker, check if the file exists
-            # if it is a prim marker, check that prim type is not Xform since that is an empty prim!
-            if not isinstance(cfg, VisualizationMarkersCfg.FileMarkerCfg):
-                # check if prim type is valid
-                if cfg.prim_type == "Xform":
-                    raise ValueError("Please use `FileMarkerCfg` for `prim_type` of `Xform`.")
-                # set usd path as None
-                usd_path = None
-            else:
-                # check if the file exists
-                if not check_file_path(cfg.usd_path):
-                    raise FileNotFoundError(f"USD file for the marker not found at: {cfg.usd_path}")
-                # make sure user doesn't override the prim type
-                if cfg.prim_type != "Xform":
-                    raise ValueError(
-                        f"Please use `prim_type` of `Xform` for `FileMarkerCfg`. Received: {cfg.prim_type}."
-                    )
-                # set usd path
-                usd_path = cfg.usd_path
             # resolve prim path
             marker_prim_path = f"{self.prim_path}/{name}"
             # create a child prim for the marker
-            prim = prim_utils.create_prim(
-                prim_path=marker_prim_path,
-                prim_type=cfg.prim_type,
-                usd_path=usd_path,
-                scale=cfg.scale,
-                attributes=cfg.attributes,
-            )
+            prim = cfg.func(prim_path=marker_prim_path, cfg=cfg)
+            # make the asset uninstanceable (in case it is)
+            # point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
+            sim_utils.make_uninstanceable(marker_prim_path)
+            # remove any physics on the markers because they are only for visualization!
+            physx_utils.removeRigidBodySubtree(prim)
             # make marker invisible to secondary rays
             omni.kit.commands.execute(
                 "ChangePropertyCommand",
@@ -410,12 +359,5 @@ class VisualizationMarkers:
                 prev=None,
                 type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
             )
-            # set visibility
-            prim_utils.set_prim_visibility(prim, visible=cfg.visible)
-            # create color attribute
-            if cfg.color is not None:
-                geom_prim = GeometryPrim(marker_prim_path)
-                material = PreviewSurface(f"{marker_prim_path}/material", color=np.asarray(cfg.color))
-                geom_prim.apply_visual_material(material, weaker_than_descendants=False)
             # add child reference to point instancer
             self._instancer_manager.GetPrototypesRel().AddTarget(marker_prim_path)

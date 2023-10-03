@@ -8,9 +8,10 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Callable
 
-from omni.isaac.orbit.utils import configclass
+from pxr import Usd
 
-from .. import schemas
+from omni.isaac.orbit.sim import schemas
+from omni.isaac.orbit.utils import configclass
 
 
 @configclass
@@ -27,8 +28,15 @@ class SpawnerCfg:
     parameter.
     """
 
-    func: Callable = MISSING
-    """Function to use for spawning the asset."""
+    func: Callable[..., Usd.Prim] = MISSING
+    """Function to use for spawning the asset.
+
+    The function takes in the prim path (or expression) to spawn the asset at, the configuration instance
+    and transformation, and returns the source prim spawned.
+    """
+
+    visible: bool = True
+    """Whether the spawned asset should be visible. Defaults to True."""
 
     copy_from_source: bool = True
     """Whether to copy the asset from the source prim or inherit it. Defaults to True.
@@ -58,21 +66,9 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     """Rigid body properties."""
     collision_props: schemas.CollisionPropertiesCfg | None = None
     """Properties to apply to all collision meshes."""
+
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.
 
     This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.
     """
-
-
-@configclass
-class ArticulationSpawnerCfg(RigidObjectSpawnerCfg):
-    """Configuration parameters for spawning an articulation asset.
-
-    Note:
-        By default, all properties are set to None. This means that no properties will be added or modified
-        to the prim outside of the properties available by default when spawning the prim.
-    """
-
-    articulation_props: schemas.ArticulationPropertiesCfg | None = None
-    """Properties to apply to the articulation root."""

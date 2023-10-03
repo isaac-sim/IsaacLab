@@ -130,16 +130,20 @@ def apply_nested(func: Callable) -> Callable:
 
     Args:
         func: The function to apply to all prims under a specified prim-path. The function
-            must take the prim-path, the configuration object and the stage as inputs. It should return
-            a boolean indicating whether the function succeeded or not.
+            must take the prim-path and other arguments. It should return a boolean indicating whether
+            the function succeeded or not.
 
     Returns:
         The wrapped function that applies the function to all prims under a specified prim-path.
+
+    Raises:
+        ValueError: If the prim-path does not exist on the stage.
     """
 
     @functools.wraps(func)
-    def wrapper(prim_path: str, cfg: object, stage: Usd.Stage | None = None, **kwargs):
+    def wrapper(prim_path: str, *args, **kwargs):
         # get current stage
+        stage = kwargs.get("stage")
         if stage is None:
             stage = stage_utils.get_current_stage()
         # get USD prim
@@ -160,7 +164,7 @@ def apply_nested(func: Callable) -> Callable:
                 carb.log_warn(f"Cannot perform '{func.__name__}' on instanced prim: '{child_prim_path}'")
                 continue
             # set properties
-            success = func(child_prim_path, cfg, stage=stage, **kwargs)
+            success = func(child_prim_path, *args, **kwargs)
             # if successful, do not look at children
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
@@ -186,7 +190,7 @@ def clone(func: Callable) -> Callable:
 
     Returns:
         The decorated function that spawns the prim and clones it at each matching prim path.
-            It returns the spawned prim.
+        It returns the spawned source prim, i.e., the first prim in the list of matching prim paths.
     """
 
     @functools.wraps(func)
@@ -213,6 +217,9 @@ def clone(func: Callable) -> Callable:
         prim_paths = [f"{source_prim_path}/{asset_path}" for source_prim_path in source_prim_paths]
         # spawn single instance
         prim = func(prim_paths[0], cfg, *args, **kwargs)
+        # set the prim visibility
+        if hasattr(cfg, "visible"):
+            prim_utils.set_prim_visibility(prim, cfg.visible)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)
@@ -255,8 +262,8 @@ def bind_visual_material(
     Args:
         prim_path: The prim path where to apply the material.
         material_path: The prim path of the material to apply.
-        stage: The stage where the prim and material exist. Defaults to None,
-            in which case the current stage is used.
+        stage: The stage where the prim and material exist.
+            Defaults to None, in which case the current stage is used.
         stronger_than_descendants: Whether the material should override the material of its descendants.
             Defaults to True.
 
@@ -309,8 +316,8 @@ def bind_physics_material(
     Args:
         prim_path: The prim path where to apply the material.
         material_path: The prim path of the material to apply.
-        stage: The stage where the prim and material exist. Defaults to None,
-            in which case the current stage is used.
+        stage: The stage where the prim and material exist.
+            Defaults to None, in which case the current stage is used.
         stronger_than_descendants: Whether the material should override the material of its descendants.
             Defaults to True.
 
@@ -355,3 +362,43 @@ def bind_physics_material(
     material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
     # return success
     return True
+
+
+"""
+USD Prim properties.
+"""
+
+
+def make_uninstanceable(prim_path: str, stage: Usd.Stage | None = None):
+    """Check if a prim and its descendants are instanced and make them uninstanceable.
+
+    This function checks if the prim at the specified prim path and its descendants are instanced.
+    If so, it makes the respective prim uninstanceable by disabling instancing on the prim.
+
+    This is useful when we want to modify the properties of a prim that is instanced. For example, if we
+    want to apply a different material on an instanced prim, we need to make the prim uninstanceable first.
+
+    Args:
+        prim_path: The prim path to check.
+        stage: The stage where the prim exists.
+            Defaults to None, in which case the current stage is used.
+    """
+    # get current stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get prim
+    prim: Usd.Prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # iterate over all prims under prim-path
+    all_prims = [prim]
+    while len(all_prims) > 0:
+        # get current prim
+        child_prim = all_prims.pop(0)
+        # check if prim is instanced
+        if child_prim.IsInstance():
+            # make the prim uninstanceable
+            child_prim.SetInstanceable(False)
+        # add children to list
+        all_prims += child_prim.GetChildren()

@@ -13,7 +13,8 @@ import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import loaders, schemas
-from omni.isaac.orbit.sim.utils import bind_physics_material, clone
+from omni.isaac.orbit.sim.utils import bind_physics_material, bind_visual_material, clone
+from omni.isaac.orbit.utils.assets import check_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -25,7 +26,6 @@ def spawn_from_usd(
     cfg: from_files_cfg.UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    scale: tuple[float, float, float] | None = None,
 ) -> Usd.Prim:
     """Spawn an asset from a USD file and override the settings with the given config.
 
@@ -45,16 +45,19 @@ def spawn_from_usd(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim
-            w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to
-            the prim w.r.t. its parent prim. Defaults to None.
-        scale: The scale of the imported prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
 
     Returns:
         The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # -- spawn asset if it doesn't exist.
+    # check file path exists
+    if not check_file_path(cfg.usd_path):
+        raise FileNotFoundError(f"USD file not found at path: '{cfg.usd_path}'.")
+    # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
         prim_utils.create_prim(
@@ -62,7 +65,7 @@ def spawn_from_usd(
             usd_path=cfg.usd_path,
             translation=translation,
             orientation=orientation,
-            scale=scale,
+            scale=cfg.scale,
         )
     else:
         carb.log_warn(f"A prim already exists at prim path: '{prim_path}'.")
@@ -76,6 +79,16 @@ def spawn_from_usd(
     # modify articulation root properties
     if cfg.articulation_props is not None:
         schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+    # apply visual material
+    if cfg.visual_material is not None:
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{prim_path}/{cfg.visual_material_path}"
+        else:
+            material_path = cfg.visual_material_path
+        # create material
+        cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material
+        bind_visual_material(prim_path, material_path)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
 
@@ -86,7 +99,6 @@ def spawn_from_urdf(
     cfg: from_files_cfg.UrdfFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    scale: tuple[float, float, float] | None = None,
 ) -> Usd.Prim:
     """Spawn an asset from a URDF file and override the settings with the given config.
 
@@ -108,12 +120,14 @@ def spawn_from_urdf(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
         orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
-        scale: The scale of the imported prim. Defaults to None.
 
     Returns:
         The prim of the spawned asset.
+
+    Raises:
+        FileNotFoundError: If the URDF file does not exist at the given path.
     """
-    # -- spawn asset if it doesn't exist.
+    # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # urdf loader
         urdf_loader = loaders.UrdfLoader(cfg)
@@ -123,7 +137,7 @@ def spawn_from_urdf(
             usd_path=urdf_loader.usd_path,
             translation=translation,
             orientation=orientation,
-            scale=scale,
+            scale=cfg.scale,
         )
     else:
         carb.log_warn(f"A prim already exists at prim path: '{prim_path}'. Skipping...")
@@ -137,6 +151,16 @@ def spawn_from_urdf(
     # modify articulation root properties
     if cfg.articulation_props is not None:
         schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+    # apply visual material
+    if cfg.visual_material is not None:
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{prim_path}/{cfg.visual_material_path}"
+        else:
+            material_path = cfg.visual_material_path
+        # create material
+        cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material
+        bind_visual_material(prim_path, material_path)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
 

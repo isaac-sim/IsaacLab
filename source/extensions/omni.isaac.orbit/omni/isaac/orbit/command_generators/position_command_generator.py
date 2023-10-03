@@ -123,9 +123,9 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
     def _debug_vis_impl(self):
         # create the box marker if necessary
         if self.box_goal_visualizer is None:
-            marker_cfg = CUBOID_MARKER_CFG
-            marker_cfg.markers["cuboid"].color = (1.0, 0.0, 0.0)
+            marker_cfg = CUBOID_MARKER_CFG.copy()
+            marker_cfg.prim_path = "/Visuals/Command/position_goal"
             marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
-            self.box_goal_visualizer = VisualizationMarkers("/Visuals/Command/position_goal", marker_cfg)
+            self.box_goal_visualizer = VisualizationMarkers(marker_cfg)
         # update the box marker
         self.box_goal_visualizer.visualize(self.pos_command_w)

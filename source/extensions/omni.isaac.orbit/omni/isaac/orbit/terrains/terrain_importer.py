@@ -80,7 +80,9 @@ class TerrainImporter:
         self.terrain_origins = None
         # marker for visualization
         if self.cfg.debug_vis:
-            self.origin_visualizer = VisualizationMarkers("/Visuals/TerrainOrigin", cfg=FRAME_MARKER_CFG)
+            self.origin_visualizer = VisualizationMarkers(
+                cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
+            )
         else:
             self.origin_visualizer = None
 

@@ -16,7 +16,7 @@ from .dict import class_to_dict, update_class_from_dict
 __all__ = ["configclass"]
 
 
-_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace"]
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy"]
 """List of class methods added at runtime to dataclass."""
 
 """
@@ -83,6 +83,7 @@ def configclass(cls, **kwargs):
     setattr(cls, "to_dict", _class_to_dict)
     setattr(cls, "from_dict", _update_class_from_dict)
     setattr(cls, "replace", _replace_class_with_kwargs)
+    setattr(cls, "copy", _copy_class)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
@@ -143,6 +144,11 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
         The new object.
     """
     return replace(obj, **kwargs)
+
+
+def _copy_class(obj: object) -> object:
+    """Return a new object with the same fields as the original."""
+    return replace(obj)
 
 
 """

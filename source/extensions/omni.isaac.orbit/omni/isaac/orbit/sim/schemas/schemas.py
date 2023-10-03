@@ -384,6 +384,11 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     return True
 
 
+"""
+Contact sensor.
+"""
+
+
 def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.Stage = None):
     """Activate the contact sensor on all rigid bodies under a specified prim path.
 

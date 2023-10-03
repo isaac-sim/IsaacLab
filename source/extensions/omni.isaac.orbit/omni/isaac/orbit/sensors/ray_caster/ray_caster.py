@@ -211,6 +211,7 @@ class RayCaster(SensorBase):
     def _debug_vis_impl(self):
         # visualize the point hits
         if self.ray_visualizer is None:
-            self.ray_visualizer = VisualizationMarkers("/Visuals/RayCaster", cfg=RAY_CASTER_MARKER_CFG)
+            visualizer_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+            self.ray_visualizer = VisualizationMarkers(visualizer_cfg)
         # check if prim is visualized
         self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))

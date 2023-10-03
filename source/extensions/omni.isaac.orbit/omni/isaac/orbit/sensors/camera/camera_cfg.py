@@ -71,7 +71,7 @@ class CameraCfg(SensorBaseCfg):
     type “class” will be retrieved.
 
     More information available at:
-        https://docs.omniverse.nvidia.com/app_code/prod_extensions/ext_replicator/semantic_schema_editor.html
+        https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
     """
 
     colorize: bool = False

@@ -269,7 +269,8 @@ class ContactSensor(SensorBase):
     def _debug_vis_impl(self):
         # visualize the contacts
         if self.contact_visualizer is None:
-            self.contact_visualizer = VisualizationMarkers("/Visuals/ContactSensor", cfg=CONTACT_SENSOR_MARKER_CFG)
+            visualizer_cfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
+            self.contact_visualizer = VisualizationMarkers(visualizer_cfg)
         # marker indices
         # 0: contact, 1: no contact
         net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)

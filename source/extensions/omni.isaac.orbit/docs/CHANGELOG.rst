@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.9.7 (2023-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Modified the :class:`omni.isaac.orbit.markers.VisualizationMarkers` to use the
+  :class:`omni.isaac.orbit.sim.spawner.SpawnerCfg` class instead of their
+  own configuration objects. This makes it consistent with the other ways to spawn assets in the scene.
+
+Added
+^^^^^
+
+* Added the method :meth:`copy` to configclass to allow copying of configuration objects.
+
+
 0.9.6 (2023-09-26)
 ~~~~~~~~~~~~~~~~~~
 

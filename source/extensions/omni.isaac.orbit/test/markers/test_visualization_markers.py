@@ -22,8 +22,10 @@ import traceback
 import unittest
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers import VisualizationMarkers, VisualizationMarkersCfg
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from omni.isaac.orbit.utils.math import random_orientation
@@ -37,6 +39,8 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         """Create a blank new stage for each test."""
         # Simulation time-step
         self.dt = 0.01
+        # Open a new stage
+        stage_utils.create_new_stage()
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cuda:0")
 
@@ -44,19 +48,20 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         """Stops simulator after each test."""
         # stop simulation
         self.sim.stop()
-        self.sim.clear()
+        # close stage
+        stage_utils.close_stage()
+        # clear the simulation context
+        self.sim.clear_instance()
 
     def test_instantiation(self):
         """Test that the class can be initialized properly."""
         config = VisualizationMarkersCfg(
+            prim_path="/World/Visuals/test",
             markers={
-                "test": VisualizationMarkersCfg.MarkerCfg(
-                    prim_type="Sphere",
-                    attributes={"radius": 1.0},
-                )
-            }
+                "test": sim_utils.SphereCfg(radius=1.0),
+            },
         )
-        test_marker = VisualizationMarkers("/World/Visuals/test", config)
+        test_marker = VisualizationMarkers(config)
         print(test_marker)
         # check number of markers
         self.assertEqual(test_marker.num_prototypes, 1)
@@ -64,7 +69,8 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
     def test_usd_marker(self):
         """Test with marker from a USD."""
         # create a marker
-        test_marker = VisualizationMarkers("/World/Visuals/test_frames", FRAME_MARKER_CFG)
+        config = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/test_frames")
+        test_marker = VisualizationMarkers(config)
 
         # play the simulation
         self.sim.reset()
@@ -87,8 +93,10 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
     def test_usd_marker_color(self):
         """Test with marker from a USD with its color modified."""
         # create a marker
-        FRAME_MARKER_CFG.markers["frame"].color = (0.0, 1.0, 0.0)
-        test_marker = VisualizationMarkers("/World/Visuals/test_frames", FRAME_MARKER_CFG)
+        config = FRAME_MARKER_CFG.copy()
+        config.prim_path = "/World/Visuals/test_frames"
+        config.markers["frame"].visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
+        test_marker = VisualizationMarkers(config)
 
         # play the simulation
         self.sim.reset()
@@ -107,7 +115,8 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
     def test_multiple_prototypes_marker(self):
         """Test with multiple prototypes of spheres."""
         # create a marker
-        test_marker = VisualizationMarkers("/World/Visuals/test_protos", POSITION_GOAL_MARKER_CFG)
+        config = POSITION_GOAL_MARKER_CFG.replace(prim_path="/World/Visuals/test_protos")
+        test_marker = VisualizationMarkers(config)
 
         # play the simulation
         self.sim.reset()
@@ -128,7 +137,8 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         """Test with time taken when number of prototypes is increased."""
 
         # create a marker
-        test_marker = VisualizationMarkers("/World/Visuals/test_protos", POSITION_GOAL_MARKER_CFG)
+        config = POSITION_GOAL_MARKER_CFG.replace(prim_path="/World/Visuals/test_protos")
+        test_marker = VisualizationMarkers(config)
 
         # play the simulation
         self.sim.reset()
@@ -160,7 +170,8 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
         """Test with visibility of markers. When invisible, the visualize call should return."""
 
         # create a marker
-        test_marker = VisualizationMarkers("/World/Visuals/test_protos", POSITION_GOAL_MARKER_CFG)
+        config = POSITION_GOAL_MARKER_CFG.replace(prim_path="/World/Visuals/test_protos")
+        test_marker = VisualizationMarkers(config)
 
         # play the simulation
         self.sim.reset()
