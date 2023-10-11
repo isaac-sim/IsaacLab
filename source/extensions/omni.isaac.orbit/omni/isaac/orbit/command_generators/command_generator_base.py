@@ -13,6 +13,7 @@ methods.
 from __future__ import annotations
 
 import torch
+import weakref
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Sequence
 
@@ -58,8 +59,9 @@ class CommandGeneratorBase(ABC):
         # add callback for debug visualization
         if self.cfg.debug_vis:
             app_interface = omni.kit.app.get_app_interface()
+            # NOTE: Use weakref on callback to ensure that this object can be deleted when its destructor is called.
             self._debug_visualization_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                self._debug_vis_callback
+                lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event),
             )
         else:
             self._debug_visualization_handle = None
@@ -68,6 +70,7 @@ class CommandGeneratorBase(ABC):
         """Unsubscribe from the callbacks."""
         if self._debug_visualization_handle is not None:
             self._debug_visualization_handle.unsubscribe()
+            self._debug_visualization_handle = None
 
     """
     Properties

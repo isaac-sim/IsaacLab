@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import numpy as np
+import weakref
 from typing import Callable
 
 import carb
@@ -68,7 +69,11 @@ class Se2Gamepad(DeviceBase):
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
         self._gamepad = self._appwindow.get_gamepad(0)
-        self._gamepad_sub = self._input.subscribe_to_gamepad_events(self._gamepad, self._on_gamepad_event)
+        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called
+        self._gamepad_sub = self._input.subscribe_to_gamepad_events(
+            self._gamepad,
+            lambda event, *args, obj=weakref.proxy(self): obj._on_gamepad_event(event, *args),
+        )
         # bindings for gamepad to command
         self._create_key_bindings()
         # command buffers

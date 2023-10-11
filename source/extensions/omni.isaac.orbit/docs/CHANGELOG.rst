@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.8 (2023-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the boundedness of class objects that register callbacks into the simulator.
+  These include devices, :class:`AssetBase`, :class:`SensorBase` and :class:`CommandGenerator`.
+  The fix ensures that object gets deleted when the user deletes the object.
+
+
 0.9.7 (2023-09-26)
 ~~~~~~~~~~~~~~~~~~
 

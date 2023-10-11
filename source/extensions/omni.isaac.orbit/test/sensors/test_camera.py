@@ -49,17 +49,13 @@ QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
 
 
 class TestCamera(unittest.TestCase):
-    """Test for orbit camera sensor"""
-
-    """
-    Test Setup and Teardown
-    """
+    """Test for USD Camera sensor."""
 
     def setUp(self):
         """Create a blank new stage for each test."""
         self.camera_cfg = CameraCfg(
-            height=24,
-            width=32,
+            height=128,
+            width=128,
             prim_path="/World/Camera",
             update_period=0,
             data_types=["distance_to_image_plane"],
@@ -127,9 +123,6 @@ class TestCamera(unittest.TestCase):
             # check image data
             for im_data in camera.data.output.to_dict().values():
                 self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     def test_camera_resolution(self):
         """Test camera resolution is correctly set."""
@@ -146,9 +139,6 @@ class TestCamera(unittest.TestCase):
         # access image data and compare shapes
         for im_data in camera.data.output.to_dict().values():
             self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     def test_camera_init_offset(self):
         """Test camera initialization with offset using different conventions."""
@@ -219,12 +209,6 @@ class TestCamera(unittest.TestCase):
         np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL, rtol=1e-5)
         np.testing.assert_allclose(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5)
 
-        # delete all cameras
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera_ros.__del__()
-        camera_opengl.__del__()
-        camera_world.__del__()
-
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
         # create two cameras with different prim paths
@@ -256,11 +240,6 @@ class TestCamera(unittest.TestCase):
                 for im_data in cam.data.output.to_dict().values():
                     self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
 
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        cam_1.__del__()
-        cam_2.__del__()
-
     def test_camera_set_world_poses(self):
         """Test camera function to set specific world pose."""
         camera = Camera(self.camera_cfg)
@@ -270,9 +249,6 @@ class TestCamera(unittest.TestCase):
         camera.set_world_poses([POSITION], [QUAT_WORLD], convention="world")
         np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
         np.testing.assert_allclose(camera.data.quat_w_world, [QUAT_WORLD], rtol=1e-5)
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     def test_camera_set_world_poses_from_view(self):
         """Test camera function to set specific world pose from view."""
@@ -283,9 +259,6 @@ class TestCamera(unittest.TestCase):
         camera.set_world_poses_from_view([POSITION], [[0.0, 0.0, 0.0]])
         np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
         np.testing.assert_allclose(camera.data.quat_w_ros, [QUAT_ROS], rtol=1e-5)
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     def test_intrinsic_matrix(self):
         """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
@@ -318,9 +291,6 @@ class TestCamera(unittest.TestCase):
             #       This is a bug in the simulator.
             self.assertAlmostEqual(rs_intrinsic_matrix[0, 0], K[0, 0], 4)
             # self.assertAlmostEqual(rs_intrinsic_matrix[1, 1], K[1, 1], 4)
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
@@ -368,9 +338,6 @@ class TestCamera(unittest.TestCase):
             # Check image data
             for im_data in camera.data.output.values():
                 self.assertTrue(im_data.shape == (1, camera_cfg.height, camera_cfg.width))
-        # delete camera
-        # TODO: Why do need to delete camera manually. Shouldn't it be deleted automatically?
-        camera.__del__()
 
     """
     Helper functions.

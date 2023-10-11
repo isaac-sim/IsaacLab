@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+import weakref
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Sequence
 
@@ -53,31 +54,41 @@ class AssetBase(ABC):
         if len(matching_prim_paths) == 0:
             raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
 
+        # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
         physx_interface = omni.physx.acquire_physx_interface()
         self._initialize_handle = physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
-            int(omni.physx.bindings._physx.SimulationEvent.RESUMED), self._initialize_callback
+            int(omni.physx.bindings._physx.SimulationEvent.RESUMED),
+            lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
         )
         self._invalidate_initialize_handle = (
             physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
-                int(omni.physx.bindings._physx.SimulationEvent.STOPPED), self._invalidate_initialize_callback
+                int(omni.physx.bindings._physx.SimulationEvent.STOPPED),
+                lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             )
         )
         # add callback for debug visualization
         if self.cfg.debug_vis:
             app_interface = omni.kit.app.get_app_interface()
             self._debug_visualization_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                self._debug_vis_callback
+                lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event),
             )
         else:
             self._debug_visualization_handle = None
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        self._initialize_handle.unsubscribe()
-        self._invalidate_initialize_handle.unsubscribe()
-        if self._debug_visualization_handle is not None:
+        # clear physics events handles
+        if self._initialize_handle:
+            self._initialize_handle.unsubscribe()
+            self._initialize_handle = None
+        if self._invalidate_initialize_handle:
+            self._invalidate_initialize_handle.unsubscribe()
+            self._invalidate_initialize_handle = None
+        # clear debug visualization
+        if self._debug_visualization_handle:
             self._debug_visualization_handle.unsubscribe()
+            self._debug_visualization_handle = None
 
     """
     Properties

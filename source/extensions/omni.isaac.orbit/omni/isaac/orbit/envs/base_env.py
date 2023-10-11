@@ -159,5 +159,8 @@ class BaseEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # clear callbacks and instance
+            self.sim.clear_all_callbacks()
+            self.sim.clear_instance()
             # update closing status
             self._is_closed = True

@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+import builtins
 import enum
-import gc
 import numpy as np
+import weakref
 from typing import Any
 
 import carb
@@ -318,7 +319,10 @@ class SimulationContext(_SimulationContext):
         # we do this because physics views go invalid once we stop the simulation. So there is
         # no point in keeping the simulation running.
         if self.cfg.shutdown_app_on_stop and not self.timeline_callback_exists("shutdown_app_on_stop"):
-            self.add_timeline_callback("shutdown_app_on_stop", self._shutdown_app_on_stop_callback)
+            self.add_timeline_callback(
+                "shutdown_app_on_stop",
+                lambda *args, obj=weakref.proxy(self): obj._shutdown_app_on_stop_callback(*args),
+            )
 
     def step(self, render: bool = True):
         """Steps the physics simulation with the pre-defined time-step.
@@ -500,14 +504,28 @@ class SimulationContext(_SimulationContext):
         """
         # check if the simulation is stopped
         if event.type == int(omni.timeline.TimelineEventType.STOP):
+            # make sure that any replicator workflows finish rendering/writing
+            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+                try:
+                    import omni.replicator.core as rep
+
+                    rep_status = rep.orchestrator.get_status()
+                    if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
+                        rep.orchestrator.stop()
+                    rep.orchestrator.wait_until_complete()
+                except Exception:
+                    pass
+            # clear the instance and all callbacks
+            # note: clearing callbacks is important to prevent memory leaks
+            self.clear_all_callbacks()
+            # workaround for exit issues, clean the stage first:
+            if omni.usd.get_context().can_close_stage():
+                omni.usd.get_context().close_stage()
+            # print logging information
             self.app.print_and_log("Simulation is stopped. Shutting down the app.")
-            # clear the stage
-            stage_utils.close_stage()
             # shutdown the simulator
             self.app.shutdown()
             # disabled on linux to avoid a crash
             carb.get_framework().unload_all_plugins()
-            # garbage collect
-            gc.collect()
             # exit the application
             print("Exiting the application complete.")

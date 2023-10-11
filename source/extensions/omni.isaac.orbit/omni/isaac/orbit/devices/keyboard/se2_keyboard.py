@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import numpy as np
+import weakref
 from typing import Callable
 
 import carb
@@ -56,7 +57,11 @@ class Se2Keyboard(DeviceBase):
         self._appwindow = omni.appwindow.get_default_app_window()
         self._input = carb.input.acquire_input_interface()
         self._keyboard = self._appwindow.get_keyboard()
-        self._keyboard_sub = self._input.subscribe_to_keyboard_events(self._keyboard, self._on_keyboard_event)
+        # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called
+        self._keyboard_sub = self._input.subscribe_to_keyboard_events(
+            self._keyboard,
+            lambda event, *args, obj=weakref.proxy(self): obj._on_keyboard_event(event, *args),
+        )
         # bindings for keyboard to command
         self._create_key_bindings()
         # command buffers

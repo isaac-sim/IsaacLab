@@ -295,7 +295,7 @@ class RLEnv(BaseEnv, gym.Env):
                 self._orbit_window.visible = False
                 self._orbit_window.destroy()
             # update closing status
-            self._is_closed = True
+            super().close()
 
     """
     Implementation specifics.

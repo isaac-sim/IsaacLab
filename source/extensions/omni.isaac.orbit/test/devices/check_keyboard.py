@@ -22,6 +22,8 @@ simulation_app = SimulationApp({"headless": False})
 
 """Rest everything follows."""
 
+import ctypes
+
 from omni.isaac.core.simulation_context import SimulationContext
 
 from omni.isaac.orbit.devices import Se3Keyboard
@@ -50,6 +52,10 @@ def main():
     teleop_interface.add_callback("ESCAPE", quit_cb)
 
     print("Press 'L' to print a message. Press 'ESC' to quit.")
+
+    # Check that boundedness of articulation is correct
+    if ctypes.c_long.from_address(id(teleop_interface)).value != 1:
+        raise RuntimeError("Teleoperation interface is not bounded to a single instance.")
 
     # Reset interface internals
     teleop_interface.reset()
