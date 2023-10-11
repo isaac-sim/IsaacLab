@@ -32,7 +32,9 @@ simulation_app = app_launcher.app
 
 
 import gym
+import traceback
 
+import carb
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -88,8 +90,16 @@ def main():
 
     # close the simulator
     env.close()
-    simulation_app.close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

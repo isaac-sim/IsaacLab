@@ -36,7 +36,9 @@ import numpy as np
 import os
 import random
 import torch
+import traceback
 
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
 import omni.replicator.core as rep
@@ -226,7 +228,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Runs the main function
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

@@ -41,6 +41,9 @@ simulation_app = app_launcher.app
 
 
 import torch
+import traceback
+
+import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
@@ -140,7 +143,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run the main function
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

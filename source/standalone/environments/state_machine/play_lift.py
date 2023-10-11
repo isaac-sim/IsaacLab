@@ -31,9 +31,11 @@ simulation_app = app_launcher.app
 
 import gym
 import torch
+import traceback
 from enum import Enum
 from typing import Sequence
 
+import carb
 import warp as wp
 
 from omni.isaac.orbit.utils.timer import Timer
@@ -278,7 +280,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # run main function
-    main()
-    # close simulation
-    simulation_app.close()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

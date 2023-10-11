@@ -36,6 +36,9 @@ import contextlib
 import gym
 import os
 import torch
+import traceback
+
+import carb
 
 from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
@@ -158,8 +161,16 @@ def main():
     # close the simulator
     collector_interface.close()
     env.close()
-    simulation_app.close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

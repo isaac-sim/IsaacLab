@@ -23,7 +23,9 @@ simulation_app = SimulationApp({"headless": False})
 """Rest everything follows."""
 
 import ctypes
+import traceback
 
+import carb
 from omni.isaac.core.simulation_context import SimulationContext
 
 from omni.isaac.orbit.devices import Se3Keyboard
@@ -85,7 +87,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Runs the main function
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

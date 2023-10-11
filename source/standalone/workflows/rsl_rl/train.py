@@ -44,8 +44,10 @@ simulation_app = app_launcher.app
 import gym
 import os
 import torch
+import traceback
 from datetime import datetime
 
+import carb
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.orbit.utils.dict import print_dict
@@ -129,8 +131,16 @@ def main():
 
     # close the simulator
     env.close()
-    simulation_app.close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

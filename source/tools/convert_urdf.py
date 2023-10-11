@@ -71,7 +71,9 @@ simulation_app = SimulationApp(config)
 """Rest everything follows."""
 
 import os
+import traceback
 
+import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
 
@@ -134,7 +136,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run cloning example
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

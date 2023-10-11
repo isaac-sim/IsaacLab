@@ -35,7 +35,9 @@ simulation_app = SimulationApp(config)
 
 
 import torch
+import traceback
 
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
@@ -175,7 +177,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run the main function
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

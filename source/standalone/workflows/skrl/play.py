@@ -37,7 +37,9 @@ simulation_app = app_launcher.app
 
 
 import gym
+import traceback
 
+import carb
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
@@ -143,8 +145,16 @@ def main():
 
     # close the simulator
     env.close()
-    simulation_app.close()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # run the main execution
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()
