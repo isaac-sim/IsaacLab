@@ -28,6 +28,10 @@ from ..articulation import ArticulationCfg
 UR10_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/UniversalRobots/UR10/ur10_instanceable.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            max_depenetration_velocity=5.0,
+        ),
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

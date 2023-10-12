@@ -74,7 +74,7 @@ class JointAction(ActionTerm):
         if isinstance(cfg.scale, float):
             self._scale = cfg.scale
         elif isinstance(cfg.scale, dict):
-            self._scale = torch.ones(1, self.action_dim, device=self.device)
+            self._scale = torch.ones(1.0, self.action_dim, device=self.device)
             # resolve the dictionary config
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)

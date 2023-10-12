@@ -67,6 +67,8 @@ class TestArticulation(unittest.TestCase):
         self.sim.reset()
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
+        # Check that floating base
+        self.assertFalse(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
         self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
@@ -94,6 +96,8 @@ class TestArticulation(unittest.TestCase):
         self.sim.reset()
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
+        # Check that fixed base
+        self.assertTrue(robot.is_fixed_base)
         # Check buffers that exists and have correct shapes
         self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))

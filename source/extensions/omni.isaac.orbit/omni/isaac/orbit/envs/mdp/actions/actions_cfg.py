@@ -9,8 +9,9 @@ from dataclasses import MISSING
 
 from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
+from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 
-from . import binary_joint_actions, joint_actions, non_holonomic_actions
+from . import binary_joint_actions, joint_actions, non_holonomic_actions, task_space_actions
 
 ##
 # Joint actions.
@@ -142,3 +143,27 @@ class NonHolonomicActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to (1.0, 1.0)."""
     offset: tuple[float, float] = (0.0, 0.0)
     """Offset factor for the action. Defaults to (0.0, 0.0)."""
+
+
+##
+# Task-space Actions.
+##
+
+
+@configclass
+class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
+    """Configuration for inverse differential kinematics action term.
+
+    See :class:`DifferentialInverseKinematicsAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+    body_name: str = MISSING
+    """Name of the body or frame for which IK is performed."""
+    scale: float | tuple[float, ...] = 1.0
+    """Scale factor for the action. Defaults to 1.0."""
+    controller: DifferentialIKControllerCfg = MISSING
+    """The configuration for the differential IK controller."""

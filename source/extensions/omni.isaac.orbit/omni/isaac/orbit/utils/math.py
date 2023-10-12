@@ -588,7 +588,7 @@ def compute_pose_error(
     q01: torch.Tensor,
     t02: torch.Tensor,
     q02: torch.Tensor,
-    rot_error_type: Literal["quat", "axis_angle"],
+    rot_error_type: Literal["quat", "axis_angle"] = "axis_angle",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute the position and orientation error between source and target frames.
 
@@ -598,6 +598,7 @@ def compute_pose_error(
         t02: Position of target frame.
         q02: Quaternion orientation of target frame.
         rot_error_type: The rotation error type to return: "quat", "axis_angle".
+            Defaults to "axis_angle".
 
     Returns:
         A tuple containing position and orientation error.

@@ -95,7 +95,7 @@ class NonHolonomicAction(ActionTerm):
         )
 
         # create tensors for raw and processed actions
-        self._raw_actions = torch.zeros(self.num_envs, 2, device=self.device)
+        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self.raw_actions)
         self._joint_vel_command = torch.zeros(self.num_envs, 3, device=self.device)
 

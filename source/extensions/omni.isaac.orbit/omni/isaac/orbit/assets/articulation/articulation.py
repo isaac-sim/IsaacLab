@@ -17,6 +17,7 @@ import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.prims import RigidPrimView
 from omni.isaac.core.utils.types import ArticulationActions
+from pxr import Usd, UsdPhysics
 
 import omni.isaac.orbit.utils.math as math_utils
 import omni.isaac.orbit.utils.string as string_utils
@@ -55,6 +56,11 @@ class Articulation(RigidObject):
     def data(self) -> ArticulationData:
         """Data related to articulation."""
         return self._data
+
+    @property
+    def is_fixed_base(self) -> bool:
+        """Whether the articulation is a fixed-base or floating-base system."""
+        return self._is_fixed_base
 
     @property
     def num_joints(self) -> int:
@@ -397,6 +403,18 @@ class Articulation(RigidObject):
         # check that initialization was successful
         if len(self.body_names) != self.num_bodies:
             raise RuntimeError("Failed to initialize all bodies properly in the articulation.")
+        # -- fixed base based on root joint
+        self._is_fixed_base = False
+        for prim in Usd.PrimRange(self._root_view.prims[0]):
+            joint_prim = UsdPhysics.FixedJoint(prim)
+            # we check all joints under the root prim and classify the asset as fixed base if there exists
+            # a fixed joint that has only one target (i.e. the root link).
+            if joint_prim and joint_prim.GetJointEnabledAttr().Get():
+                body_0_exist = joint_prim.GetBody0Rel.GetTargets() != []
+                body_1_exist = joint_prim.GetBody1Rel.GetTargets() != []
+                if not (body_0_exist and body_1_exist):
+                    self._is_fixed_base = True
+                    break
         # log information about the articulation
         carb.log_info(f"Articulation initialized at: {self.cfg.prim_path}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")

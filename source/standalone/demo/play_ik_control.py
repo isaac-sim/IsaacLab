@@ -37,34 +37,25 @@ import traceback
 import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.compat.utils.kit as kit_utils
-from omni.isaac.orbit.compat.markers import StaticMarker
-from omni.isaac.orbit.controllers.differential_inverse_kinematics import (
-    DifferentialInverseKinematics,
-    DifferentialInverseKinematicsCfg,
-)
-from omni.isaac.orbit.robots.config.franka import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
-from omni.isaac.orbit.robots.config.universal_robots import UR10_CFG
-from omni.isaac.orbit.robots.single_arm import SingleArmManipulator
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
+from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from omni.isaac.orbit.markers import VisualizationMarkers
+from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.orbit.utils.math import subtract_frame_transforms
 
 
 def main():
     """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01, backend="torch", device="cuda:0")
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, shutdown_app_on_stop=False)
+    sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-    # Enable GPU pipeline and flatcache
-    if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_flatcache(True)
-    # Enable hydra scene-graph instancing
-    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
@@ -73,42 +64,41 @@ def main():
     prim_utils.define_prim("/World/envs/env_0")
 
     # Spawn things into stage
-    # Markers
-    ee_marker = StaticMarker("/Visuals/ee_current", count=args_cli.num_envs, scale=(0.1, 0.1, 0.1))
-    goal_marker = StaticMarker("/Visuals/ee_goal", count=args_cli.num_envs, scale=(0.1, 0.1, 0.1))
     # Ground-plane
-    kit_utils.create_ground_plane("/World/defaultGroundPlane", z_position=-1.05)
+    cfg = sim_utils.GroundPlaneCfg(height=-1.05)
+    cfg.func("/World/defaultGroundPlane", cfg)
     # Lights-1
-    prim_utils.create_prim(
-        "/World/Light/GreySphere",
-        "SphereLight",
-        translation=(4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
-    )
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
+    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
     # Lights-2
-    prim_utils.create_prim(
-        "/World/Light/WhiteSphere",
-        "SphereLight",
-        translation=(-4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
-    )
-    # -- Table
-    table_usd_path = f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"
-    prim_utils.create_prim("/World/envs/env_0/Table", usd_path=table_usd_path)
-    # -- Robot
-    # resolve robot config from command-line arguments
+    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
+    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    # Table
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
+    cfg.func("/World/envs/env_0/Table", cfg)
+    # Robot
+    # -- resolve robot config from command-line arguments
     if args_cli.robot == "franka_panda":
         robot_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
+        robot_cfg.spawn.rigid_props.disable_gravity = True
+        # other parameters not in the config
+        ee_frame_name = "panda_hand"
+        arm_joint_names = ["panda_joint.*"]
     elif args_cli.robot == "ur10":
         robot_cfg = UR10_CFG
+        robot_cfg.spawn.rigid_props.disable_gravity = True
+        # other parameters not in the config
+        ee_frame_name = "ee_link"
+        arm_joint_names = [".*"]
     else:
         raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
-    # configure robot settings to use IK controller
-    robot_cfg.data_info.enable_jacobian = True
-    robot_cfg.rigid_props.disable_gravity = True
-    # spawn robot
-    robot = SingleArmManipulator(cfg=robot_cfg)
-    robot.spawn("/World/envs/env_0/Robot", translation=(0.0, 0.0, 0.0))
+    # -- spawn internally and create interface
+    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/envs/env_.*/Robot"))
+    # Markers
+    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
 
     # Clone the scene
     num_envs = args_cli.num_envs
@@ -123,33 +113,21 @@ def main():
     )
 
     # Create controller
-    # the controller takes as command type: {position/pose}_{abs/rel}
-    ik_control_cfg = DifferentialInverseKinematicsCfg(
-        command_type="pose_abs",
-        ik_method="dls",
-        position_offset=robot.cfg.ee_info.pos_offset,
-        rotation_offset=robot.cfg.ee_info.rot_offset,
-    )
-    ik_controller = DifferentialInverseKinematics(ik_control_cfg, num_envs, sim.device)
+    diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim.device)
 
     # Play the simulator
     sim.reset()
-    # Acquire handles
-    # Initialize handles
-    robot.initialize("/World/envs/env_.*/Robot")
-    ik_controller.initialize()
-    # Reset states
-    robot.reset_buffers()
-    ik_controller.reset_idx()
+
+    # Obtain the frame index of the end-effector
+    ee_frame_idx = robot.find_bodies(ee_frame_name)[0][0]
+    ee_jacobi_idx = ee_frame_idx - 1
+    # Obtain joint indices
+    arm_joint_ids = robot.find_joints(arm_joint_names)[0]
 
     # Now we are ready!
     print("[INFO]: Setup complete...")
 
-    # Create buffers to store actions
-    ik_commands = torch.zeros(robot.count, ik_controller.num_actions, device=robot.device)
-    robot_actions = torch.ones(robot.count, robot.num_actions, device=robot.device)
-
-    # Set end effector goals
     # Define goals for the arm
     ee_goals = [
         [0.5, 0.5, 0.7, 0.707, 0, 0.707, 0],
@@ -159,6 +137,8 @@ def main():
     ee_goals = torch.tensor(ee_goals, device=sim.device)
     # Track the given command
     current_goal_idx = 0
+    # Create buffers to store actions
+    ik_commands = torch.zeros(num_envs, diff_ik_controller.action_dim, device=robot.device)
     ik_commands[:] = ee_goals[current_goal_idx]
 
     # Define simulation stepping
@@ -167,62 +147,57 @@ def main():
     sim_time = 0.0
     count = 0
     # Note: We need to update buffers before the first step for the controller.
-    robot.update_buffers(sim_dt)
+    robot.update(sim_dt)
 
     # Simulate physics
-    # Simulate physics
     while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
-            continue
         # reset
         if count % 150 == 0:
             # reset time
             count = 0
             sim_time = 0.0
-            # reset dof state
-            dof_pos, dof_vel = robot.get_default_dof_state()
-            robot.set_dof_state(dof_pos, dof_vel)
-            robot.reset_buffers()
-            # reset controller
-            ik_controller.reset_idx()
+            # reset joint state
+            joint_pos = robot.data.default_joint_pos.clone()
+            joint_vel = robot.data.default_joint_vel.clone()
+            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.reset()
             # reset actions
             ik_commands[:] = ee_goals[current_goal_idx]
+            joint_pos_des = joint_pos[:, arm_joint_ids].clone()
+            # reset controller
+            diff_ik_controller.reset()
+            diff_ik_controller.set_command(ik_commands)
             # change goal
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
-        # set the controller commands
-        ik_controller.set_command(ik_commands)
-        # compute the joint commands
-        robot_actions[:, : robot.arm_num_dof] = ik_controller.compute(
-            robot.data.ee_state_w[:, 0:3] - envs_positions,
-            robot.data.ee_state_w[:, 3:7],
-            robot.data.ee_jacobian,
-            robot.data.arm_dof_pos,
-        )
-        # in some cases the zero action correspond to offset in actuators
-        # so we need to subtract these over here so that they can be added later on
-        arm_command_offset = robot.data.actuator_pos_offset[:, : robot.arm_num_dof]
-        # offset actuator command with position offsets
-        # note: valid only when doing position control of the robot
-        robot_actions[:, : robot.arm_num_dof] -= arm_command_offset
+        else:
+            # obtain quantities from simulation
+            jacobian = robot.root_physx_view.get_jacobians()[:, ee_jacobi_idx, :, arm_joint_ids]
+            ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
+            root_pose_w = robot.data.root_state_w[:, 0:7]
+            joint_pos = robot.data.joint_pos[:, arm_joint_ids]
+            # compute frame in root frame
+            ee_pos_b, ee_quat_b = subtract_frame_transforms(
+                root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+            )
+            # compute the joint commands
+            joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
+
         # apply actions
-        robot.apply_action(robot_actions)
+        robot.set_joint_position_target(joint_pos_des, arm_joint_ids)
+        robot.write_data_to_sim()
         # perform step
         sim.step(render=app_launcher.RENDER)
         # update sim-time
         sim_time += sim_dt
         count += 1
-        # note: to deal with timeline events such as stopping, we need to check if the simulation is playing
-        if sim.is_playing():
-            # update buffers
-            robot.update_buffers(sim_dt)
-            # update marker positions
-            ee_marker.set_world_poses(robot.data.ee_state_w[:, 0:3], robot.data.ee_state_w[:, 3:7])
-            goal_marker.set_world_poses(ik_commands[:, 0:3] + envs_positions, ik_commands[:, 3:7])
+        # update buffers
+        robot.update(sim_dt)
+
+        # obtain quantities from simulation
+        ee_pose_w = robot.data.body_state_w[:, ee_frame_idx, 0:7]
+        # update marker positions
+        ee_marker.visualize(ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
+        goal_marker.visualize(ik_commands[:, 0:3] + envs_positions, ik_commands[:, 3:7])
 
 
 if __name__ == "__main__":

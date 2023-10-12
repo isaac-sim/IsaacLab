@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.9.9 (2023-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the property :attr:`omni.isaac.orbit.assets.Articulation.is_fixed_base` to the articulation class to
+  check if the base of the articulation is fixed or floating.
+* Added the task-space action term corresponding to the differential inverse-kinematics controller.
+
+Fixed
+^^^^^
+
+* Simplified the :class:`omni.isaac.orbit.controllers.DifferentialIKController` to assume that user provides the
+  correct end-effector poses and Jacobians. Earlier it was doing internal frame transformations which made the
+  code more complicated and error-prone.
+
+
 0.9.8 (2023-09-30)
 ~~~~~~~~~~~~~~~~~~
 
