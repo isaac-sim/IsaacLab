@@ -24,7 +24,6 @@ import gym
 import gym.envs
 import torch
 import unittest
-from typing import Dict, Union
 
 import omni.usd
 

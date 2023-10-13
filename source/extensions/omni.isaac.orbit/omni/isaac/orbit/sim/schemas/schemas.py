@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
-import omni.physx.scripts.utils as physx_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
 from ..utils import apply_nested, safe_set_attribute_on_usd_schema
@@ -43,11 +42,6 @@ def define_articulation_root_properties(
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if we can apply the articulation root schema
-    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.ArticulationRootAPI):
-        raise TypeError(
-            f"Cannot apply ArticulationRootAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
-        )
     # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(prim):
         UsdPhysics.ArticulationRootAPI.Apply(prim)
@@ -138,11 +132,6 @@ def define_rigid_body_properties(
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if we can apply the articulation root schema
-    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.RigidBodyAPI):
-        raise TypeError(
-            f"Cannot apply RigidBodyAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
-        )
     # check if prim has articulation applied on it
     if not UsdPhysics.RigidBodyAPI(prim):
         UsdPhysics.RigidBodyAPI.Apply(prim)
@@ -226,7 +215,6 @@ def define_collision_properties(
 
     Raises:
         ValueError: When the prim path is not valid.
-        TypeError: When the prim already has conflicting API schemas.
     """
     # obtain stage
     if stage is None:
@@ -236,11 +224,6 @@ def define_collision_properties(
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if we can apply the articulation root schema
-    if physx_utils.familyHasConflictingAPI(prim, UsdPhysics.CollisionAPI):
-        raise TypeError(
-            f"Cannot apply CollisionAPI on prim '{prim_path}'. The prim already has conflicting API schemas."
-        )
     # check if prim has articulation applied on it
     if not UsdPhysics.CollisionAPI(prim):
         UsdPhysics.CollisionAPI.Apply(prim)

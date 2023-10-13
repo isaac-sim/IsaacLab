@@ -113,6 +113,8 @@ class RslRlVecEnvWrapper(gym.Wrapper):
     def step(self, actions: torch.Tensor) -> VecEnvStepReturn:  # noqa: D102
         # record step information
         obs_dict, rew, dones, extras = self.env.step(actions)
+        # render the environment to allow for visualization
+        self.env.render()
         # return step information
         obs = obs_dict["policy"]
         extras["observations"] = obs_dict

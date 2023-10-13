@@ -227,7 +227,25 @@ class AppLauncher:
         # note: moved here since it requires to have the viewport extension to be enabled first.
         enable_extension("omni.replicator.isaac")
         # enable urdf importer
-        enable_extension("omni.isaac.urdf")
+        # read isaac sim version (this includes build tag, release tag etc.)
+        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
+        from omni.isaac.version import get_version
+
+        isaacsim_version = get_version()
+        if int(isaacsim_version[2]) == 2022:
+            enable_extension("omni.isaac.urdf")
+        else:
+            enable_extension("omni.importer.urdf")
+            # set the nucleus directory manually to the 2023.1.0 version
+            # TODO: Remove this once the 2023.1.0 version is released
+            carb_settings_iface.set_string(
+                "/persistent/isaac/asset_root/default",
+                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
+            )
+            carb_settings_iface.set_string(
+                "/persistent/isaac/asset_root/nvidia",
+                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
+            )
 
         # update the global flags
         # TODO: Remove all these global flags. We don't need it anymore.

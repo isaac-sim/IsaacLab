@@ -15,6 +15,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 from omni.isaac.core.materials import PhysicsMaterial
 from omni.isaac.core.prims import GeometryPrim
+from omni.isaac.version import get_version
 from pxr import Gf, PhysxSchema, UsdPhysics, UsdShade
 
 
@@ -96,43 +97,18 @@ def create_ground_plane(
             value=Gf.Vec3f(*color),
             prev=None,
         )
-    # Change the settings of the sphere light
+    # Add light source
     # By default, the one from Isaac Sim is too dim for large number of environments.
     # Warning: This is specific to the default grid plane asset.
-    light_intensity = kwargs.get("light_intensity", 1e7)
-    light_radius = kwargs.get("light_radius", 100.0)
-    # -- light intensity
-    if light_intensity is not None:
-        omni.kit.commands.execute(
-            "ChangeProperty",
-            prop_path=f"{prim_path}/SphereLight.intensity",
-            value=light_intensity,
-            prev=None,
-        )
-    # -- light radius
-    if light_radius is not None:
-        # set radius of the light
-        omni.kit.commands.execute(
-            "ChangeProperty",
-            prop_path=f"{prim_path}/SphereLight.radius",
-            value=light_radius,
-            prev=None,
-        )
-        # as a rule of thumb, we set the sphere center 1.5 times
-        omni.kit.commands.execute(
-            "ChangeProperty",
-            prop_path=f"{prim_path}/SphereLight.xformOp:translate",
-            value=(0.0, 0.0, 1.5 * light_radius),
-            prev=None,
-        )
-    # -- ambient light
     ambient_light = kwargs.get("ambient_light", True)
     if ambient_light:
-        prim_utils.create_prim(
-            f"{prim_path}/AmbientLight",
-            "DistantLight",
-            attributes={"intensity": 600.0},
-        )
+        # check isaacsim version to determine the attribute name
+        attributes = {"intensity": 600.0}
+        isaacsim_version = get_version()
+        if int(isaacsim_version[2]) > 2022:
+            attributes = {f"inputs:{k}": v for k, v in attributes.items()}
+        # create light prim
+        prim_utils.create_prim(f"{prim_path}/AmbientLight", "DistantLight", attributes=attributes)
 
 
 def move_nested_prims(source_ns: str, target_ns: str):

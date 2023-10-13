@@ -54,7 +54,8 @@ def main():
     sim_params = {
         "use_gpu": True,
         "use_gpu_pipeline": True,
-        "use_flatcache": True,
+        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
+        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
         "enable_scene_query_support": True,
     }
     sim = SimulationContext(
@@ -73,13 +74,6 @@ def main():
     prim_utils.define_prim("/World/envs/env_0")
 
     # Define the scene
-    # -- Light
-    prim_utils.create_prim(
-        "/World/sphereLight",
-        "SphereLight",
-        translation=(0.0, 0.0, 500.0),
-        attributes={"radius": 100.0, "intensity": 50000.0, "color": (0.75, 0.75, 0.75)},
-    )
     # -- Ball
     DynamicSphere(prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25)
 

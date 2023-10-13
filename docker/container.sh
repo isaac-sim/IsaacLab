@@ -71,18 +71,22 @@ case $mode in
         echo "[INFO] Copying artifacts from the 'orbit' container..."
         echo -e "\t - /workspace/orbit/logs -> ${SCRIPT_DIR}/artifacts/logs"
         echo -e "\t - /workspace/orbit/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
+        echo -e "\t - /workspace/orbit/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
         # enter the script directory
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # We have to remove before copying because repeated copying without deletion
         # causes strange errors such as nested _build directories
         # warn the user
         echo -e "[WARN] Removing the existing artifacts...\n"
-        rm -rf ./artifacts/logs ./artifacts/docs/_build
+        rm -rf ./artifacts/logs ./artifacts/docs/_build ./artifacts/data_storage
+
         # create the directories
         mkdir -p ./artifacts/docs
+
         # copy the artifacts
         docker cp orbit:/workspace/orbit/logs ./artifacts/logs
         docker cp orbit:/workspace/orbit/docs/_build ./artifacts/docs/_build
+        docker cp orbit:/workspace/orbit/data_storage ./artifacts/data_storage
         echo -e "\n[INFO] Finished copying the artifacts from the container."
         popd > /dev/null 2>&1
         ;;

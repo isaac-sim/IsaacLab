@@ -14,8 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import gc
-import sys
 import torch
 import traceback
 import unittest
@@ -29,13 +27,13 @@ import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
 from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from omni.isaac.orbit.utils.math import compute_pose_error, sample_uniform, subtract_frame_transforms
+from omni.isaac.orbit.utils.math import compute_pose_error, subtract_frame_transforms
 
 
 class TestDifferentialIKController(unittest.TestCase):
     """Test fixture for checking that differential IK controller tracks commands properly."""
 
-    def setUp(self) -> None:
+    def setUp(self):
         """Create a blank new stage for each test."""
         # Wait for spawning
         stage_utils.create_new_stage()
@@ -52,7 +50,7 @@ class TestDifferentialIKController(unittest.TestCase):
         # Create interface to clone the scene
         cloner = GridCloner(spacing=2.0)
         cloner.define_base_env("/World/envs")
-        self.env_prim_paths = cloner.generate_paths(f"/World/envs/env", self.num_envs)
+        self.env_prim_paths = cloner.generate_paths("/World/envs/env", self.num_envs)
         # create source prim
         prim_utils.define_prim(self.env_prim_paths[0], "Xform")
         # clone the env xform
@@ -70,7 +68,7 @@ class TestDifferentialIKController(unittest.TestCase):
         ]
         self.ee_pose_b_des_set = torch.tensor(ee_goals_set, device=self.sim.device)
 
-    def tearDown(self) -> None:
+    def tearDown(self):
         """Stops simulator after each test."""
         # stop simulation
         self.sim.stop()
@@ -201,8 +199,6 @@ class TestDifferentialIKController(unittest.TestCase):
             self.sim.step(render=False)
             # update buffers
             robot.update(sim_dt)
-
-        return None
 
 
 if __name__ == "__main__":

@@ -14,15 +14,15 @@ Example usage:
 
     # generate terrain
     # -- use physics sphere mesh
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/test_terrain_importer.py --terrain_type generated
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/check_terrain_importer.py --terrain_type generator
     # -- usd usd sphere geom
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/test_terrain_importer.py --terrain_type generated --geom_sphere
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/check_terrain_importer.py --terrain_type generator --geom_sphere
 
     # usd terrain
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/test_terrain_importer.py --terrain_type usd
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/check_terrain_importer.py --terrain_type usd
 
     # plane terrain
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/test_terrain_importer.py --terrain_type plane
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/terrains/check_terrain_importer.py --terrain_type plane
 """
 
 from __future__ import annotations
@@ -41,9 +41,9 @@ parser.add_argument("--geom_sphere", action="store_true", default=False, help="W
 parser.add_argument(
     "--terrain_type",
     type=str,
-    choices=["generated", "usd", "plane"],
+    choices=["generator", "usd", "plane"],
     default="generator",
-    help="Type of terrain to import. Can be 'generated' or 'usd' or 'plane'.",
+    help="Type of terrain to import. Can be 'generator' or 'usd' or 'plane'.",
 )
 parser.add_argument(
     "--color_scheme",
@@ -75,6 +75,7 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
+import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.terrains as terrain_gen
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
@@ -89,6 +90,7 @@ def main():
         "use_gpu": True,
         "use_gpu_pipeline": True,
         "use_flatcache": True,
+        "use_fabric": True,
         "enable_scene_query_support": True,
     }
     sim = SimulationContext(
@@ -120,16 +122,12 @@ def main():
 
     # Define the scene
     # -- Light
-    prim_utils.create_prim(
-        "/World/sphereLight",
-        "SphereLight",
-        translation=(0.0, 0.0, 500.0),
-        attributes={"radius": 100.0, "intensity": 50000.0, "color": (0.75, 0.75, 0.75)},
-    )
+    cfg = sim_utils.DistantLightCfg(intensity=1000.0)
+    cfg.func("/World/Light", cfg)
     # -- Ball
     if args_cli.geom_sphere:
         # -- Ball physics
-        sphere = DynamicSphere(
+        _ = DynamicSphere(
             prim_path="/World/envs/env_0/ball", translation=np.array([0.0, 0.0, 5.0]), mass=0.5, radius=0.25
         )
     else:

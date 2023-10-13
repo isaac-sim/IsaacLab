@@ -456,11 +456,11 @@ class SimulationContext(_SimulationContext):
             physx_scene_api.CreateMaxIterationCountAttr(self.cfg.physx.max_position_iteration_count)
         else:
             # position iteration count
-            physx_scene_api.CreateMinPositionIterationCountsAttr(self.cfg.physx.min_position_iteration_count)
-            physx_scene_api.CreateMaxPositionIterationCountsAttr(self.cfg.physx.max_position_iteration_count)
+            physx_scene_api.CreateMinPositionIterationCountAttr(self.cfg.physx.min_position_iteration_count)
+            physx_scene_api.CreateMaxPositionIterationCountAttr(self.cfg.physx.max_position_iteration_count)
             # velocity iteration count
-            physx_scene_api.CreateMinVelocityIterationCountsAttr(self.cfg.physx.min_velocity_iteration_count)
-            physx_scene_api.CreateMaxVelocityIterationCountsAttr(self.cfg.physx.max_velocity_iteration_count)
+            physx_scene_api.CreateMinVelocityIterationCountAttr(self.cfg.physx.min_velocity_iteration_count)
+            physx_scene_api.CreateMaxVelocityIterationCountAttr(self.cfg.physx.max_velocity_iteration_count)
 
         # create the default physics material
         # this material is used when no material is specified for a primitive

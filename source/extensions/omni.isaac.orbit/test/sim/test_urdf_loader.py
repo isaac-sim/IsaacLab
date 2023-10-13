@@ -27,6 +27,7 @@ import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
+from omni.isaac.version import get_version
 
 from omni.isaac.orbit.sim.loaders import UrdfLoader, UrdfLoaderCfg
 
@@ -37,7 +38,10 @@ class TestUrdfLoader(unittest.TestCase):
     def setUp(self):
         """Create a blank new stage for each test."""
         # retrieve path to urdf importer extension
-        extension_path = get_extension_path_from_name("omni.isaac.urdf")
+        if self.isaacsim_version_year == 2022:
+            extension_path = get_extension_path_from_name("omni.isaac.urdf")
+        else:
+            extension_path = get_extension_path_from_name("omni.importer.urdf")
         # default configuration
         self.config = UrdfLoaderCfg(
             urdf_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True
@@ -46,6 +50,8 @@ class TestUrdfLoader(unittest.TestCase):
         self.dt = 0.01
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
+        # Isaac Sim version
+        self.isaacsim_version_year = int(get_version()[2])
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""

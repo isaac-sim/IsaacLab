@@ -43,7 +43,7 @@ class TestSimulationContext(unittest.TestCase):
         self.assertIs(sim1, sim3)
 
         # try to delete the singleton
-        sim2.__del__()
+        sim2.clear_instance()
         self.assertTrue(sim1.instance() is None)
         # create new instance
         sim4 = SimulationContext()

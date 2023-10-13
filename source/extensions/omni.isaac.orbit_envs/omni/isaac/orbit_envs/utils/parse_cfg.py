@@ -105,6 +105,7 @@ def parse_env_cfg(task_name: str, use_gpu: bool = True, num_envs: int = None, **
         args_cfg["sim"]["physx"]["use_gpu"] = True
         args_cfg["sim"]["device"] = "cpu"
         args_cfg["sim"]["use_flatcache"] = False
+        args_cfg["sim"]["use_fabric"] = False
 
     # number of environments
     if num_envs is not None:

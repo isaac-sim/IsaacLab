@@ -5,6 +5,16 @@
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
+from omni.isaac.kit import SimulationApp
+
+# launch omniverse app
+config = {"headless": True}
+simulation_app = SimulationApp(config)
+
+"""Rest everything follows."""
+
 import torch
 import unittest
 from collections import namedtuple

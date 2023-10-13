@@ -3,12 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 """Wrapper around the Python 3.7 onwards `dataclasses` module."""
 
-
+import sys
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, Callable, ClassVar, Dict, Type
+from typing import Any, Callable, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 
@@ -97,7 +99,7 @@ These are redefined here to add new docstrings.
 """
 
 
-def _class_to_dict(obj: object) -> Dict[str, Any]:
+def _class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Returns:
@@ -106,7 +108,7 @@ def _class_to_dict(obj: object) -> Dict[str, Any]:
     return class_to_dict(obj)
 
 
-def _update_class_from_dict(obj, data: Dict[str, Any]) -> None:
+def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -216,7 +218,11 @@ def _add_annotation_types(cls):
             elif key != value.__name__:
                 # note: we don't want to add type annotations for nested configclass. Thus, we check if
                 #   the name of the type matches the name of the variable.
-                hints[key] = Type[value]
+                if sys.version_info < (3, 10):
+                    hints[key] = type[value]
+                else:
+                    # since Python 3.10, type hints are stored as strings
+                    hints[key] = f"type[{value.__name__}]"
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.

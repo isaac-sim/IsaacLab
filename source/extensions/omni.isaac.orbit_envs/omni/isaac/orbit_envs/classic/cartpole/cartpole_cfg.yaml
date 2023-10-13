@@ -38,7 +38,8 @@ sim:
 
   enable_scene_query_support: False
   use_gpu_pipeline: True
-  use_flatcache: True
+  use_flatcache: True  # deprecated from Isaac Sim 2023.1 onwards
+  use_fabric: True  # used from Isaac Sim 2023.1 onwards
   device: "cuda:0"
 
   physx:

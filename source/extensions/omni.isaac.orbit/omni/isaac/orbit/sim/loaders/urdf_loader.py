@@ -12,12 +12,21 @@ import random
 from datetime import datetime
 
 import omni.kit.commands
-from omni.isaac.urdf import _urdf as omni_urdf
+from omni.isaac.version import get_version
 
 from omni.isaac.orbit.utils.assets import check_file_path
 from omni.isaac.orbit.utils.io import dump_yaml
 
 from .urdf_loader_cfg import UrdfLoaderCfg
+
+# check if the urdf importer extension is available
+# note: the urdf importer's name changed in 2023.1 onwards
+isaacsim_version = get_version()
+if int(isaacsim_version[2]) == 2022:
+    from omni.isaac.urdf import _urdf as omni_urdf
+else:
+    from omni.importer.urdf import _urdf as omni_urdf
+
 
 _DRIVE_TYPE = {
     "none": 0,

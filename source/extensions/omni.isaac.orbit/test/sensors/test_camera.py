@@ -34,9 +34,8 @@ from omni.isaac.core.prims import GeometryPrim, RigidPrim
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import Gf, Usd, UsdGeom
 
-from omni.isaac.orbit.compat.utils.kit import create_ground_plane
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
-from omni.isaac.orbit.sim import PinholeCameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
 from omni.isaac.orbit.utils.math import convert_quat
 from omni.isaac.orbit.utils.timer import Timer
@@ -59,7 +58,7 @@ class TestCamera(unittest.TestCase):
             prim_path="/World/Camera",
             update_period=0,
             data_types=["distance_to_image_plane"],
-            spawn=PinholeCameraCfg(
+            spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
             colorize=False,
@@ -347,21 +346,12 @@ class TestCamera(unittest.TestCase):
     def _populate_scene():
         """Add prims to the scene."""
         # Ground-plane
-        create_ground_plane("/World/defaultGroundPlane")
-        # Lights-1
-        prim_utils.create_prim(
-            "/World/Light/GreySphere",
-            "SphereLight",
-            translation=(4.5, 3.5, 10.0),
-            attributes={"radius": 1.0, "intensity": 300.0, "color": (0.75, 0.75, 0.75)},
-        )
-        # Lights-2
-        prim_utils.create_prim(
-            "/World/Light/WhiteSphere",
-            "SphereLight",
-            translation=(-4.5, 3.5, 10.0),
-            attributes={"radius": 1.0, "intensity": 300.0, "color": (1.0, 1.0, 1.0)},
-        )
+        cfg = sim_utils.GroundPlaneCfg()
+        cfg.func("/World/defaultGroundPlane", cfg)
+        # Lights
+        cfg = sim_utils.SphereLightCfg()
+        cfg.func("/World/Light/GreySphere", cfg, translation=(4.5, 3.5, 10.0))
+        cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
         # Random objects
         random.seed(0)
         for i in range(8):

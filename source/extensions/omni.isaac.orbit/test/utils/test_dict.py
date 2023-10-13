@@ -31,7 +31,7 @@ class TestDictUtilities(unittest.TestCase):
             "b": 2,
             "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
             "i": 7,
-            "j": lambda x: x**2,
+            "j": lambda x: x**2,  # noqa: E731
             "k": dict_utils.class_to_dict,
         }
         # print the dictionary
@@ -61,7 +61,7 @@ class TestDictUtilities(unittest.TestCase):
         """Test string <-> callable conversion for lambda expression."""
 
         # create lambda function
-        func = lambda x: x**2
+        func = lambda x: x**2  # noqa: E731
         # convert function to string
         test_string = dict_utils.callable_to_string(func)
         # convert string to function

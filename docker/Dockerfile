@@ -32,11 +32,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# FIXME: Only necessary for streaming until this fix is properly
-# rolled out by NVIDIA after Isaac Sim2023.1 release
+# FIXME: Only necessary for streaming until this fix is properly rolled out by NVIDIA after Isaac Sim2023.1 release
 # Ref: https://forums.developer.nvidia.com/t/running-a-standalone-example-with-gui-in-docker-container/248147/3
-RUN sed -i 's/\("omni.isaac.quadruped"\s=\s{}\)/"omni.isaac.quadruped" = {order = 10}/g' \
-    ${ISAACSIM_PATH}/apps/omni.isaac.sim.python.kit
+RUN if [[ "${ISAACSIM_VERSION}" == "2022.2"* ]]; then \
+        sed -i 's/\("omni.isaac.quadruped"\s=\s{}\)/"omni.isaac.quadruped" = {order = 10}/g' \
+        ${ISAACSIM_PATH}/apps/omni.isaac.sim.python.kit \
+    fi
 
 # Copy the orbit directory
 COPY ../ ${ORBIT_PATH}

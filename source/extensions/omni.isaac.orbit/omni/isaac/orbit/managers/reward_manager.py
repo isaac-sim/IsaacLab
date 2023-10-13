@@ -161,11 +161,17 @@ class RewardManager(ManagerBase):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type RewardTermCfg. Received '{type(term_cfg)}'."
                 )
+            # check for valid weight type
+            if not isinstance(term_cfg.weight, (float, int)):
+                raise TypeError(
+                    f"Weight for the term '{term_name}' is not of type float or int. Received '{type(term_cfg.weight)}'."
+                )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
             # remove zero scales and multiply non-zero ones by dt
             # note: we multiply weights by dt to make them agnostic to control decimation
-            if term_cfg.weight == 0:
+            term_cfg.weight = float(term_cfg.weight)
+            if term_cfg.weight == 0.0:
                 continue
             # add function to list
             self._term_names.append(term_name)

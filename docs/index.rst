@@ -75,6 +75,7 @@ If you use ``orbit`` in your work, please cite the `paper <https://arxiv.org/abs
    :caption: References
 
    source/refs/faq
+   source/refs/migration
    source/refs/contributing
    source/refs/troubleshooting
    source/refs/issues

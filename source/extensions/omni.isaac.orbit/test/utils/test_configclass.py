@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import copy
 import os
+import sys
 import unittest
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import Callable, ClassVar, List, Type
+from typing import Callable, ClassVar
 
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
@@ -615,11 +616,16 @@ class TestConfigClass(unittest.TestCase):
 
         cfg = DummyClassCfg()
 
+        # since python 3.10, annotations are stored as strings
+        if sys.version_info >= (3, 10):
+            annotations = {k: eval(v) for k, v in cfg.__annotations__.items()}
+        else:
+            annotations = cfg.__annotations__
         # check types
-        self.assertEqual(cfg.__annotations__["class_name_1"], type)
-        self.assertEqual(cfg.__annotations__["class_name_2"], Type[DummyClass])
-        self.assertEqual(cfg.__annotations__["class_name_3"], Type[DummyClass])
-        self.assertEqual(cfg.__annotations__["class_name_4"], ClassVar[Type[DummyClass]])
+        self.assertEqual(annotations["class_name_1"], type)
+        self.assertEqual(annotations["class_name_2"], type[DummyClass])
+        self.assertEqual(annotations["class_name_3"], type[DummyClass])
+        self.assertEqual(annotations["class_name_4"], ClassVar[type[DummyClass]])
         # check values
         self.assertEqual(cfg.class_name_1, DummyClass)
         self.assertEqual(cfg.class_name_2, DummyClass)

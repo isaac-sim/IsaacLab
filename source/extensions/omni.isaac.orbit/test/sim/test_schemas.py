@@ -19,7 +19,6 @@ import unittest
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdPhysics
 

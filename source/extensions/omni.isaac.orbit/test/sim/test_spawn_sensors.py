@@ -104,12 +104,12 @@ class TestSpawningSensors(unittest.TestCase):
         prim = prim_utils.get_prim_at_path(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():
             # skip names we know are not present
-            if attr_name in ["func", "copy_from_source", "lock_camera"] or attr_value is None:
+            if attr_name in ["func", "copy_from_source", "lock_camera", "visible"] or attr_value is None:
                 continue
             # obtain prim property name
             if attr_name in custom_attr:
-                prim_prop_name = custom_attr[attr_name][0]
                 # check custom attributes
+                prim_prop_name = custom_attr[attr_name][0]
             else:
                 # convert attribute name in prim to cfg name
                 prim_prop_name = to_camel_case(attr_name, to="cC")

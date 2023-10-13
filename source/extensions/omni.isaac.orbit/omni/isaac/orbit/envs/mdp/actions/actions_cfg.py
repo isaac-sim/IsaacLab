@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
+from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 
 from . import binary_joint_actions, joint_actions, non_holonomic_actions, task_space_actions
 

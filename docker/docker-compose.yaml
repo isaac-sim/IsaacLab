@@ -22,19 +22,19 @@ services:
       # These volumes follow from this page
       # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
       - type: volume
-        source: isaac-cache
-        target: ${DOCKER_ISAACSIM_PATH}/kit/cache/Kit
+        source: isaac-cache-kit
+        target: ${DOCKER_ISAACSIM_PATH}/kit/cache
       - type: volume
-        source: isaac-cache
+        source: isaac-cache-ov
         target: ${DOCKER_USER_HOME}/.cache/ov
       - type: volume
-        source: isaac-cache
+        source: isaac-cache-pip
         target: ${DOCKER_USER_HOME}/.cache/pip
       - type: volume
-        source: isaac-cache
+        source: isaac-cache-gl
         target: ${DOCKER_USER_HOME}/.cache/nvidia/GLCache
       - type: volume
-        source: isaac-cache
+        source: isaac-cache-compute
         target: ${DOCKER_USER_HOME}/.nv/ComputeCache
       - type: volume
         source: isaac-logs
@@ -67,10 +67,13 @@ services:
         #    to the host machine
       - type: volume
         source: orbit-docs
-        target: /workspace/orbit/docs/_build/
+        target: /workspace/orbit/docs/_build
       - type: volume
         source: orbit-logs
         target: /workspace/orbit/logs
+      - type: volume
+        source: orbit-data
+        target: /workspace/orbit/data_storage
     network_mode: host
     deploy:
       resources:
@@ -86,10 +89,15 @@ services:
 
 volumes:
   # isaac-sim
-  isaac-cache:
+  isaac-cache-kit:
+  isaac-cache-ov:
+  isaac-cache-pip:
+  isaac-cache-gl:
+  isaac-cache-compute:
   isaac-logs:
   isaac-data:
   isaac-docs:
   # orbit
   orbit-docs:
   orbit-logs:
+  orbit-data:

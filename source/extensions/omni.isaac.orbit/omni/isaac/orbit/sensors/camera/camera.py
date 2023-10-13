@@ -120,6 +120,7 @@ class Camera(SensorBase):
         for _, annotators in self._rep_registry.items():
             for annotator, render_product_path in zip(annotators, self._render_product_paths):
                 annotator.detach([render_product_path])
+                annotator = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -226,9 +227,10 @@ class Camera(SensorBase):
                 # get attribute from the class
                 param_attr = getattr(sensor_prim, f"Get{param_name}Attr")
                 # set value
-                # note: We have to do it this way because the camera might be on a different layer (default cameras are on session layer),
-                #   and this is the simplest way to set the property on the right layer.
-                omni.usd.utils.set_prop_val(param_attr(), param_value)
+                # note: We have to do it this way because the camera might be on a different
+                #   layer (default cameras are on session layer), and this is the simplest
+                #   way to set the property on the right layer.
+                omni.usd.set_prop_val(param_attr(), param_value)
 
     """
     Operations - Set pose.
@@ -423,7 +425,10 @@ class Camera(SensorBase):
             sensor_prim = UsdGeom.Camera(cam_prim)
             self._sensor_prims.append(sensor_prim)
             # Get render product
+            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
             render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
+            if not isinstance(render_prod_path, str):
+                render_prod_path = render_prod_path.path
             self._render_product_paths.append(render_prod_path)
             # Iterate over each data type and create annotator
             # TODO: This will move out of the loop once Replicator supports multiple render products within a single

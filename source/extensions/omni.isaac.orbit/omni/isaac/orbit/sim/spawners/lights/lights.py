@@ -53,8 +53,12 @@ def spawn_light(
     isaac_sim_version = int(get_version()[2])
     # convert to dict
     cfg = cfg.to_dict()
-    del cfg["func"]
+    # delete spawner func specific parameters
     del cfg["prim_type"]
+    # delete meta parameters from base class
+    del cfg["func"]
+    del cfg["visible"]
+    del cfg["copy_from_source"]
     # set into USD API
     for attr_name, value in cfg.items():
         # special operation for texture properties

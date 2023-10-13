@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
@@ -145,8 +144,8 @@ class VisualizationMarkers:
         # get next free path for the prim
         prim_path = stage_utils.get_next_free_path(cfg.prim_path)
         # create a new prim
-        prim = prim_utils.define_prim(prim_path, "PointInstancer")
-        self._instancer_manager = UsdGeom.PointInstancer(prim)
+        stage = stage_utils.get_current_stage()
+        self._instancer_manager = UsdGeom.PointInstancer.Define(stage, prim_path)
         # store inputs
         self.prim_path = prim_path
         self.cfg = cfg
@@ -157,10 +156,10 @@ class VisualizationMarkers:
         # create a child prim for the marker
         self._add_markers_prototypes(self.cfg.markers)
         # Note: We need to do this the first time to initialize the instancer.
-        #   Otherwise, the instancer will not be visible.
-        self._instancer_manager.GetProtoIndicesAttr().Set([0])
-        self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f()])
-        self._count = 1
+        #   Otherwise, the instancer will not be "created" and the function `GetInstanceIndices()` will fail.
+        self._instancer_manager.GetProtoIndicesAttr().Set(list(range(self.num_prototypes)))
+        self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f(0.0)] * self.num_prototypes)
+        self._count = self.num_prototypes
 
     def __str__(self) -> str:
         """Return: A string representation of the class."""
@@ -361,3 +360,9 @@ class VisualizationMarkers:
             )
             # add child reference to point instancer
             self._instancer_manager.GetPrototypesRel().AddTarget(marker_prim_path)
+        # check that we loaded all the prototypes
+        prototypes = self._instancer_manager.GetPrototypesRel().GetTargets()
+        if len(prototypes) != len(markers_cfg):
+            raise RuntimeError(
+                f"Failed to load all the prototypes. Expected: {len(markers_cfg)}. Received: {len(prototypes)}."
+            )

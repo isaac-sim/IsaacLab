@@ -69,12 +69,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     prim_utils.define_prim("/World/envs/env_0")
     # Define the scene
     # -- Light
-    prim_utils.create_prim(
-        "/World/sphereLight",
-        "SphereLight",
-        translation=(0.0, 0.0, 500.0),
-        attributes={"radius": 100.0, "intensity": 50000.0, "color": (0.75, 0.75, 0.75)},
-    )
+    prim_utils.create_prim("/World/light", "DistantLight")
     # -- Balls
     # -- Ball physics
     DynamicSphere(
@@ -101,7 +96,8 @@ def main():
     sim_params = {
         "use_gpu": True,
         "use_gpu_pipeline": True,
-        "use_flatcache": True,
+        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
+        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
         "enable_scene_query_support": True,
     }
     sim = SimulationContext(
@@ -123,7 +119,7 @@ def main():
         max_init_terrain_level=None,
         num_envs=1,
     )
-    terrain_importer = TerrainImporter(terrain_importer_cfg)
+    _ = TerrainImporter(terrain_importer_cfg)
 
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
@@ -131,7 +127,7 @@ def main():
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         attach_yaw_only=True,
-        debug_vis=False if args_cli.headless else True,
+        debug_vis=not args_cli.headless,
     )
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls

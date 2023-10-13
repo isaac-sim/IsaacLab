@@ -110,7 +110,7 @@ def spawn_camera(
     # set attribute values
     for param_name, param_value in cfg.__dict__.items():
         # check if value is valid
-        if param_value is None or param_name in ["func", "copy_from_source", "lock_camera"]:
+        if param_value is None or param_name in ["func", "copy_from_source", "lock_camera", "visible"]:
             continue
         # obtain prim property name
         if param_name in attribute_types:

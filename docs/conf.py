@@ -114,6 +114,7 @@ autodoc_mock_imports = [
     "omni.isaac.kit",
     "omni.isaac.cloner",
     "omni.isaac.urdf",
+    "omni.isaac.version",
     "gym",
     "skrl",
     "stable_baselines3",

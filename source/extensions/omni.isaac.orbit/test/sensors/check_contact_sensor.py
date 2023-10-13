@@ -44,7 +44,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
 
-import omni.isaac.orbit.compat.utils.kit as kit_utils
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensor, ContactSensorCfg
@@ -57,21 +57,12 @@ Helpers
 def design_scene():
     """Add prims to the scene."""
     # Ground-plane
-    kit_utils.create_ground_plane("/World/defaultGroundPlane")
-    # Lights-1
-    prim_utils.create_prim(
-        "/World/Light/GreySphere",
-        "SphereLight",
-        translation=(4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
-    )
-    # Lights-2
-    prim_utils.create_prim(
-        "/World/Light/WhiteSphere",
-        "SphereLight",
-        translation=(-4.5, 3.5, 10.0),
-        attributes={"radius": 2.5, "intensity": 600.0, "color": (1.0, 1.0, 1.0)},
-    )
+    cfg = sim_utils.GroundPlaneCfg()
+    cfg.func("/World/defaultGroundPlane", cfg)
+    # Lights
+    cfg = sim_utils.SphereLightCfg()
+    cfg.func("/World/Light/GreySphere", cfg, translation=(4.5, 3.5, 10.0))
+    cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
 
 
 """
@@ -87,10 +78,6 @@ def main():
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
-    # Enable flatcache which avoids passing data over to USD structure
-    # this speeds up the read-write operation of GPU buffers
-    if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_flatcache(True)
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
@@ -113,7 +100,7 @@ def main():
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_SHANK", debug_vis=False if args_cli.headless else True
+        prim_path="/World/envs/env_.*/Robot/.*_SHANK", debug_vis=not args_cli.headless
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance

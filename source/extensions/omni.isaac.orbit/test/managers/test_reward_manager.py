@@ -5,6 +5,16 @@
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
+from omni.isaac.kit import SimulationApp
+
+# launch omniverse app
+config = {"headless": True}
+simulation_app = SimulationApp(config)
+
+"""Rest everything follows."""
+
 import unittest
 from collections import namedtuple
 
@@ -121,7 +131,7 @@ class TestRewardManager(unittest.TestCase):
         # compute expected reward
         expected_reward = cfg["term_1"].weight * self.env.dt
         # compute reward using manager
-        rewards = self.rew_man.compute()
+        rewards = self.rew_man.compute(dt=self.env.dt)
         # check the reward for environment index 0
         self.assertEqual(float(rewards[0]), expected_reward)
         self.assertEqual(tuple(rewards.shape), (self.env.num_envs,))

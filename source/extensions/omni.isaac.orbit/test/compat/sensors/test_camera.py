@@ -462,19 +462,9 @@ class TestCameraSensor(unittest.TestCase):
         # Ground-plane
         kit_utils.create_ground_plane("/World/defaultGroundPlane")
         # Lights-1
-        prim_utils.create_prim(
-            "/World/Light/GreySphere",
-            "SphereLight",
-            translation=(4.5, 3.5, 10.0),
-            attributes={"radius": 1.0, "intensity": 300.0, "color": (0.75, 0.75, 0.75)},
-        )
+        prim_utils.create_prim("/World/Light/GreySphere", "SphereLight", translation=(4.5, 3.5, 10.0))
         # Lights-2
-        prim_utils.create_prim(
-            "/World/Light/WhiteSphere",
-            "SphereLight",
-            translation=(-4.5, 3.5, 10.0),
-            attributes={"radius": 1.0, "intensity": 300.0, "color": (1.0, 1.0, 1.0)},
-        )
+        prim_utils.create_prim("/World/Light/WhiteSphere", "SphereLight", translation=(-4.5, 3.5, 10.0))
         # Random objects
         for i in range(8):
             # sample random position
