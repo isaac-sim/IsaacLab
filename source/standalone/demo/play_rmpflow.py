@@ -22,13 +22,15 @@ from omni.isaac.orbit.app import AppLauncher
 parser = argparse.ArgumentParser(
     description="This script demonstrates how to use the RMPFlow controller with the simulator."
 )
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--robot", type=str, default="ur10", help="Name of the robot. Options: franka_panda, ur10.")
 parser.add_argument("--num_envs", type=int, default=5, help="Number of environments to spawn.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""

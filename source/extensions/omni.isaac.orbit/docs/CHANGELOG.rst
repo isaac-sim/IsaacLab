@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.9.10 (2023-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added `livestream` and `ros` CLI args to :class:`omni.isaac.orbit.app.AppLauncher` class.
+* Added a static function :meth:`omni.isaac.orbit.app.AppLauncher.add_app_launcher_args`, which
+  appends the arguments needed for :class:`omni.isaac.orbit.app.AppLauncher` to the argument parser.
+
+Changed
+^^^^^^^
+
+* Within :class:`omni.isaac.orbit.app.AppLauncher`, removed `REMOTE_DEPLOYMENT` env-var processing
+  in the favor of ``HEADLESS`` and ``LIVESTREAM`` env-vars. These have clearer uses and better parity
+  with the CLI args.
+
+
 0.9.9 (2023-10-12)
 ~~~~~~~~~~~~~~~~~~
 
@@ -28,8 +46,6 @@ Fixed
 * Fixed the boundedness of class objects that register callbacks into the simulator.
   These include devices, :class:`AssetBase`, :class:`SensorBase` and :class:`CommandGenerator`.
   The fix ensures that object gets deleted when the user deletes the object.
-
-
 0.9.7 (2023-09-26)
 ~~~~~~~~~~~~~~~~~~
 

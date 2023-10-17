@@ -18,7 +18,9 @@ from omni.isaac.orbit.app import AppLauncher
 parser = argparse.ArgumentParser(
     description="This script demonstrates how to create different types of markers in Orbit."
 )
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app

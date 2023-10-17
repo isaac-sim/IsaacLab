@@ -5,7 +5,7 @@
 
 """Utility to configure the ``omni.isaac.kit.SimulationApp`` based on environment variables.
 
-Based on the desired functionality, this class parses environment variables and input keyword arguments
+Based on the desired functionality, this class parses environment variables and input CLI arguments
 to launch the simulator in various different modes. This includes with or without GUI, switching between
 different Omniverse remote clients, and enabling particular ROS bridges. Some of these require the
 extensions to be loaded in a specific order, otherwise a segmentation fault occurs.
@@ -16,19 +16,23 @@ Available modes
 
 The following details the behavior of the class based on the environment variables:
 
-* **Headless mode**: If the environment variable ``REMOTE_DEPLOYMENT>0``, then SimulationApp will be started in headless mode.
+* **Headless mode**: If the environment variable ``HEADLESS=1``, then SimulationApp will be started in headless mode.
+  If ``LIVESTREAM={1,2,3}``, then it will supersede the ``HEADLESS`` envvar and force headlessness.
 
-* **Livestreaming**: If the environment variable ``REMOTE_DEPLOYMENT={2,3,4}`` , then `livestream`_ is enabled.
+  * ``HEADLESS=1`` causes the app to run in headless mode.
 
-  * ``REMOTE_DEPLOYMENT=1`` does not enable livestreaming, though it causes the app to run in headless mode.
-  * ``REMOTE_DEPLOYMENT=2`` enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
+* **Livestreaming**: If the environment variable ``LIVESTREAM={1,2,3}`` , then `livestream`_ is enabled. Any
+  of the livestream modes being true forces the app to run in headless mode.
+
+  * ``LIVESTREAM=1`` enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
     connect through the Omniverse Streaming Client.
-  * ``REMOTE_DEPLOYMENT=3`` enables streaming via the `Websocket Livestream` extension. This allows users to
+  * ``LIVESTREAM=2`` enables streaming via the `Websocket Livestream`_ extension. This allows users to
     connect in a browser using the WebSocket protocol.
-  * ``REMOTE_DEPLOYMENT=4`` enables streaming  via the `WebRTC Livestream` extension. This allows users to
+  * ``LIVESTREAM=3`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
     connect in a browser using the WebRTC protocol.
 
-* **Viewport**: If the environment variable ``VIEWPORT_ENABLED`` is set to non-zero, then the following behavior happens:
+* **Viewport**: If the environment variable ``VIEWPORT_ENABLED`` is set to non-zero, then the following
+  behavior happens:
 
   * ``VIEWPORT_ENABLED=1``: Ensures that the VIEWPORT member is set to true, to enable lightweight streaming
     when the full GUI is not needed (i.e. headless mode).
@@ -52,7 +56,7 @@ To set the environment variables, one can use the following command in the termi
 
 .. code:: bash
 
-    export REMOTE_DEPLOYMENT=3
+    export LIVESTREAM=3
     export VIEWPORT_ENABLED=1
     # run the python script
     ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
@@ -61,7 +65,7 @@ Alternatively, one can set the environment variables to the python script direct
 
 .. code:: bash
 
-    REMOTE_DEPLOYMENT=3 VIEWPORT_ENABLED=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
+    LIVESTREAM=3 VIEWPORT_ENABLED=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
 
 
 .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
@@ -69,25 +73,69 @@ Alternatively, one can set the environment variables to the python script direct
 .. _`Native Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-kit-remote
 .. _`Websocket Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-webrtc
 .. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket
-
 """
 
 from __future__ import annotations
 
+import argparse
 import faulthandler
 import os
 import re
 import sys
 from typing import ClassVar
+from typing_extensions import Literal
 
-import carb
 from omni.isaac.kit import SimulationApp
-
-__all__ = ["AppLauncher"]
 
 
 class AppLauncher:
-    """A class to create the simulation application based on keyword arguments and environment variables."""
+    """A utility class to launch Isaac Sim application based on command-line arguments and environment variables.
+
+    The class resolves the simulation app settings that appear through environments variables,
+    command-line arguments (CLI) or as input keyword arguments. Based on these settings, it launches the
+    simulation app and configures the extensions to load (as a part of post-launch setup).
+
+    The input arguments provided to the class are given higher priority than the values set
+    from the corresponding environment variables. This provides flexibility to deal with different
+    users' preferences.
+
+    .. note::
+        Explicitly defined arguments are only given priority when their value is set to something outside
+        their default configuration. For example, the ``livestream`` argument is 0 by default. It only
+        overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a non-zero
+        value. In other words, if ``livestream=0``, then the value from the environment variable
+        ``LIVESTREAM`` is used.
+
+    Usage:
+
+    .. code:: python
+
+        import argparser
+
+        from omni.isaac.orbit.app import AppLauncher
+
+        # add argparse arguments
+        parser = argparse.ArgumentParser()
+        # add your own arguments
+        # ....
+        # add app launcher arguments for cli
+        AppLauncher.add_app_launcher_args(parser)
+        # parse arguments
+        args = parser.parse_args()
+
+        # launch omniverse isaac-sim app
+        # -- Option 1: Pass the settings as a Namespace object
+        app_launcher = AppLauncher(args).app
+        # -- Option 2: Pass the settings as keywords arguments
+        app_launcher = AppLauncher(headless=args.headless, livestream=args.livestream)
+        # -- Option 3: Pass the settings as a dictionary
+        app_launcher = AppLauncher(vars(args))
+        # -- Option 4: Pass no settings
+        app_launcher = AppLauncher()
+
+        # obtain the launched app
+        simulation_app = app_launcher.app
+    """
 
     RENDER: ClassVar[bool]
     """
@@ -121,31 +169,388 @@ class AppLauncher:
         gym.make(render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
     """
 
-    def __init__(self, **kwargs):
-        """Parses environments variables and keyword arguments to create a `SimulationApp`_ instance.
-
-        If the keyword argument ``headless`` is set to True, then the SimulationApp will be started in headless mode.
-        It will be given priority over the environment variable setting ``REMOTE_DEPLOYMENT=0``.
+    def __init__(self, launcher_args: argparse.Namespace | dict = None, **kwargs):
+        """Create a `SimulationApp`_ instance based on the input settings.
 
         Args:
-            **kwargs: Keyword arguments passed to the :class:`SimulationApp` from Isaac Sim.
-              A detailed description of the possible arguments is available in its `documentation`_.
+            launcher_args: Input arguments to parse using the AppLauncher and set into the SimulationApp.
+                Defaults to None, which is equivalent to passing an empty dictionary. A detailed description of
+                the possible arguments is available in the `SimulationApp`_ documentation.
+            **kwargs : Additional keyword arguments that will be merged into :attr:`launcher_args`.
+                They serve as a convenience for those who want to pass some arguments using the argparse
+                interface and others directly into the AppLauncher. Duplicated arguments with
+                the :attr:`launcher_args` will raise a ValueError.
 
         Raises:
+            ValueError: If there are common/duplicated arguments between ``launcher_args`` and ``kwargs``.
+            ValueError: If combination of ``launcher_args`` and ``kwargs`` are missing the necessary arguments
+                that are needed by the AppLauncher to resolve the desired app configuration.
             ValueError: If incompatible or undefined values are assigned to relevant environment values,
-              such as ``REMOTE_DEPLOYMENT`` and ``ROS_ENABLED``
+                such as ``LIVESTREAM`` and ``ROS_ENABLED``.
 
+        .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
-        .. _documentation: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
         """
         # Enable call-stack on crash
         faulthandler.enable()
 
-        # Headless is always true for remote deployment
-        remote_deployment = int(os.environ.get("REMOTE_DEPLOYMENT", 0))
-        # resolve headless execution of simulation app
-        headless = kwargs.get("headless", False) or remote_deployment
-        kwargs.update({"headless": headless})
+        # We allow users to pass either a dict or an argparse.Namespace into
+        # __init__, anticipating that these will be all of the argparse arguments
+        # used by the calling script. Those which we appended via add_app_launcher_args
+        # will be used to control extension loading logic. Additional arguments are allowed,
+        # and will be passed directly to the SimulationApp initialization.
+        #
+        # We could potentially require users to enter each argument they want passed here
+        # as a kwarg, but this would require them to pass livestream, headless, ros, and
+        # any other options we choose to add here explicitly, and with the correct keywords.
+        #
+        # @hunter: I feel that this is cumbersone and could introduce error, and would prefer to do
+        # some sanity checking in the add_app_launcher_args function
+        if launcher_args is None:
+            launcher_args = {}
+        elif isinstance(launcher_args, argparse.Namespace):
+            launcher_args = launcher_args.__dict__
+
+        # Check that arguments are unique
+        if len(kwargs) > 0:
+            if not set(kwargs.keys()).isdisjoint(launcher_args.keys()):
+                overlapping_args = set(kwargs.keys()).intersection(launcher_args.keys())
+                raise ValueError(
+                    f"Input `launcher_args` and `kwargs` both provided common attributes: {overlapping_args}. "
+                    "Please ensure that each argument is supplied to only one of them, as the AppLauncher cannot "
+                    "discern priority between them."
+                )
+            launcher_args.update(kwargs)
+
+        # Define config members that are read from env-vars or keyword args
+        self._headless: bool  # 0: GUI, 1: Headless
+        self._livestream: Literal[0, 1, 2, 3]  # 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC
+        self._ros: Literal[0, 1, 2]  # 0: Disabled, 1: ROS1, 2: ROS2
+        self._viewport: bool  # 0: Disabled, 1: Enabled
+
+        # Integrate env-vars and input keyword args into simulation app config
+        self._config_resolution(launcher_args)
+        # Create SimulationApp, passing the resolved self._config to it for initialization
+        self._create_app()
+        # Load IsaacSim extensions
+        self._load_extensions()
+        # Update global variables
+        self._update_globals()
+
+    """
+    Properties.
+    """
+
+    @property
+    def app(self) -> SimulationApp:
+        """The launched SimulationApp."""
+        if self._app is not None:
+            return self._app
+        else:
+            raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
+
+    """
+    Operations.
+    """
+
+    @staticmethod
+    def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
+        """Utility function to configure AppLauncher arguments with an existing argument parser object.
+
+        This function takes an ``argparse.ArgumentParser`` object and does some sanity checking on the existing
+        arguments for ingestion by the SimulationApp. It then appends custom command-line arguments relevant
+        to the SimulationApp to the input :class:`argparse.ArgumentParser` instance. This allows overriding the
+        environment variables using command-line arguments.
+
+        Currently, it adds the following parameters to the argparser object:
+
+        * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
+          as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
+          ``HEADLESS`` environment variable.
+        * ``livestream`` (int): If one of {0, 1, 2, 3}, then livestreaming and headless mode is enabled. The values
+          map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
+          determined by the ``LIVESTREAM`` environment variable.
+        * ``ros`` (int): If one of {0, 1, 2}, then the corresponding ROS bridge is enabled. The values
+          map the same as that for the ``ROS_ENABLED`` environment variable. If :obj:`-1`, then ROS bridge is
+          determined by the ``ROS_ENABLED`` environment variable.
+
+        Args:
+            parser: An argument parser instance to be extended with the AppLauncher specific options.
+        """
+        # If the passed parser has an existing _HelpAction when passed,
+        # we here remove the options which would invoke it,
+        # to be added back after the additional AppLauncher args
+        # have been added. This is equivalent to
+        # initially constructing the ArgParser with add_help=False,
+        # but this means we don't have to require that behavior
+        # in users and can handle it on our end.
+        # We do this because calling parse_known_args() will handle
+        # any -h/--help options being passed and then exit immediately,
+        # before the additional arguments can be added to the help readout.
+        parser_help = None
+        if len(parser._actions) > 0 and isinstance(parser._actions[0], argparse._HelpAction):  # type: ignore
+            parser_help = parser._actions[0]
+            parser._option_string_actions.pop("-h")
+            parser._option_string_actions.pop("--help")
+
+        # Parse known args for potential name collisions/type mismatches
+        # between the config fields SimulationApp expects and the ArgParse
+        # arguments that the user passed.
+        known, _ = parser.parse_known_args()
+        config = vars(known)
+        if len(config) == 0:
+            print(
+                "[Warn][AppLauncher]: There are no arguments attached to the ArgumentParser object. "
+                "If you have your own arguments, please load your own arguments before calling the "
+                "`AppLauncher.add_app_launcher_args` method. This allows the method to check the validity "
+                "of the arguments and perform checks for argument names."
+            )
+        else:
+            AppLauncher._check_argparser_config_params(config)
+
+        # Add custom arguments to the parser
+        arg_group = parser.add_argument_group("app_launcher arguments")
+        arg_group.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+        arg_group.add_argument(
+            "--livestream",
+            type=int,
+            default=-1,
+            choices={-1, 0, 1, 2, 3},
+            help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
+        )
+        arg_group.add_argument(
+            "--ros",
+            type=int,
+            default=-1,
+            choices={-1, 0, 1, 2},
+            help="Enable ROS middleware. Mapping corresponds to that for the `ROS_ENABLED` environment variable",
+        )
+
+        # Corresponding to the beginning of the function,
+        # if we have removed -h/--help handling, we add it back.
+        if parser_help is not None:
+            parser._option_string_actions["-h"] = parser_help
+            parser._option_string_actions["--help"] = parser_help
+
+    """
+    Internal functions.
+    """
+
+    _APPLAUNCHER_CONFIG_TYPES: dict[str, list[type]] = {
+        "headless": [bool],
+        "livestream": [int],
+        "ros": [int],
+    }
+    """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
+
+    These are required to be passed to AppLauncher at initialization. They have corresponding environment
+    variables as detailed in the documentation.
+    """
+
+    # TODO: Find some internally managed NVIDIA list of these types.
+    # SimulationApp.DEFAULT_LAUNCHER_CONFIG almost works, except that
+    # it is ambiguous where the default types are None
+    _SIMULATIONAPP_CONFIG_TYPES: dict[str, list[type]] = {
+        "headless": [bool],
+        "active_gpu": [int, type(None)],
+        "physics_gpu": [int],
+        "multi_gpu": [bool],
+        "sync_loads": [bool],
+        "width": [int],
+        "height": [int],
+        "window_width": [int],
+        "window_height": [int],
+        "display_options": [int],
+        "subdiv_refinement_level": [int],
+        "renderer": [str],
+        "anti_aliasing": [int],
+        "samples_per_pixel_per_frame": [int],
+        "denoiser": [bool],
+        "max_bounces": [int],
+        "max_specular_transmission_bounces": [int],
+        "max_volume_bounces": [int],
+        "open_usd": [str, type(None)],
+        "livesync_usd": [str, type(None)],
+        "fast_shutdown": [bool],
+        "experience": [str],
+    }
+    """A dictionary containing the type of arguments passed to SimulationApp.
+
+    This is used to check against name collisions for arguments passed to the :class:`AppLauncher` class
+    as well as for type checking. It corresponds closely to the :attr:`SimulationApp.DEFAULT_LAUNCHER_CONFIG`,
+    but specifically denotes where :obj:`None` types are allowed.
+    """
+
+    @staticmethod
+    def _check_argparser_config_params(config: dict) -> None:
+        """Checks that input argparser object has parameters with valid settings with no name conflicts.
+
+        First, we inspect the dictionary to ensure that the passed ArgParser object is not attempting to add arguments
+        which should be assigned by calling :meth:`AppLauncher.add_app_launcher_args`.
+
+        Then, we check that if the key corresponds to a config setting expected by SimulationApp, then the type of
+        that key's value corresponds to the type expected by the SimulationApp. If it passes the check, the function
+        prints out that the setting with be passed to the SimulationApp. Otherwise, we raise a ValueError exception.
+
+        Args:
+            config: A configuration parameters which will be passed to the SimulationApp constructor.
+
+        Raises:
+            ValueError: If a key is an already existing field in the configuration parameters but
+                should be added by calling the :meth:`AppLauncher.add_app_launcher_args.
+            ValueError: If keys corresponding to those used to initialize SimulationApp
+                (as found in :attr:`_SIMULATIONAPP_CONFIG_TYPES`) are of the wrong value type.
+        """
+        # check that no config key conflicts with AppLauncher config names
+        applauncher_keys = set(AppLauncher._APPLAUNCHER_CONFIG_TYPES.keys())
+        for key, value in config.items():
+            if key in applauncher_keys:
+                raise ValueError(
+                    f"The passed ArgParser object already has the field '{key}'. This field will be added by "
+                    "AppLauncher.add_app_launcher_args(), and should not be added directly. Please remove the "
+                    "argument or rename it to a non-conflicting name."
+                )
+        # check that type of the passed keys are valid
+        simulationapp_keys = set(AppLauncher._SIMULATIONAPP_CONFIG_TYPES.keys())
+        for key, value in config.items():
+            if key in simulationapp_keys:
+                given_type = type(value)
+                expected_types = AppLauncher._SIMULATIONAPP_CONFIG_TYPES[key]
+                if type(value) not in set(expected_types):
+                    raise ValueError(
+                        f"Invalid value type for the argument '{key}': {given_type}. Expected one of {expected_types}, "
+                        f"if intended to be ingested by the SimulationApp object. Please change the type if this "
+                        "intended for the SimulationApp or change the name of the argument to avoid name conflicts."
+                    )
+                # Print out values which will be used
+                print(f"[INFO][AppLauncher]: The argument '{key}' will be used to configure the SimulationApp.")
+
+    def _config_resolution(self, launcher_args: dict):
+        """Resolve the input arguments and environment variables.
+
+        Args:
+            launcher_args: A dictionary of all input arguments passed to the class object.
+        """
+        # Handle all control logic resolution
+
+        # --LIVESTREAM logic--
+        #
+        livestream_env = int(os.environ.get("LIVESTREAM", 0))
+        livestream_arg = launcher_args.pop("livestream", -1)
+        livestream_valid_vals = {0, 1, 2, 3}
+        # Value checking on LIVESTREAM
+        if livestream_env not in livestream_valid_vals:
+            raise ValueError(
+                f"Invalid value for environment variable `LIVESTREAM`: {livestream_env} . "
+                f"Expected: {livestream_valid_vals}."
+            )
+        # We allow livestream kwarg to supersede LIVESTREAM envvar
+        if livestream_arg >= 0:
+            if livestream_arg in livestream_valid_vals:
+                self._livestream = livestream_arg
+                # print info that we overrode the env-var
+                print(
+                    f"[INFO][AppLauncher]: Input keyword argument `livestream={livestream_arg}` has overridden "
+                    f"the environment variable `LIVESTREAM={livestream_env}`."
+                )
+            else:
+                raise ValueError(
+                    f"Invalid value for input keyword argument `livestream`: {livestream_arg} . "
+                    f"Expected: {livestream_valid_vals}."
+                )
+        else:
+            self._livestream = livestream_env
+
+        # --HEADLESS logic--
+        #
+        # Resolve headless execution of simulation app
+        # HEADLESS is initially passed as an int instead of
+        # the bool of headless_arg to avoid messy string processing,
+        headless_env = int(os.environ.get("HEADLESS", 0))
+        headless_arg = launcher_args.pop("headless", False)
+        headless_valid_vals = {0, 1}
+        # Value checking on HEADLESS
+        if headless_env not in headless_valid_vals:
+            raise ValueError(
+                f"Invalid value for environment variable `HEADLESS`: {headless_env} . "
+                f"Expected: {headless_valid_vals}."
+            )
+        # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
+        # Note: Headless is always true when livestreaming
+        if headless_arg is True:
+            self._headless = headless_arg
+        elif self._livestream in {1, 2, 3}:
+            # we are always headless on the host machine
+            self._headless = True
+            # inform who has toggled the headless flag
+            if self._livestream == livestream_arg:
+                print(
+                    f"[INFO][AppLauncher]: Input keyword argument `livestream={self._livestream}` has implicitly "
+                    f"overridden the environment variable `HEADLESS={headless_env}` to True."
+                )
+            elif self._livestream == livestream_env:
+                print(
+                    f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly "
+                    f"overridden the environment variable `HEADLESS={headless_env}` to True."
+                )
+        else:
+            # Headless needs to be a bool to be ingested by SimulationApp
+            self._headless = bool(headless_env)
+        # Headless needs to be passed to the SimulationApp so we keep it here
+        launcher_args["headless"] = self._headless
+
+        # --ROS logic--
+        #
+        ros_env = int(os.environ.get("ROS_ENABLED", 0))
+        ros_arg = int(launcher_args.pop("ros", -1))
+        ros_valid_vals = {0, 1, 2}
+        # Value checking on LIVESTREAM
+        if ros_env not in ros_valid_vals:
+            raise ValueError(
+                f"Invalid value for environment variable `ROS_ENABLED`: {ros_env} . Expected: {ros_valid_vals}."
+            )
+        # We allow livestream kwarg to supersede LIVESTREAM envvar
+        if ros_arg >= 0:
+            if ros_arg in ros_valid_vals:
+                self._ros = ros_arg
+                # print info that we overrode the env-var
+                print(
+                    f"[INFO][AppLauncher]: Input keyword argument `ros={ros_arg}` has overridden "
+                    f"the environment variable `ROS_ENABLED={ros_env}`."
+                )
+            else:
+                raise ValueError(
+                    f"Invalid value for input keyword argument `ros`: {ros_arg} . Expected: {ros_valid_vals}."
+                )
+        else:
+            self._ros = ros_env
+
+        # --VIEWPORT logic--
+        #
+        # off-screen rendering
+        viewport_env = int(os.environ.get("VIEWPORT_ENABLED", 0))
+        viewport_valid_vals = {0, 1}
+        if viewport_env not in viewport_valid_vals:
+            raise ValueError(
+                f"Invalid value for environment variable `VIEWPORT_ENABLED`: {viewport_env} ."
+                f"Expected: {viewport_valid_vals} ."
+            )
+        self._viewport = bool(viewport_env)
+
+        # Check if input keywords contain an 'experience' file setting
+        # Note: since experience is taken as a separate argument by Simulation App, we store it separately
+        self._simulationapp_experience = launcher_args.pop("experience", "")
+        print(f"[INFO][AppLauncher]: Loading experience file: {self._simulationapp_experience} .")
+        # Remove all values from input keyword args which are not meant for SimulationApp
+        # Assign all the passed settings to a dictionary for the simulation app
+        self._simulationapp_config = {
+            key: launcher_args[key]
+            for key in set(AppLauncher._SIMULATIONAPP_CONFIG_TYPES.keys()) & set(launcher_args.keys())
+        }
+
+    def _create_app(self):
+        """Launch and create the SimulationApp based on the parsed simulation config."""
+        # Initialize SimulationApp
         # hack sys module to make sure that the SimulationApp is initialized correctly
         # this is to avoid the warnings from the simulation app about not ok modules
         r = re.compile(".*orbit.*")
@@ -157,18 +562,24 @@ class AppLauncher:
             hacked_modules[key] = sys.modules[key]
             del sys.modules[key]
         # launch simulation app
-        self._app = SimulationApp(kwargs)
+        self._app = SimulationApp(self._simulationapp_config, experience=self._simulationapp_experience)
         # add orbit modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
 
+    def _load_extensions(self):
+        """Load correct extensions based on AppLauncher's resolved config member variables."""
         # These have to be loaded after SimulationApp is initialized
+        import carb
         from omni.isaac.core.utils.extensions import enable_extension
+        from omni.isaac.version import get_version
 
+        # Read isaac sim version (this includes build tag, release tag etc.)
+        isaacsim_version = get_version()
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
 
-        if remote_deployment >= 2:
+        if self._livestream >= 1:
             # Set carb settings to allow for livestreaming
             carb_settings_iface.set_bool("/app/livestream/enabled", True)
             carb_settings_iface.set_bool("/app/window/drawMouse", True)
@@ -176,42 +587,37 @@ class AppLauncher:
             carb_settings_iface.set_string("/app/livestream/proto", "ws")
             carb_settings_iface.set_int("/app/livestream/websocket/framerate_limit", 120)
             # Note: Only one livestream extension can be enabled at a time
-            if remote_deployment == 2:
+            if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
                 enable_extension("omni.kit.livestream.native")
                 enable_extension("omni.services.streaming.manager")
-            elif remote_deployment == 3:
+            elif self._livestream == 2:
                 # Enable WebSocket Livestream extension
                 # Default URL: http://localhost:8211/streaming/client/
                 enable_extension("omni.services.streamclient.websocket")
-            elif remote_deployment == 4:
+            elif self._livestream == 3:
                 # Enable WebRTC Livestream extension
                 # Default URL: http://localhost:8211/streaming/webrtc-client/
                 enable_extension("omni.services.streamclient.webrtc")
             else:
-                raise ValueError(
-                    f"Invalid assignment for env variable `REMOTE_DEPLOYMENT`: {remote_deployment}. Expected 1, 2, 3, 4."
-                )
+                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2, 3 .")
 
         # As of IsaacSim 2022.1.1, the ros extension has to be loaded
         # after the streaming extension or it will cause a segfault
-        ros = int(os.environ.get("ROS_ENABLED", 0))
         # Note: Only one ROS bridge extension can be enabled at a time
-        if ros > 0:
-            if ros == 1:
+        if self._ros != 0:
+            if self._ros == 1:
                 enable_extension("omni.isaac.ros_bridge")
-            elif ros == 2:
+            elif self._ros == 2:
                 enable_extension("omni.isaac.ros2_bridge")
             else:
-                raise ValueError(f"Invalid assignment for env variable `ROS_ENABLED`: {ros}. Expected 1 or 2.")
+                raise ValueError(f"Invalid value for ros: {self._ros}. Expected: 1, 2 .")
 
-        # off-screen rendering
-        viewport = int(os.environ.get("VIEWPORT_ENABLED", 0))
         # enable extensions for off-screen rendering
         # note: depending on the app file, some extensions might not be available in it.
         #   Thus, we manually enable these extensions to make sure they are available.
-        if viewport > 0 or not headless:
+        if self._viewport != 0 or not self._headless:
             # note: enabling extensions is order-sensitive. please do not change the order!
             # extension to enable UI buttons (otherwise we get attribute errors)
             enable_extension("omni.kit.window.toolbar")
@@ -227,11 +633,6 @@ class AppLauncher:
         # note: moved here since it requires to have the viewport extension to be enabled first.
         enable_extension("omni.replicator.isaac")
         # enable urdf importer
-        # read isaac sim version (this includes build tag, release tag etc.)
-        # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
-        from omni.isaac.version import get_version
-
-        isaacsim_version = get_version()
         if int(isaacsim_version[2]) == 2022:
             enable_extension("omni.isaac.urdf")
         else:
@@ -247,23 +648,11 @@ class AppLauncher:
                 "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
             )
 
+    def _update_globals(self):
+        """Updates global variables which depend upon AppLauncher's resolved config member variables."""
         # update the global flags
         # TODO: Remove all these global flags. We don't need it anymore.
         # -- render GUI
-        if headless and (remote_deployment < 2):
-            self.RENDER = False
-        else:
-            self.RENDER = True
+        self.RENDER = not self._headless or self._livestream
         # -- render viewport
-        if not viewport:
-            self.VIEWPORT = False
-        else:
-            self.VIEWPORT = True
-
-    @property
-    def app(self) -> SimulationApp:
-        """The launched SimulationApp."""
-        if self._app is not None:
-            return self._app
-        else:
-            raise RuntimeError("The `AppLauncher.app` member cannot be retrieved until the class is initialized.")
+        self.VIEWPORT = self._viewport
