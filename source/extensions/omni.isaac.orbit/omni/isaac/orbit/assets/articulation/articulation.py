@@ -410,8 +410,8 @@ class Articulation(RigidObject):
             # we check all joints under the root prim and classify the asset as fixed base if there exists
             # a fixed joint that has only one target (i.e. the root link).
             if joint_prim and joint_prim.GetJointEnabledAttr().Get():
-                body_0_exist = joint_prim.GetBody0Rel.GetTargets() != []
-                body_1_exist = joint_prim.GetBody1Rel.GetTargets() != []
+                body_0_exist = joint_prim.GetBody0Rel().GetTargets() != []
+                body_1_exist = joint_prim.GetBody1Rel().GetTargets() != []
                 if not (body_0_exist and body_1_exist):
                     self._is_fixed_base = True
                     break
