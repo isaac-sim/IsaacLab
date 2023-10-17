@@ -101,10 +101,13 @@ class TestSpawningSensors(unittest.TestCase):
             cfg: The configuration object.
             custom_attr: The custom attributes for sensor.
         """
+        # delete custom attributes in the config that are not USD parameters
+        non_usd_cfg_param_names = ["func", "copy_from_source", "lock_camera", "visible", "semantic_tags"]
+        # get prim
         prim = prim_utils.get_prim_at_path(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():
             # skip names we know are not present
-            if attr_name in ["func", "copy_from_source", "lock_camera", "visible"] or attr_value is None:
+            if attr_name in non_usd_cfg_param_names or attr_value is None:
                 continue
             # obtain prim property name
             if attr_name in custom_attr:

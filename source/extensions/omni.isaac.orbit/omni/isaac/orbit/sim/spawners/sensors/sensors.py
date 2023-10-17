@@ -97,6 +97,8 @@ def spawn_camera(
         attribute_types = CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
     else:
         attribute_types = CUSTOM_FISHEYE_CAMERA_ATTRIBUTES
+    # custom attributes in the config that are not USD Camera parameters
+    non_usd_cfg_param_names = ["func", "copy_from_source", "lock_camera", "visible", "semantic_tags"]
 
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)
@@ -110,7 +112,7 @@ def spawn_camera(
     # set attribute values
     for param_name, param_value in cfg.__dict__.items():
         # check if value is valid
-        if param_value is None or param_name in ["func", "copy_from_source", "lock_camera", "visible"]:
+        if param_value is None or param_name in non_usd_cfg_param_names:
             continue
         # obtain prim property name
         if param_name in attribute_types:

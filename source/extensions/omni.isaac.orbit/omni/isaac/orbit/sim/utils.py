@@ -15,7 +15,7 @@ import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from omni.isaac.cloner import Cloner
 from omni.isaac.version import get_version
-from pxr import PhysxSchema, Sdf, Usd, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdPhysics, UsdShade
 
 from omni.isaac.orbit.utils.string import to_camel_case
 
@@ -220,6 +220,21 @@ def clone(func: Callable) -> Callable:
         # set the prim visibility
         if hasattr(cfg, "visible"):
             prim_utils.set_prim_visibility(prim, cfg.visible)
+        # set the semantic annotations
+        if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+            # note: taken from replicator scripts.utils.utils.py
+            for semantic_type, semantic_value in cfg.semantic_tags:
+                # deal with spaces by replacing them with underscores
+                semantic_type_sanitized = semantic_type.replace(" ", "_")
+                semantic_value_sanitized = semantic_value.replace(" ", "_")
+                # set the semantic API for the instance
+                instance_name = f"{semantic_type_sanitized}_{semantic_value_sanitized}"
+                sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
+                # create semantic type and data attributes
+                sem.CreateSemanticTypeAttr()
+                sem.CreateSemanticDataAttr()
+                sem.GetSemanticTypeAttr().Set(semantic_type)
+                sem.GetSemanticDataAttr().Set(semantic_value)
         # activate rigid body contact sensors
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
             schemas.activate_contact_sensors(prim_paths[0], cfg.activate_contact_sensors)

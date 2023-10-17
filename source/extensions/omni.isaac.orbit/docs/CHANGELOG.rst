@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.11 (2023-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the support for semantic tags into the :class:`omni.isaac.orbit.sim.spawner.SpawnerCfg` class. This allows
+  the user to specify the semantic tags for a prim when spawning it into the scene. It follows the same format as
+  Omniverse Replicator.
+
+
 0.9.10 (2023-10-16)
 ~~~~~~~~~~~~~~~~~~~
 

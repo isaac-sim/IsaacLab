@@ -38,6 +38,22 @@ class SpawnerCfg:
     visible: bool = True
     """Whether the spawned asset should be visible. Defaults to True."""
 
+    semantic_tags: list[tuple[str, str]] | None = None
+    """List of semantic tags to add to the spawned asset. Defaults to None,
+    which means no semantic tags will be added.
+
+    The semantic tags follow the `Replicator Semantic` tagging system. Each tag is a tuple of the
+    form ``(type, data)``, where ``type`` is the type of the tag and ``data`` is the semantic label
+    associated with the tag. For example, to annotate a spawned asset in the class avocado, the semantic
+    tag would be ``[("class", "avocado")]``.
+
+    You can specify multiple semantic tags by passing in a list of tags. For example, to annotate a
+    spawned asset in the class avocado and the color green, the semantic tags would be
+    ``[("class", "avocado"), ("color", "green")]``.
+
+    .. _Replicator Semantic: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html
+    """
+
     copy_from_source: bool = True
     """Whether to copy the asset from the source prim or inherit it. Defaults to True.
 

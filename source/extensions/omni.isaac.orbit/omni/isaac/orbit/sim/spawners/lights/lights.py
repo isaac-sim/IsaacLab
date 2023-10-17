@@ -55,10 +55,10 @@ def spawn_light(
     cfg = cfg.to_dict()
     # delete spawner func specific parameters
     del cfg["prim_type"]
-    # delete meta parameters from base class
-    del cfg["func"]
-    del cfg["visible"]
-    del cfg["copy_from_source"]
+    # delete custom attributes in the config that are not USD parameters
+    non_usd_cfg_param_names = ["func", "copy_from_source", "visible", "semantic_tags"]
+    for param_name in non_usd_cfg_param_names:
+        del cfg[param_name]
     # set into USD API
     for attr_name, value in cfg.items():
         # special operation for texture properties
