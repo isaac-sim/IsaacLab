@@ -36,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Ref: https://forums.developer.nvidia.com/t/running-a-standalone-example-with-gui-in-docker-container/248147/3
 RUN if [[ "${ISAACSIM_VERSION}" == "2022.2"* ]]; then \
         sed -i 's/\("omni.isaac.quadruped"\s=\s{}\)/"omni.isaac.quadruped" = {order = 10}/g' \
-        ${ISAACSIM_PATH}/apps/omni.isaac.sim.python.kit \
+        ${ISAACSIM_PATH}/apps/omni.isaac.sim.python.kit; \
     fi
 
 # Copy the orbit directory
