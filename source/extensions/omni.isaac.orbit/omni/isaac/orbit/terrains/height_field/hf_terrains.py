@@ -47,7 +47,8 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
         cfg.downsampled_scale = cfg.horizontal_scale
     elif cfg.downsampled_scale < cfg.horizontal_scale:
         raise ValueError(
-            f"Downsampled scale must be larger than or equal to the horizontal scale: {cfg.downsampled_scale} < {cfg.horizontal_scale}."
+            "Downsampled scale must be larger than or equal to the horizontal scale:"
+            f" {cfg.downsampled_scale} < {cfg.horizontal_scale}."
         )
 
     # switch parameters to discrete units

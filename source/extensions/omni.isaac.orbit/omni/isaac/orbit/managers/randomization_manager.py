@@ -128,7 +128,8 @@ class RandomizationManager(ManagerBase):
             if mode == "interval":
                 if dt is None:
                     raise ValueError(
-                        f"Randomization mode '{mode}' requires the time step of the environment to be passed to the randomization manager."
+                        f"Randomization mode '{mode}' requires the time step of the environment"
+                        " to be passed to the randomization manager."
                     )
                 # extract time left for this term
                 time_left = self._interval_mode_time_left[index]
@@ -167,7 +168,8 @@ class RandomizationManager(ManagerBase):
             # check for valid config type
             if not isinstance(term_cfg, RandomizationTermCfg):
                 raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type RandomizationTermCfg. Received '{type(term_cfg)}'."
+                    f"Configuration for the term '{term_name}' is not of type RandomizationTermCfg."
+                    f" Received: '{type(term_cfg)}'."
                 )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)

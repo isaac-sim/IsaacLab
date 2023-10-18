@@ -110,9 +110,11 @@ if __name__ == "__main__":
         "--filter_key",
         type=str,
         default=None,
-        help="if provided, split the subset of trajectories in the file that correspond to\
-            this filter key into a training and validation set of trajectories, instead of\
-            splitting the full set of trajectories",
+        help=(
+            "If provided, split the subset of trajectories in the file that correspond to this filter key"
+            " into a training and validation set of trajectories, instead of splitting the full set of"
+            " trajectories."
+        ),
     )
     parser.add_argument("--ratio", type=float, default=0.1, help="validation ratio, in (0, 1)")
     args = parser.parse_args()

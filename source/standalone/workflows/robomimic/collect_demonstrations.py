@@ -154,7 +154,8 @@ def main():
                 collector_interface.add("success", info["is_success"])
             except KeyError:
                 raise RuntimeError(
-                    f"Only goal-conditioned environment supported. No attribute named 'is_success' found in {list(info.keys())}."
+                    "Only goal-conditioned environment supported. No attribute named"
+                    f" 'is_success' found in {list(info.keys())}."
                 )
             # flush data from collector for successful environments
             reset_env_ids = dones.nonzero(as_tuple=False).squeeze(-1)

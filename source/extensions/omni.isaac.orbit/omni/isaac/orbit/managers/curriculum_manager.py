@@ -148,7 +148,8 @@ class CurriculumManager(ManagerBase):
             # check if the term is a valid term config
             if not isinstance(term_cfg, CurriculumTermCfg):
                 raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type CurriculumTermCfg. Received '{type(term_cfg)}'."
+                    f"Configuration for the term '{term_name}' is not of type CurriculumTermCfg."
+                    f" Received: '{type(term_cfg)}'."
                 )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)

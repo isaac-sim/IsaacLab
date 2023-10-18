@@ -105,7 +105,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 # check length of value to be safe
                 if len(obj_mem) != len(value) and obj_mem is not None:
                     raise ValueError(
-                        f"[Config]: Incorrect length under namespace: {key_ns}. Expected: {len(obj_mem)}, Received: {len(value)}."
+                        f"[Config]: Incorrect length under namespace: {key_ns}."
+                        f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
                 # set value
                 setattr(obj, key, value)
@@ -118,7 +119,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 setattr(obj, key, value)
             else:
                 raise ValueError(
-                    f"[Config]: Incorrect type under namespace: {key_ns}. Expected: {type(obj_mem)}, Received: {type(value)}."
+                    f"[Config]: Incorrect type under namespace: {key_ns}."
+                    f" Expected: {type(obj_mem)}, Received: {type(value)}."
                 )
         else:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")

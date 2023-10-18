@@ -112,7 +112,8 @@ class ManagerBase(ABC):
         # check if the term is a valid term config
         if not isinstance(term_cfg, ManagerBaseTermCfg):
             raise TypeError(
-                f"Configuration for the term '{term_name}' is not of type ManagerBaseTermCfg. Received '{type(term_cfg)}'."
+                f"Configuration for the term '{term_name}' is not of type ManagerBaseTermCfg."
+                f" Received: '{type(term_cfg)}'."
             )
         # iterate over all the entities and parse the joint and body names
         for key, value in term_cfg.params.items():

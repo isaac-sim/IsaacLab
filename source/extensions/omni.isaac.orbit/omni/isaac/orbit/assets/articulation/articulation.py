@@ -508,8 +508,8 @@ class Articulation(RigidObject):
             # check if any joints are found
             if len(joint_names) == 0:
                 raise ValueError(
-                    f"No joints found for actuator group: {actuator_name} with joint name expression: "
-                    f"{actuator_cfg.joint_names_expr}."
+                    f"No joints found for actuator group: {actuator_name} with joint name expression:"
+                    f" {actuator_cfg.joint_names_expr}."
                 )
             # for efficiency avoid indexing when over all indices
             if len(joint_names) == self.num_joints:
@@ -524,8 +524,8 @@ class Articulation(RigidObject):
             )
             # log information on actuator groups
             carb.log_info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}' and "
-                f"joint names: {joint_names} [{joint_ids}]."
+                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}' and"
+                f" joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group
             self.actuators[actuator_name] = actuator

@@ -428,8 +428,8 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
     # check if no contact sensors were found
     if num_contact_sensors == 0:
         raise ValueError(
-            f"No contact sensors added to the prim: '{prim_path}'. This means that no rigid bodies "
-            "are present under this prim. Please check the prim path."
+            f"No contact sensors added to the prim: '{prim_path}'. This means that no rigid bodies"
+            " are present under this prim. Please check the prim path."
         )
     # success
     return True

@@ -197,7 +197,7 @@ class ContactSensor(SensorBase):
         # check that contact reporter succeeded
         if self._num_bodies != len(body_names):
             raise RuntimeError(
-                f"Failed to initialize contact reporter for specified bodies."
+                "Failed to initialize contact reporter for specified bodies."
                 f"\n\tInput prim path    : {self.cfg.prim_path}"
                 f"\n\tResolved prim paths: {body_names_regex}"
             )

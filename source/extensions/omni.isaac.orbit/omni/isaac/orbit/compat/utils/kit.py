@@ -448,7 +448,8 @@ def apply_physics_material(prim_path: str, material_path: str, weaker_than_desce
     has_particle_system = prim.IsA(PhysxSchema.PhysxParticleSystem)
     if not (has_collider or has_deformable_body or has_particle_system):
         raise ValueError(
-            f"Cannot apply physics material on prim '{prim_path}'. It is neither a collider, nor a deformable body, nor a particle system."
+            f"Cannot apply physics material on prim '{prim_path}'. It is neither a collider,"
+            " nor a deformable body, nor a particle system."
         )
     # obtain material binding API
     if prim.HasAPI(UsdShade.MaterialBindingAPI):

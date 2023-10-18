@@ -170,7 +170,8 @@ class ObservationManager(ManagerBase):
             # check if the term is a curriculum term
             if not isinstance(group_cfg, ObservationGroupCfg):
                 raise TypeError(
-                    f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'. Received '{type(group_cfg)}'."
+                    f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'."
+                    f" Received: '{type(group_cfg)}'."
                 )
             # initialize list for the group settings
             self._group_obs_term_names[group_name] = list()
@@ -194,7 +195,8 @@ class ObservationManager(ManagerBase):
                     continue
                 if not isinstance(term_cfg, ObservationTermCfg):
                     raise TypeError(
-                        f"Configuration for the term '{term_name}' is not of type ObservationTermCfg. Received '{type(term_cfg)}'."
+                        f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
+                        f" Received: '{type(term_cfg)}'."
                     )
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)

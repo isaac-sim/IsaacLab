@@ -254,7 +254,8 @@ class ActionManager(ManagerBase):
             # check valid type
             if not isinstance(term_cfg, ActionTermCfg):
                 raise TypeError(
-                    f"Configuration for the term '{term_name}' is not of type ActionTermCfg. Received '{type(term_cfg)}'."
+                    f"Configuration for the term '{term_name}' is not of type ActionTermCfg."
+                    f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
             term = term_cfg.class_type(term_cfg, self._env)

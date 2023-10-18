@@ -52,7 +52,8 @@ class BinaryJointAction(ActionTerm):
         self._num_joints = len(self._joint_ids)
         # log the resolved joint names for debugging
         carb.log_info(
-            f"Resolved joint names for the action term {self.__class__.__name__}: {self._joint_names} [{self._joint_ids}]"
+            f"Resolved joint names for the action term {self.__class__.__name__}:"
+            f" {self._joint_names} [{self._joint_ids}]"
         )
 
         # create tensors for raw and processed actions

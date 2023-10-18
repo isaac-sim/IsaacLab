@@ -43,8 +43,7 @@ def parse_cli_args():
 
     # When --help or no args are given, print this help
     usage_text = (
-        "Run blender in background mode with this script:\n"
-        "\tblender --background --python " + __file__ + " -- [options]"
+        f"Run blender in background mode with this script:\n\tblender --background --python {__file__} -- [options]"
     )
     parser = argparse.ArgumentParser(description=usage_text)
     # Add arguments

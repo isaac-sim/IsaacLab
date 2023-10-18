@@ -177,7 +177,10 @@ html_theme_options = {
     "use_edit_page_button": True,
     "show_toc_level": 2,
     "use_sidenotes": True,
-    "announcement": "⚠️This is a pre-release version of Orbit. Please report any issues on <a href='https://github.com/NVIDIA-Omniverse/orbit/issues'>GitHub</a>.",
+    "announcement": (
+        "⚠️This is a pre-release version of Orbit. Please report any issues on <a"
+        " href='https://github.com/NVIDIA-Omniverse/orbit/issues'>GitHub</a>."
+    ),
 }
 
 html_show_copyright = True

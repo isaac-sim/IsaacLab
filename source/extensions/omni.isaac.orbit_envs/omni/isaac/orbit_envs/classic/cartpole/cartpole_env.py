@@ -74,8 +74,8 @@ class CartpoleEnv(IsaacEnv):
         assets_root_path = nucleus_utils.get_assets_root_path()
         if assets_root_path is None:
             raise RuntimeError(
-                "Unable to access the Nucleus server from Omniverse. For more information, please check: "
-                "https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
+                "Unable to access the Nucleus server from Omniverse. For more information, please check:"
+                " https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
             )
         # ground plane
         kit_utils.create_ground_plane("/World/defaultGroundPlane")

@@ -216,9 +216,9 @@ class AppLauncher:
             if not set(kwargs.keys()).isdisjoint(launcher_args.keys()):
                 overlapping_args = set(kwargs.keys()).intersection(launcher_args.keys())
                 raise ValueError(
-                    f"Input `launcher_args` and `kwargs` both provided common attributes: {overlapping_args}. "
-                    "Please ensure that each argument is supplied to only one of them, as the AppLauncher cannot "
-                    "discern priority between them."
+                    f"Input `launcher_args` and `kwargs` both provided common attributes: {overlapping_args}."
+                    " Please ensure that each argument is supplied to only one of them, as the AppLauncher cannot"
+                    " discern priority between them."
                 )
             launcher_args.update(kwargs)
 
@@ -300,10 +300,10 @@ class AppLauncher:
         config = vars(known)
         if len(config) == 0:
             print(
-                "[Warn][AppLauncher]: There are no arguments attached to the ArgumentParser object. "
-                "If you have your own arguments, please load your own arguments before calling the "
-                "`AppLauncher.add_app_launcher_args` method. This allows the method to check the validity "
-                "of the arguments and perform checks for argument names."
+                "[Warn][AppLauncher]: There are no arguments attached to the ArgumentParser object."
+                " If you have your own arguments, please load your own arguments before calling the"
+                " `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity"
+                " of the arguments and perform checks for argument names."
             )
         else:
             AppLauncher._check_argparser_config_params(config)
@@ -406,9 +406,9 @@ class AppLauncher:
         for key, value in config.items():
             if key in applauncher_keys:
                 raise ValueError(
-                    f"The passed ArgParser object already has the field '{key}'. This field will be added by "
-                    "AppLauncher.add_app_launcher_args(), and should not be added directly. Please remove the "
-                    "argument or rename it to a non-conflicting name."
+                    f"The passed ArgParser object already has the field '{key}'. This field will be added by"
+                    " `AppLauncher.add_app_launcher_args()`, and should not be added directly. Please remove the"
+                    " argument or rename it to a non-conflicting name."
                 )
         # check that type of the passed keys are valid
         simulationapp_keys = set(AppLauncher._SIMULATIONAPP_CONFIG_TYPES.keys())
@@ -418,9 +418,9 @@ class AppLauncher:
                 expected_types = AppLauncher._SIMULATIONAPP_CONFIG_TYPES[key]
                 if type(value) not in set(expected_types):
                     raise ValueError(
-                        f"Invalid value type for the argument '{key}': {given_type}. Expected one of {expected_types}, "
-                        f"if intended to be ingested by the SimulationApp object. Please change the type if this "
-                        "intended for the SimulationApp or change the name of the argument to avoid name conflicts."
+                        f"Invalid value type for the argument '{key}': {given_type}. Expected one of {expected_types},"
+                        " if intended to be ingested by the SimulationApp object. Please change the type if this"
+                        " intended for the SimulationApp or change the name of the argument to avoid name conflicts."
                     )
                 # Print out values which will be used
                 print(f"[INFO][AppLauncher]: The argument '{key}' will be used to configure the SimulationApp.")
@@ -441,8 +441,8 @@ class AppLauncher:
         # Value checking on LIVESTREAM
         if livestream_env not in livestream_valid_vals:
             raise ValueError(
-                f"Invalid value for environment variable `LIVESTREAM`: {livestream_env} . "
-                f"Expected: {livestream_valid_vals}."
+                f"Invalid value for environment variable `LIVESTREAM`: {livestream_env} ."
+                f" Expected: {livestream_valid_vals}."
             )
         # We allow livestream kwarg to supersede LIVESTREAM envvar
         if livestream_arg >= 0:
@@ -450,13 +450,13 @@ class AppLauncher:
                 self._livestream = livestream_arg
                 # print info that we overrode the env-var
                 print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={livestream_arg}` has overridden "
-                    f"the environment variable `LIVESTREAM={livestream_env}`."
+                    f"[INFO][AppLauncher]: Input keyword argument `livestream={livestream_arg}` has overridden"
+                    f" the environment variable `LIVESTREAM={livestream_env}`."
                 )
             else:
                 raise ValueError(
-                    f"Invalid value for input keyword argument `livestream`: {livestream_arg} . "
-                    f"Expected: {livestream_valid_vals}."
+                    f"Invalid value for input keyword argument `livestream`: {livestream_arg} ."
+                    f" Expected: {livestream_valid_vals}."
                 )
         else:
             self._livestream = livestream_env
@@ -472,8 +472,7 @@ class AppLauncher:
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
             raise ValueError(
-                f"Invalid value for environment variable `HEADLESS`: {headless_env} . "
-                f"Expected: {headless_valid_vals}."
+                f"Invalid value for environment variable `HEADLESS`: {headless_env} . Expected: {headless_valid_vals}."
             )
         # We allow headless kwarg to supersede HEADLESS envvar if headless_arg does not have the default value
         # Note: Headless is always true when livestreaming
@@ -485,13 +484,13 @@ class AppLauncher:
             # inform who has toggled the headless flag
             if self._livestream == livestream_arg:
                 print(
-                    f"[INFO][AppLauncher]: Input keyword argument `livestream={self._livestream}` has implicitly "
-                    f"overridden the environment variable `HEADLESS={headless_env}` to True."
+                    f"[INFO][AppLauncher]: Input keyword argument `livestream={self._livestream}` has implicitly"
+                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
                 )
             elif self._livestream == livestream_env:
                 print(
-                    f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly "
-                    f"overridden the environment variable `HEADLESS={headless_env}` to True."
+                    f"[INFO][AppLauncher]: Environment variable `LIVESTREAM={self._livestream}` has implicitly"
+                    f" overridden the environment variable `HEADLESS={headless_env}` to True."
                 )
         else:
             # Headless needs to be a bool to be ingested by SimulationApp
@@ -515,8 +514,8 @@ class AppLauncher:
                 self._ros = ros_arg
                 # print info that we overrode the env-var
                 print(
-                    f"[INFO][AppLauncher]: Input keyword argument `ros={ros_arg}` has overridden "
-                    f"the environment variable `ROS_ENABLED={ros_env}`."
+                    f"[INFO][AppLauncher]: Input keyword argument `ros={ros_arg}` has overridden"
+                    f" the environment variable `ROS_ENABLED={ros_env}`."
                 )
             else:
                 raise ValueError(

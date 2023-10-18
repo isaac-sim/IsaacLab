@@ -88,7 +88,8 @@ class NonHolonomicAction(ActionTerm):
         self._joint_names = [x_joint_name[0], y_joint_name[0], yaw_joint_name[0]]
         # log info for debugging
         carb.log_info(
-            f"Resolved joint names for the action term {self.__class__.__name__}: {self._joint_names} [{self._joint_ids}]"
+            f"Resolved joint names for the action term {self.__class__.__name__}:"
+            f" {self._joint_names} [{self._joint_ids}]"
         )
         carb.log_info(
             f"Resolved body name for the action term {self.__class__.__name__}: {self._body_name} [{self._body_idx}]"

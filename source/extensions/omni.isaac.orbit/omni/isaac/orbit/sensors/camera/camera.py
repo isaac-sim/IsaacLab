@@ -397,8 +397,8 @@ class Camera(SensorBase):
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
-                f"Number of camera prims in the view ({self._view.count}) does not match the number of environments "
-                f"({self._num_envs})."
+                f"Number of camera prims in the view ({self._view.count}) does not match"
+                f" the number of environments ({self._num_envs})."
             )
 
         # Create all indices buffer

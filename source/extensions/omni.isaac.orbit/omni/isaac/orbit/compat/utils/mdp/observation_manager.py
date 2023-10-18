@@ -376,7 +376,10 @@ class ObservationManager:
                     # Think: Check for cases when kwargs are set inside the function?
                     if len(args) > 2:
                         if set(args[2:]) != set(term_params):
-                            msg = f"Observation term '{term_name}' expects parameters: {args[2:]}, but {term_params} provided."
+                            msg = (
+                                f"Observation term '{term_name}' expects parameters: {args[2:]}, but"
+                                f" {term_params} provided."
+                            )
                             raise ValueError(msg)
                     # add function to list
                     self._group_obs_term_names[group_name].append(term_name)

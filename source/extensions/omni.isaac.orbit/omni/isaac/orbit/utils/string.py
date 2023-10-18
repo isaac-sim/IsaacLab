@@ -200,7 +200,8 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
                 # check if match already found
                 if target_strings_match_found[target_index]:
                     raise ValueError(
-                        f"Multiple matches for '{potential_match_string}': '{target_strings_match_found[target_index]}' and '{re_key}'!"
+                        f"Multiple matches for '{potential_match_string}':"
+                        f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
                     )
                 # add to list
                 target_strings_match_found[target_index] = re_key
@@ -265,7 +266,8 @@ def resolve_matching_names_values(
                 # check if match already found
                 if target_strings_match_found[target_index]:
                     raise ValueError(
-                        f"Multiple matches for '{potential_match_string}': '{target_strings_match_found[target_index]}' and '{re_key}'!"
+                        f"Multiple matches for '{potential_match_string}':"
+                        f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
                     )
                 # add to list
                 target_strings_match_found[target_index] = re_key

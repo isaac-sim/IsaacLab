@@ -36,8 +36,8 @@ def height_field_to_mesh(func: Callable) -> Callable:
         # check valid border width
         if cfg.border_width > 0 and cfg.border_width < cfg.horizontal_scale:
             raise ValueError(
-                f"The border width ({cfg.border_width}) must be greater than or equal to the "
-                f"horizontal scale ({cfg.horizontal_scale})."
+                f"The border width ({cfg.border_width}) must be greater than or equal to the"
+                f" horizontal scale ({cfg.horizontal_scale})."
             )
         # allocate buffer for height field (with border)
         width_pixels = int(cfg.size[0] / cfg.horizontal_scale) + 1
