@@ -40,7 +40,7 @@ RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
             "panda_joint6": 3.037,
             "panda_joint7": 0.741,
             # tool
-            "panda_finger_joint*": 0.035,
+            "panda_finger_joint.*": 0.035,
         },
         joint_vel={".*": 0.0},
     ),

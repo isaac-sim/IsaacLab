@@ -59,7 +59,9 @@ def main():
 
     # Load kit helper
     # note: there is a bug in Isaac Sim 2022.2.1 that prevents the use of GPU pipeline
-    sim = SimulationContext(sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False))
+    sim = SimulationContext(
+        sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False, physx=sim_utils.PhysxCfg(use_gpu=False))
+    )
     # Set main camera
     sim.set_camera_view([1.5, 1.5, 1.5], [0.0, 0.0, 0.0])
 
@@ -89,7 +91,7 @@ def main():
     print("[INFO]: Setup complete...")
 
     # dummy action
-    actions = torch.zeros(robot.root_view.count, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
+    actions = robot.data.default_joint_pos.clone()
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -103,13 +105,17 @@ def main():
             sim_time = 0.0
             ep_step_count = 0
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            # reset default joint target
+            robot.set_joint_position_target(joint_pos)
+            robot.write_data_to_sim()
+            # reset internals
             robot.reset()
             # reset command
             actions = torch.rand_like(robot.data.default_joint_pos) + robot.data.default_joint_pos
             # -- base
-            actions[:, 0::3] = 0.0
+            actions[:, 0:3] = 0.0
             # -- gripper
             actions[:, -2:] = 0.04
             print("[INFO]: Resetting robots state...")

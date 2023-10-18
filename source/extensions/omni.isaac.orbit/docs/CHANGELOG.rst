@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.12 (2023-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed bugs in actuator model implementation for actuator nets. Earlier the DC motor clipping was not working.
+* Fixed bug in applying actuator model in the :class:`omni.isaac.orbit.asset.Articulation` class. The new
+  implementation caches the outputs from explicit actuator model into the ``joint_pos_*_sim`` buffer to
+  avoid feedback loops in the tensor operation.
+
+
 0.9.11 (2023-10-17)
 ~~~~~~~~~~~~~~~~~~~
 

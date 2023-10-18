@@ -119,13 +119,13 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     network_file: str = MISSING
     """Path to the file containing network weights."""
 
-    pos_scale: float = MISSING  # DOF position input scaling
+    pos_scale: float = MISSING
     """Scaling of the joint position errors input to the network."""
-    vel_scale: float = MISSING  # DOF velocity input scaling
+    vel_scale: float = MISSING
     """Scaling of the joint velocities input to the network."""
-    torque_scale: float = MISSING  # DOF torque output scaling
+    torque_scale: float = MISSING
     """Scaling of the joint efforts output from the network."""
-    input_idx: Iterable[int] = MISSING  # Indices from the actuator history buffer to pass as inputs.
+    input_idx: Iterable[int] = MISSING
     """
     Indices of the actuator history buffer passed as inputs to the network.
 

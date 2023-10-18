@@ -77,6 +77,8 @@ class ActuatorNetLSTM(DCMotor):
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
+        # save current joint vel for dc-motor clipping
+        self._joint_vel[:] = joint_vel
 
         # run network inference
         with torch.inference_mode():
@@ -148,6 +150,8 @@ class ActuatorNetMLP(DCMotor):
         # -- velocity
         self._joint_vel_history = self._joint_vel_history.roll(1, 1)
         self._joint_vel_history[:, 0] = joint_vel
+        # save current joint vel for dc-motor clipping
+        self._joint_vel[:] = joint_vel
 
         # compute network inputs
         # -- positions
@@ -161,7 +165,7 @@ class ActuatorNetMLP(DCMotor):
 
         # run network inference
         torques = self.network(network_input).reshape(self._num_envs, self.num_joints)
-        self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
+        self.computed_effort = torques.reshape(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)

@@ -51,10 +51,11 @@ class ImplicitActuator(ActuatorBase):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
-    def compute(self, *args, **kwargs) -> ArticulationActions:
-        raise RuntimeError(
-            "This function should not be called! Implicit actuators are handled directly by the simulation."
-        )
+    def compute(
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+    ) -> ArticulationActions:
+        # we do not need to do anything here
+        return control_action
 
 
 """
@@ -107,7 +108,7 @@ class IdealPDActuator(ActuatorBase):
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort.clip(-self.effort_limit, self.effort_limit))
+        self.applied_effort = self._clip_effort(self.computed_effort)
         # set the computed actions back into the control action
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None

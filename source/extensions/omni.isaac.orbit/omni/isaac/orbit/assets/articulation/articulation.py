@@ -116,11 +116,11 @@ class Articulation(RigidObject):
         # write commands
         self._apply_actuator_model()
         # apply actions into simulation
-        self.root_physx_view.set_dof_actuation_forces(self._data.joint_effort_target, self._ALL_INDICES)
+        self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            self.root_physx_view.set_dof_position_targets(self._data.joint_pos_target, self._ALL_INDICES)
-            self.root_physx_view.set_dof_velocity_targets(self._data.joint_vel_target, self._ALL_INDICES)
+            self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
+            self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
     def update(self, dt: float | None = None):
         # -- root state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
@@ -469,6 +469,11 @@ class Articulation(RigidObject):
         self._data.soft_joint_pos_limits[..., 0] = joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor
         self._data.soft_joint_pos_limits[..., 1] = joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor
 
+        # create buffers to store processed actions from actuator models
+        self._joint_pos_target_sim = torch.zeros_like(self._data.joint_pos_target)
+        self._joint_vel_target_sim = torch.zeros_like(self._data.joint_pos_target)
+        self._joint_effort_target_sim = torch.zeros_like(self._data.joint_pos_target)
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -554,12 +559,6 @@ class Articulation(RigidObject):
         """
         # process actions per group
         for actuator in self.actuators.values():
-            # skip implicit actuators (they are handled by the simulation)
-            if isinstance(actuator, ImplicitActuator):
-                # TODO read torque from simulation (#127)
-                # self._data.computed_torques[:, actuator.joint_indices] = ???
-                # self._data.applied_torques[:, actuator.joint_indices] = ???
-                continue
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
@@ -576,17 +575,23 @@ class Articulation(RigidObject):
             )
             # update targets (these are set into the simulation)
             if control_action.joint_positions is not None:
-                self._data.joint_pos_target[:, actuator.joint_indices] = control_action.joint_positions
+                self._joint_pos_target_sim[:, actuator.joint_indices] = control_action.joint_positions
             if control_action.joint_velocities is not None:
-                self._data.joint_vel_target[:, actuator.joint_indices] = control_action.joint_velocities
+                self._joint_vel_target_sim[:, actuator.joint_indices] = control_action.joint_velocities
             if control_action.joint_efforts is not None:
-                self._data.joint_effort_target[:, actuator.joint_indices] = control_action.joint_efforts
+                self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
             # update state of the actuator model
-            # -- torques
-            self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
-            self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
-            # -- actuator data
-            self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
-            # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
-            if hasattr(actuator, "gear_ratio"):
-                self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+            if isinstance(actuator, ImplicitActuator):
+                # TODO read torque from simulation (#127)
+                pass
+                # self._data.computed_torques[:, actuator.joint_indices] = ???
+                # self._data.applied_torques[:, actuator.joint_indices] = ???
+            else:
+                # -- torques
+                self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
+                self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
+                # -- actuator data
+                self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
+                # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
+                if hasattr(actuator, "gear_ratio"):
+                    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
