@@ -201,7 +201,7 @@ class PickAndLiftSm:
     def reset_idx(self, env_ids: Sequence[int] = None):
         """Reset the state machine."""
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0.0
 

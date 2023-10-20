@@ -65,7 +65,7 @@ class JointAction(ActionTerm):
 
         # Avoid indexing across all joints for efficiency
         if self._num_joints == self._asset.num_joints:
-            self._joint_ids = ...
+            self._joint_ids = slice(None)
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)

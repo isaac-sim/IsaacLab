@@ -122,7 +122,7 @@ class CommandGeneratorBase(ABC):
         """
         # resolve the environment IDs
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # set the command counter to zero
         self.command_counter[env_ids] = 0
         # resample the command

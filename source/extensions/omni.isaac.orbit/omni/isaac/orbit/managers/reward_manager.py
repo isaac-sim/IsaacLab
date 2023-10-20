@@ -99,7 +99,7 @@ class RewardManager(ManagerBase):
         """
         # resolve environment ids
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # store information
         extras = {}
         for key in self._episode_sums.keys():

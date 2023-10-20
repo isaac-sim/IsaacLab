@@ -101,7 +101,7 @@ class Articulation(RigidObject):
         super().reset(env_ids)
         # use ellipses object to skip initial indices.
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
@@ -162,7 +162,7 @@ class Articulation(RigidObject):
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         # resolve all indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, :7] = root_pose.clone()
@@ -175,7 +175,7 @@ class Articulation(RigidObject):
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         # resolve all indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
@@ -199,9 +199,9 @@ class Articulation(RigidObject):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
@@ -227,9 +227,9 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
@@ -251,9 +251,9 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
@@ -276,9 +276,9 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set into internal buffers
         torque_limit_all = self.root_physx_view.get_dof_max_forces()
         torque_limit_all[env_ids, joint_ids] = limits
@@ -306,9 +306,9 @@ class Articulation(RigidObject):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set targets
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
@@ -328,9 +328,9 @@ class Articulation(RigidObject):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set targets
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
@@ -350,9 +350,9 @@ class Articulation(RigidObject):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if joint_ids is None:
-            joint_ids = ...
+            joint_ids = slice(None)
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
 
@@ -513,7 +513,7 @@ class Articulation(RigidObject):
                 )
             # for efficiency avoid indexing when over all indices
             if len(joint_names) == self.num_joints:
-                joint_ids = ...
+                joint_ids = slice(None)
             # create actuator collection
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,

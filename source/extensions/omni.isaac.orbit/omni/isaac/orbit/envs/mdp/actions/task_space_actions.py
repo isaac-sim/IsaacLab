@@ -76,7 +76,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         )
         # Avoid indexing across all joints for efficiency
         if self._num_joints == self._asset.num_joints:
-            self._joint_ids = ...
+            self._joint_ids = slice(None)
 
         # create the differential IK controller
         self._controller = DifferentialIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)

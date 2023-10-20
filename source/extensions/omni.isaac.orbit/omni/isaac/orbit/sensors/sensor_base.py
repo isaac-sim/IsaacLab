@@ -140,7 +140,7 @@ class SensorBase(ABC):
         """
         # Resolve sensor ids
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # Reset the timestamp for the sensors
         self._timestamp[env_ids] = 0.0
         self._timestamp_last_update[env_ids] = 0.0

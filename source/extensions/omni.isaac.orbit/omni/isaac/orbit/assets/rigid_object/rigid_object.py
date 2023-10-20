@@ -100,7 +100,7 @@ class RigidObject(AssetBase):
     def reset(self, env_ids: Sequence[int] | None = None):
         # resolve all indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
@@ -171,7 +171,7 @@ class RigidObject(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, :7] = root_pose.clone()
@@ -190,7 +190,7 @@ class RigidObject(AssetBase):
         """
         # resolve all indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()

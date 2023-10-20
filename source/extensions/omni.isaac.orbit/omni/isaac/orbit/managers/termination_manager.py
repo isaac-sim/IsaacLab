@@ -103,7 +103,7 @@ class TerminationManager(ManagerBase):
         """
         # resolve environment ids
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # add to episode dict
         extras = {}
         for key in self._episode_dones.keys():

@@ -45,15 +45,15 @@ class ActuatorBase(ABC):
     """The damping (D gain) of the PD controller. Shape is ``(num_envs, num_joints)``."""
 
     def __init__(
-        self, cfg: ActuatorBaseCfg, joint_names: list[str], joint_ids: list[int] | Ellipsis, num_envs: int, device: str
+        self, cfg: ActuatorBaseCfg, joint_names: list[str], joint_ids: Sequence[int], num_envs: int, device: str
     ):
         """Initialize the actuator.
 
         Args:
             cfg: The configuration of the actuator model.
             joint_names: The joint names in the articulation.
-            joint_ids: The joint indices in the articulation. If :obj:`Ellipsis`, then all the joints in the
-                articulation are part of the group.
+            joint_ids: The joint indices in the articulation. If :obj:`slice(None)`, then all
+                the joints in the articulation are part of the group.
             num_envs: Number of articulations in the view.
             device: Device used for processing.
         """
@@ -99,7 +99,7 @@ class ActuatorBase(ABC):
         """Returns: A string representation of the actuator group."""
         # resolve joint indices for printing
         joint_indices = self.joint_indices
-        if joint_indices is Ellipsis:
+        if joint_indices == slice(None):
             joint_indices = list(range(self.num_joints))
         return (
             f"<class {self.__class__.__name__}> object:\n"
@@ -124,11 +124,12 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> list[int] | Ellipsis:
+    def joint_indices(self) -> Sequence[int]:
         """Articulation's joint indices that are part of the group.
 
         Note:
-            If :obj:`Ellipsis` is returned, then the group contains all the joints in the articulation.
+            If :obj:`slice(None)` is returned, then the group contains all the joints in the articulation.
+            We do this to avoid unnecessary indexing of the joints for performance reasons.
         """
         return self._joint_indices
 

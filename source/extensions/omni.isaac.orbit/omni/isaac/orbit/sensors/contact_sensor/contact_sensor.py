@@ -135,7 +135,7 @@ class ContactSensor(SensorBase):
         super().reset(env_ids)
         # resolve None
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # reset accumulative data buffers
         self._data.current_air_time[env_ids] = 0.0
         self._data.last_air_time[env_ids] = 0.0
@@ -223,7 +223,7 @@ class ContactSensor(SensorBase):
         """Fills the buffers of the sensor data."""
         # default to all sensors
         if len(env_ids) == self._num_envs:
-            env_ids = ...
+            env_ids = slice(None)
         # obtain the poses of the sensors:
         # TODO decide if we really to track poses -- This is the body's CoM. Not contact location.
         pose = self.body_physx_view.get_transforms()
@@ -257,7 +257,7 @@ class ContactSensor(SensorBase):
         # since this function is called every frame, we can use the difference to get the elapsed time
         elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
         # -- check contact state of bodies
-        is_contact = torch.norm(self._data.net_forces_w[env_ids, 0, :, :], dim=-1) > 1.0
+        is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > 1.0
         is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
         # -- update ongoing timer for bodies air
         self._data.current_air_time[env_ids] += elapsed_time.unsqueeze(-1)

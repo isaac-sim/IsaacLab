@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.13 (2023-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the issue with double :obj:`Ellipsis` when indexing tensors with multiple dimensions.
+  The fix now uses :obj:`slice(None)` instead of :obj:`Ellipsis` to index the tensors.
+
+
 0.9.12 (2023-10-18)
 ~~~~~~~~~~~~~~~~~~~
 

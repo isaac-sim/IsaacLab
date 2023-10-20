@@ -380,6 +380,9 @@ class SimulationContext(_SimulationContext):
                 self._render_throttle_counter = 0
                 # here we don't render viewport so don't need to flush flatcache
                 super().render()
+        elif self.render_mode == self.RenderMode.HEADLESS:
+            # we never want to render anything here -- camera rendering will also not work then?
+            pass
         else:
             # this is called even if we are in headless mode - we allow this for off-screen rendering
             # manually flush the flatcache data to update Hydra textures

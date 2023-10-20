@@ -197,7 +197,7 @@ class ActionManager(ManagerBase):
         """
         # resolve environment ids
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # reset the action history
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0

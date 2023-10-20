@@ -120,7 +120,7 @@ class CurriculumManager(ManagerBase):
         """
         # resolve environment indices
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         # iterate over all the curriculum terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
             state = term_cfg.func(self._env, env_ids, **term_cfg.params)

@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.version import get_version
 import omni.kit.commands
+from omni.isaac.version import get_version
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import loaders, schemas
