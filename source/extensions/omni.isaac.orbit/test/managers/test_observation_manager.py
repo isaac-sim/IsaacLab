@@ -39,6 +39,10 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
     return hot * bland * torch.ones(env.num_envs, 5, device=env.device)
 
 
+def grilled_chicken_with_yoghurt_and_bbq(env, hot: bool, bland: float, bbq: bool = False):
+    return hot * bland * bbq * torch.ones(env.num_envs, 3, device=env.device)
+
+
 class complex_function_class:
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg
@@ -84,13 +88,16 @@ class TestObservationManager(unittest.TestCase):
                 term_4 = ObservationTermCfg(
                     func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
                 )
+                term_5 = ObservationTermCfg(
+                    func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
+                )
 
             policy: ObservationGroupCfg = SampleGroupCfg()
 
         # create observation manager
         cfg = MyObservationManagerCfg()
         self.obs_man = ObservationManager(cfg, self.env)
-        self.assertEqual(len(self.obs_man.active_terms["policy"]), 4)
+        self.assertEqual(len(self.obs_man.active_terms["policy"]), 5)
         # print the expected string
         print()
         print(self.obs_man)

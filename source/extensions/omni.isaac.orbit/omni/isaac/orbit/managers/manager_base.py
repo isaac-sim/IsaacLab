@@ -166,10 +166,15 @@ class ManagerBase(ABC):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
         # check if term's arguments are matched by params
         term_params = list(term_cfg.params.keys())
-        args = inspect.getfullargspec(term_cfg.func).args
+        args = inspect.signature(term_cfg.func).parameters
+        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+        args = args_without_defaults + args_with_defaults
         # ignore first two arguments for env and env_ids
         # Think: Check for cases when kwargs are set inside the function?
         if len(args) > min_argc:
-            if set(args[min_argc:]) != set(term_params):
-                msg = f"The term '{term_name}' expects parameters: {args[min_argc:]}, but {term_params} provided."
-                raise ValueError(msg)
+            if set(args[min_argc:]) != set(term_params + args_with_defaults):
+                raise ValueError(
+                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
+                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                )

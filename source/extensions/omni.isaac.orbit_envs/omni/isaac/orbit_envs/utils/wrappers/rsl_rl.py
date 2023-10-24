@@ -118,7 +118,7 @@ class RslRlVecEnvWrapper(gym.Wrapper):
         # return step information
         obs = obs_dict["policy"]
         extras["observations"] = obs_dict
-        return obs, rew, dones, extras
+        return obs, rew, dones.to(torch.long), extras
 
 
 """

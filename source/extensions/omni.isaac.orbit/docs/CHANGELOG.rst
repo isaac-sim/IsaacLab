@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.9.16 (2023-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for keyword arguments for terms in the :class:`omni.isaac.orbit.managers.ManagerBase`.
+
+Fixed
+^^^^^
+
+* Fixed resetting of buffers in the :class:`TerminationManager` class. Earlier, the values were being set
+  to ``0.0`` instead of ``False``.
+
+
 0.9.15 (2023-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

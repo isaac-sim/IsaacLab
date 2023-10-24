@@ -28,11 +28,11 @@ if TYPE_CHECKING:
 def randomize_rigid_body_material(
     env: RLEnv,
     env_ids: torch.Tensor | None,
-    asset_cfg: SceneEntityCfg,
     static_friction_range: tuple[float, float],
     dynamic_friction_range: tuple[float, float],
     restitution_range: tuple[float, float],
     num_buckets: int,
+    asset_cfg: SceneEntityCfg,
 ):
     """Randomize the physics materials on all geometries of the asset.
 
@@ -79,7 +79,7 @@ def randomize_rigid_body_material(
     asset.body_physx_view.set_material_properties(materials, indices)
 
 
-def add_body_mass(env: RLEnv, env_ids: torch.Tensor | None, asset_cfg: SceneEntityCfg, mass_range: tuple[float, float]):
+def add_body_mass(env: RLEnv, env_ids: torch.Tensor | None, mass_range: tuple[float, float], asset_cfg: SceneEntityCfg):
     """Randomize the mass of the bodies by adding a random value sampled from the given range.
 
     .. tip::
@@ -109,9 +109,9 @@ def add_body_mass(env: RLEnv, env_ids: torch.Tensor | None, asset_cfg: SceneEnti
 def apply_external_force_torque(
     env: RLEnv,
     env_ids: torch.Tensor,
-    asset_cfg: SceneEntityCfg,
     force_range: tuple[float, float],
     torque_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """Randomize the external forces and torques applied to the bodies.
 
@@ -137,7 +137,10 @@ def apply_external_force_torque(
 
 
 def push_by_setting_velocity(
-    env: RLEnv, env_ids: torch.Tensor, asset_cfg: SceneEntityCfg, velocity_range: dict[str, tuple[float, float]]
+    env: RLEnv,
+    env_ids: torch.Tensor,
+    velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """Push the asset by setting the root velocity to a random value within the given ranges.
 
@@ -167,9 +170,9 @@ def push_by_setting_velocity(
 def reset_root_state(
     env: RLEnv,
     env_ids: torch.Tensor,
-    asset_cfg: SceneEntityCfg,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """Reset the asset root state to a random position and velocity within the given ranges.
 
@@ -218,9 +221,9 @@ def reset_root_state(
 def reset_joints_by_scale(
     env: RLEnv,
     env_ids: torch.Tensor,
-    asset_cfg: SceneEntityCfg,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
     """Reset the robot joints by scaling the default position and velocity by the given ranges.
 

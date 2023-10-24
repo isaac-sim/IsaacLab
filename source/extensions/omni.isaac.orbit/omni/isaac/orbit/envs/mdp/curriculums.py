@@ -22,7 +22,9 @@ if TYPE_CHECKING:
     from omni.isaac.orbit.envs.rl_env import RLEnv
 
 
-def terrain_levels_vel(env: RLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def terrain_levels_vel(
+    env: RLEnv, env_ids: Sequence[int], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Curriculum based on the distance the robot walked when commanded to move at a desired velocity.
 
     This term is used to increase the difficulty of the terrain when the robot walks far enough and decrease the

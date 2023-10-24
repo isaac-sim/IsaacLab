@@ -123,8 +123,8 @@ class TerminationManager(ManagerBase):
             The combined termination signal of shape ``(num_envs,)``.
         """
         # reset computation
-        self._done_buf[:] = 0.0
-        self._time_out_buf[:] = 0.0
+        self._done_buf[:] = False
+        self._time_out_buf[:] = False
         # iterate over all the termination terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
             value = term_cfg.func(self._env, **term_cfg.params)

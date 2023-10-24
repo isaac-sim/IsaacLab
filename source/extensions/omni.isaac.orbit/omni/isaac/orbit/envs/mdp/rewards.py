@@ -21,27 +21,36 @@ from omni.isaac.orbit.sensors import ContactSensor
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs.rl_env import RLEnv
 
+"""
+General.
+"""
+
+
+def termination_penalty(env: RLEnv) -> torch.Tensor:
+    """Penalize terminated episodes that don't correspond to episodic timeouts."""
+    return env.reset_buf * (~env.termination_manager.time_outs)
+
 
 """
 Root penalties.
 """
 
 
-def lin_vel_z_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def lin_vel_z_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize z-axis base linear velocity using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return torch.square(asset.data.root_lin_vel_b[:, 2])
 
 
-def ang_vel_xy_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def ang_vel_xy_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize xy-axis base angular velocity using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.root_ang_vel_b[:, :2]), dim=1)
 
 
-def flat_orientation_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def flat_orientation_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize non-flat base orientation using L2-kernel.
 
     This is computed by penalizing the xy-components of the projected gravity vector.
@@ -51,7 +60,9 @@ def flat_orientation_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     return torch.sum(torch.square(asset.data.projected_gravity_b[:, :2]), dim=1)
 
 
-def base_height_l2(env: RLEnv, asset_cfg: SceneEntityCfg, target_height: float) -> torch.Tensor:
+def base_height_l2(
+    env: RLEnv, target_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Penalize asset height from its target using L2-kernel.
 
     Note:
@@ -63,33 +74,39 @@ def base_height_l2(env: RLEnv, asset_cfg: SceneEntityCfg, target_height: float) 
     return torch.square(asset.data.root_pos_w[:, 2] - target_height)
 
 
+def body_lin_acc_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize the linear acceleration of bodies using L2-kernel."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.norm(asset.data.body_lin_acc_w[:, asset_cfg.body_ids, :], dim=-1), dim=1)
+
+
 """
 Joint penalties.
 """
 
 
-def joint_torques_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def joint_torques_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize torques applied on the articulation using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.applied_torque), dim=1)
 
 
-def joint_vel_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def joint_vel_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint velocities on the articulation."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.joint_vel), dim=1)
 
 
-def joint_acc_l2(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def joint_acc_l2(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint accelerations on the articulation using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.joint_acc), dim=1)
 
 
-def joint_pos_limits(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def joint_pos_limits(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint positions if they cross the soft limits.
 
     This is computed as a sum of the absolute value of the difference between the joint position and the soft limits.
@@ -102,7 +119,9 @@ def joint_pos_limits(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     return torch.sum(out_of_limits, dim=1)
 
 
-def joint_vel_limits(env: RLEnv, asset_cfg: SceneEntityCfg, soft_ratio: float) -> torch.Tensor:
+def joint_vel_limits(
+    env: RLEnv, soft_ratio: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Penalize joint velocities if they cross the soft limits.
 
     This is computed as a sum of the absolute value of the difference between the joint velocity and the soft limits.
@@ -124,7 +143,7 @@ Action penalties.
 """
 
 
-def applied_torque_limits(env: RLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def applied_torque_limits(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize applied torques if they cross the limits.
 
     This is computed as a sum of the absolute value of the difference between the applied torques and the limits.
@@ -151,7 +170,7 @@ Contact sensor.
 """
 
 
-def undesired_contacts(env: RLEnv, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
+def undesired_contacts(env: RLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize undesired contacts as the number of violations that are above a threshold."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -162,7 +181,7 @@ def undesired_contacts(env: RLEnv, sensor_cfg: SceneEntityCfg, threshold: float)
     return torch.sum(is_contact, dim=1)
 
 
-def contact_forces(env: RLEnv, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
+def contact_forces(env: RLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize contact forces as the amount of violations of the net contact force."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -178,7 +197,7 @@ Velocity-tracking rewards.
 """
 
 
-def track_lin_vel_xy_exp(env: RLEnv, asset_cfg: SceneEntityCfg, std: float) -> torch.Tensor:
+def track_lin_vel_xy_exp(env: RLEnv, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Reward tracking of linear velocity commands (xy axes) using exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -189,7 +208,7 @@ def track_lin_vel_xy_exp(env: RLEnv, asset_cfg: SceneEntityCfg, std: float) -> t
     return torch.exp(-lin_vel_error / std**2)
 
 
-def track_ang_vel_z_exp(env: RLEnv, asset_cfg: SceneEntityCfg, std: float) -> torch.Tensor:
+def track_ang_vel_z_exp(env: RLEnv, std: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Reward tracking of angular velocity commands (yaw) using exponential kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
