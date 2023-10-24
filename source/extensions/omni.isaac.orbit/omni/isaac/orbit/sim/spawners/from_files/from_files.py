@@ -228,7 +228,6 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
         else:
             prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
         # change the color
-        print("Changing color to: ", cfg.color, prop_path)
         omni.kit.commands.execute(
             "ChangePropertyCommand",
             prop_path=Sdf.Path(prop_path),

@@ -215,6 +215,7 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
         msg = "\n"
         for key, value in zip(keys, keys_match_found):
             msg += f"\t{key}: {value}\n"
+        msg += f"Available strings: {list_of_strings}\n"
         # raise error
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
@@ -282,6 +283,7 @@ def resolve_matching_names_values(
         msg = "\n"
         for key, value in zip(data.keys(), keys_match_found):
             msg += f"\t{key}: {value}\n"
+        msg += f"Available strings: {list_of_strings}\n"
         # raise error
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"

@@ -40,9 +40,24 @@ class RigidObjectData:
     projected_gravity_b: torch.Tensor = None
     """Projection of the gravity direction on base frame. Shape is ``(count, 3)``."""
 
+    heading_w: torch.Tensor = None
+    """Yaw heading of the base frame (in radians). Shape is ``(count,)``.
+
+    Note:
+        This quantity is computed by assuming that the forward-direction of the base
+        frame is along x-direction, i.e. :math:`(1, 0, 0)`.
+    """
+
     body_state_w: torch.Tensor = None
     """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
     Shape is ``(count, num_bodies, 13)``."""
+
+    body_acc_w: torch.Tensor = None
+    """Acceleration of all bodies. Shape is ``(count, num_bodies, 6)``.
+
+    Note:
+        This quantity is computed based on the rigid body state from the last step.
+    """
 
     """
     Properties
@@ -107,3 +122,13 @@ class RigidObjectData:
     def body_ang_vel_w(self) -> torch.Tensor:
         """Angular velocity of all bodies in simulation world frame. Shape is ``(count, num_bodies, 3)``."""
         return self.body_state_w[..., 10:13]
+
+    @property
+    def body_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is ``(count, num_bodies, 3)``."""
+        return self.body_acc_w[..., 0:3]
+
+    @property
+    def body_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is ``(count, num_bodies, 3)``."""
+        return self.body_acc_w[..., 3:6]

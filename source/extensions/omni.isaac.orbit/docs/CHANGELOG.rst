@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.9.15 (2023-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added base yaw heading and body acceleration into :class:`omni.isaac.orbit.assets.RigidObjectData` class.
+  These quantities are computed inside the :class:`RigidObject` class.
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.orbit.assets.RigidObject.set_external_force_and_torque` method to correctly
+  deal with the body indices.
+* Fixed a bug in the :meth:`omni.isaac.orbit.utils.math.wrap_to_pi` method to prevent self-assignment of
+  the input tensor.
+
+
 0.9.14 (2023-10-21)
 ~~~~~~~~~~~~~~~~~~~
 

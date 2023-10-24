@@ -104,6 +104,8 @@ class RigidObject(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
+        # reset last body vel
+        self._last_body_vel_w[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -115,8 +117,8 @@ class RigidObject(AssetBase):
         # write external wrench
         if self.has_external_wrench:
             self._body_view._physics_view.apply_forces_and_torques_at_position(
-                force_data=self._external_force_b,
-                torque_data=self._external_torque_b,
+                force_data=self._external_force_b.view(-1, 3),
+                torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
                 indices=self._ALL_BODY_INDICES,
                 is_global=False,
@@ -233,7 +235,7 @@ class RigidObject(AssetBase):
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
         """
         if forces.any() or torques.any():
-            self.has_external_force = True
+            self.has_external_wrench = True
             # resolve all indices
             # -- env_ids
             if env_ids is None:
@@ -245,16 +247,19 @@ class RigidObject(AssetBase):
                 body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
             elif not isinstance(body_ids, torch.Tensor):
                 body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+            # note: we need to do this complicated indexing since torch doesn't support multi-indexing
             # create global body indices from env_ids and env_body_ids
             # (env_id * total_bodies_per_env) + body_id
             total_bodies_per_env = self.body_view.count // self.root_view.count
             indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * total_bodies_per_env
+            indices = indices.view(-1)
             # set into internal buffers
             # note: these are applied in the write_to_sim function
-            self._external_force_b.flatten(0, 1)[indices] = forces
-            self._external_torque_b.flatten(0, 1)[indices] = torques
+            self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
+            self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
         else:
-            self.has_external_force = False
+            self.has_external_wrench = False
 
     """
     Internal helper.
@@ -279,6 +284,7 @@ class RigidObject(AssetBase):
         self._ALL_INDICES = torch.arange(self.root_view.count, dtype=torch.long, device=self.device)
         self._ALL_BODY_INDICES = torch.arange(self.body_view.count, dtype=torch.long, device=self.device)
         self._GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.root_view.count, 1)
+        self._FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.root_view.count, 1)
         # external forces and torques
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.root_view.count, self.num_bodies, 3), device=self.device)
@@ -288,13 +294,19 @@ class RigidObject(AssetBase):
         # -- properties
         self._data.body_names = self.body_names
         # -- root states
-        self._data.root_state_w = torch.zeros(self.root_view.count, 13, dtype=torch.float, device=self.device)
+        self._data.root_state_w = torch.zeros(self.root_view.count, 13, device=self.device)
         self._data.default_root_state_w = torch.zeros_like(self._data.root_state_w)
         # -- body states
         self._data.body_state_w = torch.zeros(self.root_view.count, self.num_bodies, 13, device=self.device)
         # -- post-computed
         self._data.root_vel_b = torch.zeros(self.root_view.count, 6, device=self.device)
         self._data.projected_gravity_b = torch.zeros(self.root_view.count, 3, device=self.device)
+        self._data.heading_w = torch.zeros(self.root_view.count, device=self.device)
+        self._data.body_acc_w = torch.zeros(self.root_view.count, self.num_bodies, 6, device=self.device)
+
+        # history buffers for quantities
+        # -- used to compute body accelerations numerically
+        self._last_body_vel_w = torch.zeros(self.root_view.count, self.num_bodies, 6, device=self.device)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
@@ -321,6 +333,9 @@ class RigidObject(AssetBase):
         self._data.body_state_w[..., :7] = self.body_physx_view.get_transforms().view(-1, self.num_bodies, 7)
         self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
         self._data.body_state_w[..., 7:] = self.body_physx_view.get_velocities().view(-1, self.num_bodies, 6)
+        # -- body acceleration
+        self._data.body_acc_w[:] = (self._data.body_state_w[..., 7:] - self._last_body_vel_w) / dt
+        self._last_body_vel_w[:] = self._data.body_state_w[..., 7:]
         # -- root state in body frame
         self._data.root_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(
             self._data.root_quat_w, self._data.root_lin_vel_w
@@ -329,3 +344,6 @@ class RigidObject(AssetBase):
             self._data.root_quat_w, self._data.root_ang_vel_w
         )
         self._data.projected_gravity_b[:] = math_utils.quat_rotate_inverse(self._data.root_quat_w, self._GRAVITY_VEC_W)
+        # -- heading direction of root
+        forward_w = math_utils.quat_apply(self._data.root_quat_w, self._FORWARD_VEC_B)
+        self._data.heading_w[:] = torch.atan2(forward_w[:, 1], forward_w[:, 0])

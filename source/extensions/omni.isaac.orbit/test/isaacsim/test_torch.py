@@ -33,7 +33,76 @@ class TestTorchOperations(unittest.TestCase):
         self.assertEqual(my_tensor[slice(None), 0, 0].shape, (400,))
         self.assertEqual(my_tensor[:, 0, 0].shape, (400,))
 
-    def test_array_copying(self):
+    def test_array_circular(self):
+        """Check circular buffer implementation in torch."""
+
+        size = (10, 30, 5)
+        my_tensor = torch.rand(size, device="cuda:0")
+
+        # roll up the tensor without cloning
+        my_tensor_1 = my_tensor.clone()
+        my_tensor_1[:, 1:, :] = my_tensor_1[:, :-1, :]
+        my_tensor_1[:, 0, :] = my_tensor[:, -1, :]
+        # check that circular buffer works as expected
+        error = torch.max(torch.abs(my_tensor_1 - my_tensor.roll(1, dims=1)))
+        self.assertNotEqual(error.item(), 0.0)
+        self.assertFalse(torch.allclose(my_tensor_1, my_tensor.roll(1, dims=1)))
+
+        # roll up the tensor with cloning
+        my_tensor_2 = my_tensor.clone()
+        my_tensor_2[:, 1:, :] = my_tensor_2[:, :-1, :].clone()
+        my_tensor_2[:, 0, :] = my_tensor[:, -1, :]
+        # check that circular buffer works as expected
+        error = torch.max(torch.abs(my_tensor_2 - my_tensor.roll(1, dims=1)))
+        self.assertEqual(error.item(), 0.0)
+        self.assertTrue(torch.allclose(my_tensor_2, my_tensor.roll(1, dims=1)))
+
+        # roll up the tensor with detach operation
+        my_tensor_3 = my_tensor.clone()
+        my_tensor_3[:, 1:, :] = my_tensor_3[:, :-1, :].detach()
+        my_tensor_3[:, 0, :] = my_tensor[:, -1, :]
+        # check that circular buffer works as expected
+        error = torch.max(torch.abs(my_tensor_3 - my_tensor.roll(1, dims=1)))
+        self.assertNotEqual(error.item(), 0.0)
+        self.assertFalse(torch.allclose(my_tensor_3, my_tensor.roll(1, dims=1)))
+
+        # roll up the tensor with roll operation
+        my_tensor_4 = my_tensor.clone()
+        my_tensor_4 = my_tensor_4.roll(1, dims=1)
+        my_tensor_4[:, 0, :] = my_tensor[:, -1, :]
+        # check that circular buffer works as expected
+        error = torch.max(torch.abs(my_tensor_4 - my_tensor.roll(1, dims=1)))
+        self.assertEqual(error.item(), 0.0)
+        self.assertTrue(torch.allclose(my_tensor_4, my_tensor.roll(1, dims=1)))
+
+    def test_array_circular_copy(self):
+        """Check that circular buffer implementation in torch is copying data."""
+
+        size = (10, 30, 5)
+        my_tensor = torch.rand(size, device="cuda:0")
+        my_tensor_clone = my_tensor.clone()
+
+        # roll up the tensor
+        my_tensor_1 = my_tensor.clone()
+        my_tensor_1[:, 1:, :] = my_tensor_1[:, :-1, :].clone()
+        my_tensor_1[:, 0, :] = my_tensor[:, -1, :]
+        # change the source tensor
+        my_tensor[:, 0, :] = 1000
+        # check that circular buffer works as expected
+        self.assertFalse(torch.allclose(my_tensor_1, my_tensor.roll(1, dims=1)))
+        self.assertTrue(torch.allclose(my_tensor_1, my_tensor_clone.roll(1, dims=1)))
+
+    def test_array_multi_indexing(self):
+        """Check multi-indexing works for torch tensors."""
+
+        size = (400, 300, 5)
+        my_tensor = torch.rand(size, device="cuda:0")
+
+        # this fails since array indexing cannot be broadcasted!!
+        with self.assertRaises(IndexError):
+            my_tensor[[0, 1, 2, 3], [0, 1, 2, 3, 4]]
+
+    def test_array_single_indexing(self):
         """Check how indexing effects the returned tensor."""
 
         size = (400, 300, 5)

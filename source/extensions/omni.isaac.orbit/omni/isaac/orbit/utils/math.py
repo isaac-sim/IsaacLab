@@ -84,6 +84,7 @@ def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
     Returns:
         Angles in the range [-pi, pi].
     """
+    angles = angles.clone()
     angles %= 2 * np.pi
     angles -= 2 * np.pi * (angles > np.pi)
     return angles

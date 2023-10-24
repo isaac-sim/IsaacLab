@@ -123,11 +123,14 @@ def apply_external_force_torque(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     num_envs = env.scene.num_envs
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(num_envs)
 
     # sample random forces and torques
-    body_count = num_envs * len(asset_cfg.body_ids)
-    forces = sample_uniform(*force_range, (body_count, 3), asset.device)
-    torques = sample_uniform(*torque_range, (body_count, 3), asset.device)
+    size = (len(env_ids), len(asset_cfg.body_ids), 3)
+    forces = sample_uniform(*force_range, size, asset.device)
+    torques = sample_uniform(*torque_range, size, asset.device)
     # set the forces and torques into the buffers
     # note: these are only applied when you call: `asset.write_data_to_sim()`
     asset.set_external_force_and_torque(forces, torques, env_ids=env_ids, body_ids=asset_cfg.body_ids)

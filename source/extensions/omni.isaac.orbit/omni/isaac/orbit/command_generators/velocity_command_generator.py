@@ -54,8 +54,6 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         super().__init__(cfg, env)
         # -- robot
         self.robot: Articulation = env.scene[cfg.asset_name]
-        # -- constants
-        self._FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_envs, 1)
         # -- command: x vel, y vel, yaw vel, heading
         self.vel_command_b = torch.zeros(self.num_envs, 3, device=self.device)
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
@@ -131,15 +129,10 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         # Compute angular velocity from heading direction
         if self.cfg.heading_command:
             # resolve indices of heading envs
-            heading_env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
-            # obtain heading direction
-            forward = math_utils.quat_apply(
-                self.robot.data.root_quat_w[heading_env_ids, :], self._FORWARD_VEC_B[heading_env_ids]
-            )
-            heading = torch.atan2(forward[:, 1], forward[:, 0])
+            env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
             # compute angular velocity
-            self.vel_command_b[heading_env_ids, 2] = torch.clip(
-                0.5 * math_utils.wrap_to_pi(self.heading_target[heading_env_ids] - heading),
+            self.vel_command_b[env_ids, 2] = torch.clip(
+                0.5 * math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids]),
                 min=self.cfg.ranges.ang_vel_z[0],
                 max=self.cfg.ranges.ang_vel_z[1],
             )
