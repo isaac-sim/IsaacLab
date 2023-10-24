@@ -53,3 +53,9 @@ class RayCasterCfg(SensorBaseCfg):
 
     max_distance: float = 100.0
     """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 100.0."""
+
+    drift_range: tuple[float, float] = (0.0, 0.0)
+    """The range of drift (in meters) to add to the ray starting positions (xyz). Defaults to (0.0, 0.0).
+
+    For floating base robots, this is useful for simulating drift in the robot's pose estimation.
+    """

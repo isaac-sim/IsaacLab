@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.9.14 (2023-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added 2-D drift (i.e. along x and y) to the :class:`omni.isaac.orbit.sensors.RayCaster` class.
+* Added flags to the :class:`omni.isaac.orbit.sensors.ContactSensorCfg` to optionally obtain the
+  sensor origin and air time information. Since these are not required by default, they are
+  disabled by default.
+
+Fixed
+^^^^^
+
+* Fixed the handling of contact sensor history buffer in the :class:`omni.isaac.orbit.sensors.ContactSensor` class.
+  Earlier, the buffer was not being updated correctly.
+
+
 0.9.13 (2023-10-20)
 ~~~~~~~~~~~~~~~~~~~
 

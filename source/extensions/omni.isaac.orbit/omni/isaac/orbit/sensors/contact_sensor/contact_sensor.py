@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Ignore optional memory usage warning globally
+# pyright: reportOptionalSubscript=false
 
 from __future__ import annotations
 
@@ -137,11 +139,17 @@ class ContactSensor(SensorBase):
         if env_ids is None:
             env_ids = slice(None)
         # reset accumulative data buffers
-        self._data.current_air_time[env_ids] = 0.0
-        self._data.last_air_time[env_ids] = 0.0
         self._data.net_forces_w[env_ids] = 0.0
-        # reset the data history
         self._data.net_forces_w_history[env_ids] = 0.0
+        if self.cfg.history_length > 0:
+            self._data.net_forces_w_history[env_ids] = 0.0
+        # reset force matrix
+        if len(self.cfg.filter_prim_paths_expr) != 0:
+            self._data.force_matrix_w[env_ids] = 0.0
+        # reset the current air time
+        if self.cfg.track_air_time:
+            self._data.current_air_time[env_ids] = 0.0
+            self._data.last_air_time[env_ids] = 0.0
         # Set all reset sensors to not outdated since their value won't be updated till next sim step.
         self._is_outdated[env_ids] = False
 
@@ -202,15 +210,24 @@ class ContactSensor(SensorBase):
                 f"\n\tResolved prim paths: {body_names_regex}"
             )
 
-        # fill the data buffer
-        self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
-        self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
-        self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        self._data.current_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
+        # prepare data buffers
         self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
-        self._data.net_forces_w_history = torch.zeros(
-            self._num_envs, self.cfg.history_length + 1, self._num_bodies, 3, device=self._device
-        )
+        # optional buffers
+        # -- history of net forces
+        if self.cfg.history_length > 0:
+            self._data.net_forces_w_history = torch.zeros(
+                self._num_envs, self.cfg.history_length, self._num_bodies, 3, device=self._device
+            )
+        else:
+            self._data.net_forces_w_history = self._data.net_forces_w.unsqueeze(1)
+        # -- pose of sensor origins
+        if self.cfg.track_pose:
+            self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
+            self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
+        # -- air time between contacts
+        if self.cfg.track_air_time:
+            self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
+            self._data.current_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_sensors, num_bodies, num_shapes, num_filter_shapes, 3)
         if len(self.cfg.filter_prim_paths_expr) != 0:
             num_shapes = self.contact_physx_view.sensor_count // self._num_bodies
@@ -224,17 +241,16 @@ class ContactSensor(SensorBase):
         # default to all sensors
         if len(env_ids) == self._num_envs:
             env_ids = slice(None)
-        # obtain the poses of the sensors:
-        # TODO decide if we really to track poses -- This is the body's CoM. Not contact location.
-        pose = self.body_physx_view.get_transforms()
-        self._data.pos_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, :3]
-        self._data.quat_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, 3:]
 
         # obtain the contact forces
         # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
         #   This isn't the most efficient way to do this, but it's the easiest to implement.
         net_forces_w = self.contact_physx_view.get_net_contact_forces(dt=self._sim_physics_dt)
         self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
+        # update contact force history
+        if self.cfg.history_length > 0:
+            self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
+            self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
 
         # obtain the contact force matrix
         if len(self.cfg.filter_prim_paths_expr) != 0:
@@ -245,26 +261,25 @@ class ContactSensor(SensorBase):
             force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_shapes, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
-
-        # update contact force history
-        previous_net_forces_w = self._data.net_forces_w_history.clone()
-        self._data.net_forces_w_history[env_ids, 0, :, :] = self._data.net_forces_w[env_ids, :, :]
-        if self.cfg.history_length > 0:
-            self._data.net_forces_w_history[env_ids, 1:, :, :] = previous_net_forces_w[env_ids, :-1, :, :]
-
-        # contact state
-        # -- time elapsed since last update
-        # since this function is called every frame, we can use the difference to get the elapsed time
-        elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
-        # -- check contact state of bodies
-        is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > 1.0
-        is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
-        # -- update ongoing timer for bodies air
-        self._data.current_air_time[env_ids] += elapsed_time.unsqueeze(-1)
-        # -- update time for the last time bodies were in contact
-        self._data.last_air_time[env_ids] = self._data.current_air_time[env_ids] * is_first_contact
-        # -- increment timers for bodies that are not in contact
-        self._data.current_air_time[env_ids] *= ~is_contact
+        # obtain the pose of the sensor origin
+        if self.cfg.track_pose:
+            pose = self.body_physx_view.get_transforms()
+            self._data.pos_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, :3]
+            self._data.quat_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, 3:]
+        # obtain the air time
+        if self.cfg.track_air_time:
+            # -- time elapsed since last update
+            # since this function is called every frame, we can use the difference to get the elapsed time
+            elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
+            # -- check contact state of bodies
+            is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > 1.0
+            is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
+            # -- update ongoing timer for bodies air
+            self._data.current_air_time[env_ids] += elapsed_time.unsqueeze(-1)
+            # -- update time for the last time bodies were in contact
+            self._data.last_air_time[env_ids] = self._data.current_air_time[env_ids] * is_first_contact
+            # -- increment timers for bodies that are not in contact
+            self._data.current_air_time[env_ids] *= ~is_contact
 
     def _debug_vis_impl(self):
         # visualize the contacts
@@ -276,4 +291,10 @@ class ContactSensor(SensorBase):
         net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
         marker_indices = torch.where(net_contact_force_w > 1.0, 0, 1)
         # check if prim is visualized
-        self.contact_visualizer.visualize(self._data.pos_w.view(-1, 3), marker_indices=marker_indices.view(-1))
+        if self.cfg.track_pose:
+            frame_origins: torch.Tensor = self._data.pos_w
+        else:
+            pose = self.body_physx_view.get_transforms()
+            frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
+        # visualize
+        self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))

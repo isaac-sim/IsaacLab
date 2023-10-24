@@ -18,6 +18,12 @@ class ContactSensorCfg(SensorBaseCfg):
 
     class_type: type = ContactSensor
 
+    track_pose: bool = False
+    """Whether to track the pose of the sensor's origin. Defaults to False."""
+
+    track_air_time: bool = False
+    """Whether to track the air time of the bodies (time between contacts). Defaults to False."""
+
     filter_prim_paths_expr: list[str] = list()
     """The list of primitive paths to filter contacts with.
 

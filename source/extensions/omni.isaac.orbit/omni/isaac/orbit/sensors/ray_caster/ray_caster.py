@@ -95,6 +95,15 @@ class RayCaster(SensorBase):
         if self.ray_visualizer is not None:
             self.ray_visualizer.set_visibility(debug_vis)
 
+    def reset(self, env_ids: Sequence[int] | None = None):
+        # reset the timers and counters
+        super().reset(env_ids)
+        # resolve None
+        if env_ids is None:
+            env_ids = slice(None)
+        # resample the drift
+        self.drift[env_ids].uniform_(*self.cfg.drift_range)
+
     """
     Implementation.
     """
@@ -180,7 +189,8 @@ class RayCaster(SensorBase):
         # repeat the rays for each sensor
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
-
+        # prepare drift
+        self.drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
@@ -190,6 +200,7 @@ class RayCaster(SensorBase):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_world_poses(env_ids, clone=False)
+        pos_w += self.drift[env_ids]
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 

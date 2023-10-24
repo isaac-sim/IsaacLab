@@ -33,6 +33,28 @@ class TestTorchOperations(unittest.TestCase):
         self.assertEqual(my_tensor[slice(None), 0, 0].shape, (400,))
         self.assertEqual(my_tensor[:, 0, 0].shape, (400,))
 
+    def test_array_copying(self):
+        """Check how indexing effects the returned tensor."""
+
+        size = (400, 300, 5)
+        my_tensor = torch.rand(size, device="cuda:0")
+
+        # obtain a slice of the tensor
+        my_slice = my_tensor[0, ...]
+        self.assertEqual(my_slice.untyped_storage().data_ptr(), my_tensor.untyped_storage().data_ptr())
+
+        # obtain a slice over ranges
+        my_slice = my_tensor[0:2, ...]
+        self.assertEqual(my_slice.untyped_storage().data_ptr(), my_tensor.untyped_storage().data_ptr())
+
+        # obtain a slice over list
+        my_slice = my_tensor[[0, 1], ...]
+        self.assertNotEqual(my_slice.untyped_storage().data_ptr(), my_tensor.untyped_storage().data_ptr())
+
+        # obtain a slice over tensor
+        my_slice = my_tensor[torch.tensor([0, 1]), ...]
+        self.assertNotEqual(my_slice.untyped_storage().data_ptr(), my_tensor.untyped_storage().data_ptr())
+
 
 if __name__ == "__main__":
     unittest.main()
