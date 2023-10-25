@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.9.19 (2023-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Gym observation and action spaces for the :class:`omni.isaac.orbit.envs.RLEnv` class.
+
+
 0.9.18 (2023-10-19)
 ~~~~~~~~~~~~~~~~~~
 

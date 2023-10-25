@@ -96,6 +96,15 @@ class RLEnv(BaseEnv, gym.Env):
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
+        # setup the action and observation spaces for Gym
+        # -- observation space
+        self.observation_space = gym.spaces.Dict()
+        for group_name, group_dim in self.observation_manager.group_obs_dim.items():
+            self.observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
+        # -- action space (unbounded since we don't impose any limits)
+        action_dim = sum(self.action_manager.action_term_dim)
+        self.action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
+
         # perform randomization at the start of the simulation
         self.randomization_manager.randomize(mode="startup")
         # extend UI elements
