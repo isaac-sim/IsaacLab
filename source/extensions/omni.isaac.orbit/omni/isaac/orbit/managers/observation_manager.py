@@ -96,53 +96,79 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def compute(self) -> dict[str, torch.Tensor]:
-        """Compute the observations per group.
+    def compute(self) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+        """Compute the observations per group for all groups.
 
-        The method computes the observations for each group and returns a dictionary with keys as
-        the group names and values as the computed observations. The observations are computed
-        by calling the registered functions for each term in the group. The functions are called
-        in the order of the terms in the group. The functions are expected to return a tensor
-        with shape ``(num_envs, ...)``. The tensors are then concatenated along the last dimension to
-        form the observations for the group.
+        The method computes the observations for all the groups handled by the observation manager.
+        Please check the :meth:`compute_group` on the processing of observations per group.
+
+        Returns:
+            A dictionary with keys as the group names and values as the computed observations.
+        """
+        # create a buffer for storing obs from all the groups
+        obs_buffer = dict()
+        # iterate over all the terms in each group
+        for group_name in self._group_obs_term_names:
+            obs_buffer[group_name] = self.compute_group(group_name)
+        # otherwise return a dict with observations of all groups
+        return obs_buffer
+
+    def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
+        """Computes the observations for a given group.
+
+        The observations for a given group are computed by calling the registered functions for each
+        term in the group. The functions are called in the order of the terms in the group. The functions
+        are expected to return a tensor with shape ``(num_envs, ...)``.
 
         If a corruption/noise model is registered for a term, the function is called to corrupt
         the observation. The corruption function is expected to return a tensor with the same
         shape as the observation. The observations are clipped and scaled as per the configuration
         settings. By default, no scaling or clipping is applied.
 
+        Args:
+            group_name: The name of the group for which to compute the observations. Defaults to :obj:`None`,
+                in which case observations for all the groups are computed and returned.
+
         Returns:
-            A dictionary with keys as the group names and values as the computed observations.
+            Depending on the group's configuration, the tensors for individual observation terms are
+            concatenated along the last dimension into a single tensor. Otherwise, they are returned as
+            a dictionary with keys corresponding to the term's name.
+
+        Raises:
+            ValueError: If input ``group_name`` is not a valid group handled by the manager.
         """
-        self._obs_buffer = dict()
+        # check ig group name is valid
+        if group_name not in self._group_obs_term_names:
+            raise ValueError(
+                f"Unable to find the group '{group_name}' in the observation manager."
+                f" Available groups are: {list(self._group_obs_term_names.keys())}"
+            )
         # iterate over all the terms in each group
-        for group_name, group_term_names in self._group_obs_term_names.items():
-            # buffer to store obs per group
-            group_obs = dict.fromkeys(group_term_names, None)
-            # read attributes for each term
-            obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-            # evaluate terms: compute, add noise, clip, scale.
-            for name, term_cfg in obs_terms:
-                # compute term's value
-                obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
-                # apply post-processing
-                if term_cfg.noise:
-                    obs = term_cfg.noise.func(obs, term_cfg.noise)
-                if term_cfg.clip:
-                    obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
-                if term_cfg.scale:
-                    obs = obs.mul_(term_cfg.scale)
-                # TODO: Introduce delay and filtering models.
-                # Ref: https://robosuite.ai/docs/modules/sensors.html#observables
-                # add value to list
-                group_obs[name] = obs
-            # concatenate all observations in the group together
-            if self._group_obs_concatenate[group_name]:
-                self._obs_buffer[group_name] = torch.cat(list(group_obs.values()), dim=-1)
-            else:
-                self._obs_buffer[group_name] = group_obs
-        # return all group observations
-        return self._obs_buffer
+        group_term_names = self._group_obs_term_names[group_name]
+        # buffer to store obs per group
+        group_obs = dict.fromkeys(group_term_names, None)
+        # read attributes for each term
+        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+        # evaluate terms: compute, add noise, clip, scale.
+        for name, term_cfg in obs_terms:
+            # compute term's value
+            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
+            # apply post-processing
+            if term_cfg.noise:
+                obs = term_cfg.noise.func(obs, term_cfg.noise)
+            if term_cfg.clip:
+                obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+            if term_cfg.scale:
+                obs = obs.mul_(term_cfg.scale)
+            # TODO: Introduce delay and filtering models.
+            # Ref: https://robosuite.ai/docs/modules/sensors.html#observables
+            # add value to list
+            group_obs[name] = obs
+        # concatenate all observations in the group together
+        if self._group_obs_concatenate[group_name]:
+            return torch.cat(list(group_obs.values()), dim=-1)
+        else:
+            return group_obs
 
     """
     Helper functions.

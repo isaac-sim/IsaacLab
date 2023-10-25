@@ -144,6 +144,52 @@ class RandomizationManager(ManagerBase):
             term_cfg.func(self._env, env_ids, **term_cfg.params)
 
     """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: RandomizationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        The method finds the term by name by searching through all the modes.
+        It then updates the configuration of the term with the first matching name.
+
+        Args:
+            term_name: The name of the randomization term.
+            cfg: The configuration for the randomization term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        term_found = False
+        for mode, terms in self._mode_term_names.items():
+            if term_name in terms:
+                self._mode_term_cfgs[mode][terms.index(term_name)] = cfg
+                term_found = True
+                break
+        if not term_found:
+            raise ValueError(f"Randomization term '{term_name}' not found.")
+
+    def get_term_cfg(self, term_name: str) -> RandomizationTermCfg:
+        """Gets the configuration for the specified term.
+
+        The method finds the term by name by searching through all the modes.
+        It then returns the configuration of the term with the first matching name.
+
+        Args:
+            term_name: The name of the randomization term.
+
+        Returns:
+            The configuration of the randomization term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        for mode, terms in self._mode_term_names.items():
+            if term_name in terms:
+                return self._mode_term_cfgs[mode][terms.index(term_name)]
+        raise ValueError(f"Randomization term '{term_name}' not found.")
+
+    """
     Helper functions.
     """
 

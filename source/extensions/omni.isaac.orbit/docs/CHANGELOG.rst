@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.9.17 (2023-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added setters and getters for term configurations in the :class:`RandomizationManager`, :class:`RewardManager`
+  and :class:`TerminationManager` classes. This allows the user to modify the term configurations after the
+  manager has been created.
+* Added the method :meth:`compute_group` to the :class:`omni.isaac.orbit.managers.ObservationManager` class to
+  compute the observations for only a given group.
+* Added the curriculum term for modifying reward weights after certain environment steps.
+
+
 0.9.16 (2023-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

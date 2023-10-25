@@ -127,6 +127,9 @@ class RewardManager(ManagerBase):
         self._reward_buf[:] = 0.0
         # iterate over all the reward terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
+            # skip if weight is zero (kind of a micro-optimization)
+            if term_cfg.weight == 0.0:
+                continue
             # compute term's value
             value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
             # update total reward
@@ -135,6 +138,42 @@ class RewardManager(ManagerBase):
             self._episode_sums[name] += value
 
         return self._reward_buf
+
+    """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: RewardTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Args:
+            term_name: The name of the reward term.
+            cfg: The configuration for the reward term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Reward term '{term_name}' not found.")
+        # set the configuration
+        self._term_cfgs[self._term_names.index(term_name)] = cfg
+
+    def get_term_cfg(self, term_name: str) -> RewardTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the reward term.
+
+        Returns:
+            The configuration of the reward term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Reward term '{term_name}' not found.")
+        # return the configuration
+        return self._term_cfgs[self._term_names.index(term_name)]
 
     """
     Helper functions.
@@ -170,11 +209,6 @@ class RewardManager(ManagerBase):
                 )
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
-            # remove zero scales and multiply non-zero ones by dt
-            # note: we multiply weights by dt to make them agnostic to control decimation
-            term_cfg.weight = float(term_cfg.weight)
-            if term_cfg.weight == 0.0:
-                continue
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)

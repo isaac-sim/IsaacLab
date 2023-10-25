@@ -139,6 +139,42 @@ class TerminationManager(ManagerBase):
         return self._done_buf
 
     """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: TerminationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Args:
+            term_name: The name of the termination term.
+            cfg: The configuration for the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        # set the configuration
+        self._term_cfgs[self._term_names.index(term_name)] = cfg
+
+    def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the termination term.
+
+        Returns:
+            The configuration of the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        # return the configuration
+        return self._term_cfgs[self._term_names.index(term_name)]
+
+    """
     Helper functions.
     """
 

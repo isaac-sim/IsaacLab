@@ -111,16 +111,6 @@ class TestRewardManager(unittest.TestCase):
         self.assertEqual(rew_man_from_cfg._term_cfgs, rew_man_from_annotated_cfg._term_cfgs)
         self.assertEqual(rew_man_from_dict._term_cfgs, rew_man_from_cfg._term_cfgs)
 
-    def test_config_terms(self):
-        """Test the ignoring of terms with zero weight."""
-        cfg = {
-            "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-            "term_2": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
-        }
-        self.rew_man = RewardManager(cfg, self.env)
-
-        self.assertEqual(self.rew_man.active_terms, ["term_1"])
-
     def test_compute(self):
         """Test the computation of reward."""
         cfg = {
@@ -137,7 +127,7 @@ class TestRewardManager(unittest.TestCase):
         self.assertEqual(tuple(rewards.shape), (self.env.num_envs,))
 
     def test_active_terms(self):
-        """Test the ignoring of terms with zero weight."""
+        """Test the correct reading of active terms."""
         cfg = {
             "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
             "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
@@ -145,7 +135,7 @@ class TestRewardManager(unittest.TestCase):
         }
         self.rew_man = RewardManager(cfg, self.env)
 
-        self.assertEqual(len(self.rew_man.active_terms), 2)
+        self.assertEqual(len(self.rew_man.active_terms), 3)
 
     def test_missing_weight(self):
         """Test the missing of weight in the config."""
