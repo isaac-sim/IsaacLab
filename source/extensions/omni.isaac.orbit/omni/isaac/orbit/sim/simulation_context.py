@@ -72,27 +72,28 @@ class SimulationContext(_SimulationContext):
         Render modes correspond to how the viewport and other UI elements (such as listeners to keyboard or mouse
         events) are updated. There are three main components that can be updated when the simulation is rendered:
 
-        1. **`Viewports`_**: These are windows where you can see the rendered scene.
+        1. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
+            extensions that are running in the background that need to be updated when the simulation is running.
         2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
            viewpoints. They can be attached to a viewport or be used independently to render the scene.
-        3. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
-           extensions that are running in the background that need to be updated when the simulation is running.
+        3. **`Viewports`_**: These are windows where you can see the rendered scene.
 
         Updating each of the above components has a different overhead. For example, updating the viewports is
         computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to
         control what is updated when the simulation is rendered. This is where the render mode comes in. There are
         four different render modes:
 
-        * :attr:`HEADLESS`: Headless mode, where the simulation is running without a GUI.
+        * :attr:`NO_GUI_OR_RENDERING`: The simulation is running without a GUI and off-screen rendering flag is disabled,
+          so none of the above are updated.
+        * :attr:`NO_RENDERING`: No rendering, where only 1 is updated at a lower rate.
+        * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 1 and 2 are updated.
         * :attr:`FULL_RENDERING`: Full rendering, where everything (1, 2, 3) is updated.
-        * :attr:`PARTIAL_RENDERING`: Partial rendering, where only 2 and 3 are updated.
-        * :attr:`NO_RENDERING`: No rendering, where only 3 is updated at a lower rate.
 
         .. _Viewports: https://docs.omniverse.nvidia.com/extensions/latest/ext_viewport.html
         """
 
-        HEADLESS = -1
-        """Headless mode, where the simulation is running without a GUI."""
+        NO_GUI_OR_RENDERING = -1
+        """The simulation is running without a GUI and off-screen rendering is disabled."""
         NO_RENDERING = 0
         """No rendering, where only other UI elements are updated at a lower rate."""
         PARTIAL_RENDERING = 1
@@ -133,13 +134,30 @@ class SimulationContext(_SimulationContext):
         # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
-        # read flag for whether headless mode is enabled
         # note: we read this once since it is not expected to change during runtime
-        self._is_headless = not carb_settings_iface.get("/app/window/enabled")
+        # read flag for whether a local GUI is enabled
+        self._local_gui = carb_settings_iface.get("/app/window/enabled")
+        # read flag for whether livestreaming GUI is enabled
+        self._livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+        # read flag for whether the orbit viewport capture pipeline will be used,
+        # casting None to False if the flag doesn't exist
+        # this flag is set from the AppLauncher class
+        self._offscreen_render = bool(carb_settings_iface.get("/orbit/offscreen_render/enabled"))
+        # flag for whether any GUI will be rendered (local, livestreamed or viewport)
+        self._has_gui = self._local_gui or self._livestream_gui
+
         # store the default render mode
-        if self._is_headless:
+        if not self._has_gui and not self._offscreen_render:
             # set default render mode
-            self.render_mode = self.RenderMode.HEADLESS
+            # note: this is the terminal state: cannot exit from this render mode
+            self.render_mode = self.RenderMode.NO_GUI_OR_RENDERING
+            # set viewport context to None
+            self._viewport_context = None
+            self._viewport_window = None
+        elif not self._has_gui and self._offscreen_render:
+            # set default render mode
+            # note: this is the terminal state: cannot exit from this render mode
+            self.render_mode = self.RenderMode.PARTIAL_RENDERING
             # set viewport context to None
             self._viewport_context = None
             self._viewport_window = None
@@ -149,6 +167,7 @@ class SimulationContext(_SimulationContext):
             from omni.kit.viewport.utility import get_active_viewport
 
             # set default render mode
+            # note: this can be changed by calling the `set_render_mode` function
             self.render_mode = self.RenderMode.FULL_RENDERING
             # acquire viewport context
             self._viewport_context = get_active_viewport()
@@ -163,7 +182,7 @@ class SimulationContext(_SimulationContext):
 
         # override enable scene querying if rendering is enabled
         # this is needed for some GUI features
-        if not self._is_headless:
+        if self._has_gui:
             self.cfg.enable_scene_query_support = True
         # set up flatcache/fabric interface (default is None)
         # this is needed to flush the flatcache data into Hydra manually when calling `render()`
@@ -195,13 +214,12 @@ class SimulationContext(_SimulationContext):
     Operations - New.
     """
 
-    def is_headless(self) -> bool:
-        """Returns whether the simulation is running in headless mode.
+    def has_gui(self) -> bool:
+        """Returns whether the simulation has a GUI enabled.
 
-        Note:
-            Headless mode is enabled when the simulator is running without a GUI.
+        The simulation has a GUI enabled either locally or livestreamed.
         """
-        return self._is_headless
+        return self._has_gui
 
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.
@@ -246,26 +264,31 @@ class SimulationContext(_SimulationContext):
         Please see :class:`RenderMode` for more information on the different render modes.
 
         .. note::
-            When running in headless mode, we do not need to choose whether the viewport needs to render or not (since
-            there is no GUI). Thus, in this case, calling the function will not change the render mode.
+            When no GUI is available (locally or livestreamed), we do not need to choose whether the viewport
+            needs to render or not (since there is no GUI). Thus, in this case, calling the function will not
+            change the render mode.
 
         Args:
-            mode: The rendering mode. Defaults to None, in which case the
-                current rendering mode is used.
+            mode (RenderMode): The rendering mode. If different than SimulationContext's rendering mode,
+            SimulationContext's mode is changed to the new mode.
+
+        Raises:
+            ValueError: If the input mode is not supported.
         """
+        # check if mode change is possible -- not possible when no GUI is available
+        if not self._has_gui:
+            carb.log_warn(
+                f"Cannot change render mode when GUI is disabled. Using the default render mode: {self.render_mode}."
+            )
+            return
         # check if there is a mode change
         # note: this is mostly needed for GUI when we want to switch between full rendering and no rendering.
-        #   for headless mode, we don't need to do anything.
-        if mode != self.render_mode and self.render_mode != self.RenderMode.HEADLESS:
+        if mode != self.render_mode:
             if mode == self.RenderMode.FULL_RENDERING:
                 # display the viewport and enable updates
                 self._viewport_context.updates_enabled = True  # pyright: ignore [reportOptionalMemberAccess]
                 self._viewport_window.visible = True  # pyright: ignore [reportOptionalMemberAccess]
             elif mode == self.RenderMode.PARTIAL_RENDERING:
-                # hide the viewport and disable updates
-                self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
-                self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
-            elif mode == self.RenderMode.NO_RENDERING:
                 # hide the viewport and disable updates
                 self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
                 self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
@@ -333,7 +356,6 @@ class SimulationContext(_SimulationContext):
         Args:
             render: Whether to render the scene after stepping the physics simulation.
                 If set to False, the scene is not rendered and only the physics simulation is stepped.
-                Defaults to True.
         """
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
@@ -348,6 +370,7 @@ class SimulationContext(_SimulationContext):
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
             self.app.update()
+
         # step the simulation
         super().step(render=render)
 
@@ -360,31 +383,24 @@ class SimulationContext(_SimulationContext):
 
         Please see :class:`RenderMode` for more information on the different render modes.
 
-        .. note::
-            When running in headless mode, we do not need to choose whether the viewport needs to render or not (since
-            there is no GUI). Thus, in this case, calling the function always render the viewport and
-            it is not possible to change the render mode.
-
         Args:
-            mode: The rendering mode. Defaults to None, in which case the
-                current rendering mode is used.
+            mode: The rendering mode. Defaults to None, in which case the current rendering mode is used.
         """
         # check if we need to change the render mode
         if mode is not None:
             self.set_render_mode(mode)
         # render based on the render mode
-        # -- no rendering: throttle the rendering frequency to keep the UI responsive
-        if self.render_mode == self.RenderMode.NO_RENDERING:
+        if self.render_mode == self.RenderMode.NO_GUI_OR_RENDERING:
+            # we never want to render anything here (this is for complete headless mode)
+            pass
+        elif self.render_mode == self.RenderMode.NO_RENDERING:
+            # throttle the rendering frequency to keep the UI responsive
             self._render_throttle_counter += 1
             if self._render_throttle_counter % self._render_throttle_period == 0:
                 self._render_throttle_counter = 0
                 # here we don't render viewport so don't need to flush flatcache
                 super().render()
-        elif self.render_mode == self.RenderMode.HEADLESS:
-            # we never want to render anything here -- camera rendering will also not work then?
-            pass
         else:
-            # this is called even if we are in headless mode - we allow this for off-screen rendering
             # manually flush the flatcache data to update Hydra textures
             if self._fabric_iface is not None:
                 self._fabric_iface.update(0.0, 0.0)
@@ -515,7 +531,8 @@ class SimulationContext(_SimulationContext):
                     rep_status = rep.orchestrator.get_status()
                     if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
                         rep.orchestrator.stop()
-                    rep.orchestrator.wait_until_complete()
+                    if rep_status != rep.orchestrator.Status.STOPPED:
+                        rep.orchestrator.wait_until_complete()
                 except Exception:
                     pass
             # clear the instance and all callbacks

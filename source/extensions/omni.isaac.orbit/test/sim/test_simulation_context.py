@@ -95,7 +95,7 @@ class TestSimulationContext(unittest.TestCase):
 
         sim = SimulationContext()
         # check default render mode
-        self.assertEqual(sim.render_mode, sim.RenderMode.HEADLESS)
+        self.assertEqual(sim.render_mode, sim.RenderMode.NO_GUI_OR_RENDERING)
 
     def test_boundedness(self):
         """Test that the boundedness of the simulation context remains constant.

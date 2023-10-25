@@ -112,7 +112,7 @@ def main():
         # apply sim data
         rigid_object.write_data_to_sim()
         # perform step
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1

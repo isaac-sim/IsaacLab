@@ -31,17 +31,23 @@ The following details the behavior of the class based on the environment variabl
   * ``LIVESTREAM=3`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
     connect in a browser using the WebRTC protocol.
 
-* **Viewport**: If the environment variable ``VIEWPORT_ENABLED`` is set to non-zero, then the following
-  behavior happens:
-
-  * ``VIEWPORT_ENABLED=1``: Ensures that the VIEWPORT member is set to true, to enable lightweight streaming
-    when the full GUI is not needed (i.e. headless mode).
-
 * **Loading ROS Bridge**: If the environment variable ``ROS_ENABLED`` is set to non-zero, then the
   following behavior happens:
 
   * ``ROS_ENABLED=1``: Enables the ROS1 Noetic bridge in Isaac Sim.
   * ``ROS_ENABLED=2``: Enables the ROS2 Foxy bridge in Isaac Sim.
+
+* **Offscreen Render**: If the environment variable ``OFFSCREEN_RENDER`` is set to 1, then the
+  offscreen-render pipeline is enabled. This is useful for running the simulator without a GUI but
+  still rendering the viewport and camera images.
+
+  * ``OFFSCREEN_RENDER=1``: Enables the offscreen-render pipeline which allows users to render
+    the scene without launching a GUI.
+
+    .. note::
+        The off-screen rendering pipeline only works when used in conjunction with the
+        :class:`omni.isaac.orbit.sim.SimulationContext` class. This is because the off-screen rendering
+        pipeline enables flags that are internally used by the SimulationContext class.
 
   .. caution::
     Currently, in Isaac Sim 2022.2.1, loading ``omni.isaac.ros_bridge`` before ``omni.kit.livestream.native``
@@ -56,8 +62,8 @@ To set the environment variables, one can use the following command in the termi
 
 .. code:: bash
 
-    export LIVESTREAM=3
-    export VIEWPORT_ENABLED=1
+    export REMOTE_DEPLOYMENT=3
+    export OFFSCREEN_RENDER=1
     # run the python script
     ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
 
@@ -65,7 +71,7 @@ Alternatively, one can set the environment variables to the python script direct
 
 .. code:: bash
 
-    LIVESTREAM=3 VIEWPORT_ENABLED=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
+    REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
 
 
 .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
@@ -82,7 +88,7 @@ import faulthandler
 import os
 import re
 import sys
-from typing import ClassVar
+from typing import Any
 from typing_extensions import Literal
 
 from omni.isaac.kit import SimulationApp
@@ -101,9 +107,9 @@ class AppLauncher:
 
     .. note::
         Explicitly defined arguments are only given priority when their value is set to something outside
-        their default configuration. For example, the ``livestream`` argument is 0 by default. It only
-        overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a non-zero
-        value. In other words, if ``livestream=0``, then the value from the environment variable
+        their default configuration. For example, the ``livestream`` argument is -1 by default. It only
+        overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a
+        value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
 
     Usage:
@@ -135,38 +141,6 @@ class AppLauncher:
 
         # obtain the launched app
         simulation_app = app_launcher.app
-    """
-
-    RENDER: ClassVar[bool]
-    """
-    Whether or not to render the GUI associated with IsaacSim.
-
-    This flag can be used in subsequent execution of the created simulator, i.e.
-
-    .. code:: python
-
-        from omni.isaac.core.simulation_context import SimulationContext
-
-        SimulationContext.instance().step(render=AppLauncher.RENDER)
-
-    Also, can be passed to :class:`IsaacEnv` instance using the :attr:`render` attribute, i.e.
-
-    .. code:: python
-
-        gym.make(render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
-    """
-
-    VIEWPORT: ClassVar[bool]
-    """
-    Whether or not to render the lighter 'viewport' elements even when the application might be
-    executing in headless (no-GUI) mode. This is useful for off-screen rendering to gather images and
-    video more efficiently.
-
-    Also, can be passed to :class:`IsaacEnv` instance using the :attr:`viewport` attribute, i.e.
-
-    .. code:: python
-
-        gym.make(render=app_launcher.RENDER, viewport=app_launcher.VIEWPORT)
     """
 
     def __init__(self, launcher_args: argparse.Namespace | dict = None, **kwargs):
@@ -204,7 +178,7 @@ class AppLauncher:
         # as a kwarg, but this would require them to pass livestream, headless, ros, and
         # any other options we choose to add here explicitly, and with the correct keywords.
         #
-        # @hunter: I feel that this is cumbersone and could introduce error, and would prefer to do
+        # @hunter: I feel that this is cumbersome and could introduce error, and would prefer to do
         # some sanity checking in the add_app_launcher_args function
         if launcher_args is None:
             launcher_args = {}
@@ -226,7 +200,7 @@ class AppLauncher:
         self._headless: bool  # 0: GUI, 1: Headless
         self._livestream: Literal[0, 1, 2, 3]  # 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC
         self._ros: Literal[0, 1, 2]  # 0: Disabled, 1: ROS1, 2: ROS2
-        self._viewport: bool  # 0: Disabled, 1: Enabled
+        self._offscreen_render: bool  # 0: Disabled, 1: Enabled
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
@@ -234,8 +208,6 @@ class AppLauncher:
         self._create_app()
         # Load IsaacSim extensions
         self._load_extensions()
-        # Update global variables
-        self._update_globals()
 
     """
     Properties.
@@ -273,6 +245,9 @@ class AppLauncher:
         * ``ros`` (int): If one of {0, 1, 2}, then the corresponding ROS bridge is enabled. The values
           map the same as that for the ``ROS_ENABLED`` environment variable. If :obj:`-1`, then ROS bridge is
           determined by the ``ROS_ENABLED`` environment variable.
+        * ``offscreen_render`` (bool): If True, the app will be launched in offscreen-render mode. The values
+          map the same as that for the ``OFFSCREEN_RENDER`` environment variable. If False, then offscreen-render
+          mode is determined by the ``OFFSCREEN_RENDER`` environment variable.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -310,20 +285,31 @@ class AppLauncher:
 
         # Add custom arguments to the parser
         arg_group = parser.add_argument_group("app_launcher arguments")
-        arg_group.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+        arg_group.add_argument(
+            "--headless",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
+            help="Force display off at all times.",
+        )
         arg_group.add_argument(
             "--livestream",
             type=int,
-            default=-1,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
             choices={-1, 0, 1, 2, 3},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
         )
         arg_group.add_argument(
             "--ros",
             type=int,
-            default=-1,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1],
             choices={-1, 0, 1, 2},
             help="Enable ROS middleware. Mapping corresponds to that for the `ROS_ENABLED` environment variable",
+        )
+        arg_group.add_argument(
+            "--offscreen_render",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1],
+            help="Enable offscreen rendering when running without a GUI.",
         )
 
         # Corresponding to the beginning of the function,
@@ -336,21 +322,24 @@ class AppLauncher:
     Internal functions.
     """
 
-    _APPLAUNCHER_CONFIG_TYPES: dict[str, list[type]] = {
-        "headless": [bool],
-        "livestream": [int],
-        "ros": [int],
+    _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
+        "headless": ([bool], False),
+        "livestream": ([int], -1),
+        "ros": ([int], -1),
+        "offscreen_render": ([bool], False),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
-    These are required to be passed to AppLauncher at initialization. They have corresponding environment
-    variables as detailed in the documentation.
+    The values are a tuple of the expected type and default value. This is used to check against name collisions
+    for arguments passed to the :class:`AppLauncher` class as well as for type checking.
+
+    They have corresponding environment variables as detailed in the documentation.
     """
 
     # TODO: Find some internally managed NVIDIA list of these types.
     # SimulationApp.DEFAULT_LAUNCHER_CONFIG almost works, except that
     # it is ambiguous where the default types are None
-    _SIMULATIONAPP_CONFIG_TYPES: dict[str, list[type]] = {
+    _SIMULATIONAPP_CFG_TYPES: dict[str, list[type]] = {
         "headless": [bool],
         "active_gpu": [int, type(None)],
         "physics_gpu": [int],
@@ -399,10 +388,10 @@ class AppLauncher:
             ValueError: If a key is an already existing field in the configuration parameters but
                 should be added by calling the :meth:`AppLauncher.add_app_launcher_args.
             ValueError: If keys corresponding to those used to initialize SimulationApp
-                (as found in :attr:`_SIMULATIONAPP_CONFIG_TYPES`) are of the wrong value type.
+                (as found in :attr:`_SIMULATIONAPP_CFG_TYPES`) are of the wrong value type.
         """
         # check that no config key conflicts with AppLauncher config names
-        applauncher_keys = set(AppLauncher._APPLAUNCHER_CONFIG_TYPES.keys())
+        applauncher_keys = set(AppLauncher._APPLAUNCHER_CFG_INFO.keys())
         for key, value in config.items():
             if key in applauncher_keys:
                 raise ValueError(
@@ -411,11 +400,11 @@ class AppLauncher:
                     " argument or rename it to a non-conflicting name."
                 )
         # check that type of the passed keys are valid
-        simulationapp_keys = set(AppLauncher._SIMULATIONAPP_CONFIG_TYPES.keys())
+        simulationapp_keys = set(AppLauncher._SIMULATIONAPP_CFG_TYPES.keys())
         for key, value in config.items():
             if key in simulationapp_keys:
                 given_type = type(value)
-                expected_types = AppLauncher._SIMULATIONAPP_CONFIG_TYPES[key]
+                expected_types = AppLauncher._SIMULATIONAPP_CFG_TYPES[key]
                 if type(value) not in set(expected_types):
                     raise ValueError(
                         f"Invalid value type for the argument '{key}': {given_type}. Expected one of {expected_types},"
@@ -436,7 +425,7 @@ class AppLauncher:
         # --LIVESTREAM logic--
         #
         livestream_env = int(os.environ.get("LIVESTREAM", 0))
-        livestream_arg = launcher_args.pop("livestream", -1)
+        livestream_arg = launcher_args.pop("livestream", AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1])
         livestream_valid_vals = {0, 1, 2, 3}
         # Value checking on LIVESTREAM
         if livestream_env not in livestream_valid_vals:
@@ -467,7 +456,7 @@ class AppLauncher:
         # HEADLESS is initially passed as an int instead of
         # the bool of headless_arg to avoid messy string processing,
         headless_env = int(os.environ.get("HEADLESS", 0))
-        headless_arg = launcher_args.pop("headless", False)
+        headless_arg = launcher_args.pop("headless", AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1])
         headless_valid_vals = {0, 1}
         # Value checking on HEADLESS
         if headless_env not in headless_valid_vals:
@@ -501,7 +490,7 @@ class AppLauncher:
         # --ROS logic--
         #
         ros_env = int(os.environ.get("ROS_ENABLED", 0))
-        ros_arg = int(launcher_args.pop("ros", -1))
+        ros_arg = int(launcher_args.pop("ros", AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1]))
         ros_valid_vals = {0, 1, 2}
         # Value checking on LIVESTREAM
         if ros_env not in ros_valid_vals:
@@ -524,17 +513,24 @@ class AppLauncher:
         else:
             self._ros = ros_env
 
-        # --VIEWPORT logic--
+        # --OFFSCREEN_RENDER logic--
         #
         # off-screen rendering
-        viewport_env = int(os.environ.get("VIEWPORT_ENABLED", 0))
-        viewport_valid_vals = {0, 1}
-        if viewport_env not in viewport_valid_vals:
+        offscreen_render_env = int(os.environ.get("OFFSCREEN_RENDER", 0))
+        offscreen_render_arg = launcher_args.pop(
+            "offscreen_render", AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1]
+        )
+        offscreen_render_valid_vals = {0, 1}
+        if offscreen_render_env not in offscreen_render_valid_vals:
             raise ValueError(
-                f"Invalid value for environment variable `VIEWPORT_ENABLED`: {viewport_env} ."
-                f"Expected: {viewport_valid_vals} ."
+                f"Invalid value for environment variable `OFFSCREEN_RENDER`: {offscreen_render_env} ."
+                f"Expected: {offscreen_render_valid_vals} ."
             )
-        self._viewport = bool(viewport_env)
+        # We allow offscreen_render kwarg to supersede OFFSCREEN_RENDER envvar
+        if offscreen_render_arg is True:
+            self._offscreen_render = offscreen_render_arg
+        else:
+            self._offscreen_render = bool(offscreen_render_env)
 
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
@@ -544,7 +540,7 @@ class AppLauncher:
         # Assign all the passed settings to a dictionary for the simulation app
         self._simulationapp_config = {
             key: launcher_args[key]
-            for key in set(AppLauncher._SIMULATIONAPP_CONFIG_TYPES.keys()) & set(launcher_args.keys())
+            for key in set(AppLauncher._SIMULATIONAPP_CFG_TYPES.keys()) & set(launcher_args.keys())
         }
 
     def _create_app(self):
@@ -613,10 +609,15 @@ class AppLauncher:
             else:
                 raise ValueError(f"Invalid value for ros: {self._ros}. Expected: 1, 2 .")
 
+        # set carb setting to indicate orbit's offscreen_render pipeline should be enabled
+        # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
+        # when the render() method is called.
+        carb_settings_iface.set_bool("/orbit/offscreen_render/enabled", self._offscreen_render)
+
         # enable extensions for off-screen rendering
         # note: depending on the app file, some extensions might not be available in it.
         #   Thus, we manually enable these extensions to make sure they are available.
-        if self._viewport != 0 or not self._headless:
+        if self._offscreen_render or not self._headless:
             # note: enabling extensions is order-sensitive. please do not change the order!
             # extension to enable UI buttons (otherwise we get attribute errors)
             enable_extension("omni.kit.window.toolbar")
@@ -643,12 +644,3 @@ class AppLauncher:
                 "/persistent/isaac/asset_root/nvidia",
                 "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets",
             )
-
-    def _update_globals(self):
-        """Updates global variables which depend upon AppLauncher's resolved config member variables."""
-        # update the global flags
-        # TODO: Remove all these global flags. We don't need it anymore.
-        # -- render GUI
-        self.RENDER = not self._headless or self._livestream
-        # -- render viewport
-        self.VIEWPORT = self._viewport

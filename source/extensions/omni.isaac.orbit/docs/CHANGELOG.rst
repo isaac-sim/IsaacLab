@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.9.20 (2023-10-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed naming in :class:`omni.isaac.orbit.sim.SimulationContext.RenderMode` to use ``NO_GUI_OR_RENDERING``
+  and ``NO_RENDERING`` instead of ``HEADLESS`` for clarity.
+* Changed :class:`omni.isaac.orbit.sim.SimulationContext` to be capable of handling livestreaming and
+  offscreen rendering.
+* Changed :class:`omni.isaac.orbit.app.AppLauncher` envvar ``VIEWPORT_RECORD`` to the more descriptive
+  ``OFFSCREEN_RENDER``.
+
+
 0.9.19 (2023-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -173,6 +187,8 @@ Fixed
 * Fixed the boundedness of class objects that register callbacks into the simulator.
   These include devices, :class:`AssetBase`, :class:`SensorBase` and :class:`CommandGenerator`.
   The fix ensures that object gets deleted when the user deletes the object.
+
+
 0.9.7 (2023-09-26)
 ~~~~~~~~~~~~~~~~~~
 

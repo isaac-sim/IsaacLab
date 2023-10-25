@@ -115,7 +115,7 @@ def main():
             robot.set_joint_position_target(robot.data.default_joint_pos.clone())
             robot.write_data_to_sim()
         # perform step
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1

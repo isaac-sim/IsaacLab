@@ -28,11 +28,13 @@ class ViewerCfg:
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
     lookat: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
+    cam_prim_path: str = "/OmniverseKit_Persp"
+    """The camera prim path to record images from. Default is "/OmniverseKit_Persp", which is the
+    default camera in the default viewport.
+    """
     resolution: Tuple[int, int] = (1280, 720)
-    """The resolution (width, height) of the default viewport (in pixels). Default is (1280, 720).
-
-    This is the resolution of the camera "/OmniverseKit_Persp", that is used in default viewport.
-    The camera is also used for rendering RGB images of the simulation.
+    """The resolution (width, height) of the camera specified using :attr:`cam_prim_path`.
+    Default is (1280, 720).
     """
 
 

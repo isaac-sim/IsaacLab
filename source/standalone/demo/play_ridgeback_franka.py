@@ -158,7 +158,7 @@ def main():
         robot.set_joint_position_target(actions[:, 3:], joint_ids=[3, 4, 5, 6, 7, 8, 9, 10, 11])
         robot.write_data_to_sim()
         # perform step
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # update sim-time
         sim_time += sim_dt
         ep_step_count += 1

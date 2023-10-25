@@ -118,7 +118,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
+            sim.step()
             continue
         # reset
         if count % 50 == 0:
@@ -149,7 +149,7 @@ def main():
             # write data to sim
             scene.write_data_to_sim()
             # perform step
-            sim.step(render=app_launcher.RENDER)
+            sim.step()
             # read data from sim
             scene.update(sim_dt)
         # update sim-time

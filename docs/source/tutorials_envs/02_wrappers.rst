@@ -15,6 +15,17 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
 .. code-block:: python
 
+    """Launch Isaac Sim Simulator first."""
+
+
+    from omni.isaac.orbit.app import AppLauncher
+
+    # launch omniverse app in headless mode
+    app_launcher = AppLauncher(headless=True)
+    simulation_app = app_launcher.app
+
+    """Rest everything follows."""
+
     import gym
 
     import omni.isaac.orbit_envs  # noqa: F401
@@ -22,7 +33,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     # create base environment
     cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
-    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, render=True)
+    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg)
     # wrap environment to enforce that reset is called before step
     env = gym.wrappers.OrderEnforcing(env)
 
@@ -41,23 +52,12 @@ To use the wrapper, you need to first install ``ffmpeg``. On Ubuntu, you can ins
 
     sudo apt-get install ffmpeg
 
-The :class:`IsaacEnv` supports different rendering modes: "human" and "rgb_array". The "human" mode
-is used when you want to render the environment to the screen. The "rgb_array" mode is used when you want
-to get the rendered image as a numpy array. However, the "rgb_array" mode is allowed only when viewport
-is enabled. This can be done by setting the ``viewport`` argument to ``True`` when creating the environment.
+The :class:`omni.isaac.orbit.envs.RlEnv` supports the rendering modes:
 
-.. code-block:: python
-
-    import gym
-
-    import omni.isaac.orbit_envs  # noqa: F401
-    from omni.isaac.orbit_envs.utils import load_default_env_cfg
-
-    # create base environment
-    cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
-    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg, render=True, viewport=True)
-    # wrap environment to enforce that reset is called before step
-    env = gym.wrappers.OrderEnforcing(env)
+* **"human"**: When you want to render the environment to the screen. It does not return any image.
+* **"rgb_array"**: When you want to get the rendered image as a numpy array. It returns the image as a numpy array.
+  This mode is only possible when viewport is enabled, i.e. either the GUI window is open or off-screen rendering flag
+  is enabled.
 
 .. attention::
 
@@ -67,31 +67,43 @@ is enabled. This can be done by setting the ``viewport`` argument to ``True`` wh
   We notice the following performance in different rendering modes with the  ``Isaac-Reach-Franka-v0`` environment
   using an RTX 3090 GPU:
 
-  * Headless execution without viewport enabled: ~65,000 FPS
-  * Headless execution with viewport enabled: ~57,000 FPS
-  * Non-headless execution (i.e. with GUI): ~13,000 FPS
+  * No GUI execution without off-screen rendering enabled: ~65,000 FPS
+  * No GUI execution with off-screen enabled: ~57,000 FPS
+  * GUI execution with full rendering: ~13,000 FPS
 
 
 The viewport camera used for rendering is the default camera in the scene called ``"/OmniverseKit_Persp"``.
 The camera's pose and image resolution can be configured through the
-:class:`omni.isaac.orbit_env.isaac_env_cfg.ViewerCfg` class.
+:class:`omni.isaac.orbit.envs.base_env_cfg.ViewerCfg` class.
 
 
-.. dropdown:: :fa:`eye,mr-1` Default parameters of the :class:`ViewerCfg` in the ``isaac_env_cfg.py`` file:
+.. dropdown:: :fa:`eye,mr-1` Default parameters of the :class:`ViewerCfg` in the ``base_env_cfg.py`` file:
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/isaac_env_cfg.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/envs/base_env_cfg.py
       :language: python
-      :lines: 37-52
+      :lines: 23-38
       :linenos:
-      :lineno-start: 37
+      :lineno-start: 31
 
 
 After adjusting the parameters, you can record videos by wrapping the environment with the
-:class:`gym.wrappers.RecordVideo <gym:RecordVideo>` wrapper. As an example, the following code
-records a video of the ``Isaac-Reach-Franka-v0`` environment for 200 steps, and saves it in the
-``videos`` folder at a step interval of 1500 steps.
+:class:`gym.wrappers.RecordVideo <gym:RecordVideo>` wrapper and enabling the off-screen rendering
+flag. As an example, the following code records a video of the ``Isaac-Reach-Franka-v0`` environment
+for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 steps.
 
 .. code:: python
+
+    """Launch Isaac Sim Simulator first."""
+
+
+    from omni.isaac.orbit.app import AppLauncher
+
+    # launch omniverse app in headless mode with off-screen rendering
+    app_launcher = AppLauncher(headless=True, offscreen_render=True)
+    simulation_app = app_launcher.app
+
+    """Rest everything follows."""
+
 
     import gym
 
@@ -100,7 +112,7 @@ records a video of the ``Isaac-Reach-Franka-v0`` environment for 200 steps, and 
     env_cfg.viewer.eye = (1.0, 1.0, 1.0)
     env_cfg.viewer.lookat = (0.0, 0.0, 0.0)
     # create isaac-env instance
-    env = gym.make(task_name, cfg=env_cfg, render=headless, viewport=True)
+    env = gym.make(task_name, cfg=env_cfg)
     # wrap for video recording
     video_kwargs = {
         "video_folder": "videos",

@@ -133,7 +133,7 @@ def main():
         robot.set_joint_position_target(actions)
         robot.write_data_to_sim()
         # perform step
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # update buffers
         robot.update(sim_dt)
         # update sim-time

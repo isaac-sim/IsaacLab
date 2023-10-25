@@ -110,10 +110,10 @@ class RLEnv(BaseEnv, gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if not self.sim.is_headless():
+        if self.sim.has_gui():
             self._build_ui()
         else:
-            # if headless, then we don't need to store the window
+            # if no window, then we don't need to store the window
             self._orbit_window = None
             self._orbit_window_elements = dict()
 
@@ -222,6 +222,10 @@ class RLEnv(BaseEnv, gym.Env):
             self.sim.step(render=False)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
+        # perform rendering if gui is enabled
+        if self.sim.has_gui():
+            self.sim.render()
+
         # post-step:
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
@@ -257,11 +261,12 @@ class RLEnv(BaseEnv, gym.Env):
             mode: The mode to render with. Defaults to "human".
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array" and offscreen
-                rendering is enabled.
+            The rendered image as a numpy array if mode is "rgb_array".
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and offscreen rendering is disabled.
+            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
+                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
+                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
@@ -270,28 +275,34 @@ class RLEnv(BaseEnv, gym.Env):
         if mode == "human":
             return None
         elif mode == "rgb_array":
-            return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
-            # TODO: Add support to allow video recording!!
-            # # check if viewport is enabled -- if not, then complain because we won't get any data
-            # if not self.offscreen_render:
-            #     raise RuntimeError(
-            #         f"Cannot render '{mode}' when offscreen rendering is False. Please check the provided"
-            #         "arguments to the environment class at initialization."
-            #     )
-            # # check if viewport is enabled before creating render product
-            # import omni.replicator.core as rep
+            # check that if any render could have happened
+            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+                raise RuntimeError(
+                    f"Cannot render '{mode}' when the simulation render mode is '{self.sim.render_mode.name}'."
+                    f" Please set the simulation render mode to '{self.sim.RenderMode.PARTIAL_RENDERING.name}' or "
+                    f" '{self.sim.RenderMode.FULL_RENDERING.name}'."
+                )
+            # create the annotator if it does not exist
+            if not hasattr(self, "_rgb_annotator"):
+                import omni.replicator.core as rep
 
-            # # create render product
-            # self._render_product = rep.create.render_product("/OmniverseKit_Persp", self.cfg.viewer.resolution)
-            # # create rgb annotator -- used to read data from the render product
-            # self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-            # self._rgb_annotator.attach([self._render_product])
-            # # obtain the rgb data
-            # rgb_data = self._rgb_annotator.get_data()
-            # # convert to numpy array
-            # rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # # return the rgb data
-            # return rgb_data[:, :, :3]
+                # create render product
+                self._render_product = rep.create.render_product(
+                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
+                )
+                # create rgb annotator -- used to read data from the render product
+                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+                self._rgb_annotator.attach([self._render_product])
+            # obtain the rgb data
+            rgb_data = self._rgb_annotator.get_data()
+            # convert to numpy array
+            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
+            # return the rgb data
+            # note: initially the renerer is warming up and returns empty data
+            if rgb_data.size == 0:
+                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
+            else:
+                return rgb_data[:, :, :3]
         else:
             raise NotImplementedError(
                 f"Render mode '{mode}' is not supported. Please use: {self.metadata['render.modes']}."

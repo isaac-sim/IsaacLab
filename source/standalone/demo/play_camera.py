@@ -159,7 +159,7 @@ def main():
     # Simulate physics
     while simulation_app.is_running():
         # Step simulation
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # Update camera data
         camera.update(dt=0.0)
 

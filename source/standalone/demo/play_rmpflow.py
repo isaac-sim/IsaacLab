@@ -173,7 +173,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=app_launcher.RENDER)
+            sim.step()
             continue
         # reset
         if count % 350 == 0:
@@ -193,7 +193,7 @@ def main():
             # step simulation
             # FIXME: this is needed for lula to update the buffers!
             # the bug has been reported to the lula team
-            sim.step(render=app_launcher.RENDER)
+            sim.step()
         # set the controller commands
         rmp_controller.set_command(rmp_commands)
         # compute the joint commands
@@ -225,7 +225,7 @@ def main():
         # apply actions
         robot.apply_action(robot_actions)
         # perform step
-        sim.step(render=app_launcher.RENDER)
+        sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1
