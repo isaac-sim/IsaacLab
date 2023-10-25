@@ -9,7 +9,7 @@ These include:
 
 * Ability to spawn different objects and materials into Omniverse
 * Define and modify various schemas on USD prims
-* Loaders to obtain USD file from other file formats (such as URDF)
+* Converters to obtain USD file from other file formats (such as URDF, OBJ, STL, FBX)
 * Utility class to control the simulator
 
 .. note::
@@ -26,9 +26,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 """
 
-from __future__ import annotations
-
-from .loaders import *  # noqa: F401, F403
+from .converters import *  # noqa: F401, F403
 from .schemas import *  # noqa: F401, F403
 from .simulation_cfg import PhysxCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext  # noqa: F401, F403

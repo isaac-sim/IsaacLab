@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
 
 # omni-isaac-orbit
 from omni.isaac.kit import SimulationApp
@@ -100,8 +101,9 @@ def main():
     prim_utils.define_prim("/World/envs/env_0")
     # Spawn things into stage
     prim_utils.create_prim("/World/Light", "DistantLight")
+
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=args_cli.input)
+    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.usd_path))
     # Clone the scene
     num_clones = args_cli.num_clones
 

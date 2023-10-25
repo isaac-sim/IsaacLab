@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Callable
 
-from omni.isaac.orbit.sim import loaders, schemas
+from omni.isaac.orbit.sim import converters, schemas
 from omni.isaac.orbit.sim.spawners import materials
 from omni.isaac.orbit.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from omni.isaac.orbit.utils import configclass
@@ -65,10 +65,10 @@ class UsdFileCfg(FileCfg):
 
 
 @configclass
-class UrdfFileCfg(FileCfg, loaders.UrdfLoaderCfg):
+class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     """URDF file to spawn asset from.
 
-    It uses the :class:`UrdfLoader` class to create a USD file from URDF and spawns the imported
+    It uses the :class:`UrdfConverter` class to create a USD file from URDF and spawns the imported
     USD file. See :meth:`spawn_from_urdf` for more information.
 
     .. note::

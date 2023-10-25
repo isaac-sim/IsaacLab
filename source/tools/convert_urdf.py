@@ -77,7 +77,7 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
 
-from omni.isaac.orbit.sim.loaders import UrdfLoader, UrdfLoaderCfg
+from omni.isaac.orbit.sim.converters import UrdfConverter, UrdfConverterCfg
 from omni.isaac.orbit.utils.assets import check_file_path
 from omni.isaac.orbit.utils.dict import print_dict
 
@@ -94,9 +94,9 @@ def main():
     if not os.path.isabs(dest_path):
         dest_path = os.path.abspath(dest_path)
 
-    # Create Urdf loader config
-    urdf_loader_cfg = UrdfLoaderCfg(
-        urdf_path=urdf_path,
+    # Create Urdf converter config
+    urdf_converter_cfg = UrdfConverterCfg(
+        asset_path=urdf_path,
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         fix_base=args_cli.fix_base,
@@ -110,22 +110,22 @@ def main():
     print("-" * 80)
     print(f"Input URDF file: {urdf_path}")
     print("URDF importer config:")
-    print_dict(urdf_loader_cfg.to_dict(), nesting=0)
+    print_dict(urdf_converter_cfg.to_dict(), nesting=0)
     print("-" * 80)
     print("-" * 80)
 
-    # Create Urdf loader and import the file
-    urdf_loader = UrdfLoader(urdf_loader_cfg)
+    # Create Urdf converter and import the file
+    urdf_converter = UrdfConverter(urdf_converter_cfg)
     # print output
     print("URDF importer output:")
-    print(f"Generated USD file: {urdf_loader.usd_path}")
+    print(f"Generated USD file: {urdf_converter.usd_path}")
     print("-" * 80)
     print("-" * 80)
 
     # Simulate scene (if not headless)
     if not args_cli.headless:
         # Open the stage with USD
-        stage_utils.open_stage(urdf_loader.usd_path)
+        stage_utils.open_stage(urdf_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

@@ -15,7 +15,7 @@ import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from omni.isaac.cloner import Cloner
 from omni.isaac.version import get_version
-from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdPhysics, UsdShade
+from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from omni.isaac.orbit.utils.string import to_camel_case
 
@@ -377,6 +377,59 @@ def bind_physics_material(
     material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
     # return success
     return True
+
+
+"""
+Exporting.
+"""
+
+
+def export_prim_to_file(path: str, source_prim_path: str, target_prim_path: str = None, stage: Usd.Stage | None = None):
+    """Exports a prim from a given stage to a USD file.
+
+    The function creates a new layer at the provided path and copies the prim to the layer.
+    It sets the copied prim as the default prim in the target layer. Additionally, it updates
+    the stage up-axis and meters-per-unit to match the current stage.
+
+    Args:
+        path: The filepath path to export the prim to.
+        source_prim_path: The prim path to export.
+        target_prim_path: The prim path to set as the default prim in the target layer.
+            Defaults to None, in which case the source prim path is used.
+        stage: The stage where the prim exists. Defaults to None, in which case the
+            current stage is used.
+    """
+    # get current stage
+    if stage is None:
+        stage: Usd.Stage = omni.usd.get_context().get_stage()
+    # get root layer
+    source_layer = stage.GetRootLayer()
+
+    # only create a new layer if it doesn't exist already
+    target_layer = Sdf.Find(path)
+    if target_layer is None:
+        target_layer = Sdf.Layer.CreateNew(path)
+    # open the target stage
+    target_stage = Usd.Stage.Open(target_layer)
+
+    # update stage data
+    UsdGeom.SetStageUpAxis(target_stage, UsdGeom.GetStageUpAxis(stage))
+    UsdGeom.SetStageMetersPerUnit(target_stage, UsdGeom.GetStageMetersPerUnit(stage))
+
+    # specify the prim to copy
+    source_prim_path = Sdf.Path(source_prim_path)
+    if target_prim_path is None:
+        target_prim_path = source_prim_path
+
+    # copy the prim
+    Sdf.CreatePrimInLayer(target_layer, target_prim_path)
+    Sdf.CopySpec(source_layer, source_prim_path, target_layer, target_prim_path)
+    # set the default prim
+    target_layer.defaultPrim = Sdf.Path(target_prim_path).name
+    # resolve all paths relative to layer path
+    omni.usd.resolve_paths(source_layer.identifier, target_layer.identifier)
+    # save the stage
+    target_layer.Save()
 
 
 """

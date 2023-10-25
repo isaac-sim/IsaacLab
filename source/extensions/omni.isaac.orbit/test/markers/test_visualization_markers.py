@@ -33,7 +33,7 @@ from omni.isaac.orbit.utils.timer import Timer
 
 
 class TestUsdVisualizationMarkers(unittest.TestCase):
-    """Test fixture for the UrdfLoader class."""
+    """Test fixture for the VisualizationMarker class."""
 
     def setUp(self):
         """Create a blank new stage for each test."""

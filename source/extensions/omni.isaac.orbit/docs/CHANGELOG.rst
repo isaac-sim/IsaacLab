@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.9.18 (2023-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Created :class:`omni.issac.orbit.sim.converters.asset_converter.AssetConverter` to serve as a base
+  class for all asset converters.
+* Added :class:`omni.issac.orbit.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
+  of mesh files (OBJ, STL and FBX) into USD format.
+* Added script `convert_mesh.py` to ``source/tools`` to allow users to convert a mesh to USD via command line arguments.
+
+Changed
+^^^^^^^
+
+* Renamed the submodule :mod:`omni.isaac.orbit.sim.loaders` to :mod:`omni.isaac.orbit.sim.converters` to be more
+  general with the functionality of the module.
+* Updated `check_instanceable.py` script to convert relative paths to absolute paths.
+
+
 0.9.17 (2023-10-22)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -13,7 +13,7 @@ import omni.kit.commands
 from omni.isaac.version import get_version
 from pxr import Gf, Sdf, Usd
 
-from omni.isaac.orbit.sim import loaders, schemas
+from omni.isaac.orbit.sim import converters, schemas
 from omni.isaac.orbit.sim.utils import bind_physics_material, bind_visual_material, clone
 from omni.isaac.orbit.utils.assets import check_file_path
 
@@ -103,7 +103,7 @@ def spawn_from_urdf(
 ) -> Usd.Prim:
     """Spawn an asset from a URDF file and override the settings with the given config.
 
-    It uses the :class:`UrdfLoader` class to create a USD file from URDF. This file is then imported
+    It uses the :class:`UrdfConverter` class to create a USD file from URDF. This file is then imported
     at the specified prim path.
 
     In case a prim already exists at the given prim path, then the function does not create a new prim
@@ -131,7 +131,7 @@ def spawn_from_urdf(
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # urdf loader
-        urdf_loader = loaders.UrdfLoader(cfg)
+        urdf_loader = converters.UrdfConverter(cfg)
         # add prim as reference to stage
         prim_utils.create_prim(
             prim_path,

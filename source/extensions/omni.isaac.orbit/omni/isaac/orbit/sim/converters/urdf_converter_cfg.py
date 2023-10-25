@@ -9,31 +9,13 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing_extensions import Literal
 
+from omni.isaac.orbit.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from omni.isaac.orbit.utils import configclass
 
 
 @configclass
-class UrdfLoaderCfg:
-    """The configuration class for UrdfLoader."""
-
-    urdf_path: str = MISSING
-    """The path to the urdf file (e.g. path/to/urdf/robot.urdf)."""
-
-    usd_dir: str | None = None
-    """The output directory path to store the generated USD file. Defaults to :obj:`None`.
-
-    If set to :obj:`None`, it is resolved as ``/tmp/Orbit/usd_{date}_{time}_{random}``, where
-    the parameters in braces are runtime generated.
-    """
-
-    usd_file_name: str | None = None
-    """The name of the generated usd file. Defaults to :obj:`None`.
-
-    If set to :obj:`None`, it is resolved from the urdf file name.
-    """
-
-    force_usd_conversion: bool = False
-    """Force the conversion of the urdf file to usd. Defaults to False."""
+class UrdfConverterCfg(AssetConverterBaseCfg):
+    """The configuration class for UrdfConverter."""
 
     link_density = 0.0
     """Default density used for links. Defaults to 0.
@@ -78,13 +60,4 @@ class UrdfLoaderCfg:
     Note:
         If set to zero, the values parsed from the URDF joint tag ``"<dynamics><damping>"`` are used.
         Otherwise, it is overridden by the configured value.
-    """
-
-    make_instanceable: bool = True
-    """Make the generated USD file instanceable. Defaults to True.
-
-    Note:
-        Instancing helps reduce the memory footprint of the asset when multiple copies of the asset are
-        used in the scene. For more information, please check the USD documentation on
-        `scene-graph instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`_.
     """

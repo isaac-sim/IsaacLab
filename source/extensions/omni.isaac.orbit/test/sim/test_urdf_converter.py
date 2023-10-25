@@ -29,75 +29,78 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
 from omni.isaac.version import get_version
 
-from omni.isaac.orbit.sim.loaders import UrdfLoader, UrdfLoaderCfg
+from omni.isaac.orbit.sim.converters import UrdfConverter, UrdfConverterCfg
 
 
-class TestUrdfLoader(unittest.TestCase):
-    """Test fixture for the UrdfLoader class."""
+class TestUrdfConverter(unittest.TestCase):
+    """Test fixture for the UrdfConverter class."""
 
     def setUp(self):
         """Create a blank new stage for each test."""
+        # Isaac Sim version
+        self.isaacsim_version_year = int(get_version()[2])
         # retrieve path to urdf importer extension
         if self.isaacsim_version_year == 2022:
             extension_path = get_extension_path_from_name("omni.isaac.urdf")
         else:
             extension_path = get_extension_path_from_name("omni.importer.urdf")
         # default configuration
-        self.config = UrdfLoaderCfg(
-            urdf_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True
+        self.config = UrdfConverterCfg(
+            asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True
         )
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
-        # Isaac Sim version
-        self.isaacsim_version_year = int(get_version()[2])
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
         # stop simulation
         self.sim.stop()
+        # cleanup stage and context
         self.sim.clear()
+        self.sim.clear_all_callbacks()
+        self.sim.clear_instance()
 
     def test_no_change(self):
         """Call conversion twice. This should not generate a new USD file."""
 
-        urdf_loader = UrdfLoader(self.config)
-        time_usd_file_created = os.stat(urdf_loader.usd_path).st_mtime_ns
+        urdf_converter = UrdfConverter(self.config)
+        time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
         # no change to config only define the usd directory
         new_config = self.config
-        new_config.usd_dir = urdf_loader.usd_dir
+        new_config.usd_dir = urdf_converter.usd_dir
         # convert to usd but this time in the same directory as previous step
-        new_urdf_loader = UrdfLoader(new_config)
-        new_time_usd_file_created = os.stat(new_urdf_loader.usd_path).st_mtime_ns
+        new_urdf_converter = UrdfConverter(new_config)
+        new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
         self.assertEqual(time_usd_file_created, new_time_usd_file_created)
 
     def test_config_change(self):
         """Call conversion twice but change the config in the second call. This should generate a new USD file."""
 
-        urdf_loader = UrdfLoader(self.config)
-        time_usd_file_created = os.stat(urdf_loader.usd_path).st_mtime_ns
+        urdf_converter = UrdfConverter(self.config)
+        time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
         # change the config
         new_config = self.config
         new_config.fix_base = not self.config.fix_base
         # define the usd directory
-        new_config.usd_dir = urdf_loader.usd_dir
+        new_config.usd_dir = urdf_converter.usd_dir
         # convert to usd but this time in the same directory as previous step
-        new_urdf_loader = UrdfLoader(new_config)
-        new_time_usd_file_created = os.stat(new_urdf_loader.usd_path).st_mtime_ns
+        new_urdf_converter = UrdfConverter(new_config)
+        new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
         self.assertNotEqual(time_usd_file_created, new_time_usd_file_created)
 
     def test_create_prim_from_usd(self):
         """Call conversion and create a prim from it."""
 
-        urdf_loader = UrdfLoader(self.config)
+        urdf_converter = UrdfConverter(self.config)
 
         prim_path = "/World/Robot"
-        prim_utils.create_prim(prim_path, usd_path=urdf_loader.usd_path)
+        prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
         self.assertTrue(prim_utils.is_prim_path_valid(prim_path))
 
@@ -106,7 +109,7 @@ class TestUrdfLoader(unittest.TestCase):
 
         # Create directory to dump results
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        output_dir = os.path.join(test_dir, "output", "urdf_loader")
+        output_dir = os.path.join(test_dir, "output", "urdf_converter")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
 
@@ -115,10 +118,10 @@ class TestUrdfLoader(unittest.TestCase):
         self.config.default_drive_stiffness = 400.0
         self.config.default_drive_damping = 40.0
         self.config.usd_dir = output_dir
-        urdf_loader = UrdfLoader(self.config)
+        urdf_converter = UrdfConverter(self.config)
         # check the drive type of the robot
         prim_path = "/World/Robot"
-        prim_utils.create_prim(prim_path, usd_path=urdf_loader.usd_path)
+        prim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
         # access the robot
         robot = ArticulationView(prim_path, reset_xform_properties=False)

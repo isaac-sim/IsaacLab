@@ -631,20 +631,17 @@ class AppLauncher:
         # enable isaac replicator extension
         # note: moved here since it requires to have the viewport extension to be enabled first.
         enable_extension("omni.replicator.isaac")
-        # enable urdf importer
-        if int(isaacsim_version[2]) == 2022:
-            enable_extension("omni.isaac.urdf")
-        else:
-            enable_extension("omni.importer.urdf")
-            # set the nucleus directory manually to the 2023.1.0 version
-            # TODO: Remove this once the 2023.1.0 version is released
+
+        # set the nucleus directory manually to the 2023.1.0 version
+        # TODO: Remove this once the 2023.1.0 version is released
+        if int(isaacsim_version[2]) == 2023:
             carb_settings_iface.set_string(
                 "/persistent/isaac/asset_root/default",
                 "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
             )
             carb_settings_iface.set_string(
                 "/persistent/isaac/asset_root/nvidia",
-                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
+                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets",
             )
 
     def _update_globals(self):
