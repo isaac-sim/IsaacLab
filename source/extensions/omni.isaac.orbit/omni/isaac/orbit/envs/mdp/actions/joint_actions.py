@@ -147,7 +147,7 @@ class JointVelocityAction(JointAction):
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint velocity as offset
-        if cfg.offset_with_default:
+        if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_vel[:, self._joint_ids].clone()
 
     def apply_actions(self):
