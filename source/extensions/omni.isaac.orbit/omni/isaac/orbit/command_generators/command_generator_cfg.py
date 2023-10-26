@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import MISSING
 
 from omni.isaac.orbit.utils import configclass
 
 from .command_generator_base import CommandGeneratorBase
+from .null_command_generator import NullCommandGenerator
 from .position_command_generator import TerrainBasedPositionCommandGenerator
 from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
 
@@ -32,6 +34,23 @@ class CommandGeneratorBaseCfg:
     """Time before commands are changed [s]."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+
+
+"""
+Null-command generator.
+"""
+
+
+@configclass
+class NullCommandGeneratorCfg(CommandGeneratorBaseCfg):
+    """Configuration for the null command generator."""
+
+    class_type: type = NullCommandGenerator
+
+    def __post_init__(self):
+        """Post initialization."""
+        # set the resampling time range to infinity to avoid resampling
+        self.resampling_time_range = (math.inf, math.inf)
 
 
 """

@@ -94,8 +94,16 @@ class RandomizationManager(ManagerBase):
 
     @property
     def active_terms(self) -> dict[str, list[str]]:
-        """Name of active randomization terms."""
+        """Name of active randomization terms.
+
+        The keys are the modes of randomization and the values are the names of the randomization terms.
+        """
         return self._mode_term_names
+
+    @property
+    def available_modes(self) -> list[str]:
+        """Modes of randomization."""
+        return list(self._mode_term_names.keys())
 
     """
     Operations.

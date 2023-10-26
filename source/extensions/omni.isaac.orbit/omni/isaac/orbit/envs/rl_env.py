@@ -10,21 +10,18 @@ import gym
 import math
 import numpy as np
 import torch
-from typing import Any, ClassVar, Dict, Iterable, Tuple, Union
+from typing import Any, ClassVar, Dict, Sequence, Tuple, Union
 
-import omni.isaac.core.utils.torch as torch_utils
 import omni.usd
 
-from omni.isaac.orbit.managers import CurriculumManager, RandomizationManager, RewardManager, TerminationManager
+from omni.isaac.orbit.command_generators import CommandGeneratorBase
+from omni.isaac.orbit.managers import CurriculumManager, RewardManager, TerminationManager
 
 from .base_env import BaseEnv
 from .rl_env_cfg import RLEnvCfg
 
-VecEnvIndices = Union[int, Iterable[int]]
-"""Indices of the sub-environments. Used when we want to access one or more environments."""
-
 VecEnvObs = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
-"""Observation returned by the environment. It contains the observation for each sub-environment.
+"""Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.
 This is useful for various learning setups beyond vanilla reinforcement learning, such as asymmetric
@@ -43,11 +40,15 @@ Note:
     For included frameworks (RSL-RL, RL-Games, skrl), the observations must have the key "policy". In case,
     the key "critic" is also present, then the critic observations are taken from the "critic" group.
     Otherwise, they are the same as the "policy" group.
+
 """
 
+
 VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, Dict]
-"""The environment signals processed at the end of each step. It contains the observation, reward, termination
-signal and additional information for each sub-environment."""
+"""The environment signals processed at the end of each step.
+
+It contains the observation, reward, termination signal and additional information for each sub-environment.
+"""
 
 
 class RLEnv(BaseEnv, gym.Env):
@@ -106,7 +107,8 @@ class RLEnv(BaseEnv, gym.Env):
         self.action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
 
         # perform randomization at the start of the simulation
-        self.randomization_manager.randomize(mode="startup")
+        if "startup" in self.randomization_manager.available_modes:
+            self.randomization_manager.randomize(mode="startup")
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
@@ -136,7 +138,11 @@ class RLEnv(BaseEnv, gym.Env):
     """
 
     def load_managers(self):
-        # call the parent class to load the managers for observations, actions and commands.
+        # note: this order is important since observation manager needs to know the command and action managers
+        # -- command manager
+        self.command_manager: CommandGeneratorBase = self.cfg.commands.class_type(self.cfg.commands, self)
+        print("[INFO] Command Manager: ", self.command_manager)
+        # call the parent class to load the managers for observations and actions.
         super().load_managers()
         # prepare the managers
         # -- reward manager
@@ -148,28 +154,10 @@ class RLEnv(BaseEnv, gym.Env):
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
-        # -- randomization manager
-        self.randomization_manager = RandomizationManager(self.cfg.randomization, self)
-        print("[INFO] Randomization Manager: ", self.randomization_manager)
 
     """
     Operations - MDP
     """
-
-    @staticmethod
-    def seed(seed: int = -1) -> int:
-        """Set the seed for the environment.
-
-        Args:
-            seed: The seed for random generator. Defaults to -1.
-
-        Returns:
-            The seed used for random generator.
-        """
-        import omni.replicator.core as rep
-
-        rep.set_global_seed(seed)
-        return torch_utils.set_seed(seed)
 
     def reset(self) -> VecEnvObs:
         """Resets all the environments and returns observations.
@@ -243,7 +231,8 @@ class RLEnv(BaseEnv, gym.Env):
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
         # -- step interval randomization
-        self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+        if "interval" in self.randomization_manager.available_modes:
+            self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
 
         # return observations, rewards, resets and extras
         return self.observation_manager.compute(), self.reward_buf, self.reset_buf, self.extras
@@ -314,6 +303,7 @@ class RLEnv(BaseEnv, gym.Env):
             if self._orbit_window is not None:
                 self._orbit_window.visible = False
                 self._orbit_window.destroy()
+                self._orbit_window = None
             # update closing status
             super().close()
 
@@ -321,7 +311,7 @@ class RLEnv(BaseEnv, gym.Env):
     Implementation specifics.
     """
 
-    def _reset_idx(self, env_ids: VecEnvIndices):
+    def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
 
         Args:
@@ -329,10 +319,11 @@ class RLEnv(BaseEnv, gym.Env):
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
-        # randomize the MDP for environments that need a reset
-        self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
+        # randomize the MDP for environments that need a reset
+        if "reset" in self.randomization_manager.available_modes:
+            self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras

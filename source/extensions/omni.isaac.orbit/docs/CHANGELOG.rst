@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.9.22 (2023-10-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a :class:`omni.isaac.orbit.command_generators.NullCommandGenerator` class for no command environments.
+  This is easier to work with than having checks for :obj:`None` in the command generator.
+
+Fixed
+^^^^^
+
+* Moved the randomization manager to the :class:`omni.isaac.orbit.envs.BaseEnv` class with the default
+  settings to reset the scene to the defaults specified in the configurations of assets.
+* Moved command generator to the :class:`omni.isaac.orbit.envs.RlEnv` class to have all task-specification
+  related classes in the same place.
+
+
 0.9.21 (2023-10-26)
 ~~~~~~~~~~~~~~~~~~~
 

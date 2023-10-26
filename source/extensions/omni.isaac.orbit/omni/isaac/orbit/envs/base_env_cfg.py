@@ -12,7 +12,8 @@ configuring the environment instances, viewer settings, and simulation parameter
 from dataclasses import MISSING
 from typing import Tuple
 
-from omni.isaac.orbit.command_generators import CommandGeneratorBaseCfg
+import omni.isaac.orbit.envs.mdp as mdp
+from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sim import SimulationCfg
 from omni.isaac.orbit.utils import configclass
@@ -39,6 +40,17 @@ class ViewerCfg:
 
 
 @configclass
+class DefaultRandomizationManagerCfg:
+    """Configuration of the default randomization manager.
+
+    This manager is used to reset the scene to a default state. The default state is specified
+    by the scene configuration.
+    """
+
+    reset_scene_to_default = RandTerm(func=mdp.reset_scene_to_default, mode="reset")
+
+
+@configclass
 class BaseEnvCfg:
     """Base configuration of the environment."""
 
@@ -59,5 +71,6 @@ class BaseEnvCfg:
     """Observation space settings."""
     actions: object = MISSING
     """Action space settings."""
-    commands: CommandGeneratorBaseCfg = MISSING
-    """Command generator settings."""
+    randomization: object = DefaultRandomizationManagerCfg()
+    """Randomization settings. Defaults to the default randomization manager, which resets
+    the scene to its default state."""

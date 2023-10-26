@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import builtins
 
-from omni.isaac.orbit.command_generators import CommandGeneratorBase
-from omni.isaac.orbit.managers import ActionManager, ObservationManager
+import omni.isaac.core.utils.torch as torch_utils
+
+from omni.isaac.orbit.managers import ActionManager, ObservationManager, RandomizationManager
 from omni.isaac.orbit.scene import InteractiveScene
 from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.timer import Timer
@@ -36,10 +37,10 @@ class BaseEnv:
       raw actions at different levels of abstraction. For example, in case of a robotic arm, the raw actions
       can be joint torques, joint positions, or end-effector poses. Similarly for a mobile base, it can be
       the joint torques, or the desired velocity of the floating base.
-    * **Command Generator**: The command generator that generates the goal commands for the robot. These
-      commands are used by the observation manager to generate the observations. For example, in case of a
-      robotic arm, the goal commands can be the object to be grasped, or the desired end-effector pose. For
-      a mobile base, it can be the goal position and orientation of the base.
+    * **Randomization Manager**: The randomization manager that randomizes different elements in the scene.
+      This includes resetting the scene to a default state or randomize the scene at different intervals
+      of time. The randomization manager can be configured to randomize different elements of the scene
+      such as the masses of objects, friction coefficients, or apply random pushes to the robot.
 
     The environment provides a unified interface for interacting with the simulation. However, it does not
     include task-specific quantities such as the reward function, or the termination conditions. These
@@ -135,7 +136,7 @@ class BaseEnv:
         return self.sim.device
 
     """
-    Operations.
+    Operations - Setup.
     """
 
     def load_managers(self):
@@ -145,16 +146,34 @@ class BaseEnv:
             This must happen after the simulator is reset, i.e. after the first call to :meth:`self.sim.reset`.
         """
         # prepare the managers
-        # note: this order is important since observation manager needs to know the command and action managers
-        # -- command manager
-        self.command_manager: CommandGeneratorBase = self.cfg.commands.class_type(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
+        # -- randomization manager
+        self.randomization_manager = RandomizationManager(self.cfg.randomization, self)
+        print("[INFO] Randomization Manager: ", self.randomization_manager)
+
+    """
+    Operations - MDP.
+    """
+
+    @staticmethod
+    def seed(seed: int = -1) -> int:
+        """Set the seed for the environment.
+
+        Args:
+            seed: The seed for random generator. Defaults to -1.
+
+        Returns:
+            The seed used for random generator.
+        """
+        import omni.replicator.core as rep
+
+        rep.set_global_seed(seed)
+        return torch_utils.set_seed(seed)
 
     def close(self):
         """Cleanup for the environment."""

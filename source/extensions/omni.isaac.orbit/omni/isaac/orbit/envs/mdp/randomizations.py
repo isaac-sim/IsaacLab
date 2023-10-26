@@ -22,11 +22,11 @@ from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.utils.math import quat_from_euler_xyz, sample_uniform
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs.rl_env import RLEnv
+    from omni.isaac.orbit.envs.base_env import BaseEnv
 
 
 def randomize_rigid_body_material(
-    env: RLEnv,
+    env: BaseEnv,
     env_ids: torch.Tensor | None,
     static_friction_range: tuple[float, float],
     dynamic_friction_range: tuple[float, float],
@@ -79,7 +79,9 @@ def randomize_rigid_body_material(
     asset.body_physx_view.set_material_properties(materials, indices)
 
 
-def add_body_mass(env: RLEnv, env_ids: torch.Tensor | None, mass_range: tuple[float, float], asset_cfg: SceneEntityCfg):
+def add_body_mass(
+    env: BaseEnv, env_ids: torch.Tensor | None, mass_range: tuple[float, float], asset_cfg: SceneEntityCfg
+):
     """Randomize the mass of the bodies by adding a random value sampled from the given range.
 
     .. tip::
@@ -107,7 +109,7 @@ def add_body_mass(env: RLEnv, env_ids: torch.Tensor | None, mass_range: tuple[fl
 
 
 def apply_external_force_torque(
-    env: RLEnv,
+    env: BaseEnv,
     env_ids: torch.Tensor,
     force_range: tuple[float, float],
     torque_range: tuple[float, float],
@@ -137,7 +139,7 @@ def apply_external_force_torque(
 
 
 def push_by_setting_velocity(
-    env: RLEnv,
+    env: BaseEnv,
     env_ids: torch.Tensor,
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -168,7 +170,7 @@ def push_by_setting_velocity(
 
 
 def reset_root_state(
-    env: RLEnv,
+    env: BaseEnv,
     env_ids: torch.Tensor,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
@@ -219,7 +221,7 @@ def reset_root_state(
 
 
 def reset_joints_by_scale(
-    env: RLEnv,
+    env: BaseEnv,
     env_ids: torch.Tensor,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
@@ -241,3 +243,21 @@ def reset_joints_by_scale(
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+
+def reset_scene_to_default(env: BaseEnv, env_ids: torch.Tensor):
+    """Reset the scene to the default state specified in the scene configuration."""
+    # root states
+    for rigid_object in env.scene.rigid_objects.values() + env.scene.articulations.values():
+        # obtain default and deal with the offset for env origins
+        default_root_state = rigid_object.data.default_root_state_w[env_ids].clone()
+        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+        # set into the physics simulation
+        rigid_object.write_root_state_to_sim(default_root_state, env_ids=env_ids)
+    # joint states
+    for articulation_asset in env.scene.articulations.values():
+        # obtain default joint positions
+        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
+        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        # set into the physics simulation
+        articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)

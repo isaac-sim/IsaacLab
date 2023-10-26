@@ -21,15 +21,20 @@ from .command_generator_base import CommandGeneratorBase
 from .command_generator_cfg import (
     CommandGeneratorBaseCfg,
     NormalVelocityCommandGeneratorCfg,
+    NullCommandGeneratorCfg,
     TerrainBasedPositionCommandGeneratorCfg,
     UniformVelocityCommandGeneratorCfg,
 )
+from .null_command_generator import NullCommandGenerator
 from .position_command_generator import TerrainBasedPositionCommandGenerator
 from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
 
 __all__ = [
     "CommandGeneratorBase",
     "CommandGeneratorBaseCfg",
+    # null command generator
+    "NullCommandGenerator",
+    "NullCommandGeneratorCfg",
     # velocity command generators
     "UniformVelocityCommandGenerator",
     "UniformVelocityCommandGeneratorCfg",
