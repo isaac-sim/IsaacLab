@@ -15,7 +15,7 @@ def check_group(f, num: int):
     """Print the data from different keys in stored dictionary."""
     # print name of the group first
     for subs in f:
-        if type(subs) == str:
+        if isinstance(subs, str):
             print("\t" * num, subs, ":", type(f[subs]))
             check_group(f[subs], num + 1)
     # print attributes of the group

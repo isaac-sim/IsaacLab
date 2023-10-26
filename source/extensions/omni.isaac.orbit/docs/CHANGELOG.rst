@@ -751,7 +751,7 @@ Changed
 Added
 ^^^^^
 
-* Added a helper class :class:`omni.isaac.orbit.asset_loader.UrdfLoader` that coverts a URDF file to instanceable USD
+* Added a helper class :class:`omni.isaac.orbit.asset_loader.UrdfLoader` that converts a URDF file to instanceable USD
   file based on the input configuration object.
 
 

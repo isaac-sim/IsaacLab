@@ -64,7 +64,7 @@
     "python.linting.flake8Args": [
         "--max-line-length=120"
     ],
-    // Use docstring gnerator
+    // Use docstring generator
     "autoDocstring.docstringFormat": "google",
     "autoDocstring.guessTypes": true,
     // Python environment path

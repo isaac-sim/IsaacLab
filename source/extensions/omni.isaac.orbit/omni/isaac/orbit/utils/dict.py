@@ -252,7 +252,7 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
 
 def print_dict(val, nesting: int = -4, start: bool = True):
     """Outputs a nested dictionary."""
-    if type(val) == dict:
+    if isinstance(val, dict):
         if not start:
             print("")
         nesting += 4
