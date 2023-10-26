@@ -10,6 +10,9 @@
 ARG ISAACSIM_VERSION
 FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION}
 
+# Set default RUN shell to bash
+SHELL ["/bin/bash", "-c"]
+
 # Adds labels to the Dockerfile
 LABEL version="1.0"
 LABEL description="Dockerfile for building and running the Orbit framework inside Isaac Sim container image."
@@ -17,6 +20,7 @@ LABEL description="Dockerfile for building and running the Orbit framework insid
 # Arguments
 # Path to Isaac Sim root folder
 ARG ISAACSIM_PATH
+ARG ISAACSIM_VERSION
 
 # Set environment variables
 ENV LANG=C.UTF-8
