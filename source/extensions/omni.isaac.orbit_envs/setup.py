@@ -23,10 +23,6 @@ INSTALL_REQUIRES = [
     "torch",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf==3.20.2",
-    # gym
-    "gym==0.21.0",
-    "importlib-metadata~=4.13.0",
-    "setuptools<=66",  # setuptools 67.0 breaks gym
     # data collection
     "h5py",
 ]

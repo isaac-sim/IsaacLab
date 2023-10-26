@@ -286,6 +286,10 @@ class ContactSensor(SensorBase):
         if self.contact_visualizer is None:
             visualizer_cfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
             self.contact_visualizer = VisualizationMarkers(visualizer_cfg)
+        # safely return if view becomes invalid
+        # note: this invalidity happens because of isaac sim view callbacks
+        if self.body_physx_view is None:
+            return
         # marker indices
         # 0: contact, 1: no contact
         net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)

@@ -1,7 +1,19 @@
 Changelog
 ---------
 
-0.9.20 (2023-10-03)
+0.9.21 (2023-10-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Decreased the priority of callbacks in asset and sensor base classes. This may help in preventing
+  crashes when warm starting the simulation.
+* Fixed no rendering mode when running the environment from the GUI. Earlier the function
+  :meth:`SimulationContext.set_render_mode` was erroring out.
+
+
+0.9.20 (2023-10-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -24,8 +36,8 @@ Added
 * Added Gym observation and action spaces for the :class:`omni.isaac.orbit.envs.RLEnv` class.
 
 
-0.9.18 (2023-10-19)
-~~~~~~~~~~~~~~~~~~
+0.9.18 (2023-10-23)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

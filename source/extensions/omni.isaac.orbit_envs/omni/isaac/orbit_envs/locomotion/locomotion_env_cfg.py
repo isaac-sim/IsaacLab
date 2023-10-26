@@ -117,6 +117,7 @@ class ObservationsCfg:
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner")},
             noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
         )
 
         def __post_init__(self):
@@ -254,7 +255,7 @@ class LocomotionEnvRoughCfg(RLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     commands: UniformVelocityCommandGeneratorCfg = UniformVelocityCommandGeneratorCfg(
         asset_name="robot",
-        resampling_time_range=(20.0, 20.0),
+        resampling_time_range=(10.0, 10.0),
         rel_standing_envs=0.02,
         rel_heading_envs=1.0,
         heading_command=True,

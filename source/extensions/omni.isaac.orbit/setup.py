@@ -24,6 +24,10 @@ INSTALL_REQUIRES = [
     "tensordict",
     # devices
     "hidapi",
+    # gym
+    "gym==0.21.0",
+    "importlib-metadata~=4.13.0",
+    "setuptools<=66",  # setuptools 67.0 breaks gym
     # procedural-generation
     "trimesh",
     "pyglet==1.5.27",  # pyglet 2.0 requires python 3.8

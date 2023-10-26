@@ -123,7 +123,10 @@ class ObservationManager(ManagerBase):
         If a corruption/noise model is registered for a term, the function is called to corrupt
         the observation. The corruption function is expected to return a tensor with the same
         shape as the observation. The observations are clipped and scaled as per the configuration
-        settings. By default, no scaling or clipping is applied.
+        settings.
+
+        The operations are performed in the order: compute, add corruption/noise, clip, scale.
+        By default, no scaling or clipping is applied.
 
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to :obj:`None`,

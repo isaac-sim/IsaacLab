@@ -100,7 +100,7 @@ def main():
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_SHANK", debug_vis=not args_cli.headless
+        prim_path="/World/envs/env_.*/Robot/.*_SHANK", track_air_time=True, debug_vis=not args_cli.headless
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance

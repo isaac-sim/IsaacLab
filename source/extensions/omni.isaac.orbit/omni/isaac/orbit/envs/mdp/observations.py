@@ -75,9 +75,8 @@ def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame."""
     # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
-    # return the height scan
-    heights = sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - 0.5
-    return heights
+    # height scan: height = sensor_height - hit_point_z - 0.5
+    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - 0.5
 
 
 """

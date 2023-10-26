@@ -13,7 +13,7 @@ from typing import Union
 
 import warp as wp
 
-__all__ = ["TENSOR_TYPES", "TENSOR_TYPE_CONVERSIONS", "convert_to_torch"]
+__all__ = ["TensorData", "TENSOR_TYPES", "TENSOR_TYPE_CONVERSIONS", "convert_to_torch"]
 
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]
 """Type definition for a tensor data.

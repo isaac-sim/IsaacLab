@@ -329,10 +329,10 @@ class RLEnv(BaseEnv, gym.Env):
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
-        # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
         # randomize the MDP for environments that need a reset
         self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
+        # reset the internal buffers of the scene elements
+        self.scene.reset(env_ids)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras

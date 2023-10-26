@@ -15,6 +15,18 @@ with `Isaac` in their name.
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True)
+simulation_app = app_launcher.app
+
+
+"""Rest everything follows."""
+
 import gym
 from prettytable import PrettyTable
 
@@ -46,4 +58,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # run the main function
+        main()
+    finally:
+        # close the app
+        simulation_app.close()

@@ -9,6 +9,13 @@ Note:
     Currently this script fails since cloner does not support changing textures of cloned
     USD prims. This is because the prims are cloned using `Sdf.ChangeBlock` which does not
     allow individual texture changes.
+
+Usage:
+
+.. code-block:: bash
+
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/isaacsim/check_rep_texture_randomizer.py
+
 """
 
 from __future__ import annotations
@@ -65,7 +72,7 @@ def main():
     set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
-    num_balls = 2048
+    num_balls = 128
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
@@ -81,7 +88,7 @@ def main():
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_balls)
     env_positions = cloner.clone(
-        source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True
+        source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True, copy_from_source=True
     )
     physics_scene_path = sim.get_physics_context().prim_path
     cloner.filter_collisions(

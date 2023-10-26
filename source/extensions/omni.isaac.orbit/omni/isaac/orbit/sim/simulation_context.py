@@ -66,7 +66,7 @@ class SimulationContext(_SimulationContext):
     .. _omni.isaac.core.simulation_context.SimulationContext: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#module-omni.isaac.core.simulation_context
     """
 
-    class RenderMode(enum.Enum):
+    class RenderMode(enum.IntEnum):
         """Different rendering modes for the simulation.
 
         Render modes correspond to how the viewport and other UI elements (such as listeners to keyboard or mouse
@@ -294,8 +294,13 @@ class SimulationContext(_SimulationContext):
                 self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
                 # reset the throttle counter
                 self._render_throttle_counter = 0
+            elif mode == self.RenderMode.NO_RENDERING:
+                # hide the viewport and disable updates
+                if self._viewport_context is not None:
+                    self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
+                    self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
             else:
-                raise ValueError(f"Unsupported rendering mode: {mode}. Supported modes are: {self.RenderMode}.")
+                raise ValueError(f"Unsupported render mode: {mode}! Please check `RenderMode` for details.")
             # update render mode
             self.render_mode = mode
 
