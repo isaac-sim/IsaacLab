@@ -10,6 +10,7 @@ import gym
 import math
 import numpy as np
 import torch
+import weakref
 from typing import Any, ClassVar, Dict, Sequence, Tuple, Union
 
 import omni.usd
@@ -445,60 +446,43 @@ class RLEnv(BaseEnv, gym.Env):
                     # create stack for debug visualization
                     self._orbit_window_elements["debug_vstack"] = ui.VStack(spacing=5, height=0)
                     with self._orbit_window_elements["debug_vstack"]:
+                        elements = [
+                            self.scene.terrain,
+                            self.command_manager,
+                            *self.scene.rigid_objects.values(),
+                            *self.scene.articulations.values(),
+                            *self.scene.sensors.values(),
+                        ]
+                        names = [
+                            "terrain",
+                            "commands",
+                            *self.scene.rigid_objects.keys(),
+                            *self.scene.articulations.keys(),
+                            *self.scene.sensors.keys(),
+                        ]
                         # create one for the terrain
-                        if self.scene.terrain is not None:
-                            with ui.HStack():
-                                # create the UI element
-                                debug_vis_checkbox = {
-                                    "model": ui.SimpleBoolModel(default_value=self.scene.terrain.cfg.debug_vis),
-                                    "enabled": self.scene.terrain.cfg.debug_vis,
-                                    "checked": self.scene.terrain.cfg.debug_vis,
-                                    "on_checked_fn": lambda value: self.scene.terrain.set_debug_vis(value),
-                                }
-                                ui.Label(
-                                    "Terrain",
-                                    width=ui_utils.LABEL_WIDTH - 12,
-                                    alignment=ui.Alignment.LEFT_CENTER,
-                                    tooltip="Toggle debug visualization",
-                                )
-                                self._orbit_window_elements["terrain_cb"] = SimpleCheckBox(**debug_vis_checkbox)
-                                ui_utils.add_line_rect_flourish()
-                        # iterate over each scene element and add a checkbox for debug visualization
-                        for name, element in self.scene.sensors.items():
-                            with ui.HStack():
-                                # create the UI element
-                                # note: need to deal with closure of lambda function inside for loop
-                                # ref: https://stackoverflow.com/questions/66131048/python-lambda-function-is-not-being-called-correctly-from-within-a-for-loop
-                                debug_vis_checkbox = {
-                                    "model": ui.SimpleBoolModel(default_value=element.cfg.debug_vis),
-                                    "enabled": element.cfg.debug_vis,
-                                    "checked": element.cfg.debug_vis,
-                                    "on_checked_fn": lambda value, ele=element: ele.set_debug_vis(value),
-                                }
-                                ui.Label(
-                                    ui_utils.format_tt(name.replace("_", " ")),
-                                    width=ui_utils.LABEL_WIDTH - 12,
-                                    alignment=ui.Alignment.LEFT_CENTER,
-                                    tooltip="Toggle debug visualization",
-                                )
-                                self._orbit_window_elements[f"sensor_{name}_cb"] = SimpleCheckBox(**debug_vis_checkbox)
-                                ui_utils.add_line_rect_flourish()
-                        # create one for the command manager
-                        with ui.HStack():
-                            debug_vis_checkbox = {
-                                "model": ui.SimpleBoolModel(default_value=self.command_manager.cfg.debug_vis),
-                                "enabled": self.command_manager.cfg.debug_vis,
-                                "checked": self.command_manager.cfg.debug_vis,
-                                "on_checked_fn": lambda value: self.command_manager.set_debug_vis(value),
-                            }
-                            ui.Label(
-                                "Command Manager",
-                                width=ui_utils.LABEL_WIDTH - 12,
-                                alignment=ui.Alignment.LEFT_CENTER,
-                                tooltip="Toggle debug visualization",
-                            )
-                            self._orbit_window_elements["command_cb"] = SimpleCheckBox(**debug_vis_checkbox)
-                            ui_utils.add_line_rect_flourish()
+                        for elem, name in zip(elements, names):
+                            if elem is not None:
+                                with ui.HStack():
+                                    # create the UI element
+                                    text = (
+                                        "Toggle debug visualization."
+                                        if elem.has_debug_vis_implementation
+                                        else "Debug visualization not implemented."
+                                    )
+                                    ui.Label(
+                                        name.replace("_", " ").title(),
+                                        width=ui_utils.LABEL_WIDTH - 12,
+                                        alignment=ui.Alignment.LEFT_CENTER,
+                                        tooltip=text,
+                                    )
+                                    self._orbit_window_elements[f"{name}_cb"] = SimpleCheckBox(
+                                        model=ui.SimpleBoolModel(),
+                                        enabled=elem.has_debug_vis_implementation,
+                                        checked=elem.cfg.debug_vis,
+                                        on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
+                                    )
+                                    ui_utils.add_line_rect_flourish()
 
     async def _dock_window(self, window_title: str):
         """Docks the orbit window to the property window."""

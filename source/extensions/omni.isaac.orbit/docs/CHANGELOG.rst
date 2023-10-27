@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.24 (2023-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the behavior of setting up debug visualization for assets, sensors and command generators.
+  Earlier it was raising an error if debug visualization was not enabled in the configuration object.
+  Now it checks whether debug visualization is implemented and only sets up the callback if it is
+  implemented.
+
+
 0.9.23 (2023-10-27)
 ~~~~~~~~~~~~~~~~~~~
 

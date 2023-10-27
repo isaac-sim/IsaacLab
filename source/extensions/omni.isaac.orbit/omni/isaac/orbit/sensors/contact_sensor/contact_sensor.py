@@ -58,8 +58,6 @@ class ContactSensor(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
-        # visualization markers
-        self.contact_visualizer = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -126,11 +124,6 @@ class ContactSensor(SensorBase):
     """
     Operations
     """
-
-    def set_debug_vis(self, debug_vis: bool):
-        super().set_debug_vis(debug_vis)
-        if self.contact_visualizer is not None:
-            self.contact_visualizer.set_visibility(debug_vis)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         # reset the timers and counters
@@ -281,11 +274,21 @@ class ContactSensor(SensorBase):
             # -- increment timers for bodies that are not in contact
             self._data.current_air_time[env_ids] *= ~is_contact
 
-    def _debug_vis_impl(self):
-        # visualize the contacts
-        if self.contact_visualizer is None:
-            visualizer_cfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
-            self.contact_visualizer = VisualizationMarkers(visualizer_cfg)
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            # create markers if necessary for the first tome
+            if not hasattr(self, "contact_visualizer"):
+                visualizer_cfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
+                self.contact_visualizer = VisualizationMarkers(visualizer_cfg)
+            # set their visibility to true
+            self.contact_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "contact_visualizer"):
+                self.contact_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:

@@ -51,9 +51,14 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
             cfg: The configuration of the command generator.
             env: The environment.
         """
+        # initialize the base class
         super().__init__(cfg, env)
+
+        # obtain the robot asset
         # -- robot
         self.robot: Articulation = env.scene[cfg.asset_name]
+
+        # crete buffers to store the command
         # -- command: x vel, y vel, yaw vel, heading
         self.vel_command_b = torch.zeros(self.num_envs, 3, device=self.device)
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
@@ -62,9 +67,6 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         # -- metrics
         self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
-        # -- debug vis
-        self.base_vel_goal_visualizer = None
-        self.base_vel_visualizer = None
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
@@ -85,19 +87,6 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
     def command(self) -> torch.Tensor:
         """The desired base velocity command in the base frame. Shape is (num_envs, 3)."""
         return self.vel_command_b
-
-    """
-    Operations.
-    """
-
-    def set_debug_vis(self, debug_vis: bool):
-        super().set_debug_vis(debug_vis)
-        # -- current
-        if self.base_vel_visualizer is not None:
-            self.base_vel_visualizer.set_visibility(debug_vis)
-        # -- goal
-        if self.base_vel_goal_visualizer is not None:
-            self.base_vel_goal_visualizer.set_visibility(debug_vis)
 
     """
     Implementation specific functions.
@@ -152,20 +141,31 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
             torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]) / max_command_time
         )
 
-    def _debug_vis_impl(self):
-        # create markers if necessary
-        # -- goal
-        if self.base_vel_goal_visualizer is None:
-            marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
-            marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
-            marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
-            self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
-        # -- current
-        if self.base_vel_visualizer is None:
-            marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
-            marker_cfg.prim_path = "/Visuals/Command/velocity_current"
-            marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
-            self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            # create markers if necessary for the first tome
+            if not hasattr(self, "base_vel_goal_visualizer"):
+                # -- goal
+                marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
+                marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
+                marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
+                self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
+                # -- current
+                marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
+                marker_cfg.prim_path = "/Visuals/Command/velocity_current"
+                marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
+                self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
+            # set their visibility to true
+            self.base_vel_goal_visualizer.set_visibility(True)
+            self.base_vel_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "base_vel_goal_visualizer"):
+                self.base_vel_goal_visualizer.set_visibility(False)
+                self.base_vel_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
         # get marker location
         # -- base state
         base_pos_w = self.robot.data.root_pos_w.clone()
@@ -173,9 +173,8 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
         vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
-        # -- goal
+        # display markers
         self.base_vel_goal_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
-        # -- base velocity
         self.base_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
 
     """

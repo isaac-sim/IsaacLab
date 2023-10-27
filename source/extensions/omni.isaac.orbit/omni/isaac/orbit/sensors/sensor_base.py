@@ -11,6 +11,7 @@ Each sensor class should inherit from this class and implement the abstract meth
 
 from __future__ import annotations
 
+import inspect
 import torch
 import weakref
 from abc import ABC, abstractmethod
@@ -65,14 +66,10 @@ class SensorBase(ABC):
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )
-        # add callback for debug visualization
-        if self.cfg.debug_vis:
-            app_interface = omni.kit.app.get_app_interface()
-            self._debug_visualization_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event),
-            )
-        else:
-            self._debug_visualization_handle = None
+        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        self._debug_vis_handle = None
+        # set initial state of debug visualization
+        self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
@@ -84,9 +81,9 @@ class SensorBase(ABC):
             self._invalidate_initialize_handle.unsubscribe()
             self._invalidate_initialize_handle = None
         # clear debug visualization
-        if self._debug_visualization_handle:
-            self._debug_visualization_handle.unsubscribe()
-            self._debug_visualization_handle = None
+        if self._debug_vis_handle:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None
 
     """
     Properties
@@ -117,21 +114,48 @@ class SensorBase(ABC):
         """
         raise NotImplementedError
 
+    @property
+    def has_debug_vis_implementation(self) -> bool:
+        """Whether the sensor has a debug visualization implemented."""
+        # check if function raises NotImplementedError
+        # check if function raises NotImplementedError
+        source_code = inspect.getsource(self._debug_vis_callback)
+        return "NotImplementedError" not in source_code
+
     """
     Operations
     """
 
-    def set_debug_vis(self, debug_vis: bool):
+    def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the sensor data.
 
         Args:
             debug_vis: Whether to visualize the sensor data.
 
-        Raises:
-            RuntimeError: If the asset debug visualization is not enabled.
+        Returns:
+            Whether the debug visualization was successfully set. False if the sensor
+            does not support debug visualization.
         """
-        if not self.cfg.debug_vis:
-            raise RuntimeError("Debug visualization is not enabled for this sensor.")
+        # check if debug visualization is supported
+        if not self.has_debug_vis_implementation:
+            return False
+        # toggle debug visualization objects
+        self._set_debug_vis_impl(debug_vis)
+        # toggle debug visualization handles
+        if debug_vis:
+            # create a subscriber for the post update event if it doesn't exist
+            if self._debug_vis_handle is None:
+                app_interface = omni.kit.app.get_app_interface()
+                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                )
+        else:
+            # remove the subscriber if it exists
+            if self._debug_vis_handle is not None:
+                self._debug_vis_handle.unsubscribe()
+                self._debug_vis_handle = None
+        # return success
+        return True
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the sensor internals.
@@ -194,19 +218,24 @@ class SensorBase(ABC):
         """
         raise NotImplementedError
 
-    def _debug_vis_impl(self):
-        """Visualizes the sensor data.
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        """Set debug visualization into visualization objects.
 
-        This is an empty function that can be overridden by the derived class to visualize the sensor data.
-
-        Note:
-            Visualization of sensor data may add overhead to the simulation. It is recommended to disable
-            visualization when running the simulation in headless mode.
+        This function is responsible for creating the visualization objects if they don't exist
+        and input ``debug_vis`` is True. If the visualization objects exist, the function should
+        set their visibility into the stage.
         """
-        pass
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
+
+    def _debug_vis_callback(self, event):
+        """Callback for debug visualization.
+
+        This function calls the visualization objects and sets the data to visualize into them.
+        """
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
     """
-    Simulation callbacks.
+    Internal simulation callbacks.
     """
 
     def _initialize_callback(self, event):
@@ -223,10 +252,6 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-
-    def _debug_vis_callback(self, event):
-        """Visualizes the sensor data."""
-        self._debug_vis_impl()
 
     """
     Helper functions.

@@ -54,14 +54,12 @@ class RayCaster(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
+        # Initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
         # List of meshes to ray-cast
         self.warp_meshes = []
-        # visualization markers
-        self.ray_visualizer = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -89,11 +87,6 @@ class RayCaster(SensorBase):
     """
     Operations.
     """
-
-    def set_debug_vis(self, debug_vis: bool):
-        super().set_debug_vis(debug_vis)
-        if self.ray_visualizer is not None:
-            self.ray_visualizer.set_visibility(debug_vis)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         # reset the timers and counters
@@ -219,10 +212,19 @@ class RayCaster(SensorBase):
         # TODO: Make this work for multiple meshes?
         self._data.ray_hits_w[env_ids] = raycast_mesh(ray_starts_w, ray_directions_w, self.warp_meshes[0])
 
-    def _debug_vis_impl(self):
-        # visualize the point hits
-        if self.ray_visualizer is None:
-            visualizer_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
-            self.ray_visualizer = VisualizationMarkers(visualizer_cfg)
-        # check if prim is visualized
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            if not hasattr(self, "ray_visualizer"):
+                visualizer_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+                self.ray_visualizer = VisualizationMarkers(visualizer_cfg)
+            # set their visibility to true
+            self.ray_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "ray_visualizer"):
+                self.ray_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        # show ray hit positions
         self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))

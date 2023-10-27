@@ -41,11 +41,16 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
             cfg: The configuration parameters for the command generator.
             env: The environment object.
         """
+        # initialize the base class
         super().__init__(cfg, env)
+
+        # obtain the robot and terrain assets
         # -- robot
         self.robot: Articulation = env.scene[cfg.asset_name]
         # -- terrain
         self.terrain: TerrainImporter = env.scene.terrain
+
+        # crete buffers to store the command
         # -- commands: (x, y, z, heading)
         self.pos_command_w = torch.zeros(self.num_envs, 3, device=self.device)
         self.heading_command_w = torch.zeros(self.num_envs, device=self.device)
@@ -54,8 +59,6 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         # -- metrics
         self.metrics["error_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_heading"] = torch.zeros(self.num_envs, device=self.device)
-        # -- debug vis
-        self.box_goal_visualizer = None
 
     def __str__(self) -> str:
         msg = "TerrainBasedPositionCommandGenerator:\n"
@@ -72,15 +75,6 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
     def command(self) -> torch.Tensor:
         """The desired base position in base frame. Shape is (num_envs, 3)."""
         return self.pos_command_b
-
-    """
-    Operations.
-    """
-
-    def set_debug_vis(self, debug_vis: bool):
-        super().set_debug_vis(debug_vis)
-        if self.box_goal_visualizer is not None:
-            self.box_goal_visualizer.set_visibility(debug_vis)
 
     """
     Implementation specific functions.
@@ -120,12 +114,20 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         self.metrics["error_pos"] = torch.norm(self.pos_command_w - self.robot.data.root_pos_w[:, :3], dim=1)
         self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.heading_w))
 
-    def _debug_vis_impl(self):
-        # create the box marker if necessary
-        if self.box_goal_visualizer is None:
-            marker_cfg = CUBOID_MARKER_CFG.copy()
-            marker_cfg.prim_path = "/Visuals/Command/position_goal"
-            marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
-            self.box_goal_visualizer = VisualizationMarkers(marker_cfg)
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # create markers if necessary for the first tome
+        if debug_vis:
+            if not hasattr(self, "box_goal_visualizer"):
+                marker_cfg = CUBOID_MARKER_CFG.copy()
+                marker_cfg.prim_path = "/Visuals/Command/position_goal"
+                marker_cfg.markers["cuboid"].scale = (0.1, 0.1, 0.1)
+                self.box_goal_visualizer = VisualizationMarkers(marker_cfg)
+            # set their visibility to true
+            self.box_goal_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "box_goal_visualizer"):
+                self.box_goal_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
         # update the box marker
         self.box_goal_visualizer.visualize(self.pos_command_w)

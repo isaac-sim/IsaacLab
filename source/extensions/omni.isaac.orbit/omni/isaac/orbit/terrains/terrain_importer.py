@@ -78,13 +78,6 @@ class TerrainImporter:
         self.warp_meshes = dict()
         self.env_origins = None
         self.terrain_origins = None
-        # marker for visualization
-        if self.cfg.debug_vis:
-            self.origin_visualizer = VisualizationMarkers(
-                cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
-            )
-        else:
-            self.origin_visualizer = None
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
@@ -112,20 +105,57 @@ class TerrainImporter:
         else:
             raise ValueError(f"Terrain type '{self.cfg.terrain_type}' not available.")
 
+        # set initial state of debug visualization
+        self.set_debug_vis(self.cfg.debug_vis)
+
+    """
+    Properties.
+    """
+
+    @property
+    def has_debug_vis_implementation(self) -> bool:
+        """Whether the terrain importer has a debug visualization implemented.
+
+        This always returns True.
+        """
+        return True
+
     """
     Operations - Visibility.
     """
 
-    def set_debug_vis(self, debug_vis: bool):
+    def set_debug_vis(self, debug_vis: bool) -> bool:
         """Set the debug visualization of the terrain importer.
 
         Args:
             debug_vis: Whether to visualize the terrain origins.
+
+        Returns:
+            Whether the debug visualization was successfully set. False if the terrain
+            importer does not support debug visualization.
+
+        Raises:
+            RuntimeError: If terrain origins are not configured.
         """
-        if not self.cfg.debug_vis:
-            raise RuntimeError("Debug visualization is not enabled for this sensor.")
-        # set visibility
-        self.origin_visualizer.set_visibility(debug_vis)
+        # create a marker if necessary
+        if debug_vis:
+            if not hasattr(self, "origin_visualizer"):
+                self.origin_visualizer = VisualizationMarkers(
+                    cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
+                )
+                if self.terrain_origins is not None:
+                    self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
+                elif self.env_origins is not None:
+                    self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
+                else:
+                    raise RuntimeError("Terrain origins are not configured.")
+            # set visibility
+            self.origin_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "origin_visualizer"):
+                self.origin_visualizer.set_visibility(False)
+        # report success
+        return True
 
     """
     Operations - Import.
@@ -251,9 +281,6 @@ class TerrainImporter:
             self.terrain_origins = origins.to(self.device, dtype=torch.float)
             # compute environment origins
             self.env_origins = self._compute_env_origins_curriculum(self.cfg.num_envs, self.terrain_origins)
-            # put markers on the sub-terrain origins
-            if self.origin_visualizer is not None:
-                self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
         else:
             self.terrain_origins = None
             # check if env spacing is valid
@@ -261,9 +288,6 @@ class TerrainImporter:
                 raise ValueError("Environment spacing must be specified for configuring grid-like origins.")
             # compute environment origins
             self.env_origins = self._compute_env_origins_grid(self.cfg.num_envs, self.cfg.env_spacing)
-            # put markers on the grid origins
-            if self.origin_visualizer is not None:
-                self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
 
     def update_env_origins(self, env_ids: torch.Tensor, move_up: torch.Tensor, move_down: torch.Tensor):
         """Update the environment origins based on the terrain levels."""

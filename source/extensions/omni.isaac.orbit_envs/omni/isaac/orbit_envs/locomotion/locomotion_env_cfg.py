@@ -56,7 +56,7 @@ class TerrainSceneCfg(InteractiveSceneCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        debug_vis=True,
+        debug_vis=False,
     )
     # robots
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
