@@ -147,7 +147,7 @@ class TestArticulation(unittest.TestCase):
                 robot.set_joint_position_target(robot.data.default_joint_pos.clone())
                 robot.write_data_to_sim()
                 # perform step
-                self.sim.step(render=app_launcher.RENDER)
+                self.sim.step()
                 # update buffers
                 robot.update(self.dt)
             # check condition that the robots have fallen down
@@ -194,7 +194,7 @@ class TestArticulation(unittest.TestCase):
                 robot.set_joint_position_target(robot.data.default_joint_pos.clone())
                 robot.write_data_to_sim()
                 # perform step
-                self.sim.step(render=app_launcher.RENDER)
+                self.sim.step()
                 # update buffers
                 robot.update(self.dt)
             # check condition

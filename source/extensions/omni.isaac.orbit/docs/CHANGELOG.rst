@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.23 (2023-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a typo in the :class:`AssetBase` and :class:`SensorBase` that effected the class destructor.
+  Earlier, a tuple was being created in the constructor instead of the actual object.
+
+
 0.9.22 (2023-10-26)
 ~~~~~~~~~~~~~~~~~~~
 

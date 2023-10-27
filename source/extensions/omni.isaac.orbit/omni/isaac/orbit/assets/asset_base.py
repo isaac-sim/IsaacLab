@@ -57,18 +57,16 @@ class AssetBase(ABC):
         # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
         # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        physx_interface = omni.physx.acquire_physx_interface()
-        self._initialize_handle = physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
+        physx_event_stream = omni.physx.acquire_physx_interface().get_simulation_event_stream_v2()
+        self._initialize_handle = physx_event_stream.create_subscription_to_pop_by_type(
             int(omni.physx.bindings._physx.SimulationEvent.RESUMED),
             lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
             order=10,
         )
-        self._invalidate_initialize_handle = (
-            physx_interface.get_simulation_event_stream_v2().create_subscription_to_pop_by_type(
-                int(omni.physx.bindings._physx.SimulationEvent.STOPPED),
-                lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
-                order=10,
-            ),
+        self._invalidate_initialize_handle = physx_event_stream.create_subscription_to_pop_by_type(
+            int(omni.physx.bindings._physx.SimulationEvent.STOPPED),
+            lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
+            order=10,
         )
         # add callback for debug visualization
         if self.cfg.debug_vis:
