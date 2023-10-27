@@ -329,7 +329,7 @@ def test_star_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Star Terrain")
 
 
-def test_repeated_objects_terrain(difficulty: float, object_type: str):
+def test_repeated_objects_terrain(difficulty: float, object_type: str, provide_as_string: bool = False):
     # parameters for the terrain
     if object_type == "pyramid":
         cfg = mesh_gen.MeshRepeatedPyramidsTerrainCfg(
@@ -369,6 +369,11 @@ def test_repeated_objects_terrain(difficulty: float, object_type: str):
         )
     else:
         raise ValueError(f"Invalid object type for repeated objects terrain: {object_type}")
+
+    # provide object_type as string (check that the import works)
+    if provide_as_string:
+        cfg.object_type = object_type
+
     # generate the terrain
     meshes, origin = cfg.function(difficulty=difficulty, cfg=cfg)
     # add colors to the meshes based on the height
@@ -419,6 +424,7 @@ if __name__ == "__main__":
     test_repeated_objects_terrain(difficulty=0.75, object_type="pyramid")
     test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder")
     test_repeated_objects_terrain(difficulty=0.75, object_type="box")
+    test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder", provide_as_string=True)
 
     # close the app
     simulation_app.close()

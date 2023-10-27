@@ -13,6 +13,7 @@ import torch
 import trimesh
 from typing import TYPE_CHECKING
 
+from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane
 
 if TYPE_CHECKING:
