@@ -40,6 +40,7 @@ simulation_app = app_launcher.app
 import gym
 import math
 import os
+import torch
 import traceback
 
 import carb
@@ -124,21 +125,21 @@ def main():
     #   attempt to have complete control over environment stepping. However, this removes other
     #   operations such as masking that is used for multi-agent learning by RL-Games.
     while simulation_app.is_running():
-        # convert obs to agent format
-        obs = agent.obs_to_torch(obs)
-        # agent stepping
-        actions = agent.get_action(obs, is_deterministic)
-        # env stepping
-        obs, _, dones, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
-        # perform operations for terminated episodes
-        if len(dones) > 0:
-            # reset rnn state for terminated episodes
-            if agent.is_rnn and agent.states is not None:
-                for s in agent.states:
-                    s[:, dones, :] = 0.0
+        # run everything in inference mode
+        with torch.inference_mode():
+            # convert obs to agent format
+            obs = agent.obs_to_torch(obs)
+            # agent stepping
+            actions = agent.get_action(obs, is_deterministic)
+            # env stepping
+            obs, _, dones, _ = env.step(actions)
+
+            # perform operations for terminated episodes
+            if len(dones) > 0:
+                # reset rnn state for terminated episodes
+                if agent.is_rnn and agent.states is not None:
+                    for s in agent.states:
+                        s[:, dones, :] = 0.0
 
     # close the simulator
     env.close()

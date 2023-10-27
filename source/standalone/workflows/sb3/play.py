@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 
 
 import gym
+import torch
 import traceback
 
 import carb
@@ -82,13 +83,12 @@ def main():
     obs = env.reset()
     # simulate environment
     while simulation_app.is_running():
-        # agent stepping
-        actions, _ = agent.predict(obs, deterministic=True)
-        # env stepping
-        obs, _, _, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
+        # run everything in inference mode
+        with torch.inference_mode():
+            # agent stepping
+            actions, _ = agent.predict(obs, deterministic=True)
+            # env stepping
+            obs, _, _, _ = env.step(actions)
 
     # close the simulator
     env.close()

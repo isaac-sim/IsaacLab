@@ -52,13 +52,12 @@ def main():
     env.reset()
     # simulate environment
     while simulation_app.is_running():
-        # compute zero actions
-        actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)
-        # apply actions
-        _, _, _, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
+        # run everything in inference mode
+        with torch.inference_mode():
+            # compute zero actions
+            actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)
+            # apply actions
+            _, _, _, _ = env.step(actions)
 
     # close the simulator
     env.close()

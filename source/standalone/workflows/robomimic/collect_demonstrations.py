@@ -116,8 +116,8 @@ def main():
     teleop_interface.reset()
     collector_interface.reset()
 
-    # simulate environment
-    with contextlib.suppress(KeyboardInterrupt):
+    # simulate environment -- run everything in inference mode
+    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while not collector_interface.is_stopped():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()

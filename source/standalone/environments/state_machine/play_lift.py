@@ -258,27 +258,29 @@ def main():
 
     # run state machine
     for _ in range(10000):
-        # step environment
-        dones = env.step(actions)[-2]
+        # run everything in inference mode
+        with torch.inference_mode():
+            # step environment
+            dones = env.step(actions)[-2]
 
-        # observations
-        ee_pose = env.robot.data.ee_state_w[:, :7].clone()
-        object_pose = env.object.data.root_state_w[:, :7].clone()
-        des_object_pose = env.object_des_pose_w.clone()
-        # transform from world to base frames
-        ee_pose[:, :3] -= env.robot.data.root_pos_w
-        object_pose[:, :3] -= env.robot.data.root_pos_w
-        des_object_pose[:, :3] -= env.robot.data.root_pos_w
-        # advance state machine
-        with Timer("state machine"):
-            sm_actions = pick_sm.compute(ee_pose, object_pose, des_object_pose)
+            # observations
+            ee_pose = env.robot.data.ee_state_w[:, :7].clone()
+            object_pose = env.object.data.root_state_w[:, :7].clone()
+            des_object_pose = env.object_des_pose_w.clone()
+            # transform from world to base frames
+            ee_pose[:, :3] -= env.robot.data.root_pos_w
+            object_pose[:, :3] -= env.robot.data.root_pos_w
+            des_object_pose[:, :3] -= env.robot.data.root_pos_w
+            # advance state machine
+            with Timer("state machine"):
+                sm_actions = pick_sm.compute(ee_pose, object_pose, des_object_pose)
 
-        # set actions for IK with positions
-        actions[:, :3] = sm_actions[:, :3]
-        actions[:, -1] = sm_actions[:, -1]
-        # reset state machine
-        if dones.any():
-            pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+            # set actions for IK with positions
+            actions[:, :3] = sm_actions[:, :3]
+            actions[:, -1] = sm_actions[:, -1]
+            # reset state machine
+            if dones.any():
+                pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
 
 if __name__ == "__main__":

@@ -70,16 +70,15 @@ def main():
     obs = obs_dict["policy"]
     # simulate environment
     while simulation_app.is_running():
-        # compute actions
-        actions = policy(obs)
-        actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[0])
-        # apply actions
-        obs_dict, _, _, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
-        # robomimic only cares about policy observations
-        obs = obs_dict["policy"]
+        # run everything in inference mode
+        with torch.inference_mode():
+            # compute actions
+            actions = policy(obs)
+            actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[0])
+            # apply actions
+            obs_dict, _, _, _ = env.step(actions)
+            # robomimic only cares about policy observations
+            obs = obs_dict["policy"]
 
     # close the simulator
     env.close()

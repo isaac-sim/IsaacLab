@@ -53,13 +53,12 @@ def main():
     env.reset()
     # simulate environment
     while simulation_app.is_running():
-        # sample actions from -1 to 1
-        actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
-        # apply actions
-        _, _, _, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
+        # run everything in inference mode
+        with torch.inference_mode():
+            # sample actions from -1 to 1
+            actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
+            # apply actions
+            _, _, _, _ = env.step(actions)
 
     # close the simulator
     env.close()

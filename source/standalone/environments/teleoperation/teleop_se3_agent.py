@@ -103,17 +103,16 @@ def main():
 
     # simulate environment
     while simulation_app.is_running():
-        # get keyboard command
-        delta_pose, gripper_command = teleop_interface.advance()
-        # convert to torch
-        delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
-        # pre-process actions
-        actions = pre_process_actions(delta_pose, gripper_command)
-        # apply actions
-        _, _, _, _ = env.step(actions)
-        # check if simulator is stopped
-        if env.unwrapped.sim.is_stopped():
-            break
+        # run everything in inference mode
+        with torch.inference_mode():
+            # get keyboard command
+            delta_pose, gripper_command = teleop_interface.advance()
+            # convert to torch
+            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+            # pre-process actions
+            actions = pre_process_actions(delta_pose, gripper_command)
+            # apply actions
+            _, _, _, _ = env.step(actions)
 
     # close the simulator
     env.close()
