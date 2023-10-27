@@ -101,6 +101,15 @@ class BaseEnv:
             # add timeline event to load managers
             self.load_managers()
 
+        # extend UI elements
+        # we need to do this here after all the managers are initialized
+        # this is because they dictate the sensors and commands right now
+        if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+            self._window = self.cfg.ui_window_class_type(self, window_name="Orbit")
+        else:
+            # if no window, then we don't need to store the window
+            self._window = None
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -181,5 +190,8 @@ class BaseEnv:
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
+            # destroy the window
+            if self._window is not None:
+                self._window = None
             # update closing status
             self._is_closed = True

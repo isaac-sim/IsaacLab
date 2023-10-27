@@ -9,14 +9,17 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
+from __future__ import annotations
+
 from dataclasses import MISSING
-from typing import Tuple
 
 import omni.isaac.orbit.envs.mdp as mdp
 from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sim import SimulationCfg
 from omni.isaac.orbit.utils import configclass
+
+from .ui import BaseEnvWindow
 
 __all__ = ["BaseEnvCfg", "ViewerCfg"]
 
@@ -25,15 +28,15 @@ __all__ = ["BaseEnvCfg", "ViewerCfg"]
 class ViewerCfg:
     """Configuration of the scene viewport camera."""
 
-    eye: Tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
-    lookat: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
     cam_prim_path: str = "/OmniverseKit_Persp"
     """The camera prim path to record images from. Default is "/OmniverseKit_Persp", which is the
     default camera in the default viewport.
     """
-    resolution: Tuple[int, int] = (1280, 720)
+    resolution: tuple[int, int] = (1280, 720)
     """The resolution (width, height) of the camera specified using :attr:`cam_prim_path`.
     Default is (1280, 720).
     """
@@ -59,6 +62,17 @@ class BaseEnvCfg:
     """Viewer configuration. Default is ViewerCfg()."""
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
+    # ui settings
+    ui_window_class_type: type | None = BaseEnvWindow
+    """The class type of the UI window. Defaults to None.
+
+    If None, then no UI window is created.
+
+    Note:
+        If you want to make your own UI window, you can create a class that inherits from
+        from :class:`omni.isaac.orbit.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set
+        this attribute to your class type.
+    """
 
     # general settings
     decimation: int = MISSING

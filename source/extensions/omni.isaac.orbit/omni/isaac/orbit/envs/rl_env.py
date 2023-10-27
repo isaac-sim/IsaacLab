@@ -5,15 +5,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import gym
 import math
 import numpy as np
 import torch
-import weakref
 from typing import Any, ClassVar, Dict, Sequence, Tuple, Union
-
-import omni.usd
 
 from omni.isaac.orbit.command_generators import CommandGeneratorBase
 from omni.isaac.orbit.managers import CurriculumManager, RewardManager, TerminationManager
@@ -110,15 +106,6 @@ class RLEnv(BaseEnv, gym.Env):
         # perform randomization at the start of the simulation
         if "startup" in self.randomization_manager.available_modes:
             self.randomization_manager.randomize(mode="startup")
-        # extend UI elements
-        # we need to do this here after all the managers are initialized
-        # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui():
-            self._build_ui()
-        else:
-            # if no window, then we don't need to store the window
-            self._orbit_window = None
-            self._orbit_window_elements = dict()
 
     """
     Properties.
@@ -298,16 +285,6 @@ class RLEnv(BaseEnv, gym.Env):
                 f"Render mode '{mode}' is not supported. Please use: {self.metadata['render.modes']}."
             )
 
-    def close(self):
-        if not self._is_closed:
-            # destroy the window
-            if self._orbit_window is not None:
-                self._orbit_window.visible = False
-                self._orbit_window.destroy()
-                self._orbit_window = None
-            # update closing status
-            super().close()
-
     """
     Implementation specifics.
     """
@@ -357,147 +334,3 @@ class RLEnv(BaseEnv, gym.Env):
         #  -- add information to extra if timeout occurred due to episode length
         # Note: this is used by algorithms like PPO where time-outs are handled differently
         self.extras["time_outs"] = self.termination_manager.time_outs
-
-    """
-    Helper functions - GUI.
-    """
-
-    def _build_ui(self):
-        """Constructs the GUI for the environment."""
-        # need to import here to wait for the GUI extension to be loaded
-        import omni.isaac.ui.ui_utils as ui_utils
-        import omni.ui as ui
-        from omni.kit.window.extensions import SimpleCheckBox
-
-        # create window for UI
-        self._orbit_window = omni.ui.Window(
-            "Orbit", width=400, height=500, visible=True, dock_preference=ui.DockPreference.RIGHT_TOP
-        )
-        # dock next to properties window
-        asyncio.ensure_future(self._dock_window(window_title=self._orbit_window.title))
-
-        # keep a dictionary of stacks so that child environments can add their own UI elements
-        # this can be done by using the `with` context manager
-        self._orbit_window_elements = dict()
-        # create main frame
-        self._orbit_window_elements["main_frame"] = self._orbit_window.frame
-        with self._orbit_window_elements["main_frame"]:
-            # create main stack
-            self._orbit_window_elements["main_vstack"] = ui.VStack(spacing=5, height=0)
-            with self._orbit_window_elements["main_vstack"]:
-                # create collapsable frame for controls
-                self._orbit_window_elements["control_frame"] = ui.CollapsableFrame(
-                    title="Controls",
-                    width=ui.Fraction(1),
-                    height=0,
-                    collapsed=False,
-                    style=ui_utils.get_style(),
-                    horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-                    vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-                )
-                with self._orbit_window_elements["control_frame"]:
-                    # create stack for controls
-                    self._orbit_window_elements["controls_vstack"] = ui.VStack(spacing=5, height=0)
-                    with self._orbit_window_elements["controls_vstack"]:
-                        # create rendering mode dropdown
-                        render_mode_cfg = {
-                            "label": "Rendering Mode",
-                            "type": "dropdown",
-                            "default_val": self.sim.render_mode.value,
-                            "items": [member.name for member in self.sim.RenderMode if member.value >= 0],
-                            "tooltip": "Select a rendering mode\n" + self.sim.RenderMode.__doc__,
-                            "on_clicked_fn": lambda value: self.sim.set_render_mode(self.sim.RenderMode[value]),
-                        }
-                        self._orbit_window_elements["render_dropdown"] = ui_utils.dropdown_builder(**render_mode_cfg)
-
-                        # create a number slider to move to environment origin
-                        def viewport_camera_origin_fn(model: ui.SimpleIntModel):
-                            """Moves the viewport to the origin of the environment."""
-                            # obtain the origin of the environment
-                            origin = self.scene.env_origins[model.as_int - 1].detach().cpu().numpy()
-                            cam_eye = origin + np.asarray(self.cfg.viewer.eye)
-                            cam_target = origin + np.asarray(self.cfg.viewer.lookat)
-                            # set the camera view
-                            self.sim.set_camera_view(eye=cam_eye, target=cam_target)
-
-                        viewport_origin_cfg = {
-                            "label": "View Environment",
-                            "type": "button",
-                            "default_val": 1,
-                            "min": 1,
-                            "max": self.num_envs,
-                            "tooltip": "Move the viewport to the origin of the environment",
-                        }
-                        self._orbit_window_elements["viewport_btn"] = ui_utils.int_builder(**viewport_origin_cfg)
-                        # create a number slider to move to environment origin
-                        self._orbit_window_elements["viewport_btn"].add_value_changed_fn(viewport_camera_origin_fn)
-
-                # create collapsable frame for debug visualization
-                self._orbit_window_elements["debug_frame"] = ui.CollapsableFrame(
-                    title="Debug Visualization",
-                    width=ui.Fraction(1),
-                    height=0,
-                    collapsed=False,
-                    style=ui_utils.get_style(),
-                    horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-                    vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-                )
-                with self._orbit_window_elements["debug_frame"]:
-                    # create stack for debug visualization
-                    self._orbit_window_elements["debug_vstack"] = ui.VStack(spacing=5, height=0)
-                    with self._orbit_window_elements["debug_vstack"]:
-                        elements = [
-                            self.scene.terrain,
-                            self.command_manager,
-                            *self.scene.rigid_objects.values(),
-                            *self.scene.articulations.values(),
-                            *self.scene.sensors.values(),
-                        ]
-                        names = [
-                            "terrain",
-                            "commands",
-                            *self.scene.rigid_objects.keys(),
-                            *self.scene.articulations.keys(),
-                            *self.scene.sensors.keys(),
-                        ]
-                        # create one for the terrain
-                        for elem, name in zip(elements, names):
-                            if elem is not None:
-                                with ui.HStack():
-                                    # create the UI element
-                                    text = (
-                                        "Toggle debug visualization."
-                                        if elem.has_debug_vis_implementation
-                                        else "Debug visualization not implemented."
-                                    )
-                                    ui.Label(
-                                        name.replace("_", " ").title(),
-                                        width=ui_utils.LABEL_WIDTH - 12,
-                                        alignment=ui.Alignment.LEFT_CENTER,
-                                        tooltip=text,
-                                    )
-                                    self._orbit_window_elements[f"{name}_cb"] = SimpleCheckBox(
-                                        model=ui.SimpleBoolModel(),
-                                        enabled=elem.has_debug_vis_implementation,
-                                        checked=elem.cfg.debug_vis,
-                                        on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
-                                    )
-                                    ui_utils.add_line_rect_flourish()
-
-    async def _dock_window(self, window_title: str):
-        """Docks the orbit window to the property window."""
-        # need to import here to wait for the GUI extension to be loaded
-        import omni.ui as ui
-
-        for _ in range(5):
-            if ui.Workspace.get_window(window_title):
-                break
-            await self.sim.app.next_update_async()
-
-        # dock next to properties window
-        orbit_window = ui.Workspace.get_window(window_title)
-        property_window = ui.Workspace.get_window("Property")
-
-        if orbit_window and property_window:
-            orbit_window.dock_in(property_window, ui.DockPosition.SAME, 1.0)
-            orbit_window.focus()

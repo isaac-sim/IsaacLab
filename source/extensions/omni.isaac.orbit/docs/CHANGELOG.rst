@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.9.25 (2023-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :mod:`omni.isaac.orbit.envs.ui` module to put all the UI-related classes in one place. This currently
+  implements the :class:`omni.isaac.orbit.envs.ui.BaseEnvWindow` and :class:`omni.isaac.orbit.envs.ui.RLEnvWindow`
+  classes. Users can inherit from these classes to create their own UI windows.
+* Added the attribute :attr:`omni.isaac.orbit.envs.BaseEnvCfg.ui_window_class_type` to specify the UI window class
+  to be used for the environment. This allows the user to specify their own UI window class to be used for the
+  environment.
+
+
 0.9.24 (2023-10-27)
 ~~~~~~~~~~~~~~~~~~~
 

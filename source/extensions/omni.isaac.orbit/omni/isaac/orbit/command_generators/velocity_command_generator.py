@@ -150,12 +150,12 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
                 # -- goal
                 marker_cfg = GREEN_ARROW_X_MARKER_CFG.copy()
                 marker_cfg.prim_path = "/Visuals/Command/velocity_goal"
-                marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
+                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
                 self.base_vel_goal_visualizer = VisualizationMarkers(marker_cfg)
                 # -- current
                 marker_cfg = BLUE_ARROW_X_MARKER_CFG.copy()
                 marker_cfg.prim_path = "/Visuals/Command/velocity_current"
-                marker_cfg.markers["arrow"].scale = (2.5, 0.1, 0.1)
+                marker_cfg.markers["arrow"].scale = (0.5, 0.5, 0.5)
                 self.base_vel_visualizer = VisualizationMarkers(marker_cfg)
             # set their visibility to true
             self.base_vel_goal_visualizer.set_visibility(True)
@@ -187,7 +187,7 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         default_scale = self.base_vel_goal_visualizer.cfg.markers["arrow"].scale
         # arrow-scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(xy_velocity.shape[0], 1)
-        arrow_scale[:, 0] *= torch.linalg.norm(xy_velocity, dim=1) * 2.5
+        arrow_scale[:, 0] *= torch.linalg.norm(xy_velocity, dim=1) * 3.0
         # arrow-direction
         heading_angle = torch.atan2(xy_velocity[:, 1], xy_velocity[:, 0])
         zeros = torch.zeros_like(heading_angle)
