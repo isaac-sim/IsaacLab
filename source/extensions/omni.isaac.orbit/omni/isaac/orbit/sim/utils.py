@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import re
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -29,7 +30,7 @@ Attribute - Setters.
 """
 
 
-def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, value: Any, camel_case: bool = True):
+def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, value: Any, camel_case: bool):
     """Set the value of an attribute on its USD schema if it exists.
 
     A USD API schema serves as an interface or API for authoring and extracting a set of attributes.
@@ -40,7 +41,7 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
         schema_api: The USD schema to set the attribute on.
         name: The name of the attribute.
         value: The value to set the attribute to.
-        camel_case: Whether to convert the attribute name to camel case. Defaults to True.
+        camel_case: Whether to convert the attribute name to camel case.
 
     Raises:
         TypeError: When the input attribute name does not exist on the provided schema API.
@@ -66,7 +67,7 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
         raise TypeError(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
 
 
-def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, camel_case: bool = True):
+def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, camel_case: bool):
     """Set the value of a attribute on its USD prim.
 
     The function creates a new attribute if it does not exist on the prim. This is because in some cases (such
@@ -77,7 +78,7 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         prim: The USD prim to set the attribute on.
         attr_name: The name of the attribute.
         value: The value to set the attribute to.
-        camel_case: Whether to convert the attribute name to camel case. Defaults to True.
+        camel_case: Whether to convert the attribute name to camel case.
     """
     # if value is None, do nothing
     if value is None:
@@ -142,8 +143,12 @@ def apply_nested(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str, *args, **kwargs):
+        # map args and kwargs to function signature so we can get the stage
+        # note: we do this to check if stage is given in arg or kwarg
+        sig = inspect.signature(func)
+        bound_args = sig.bind(prim_path, *args, **kwargs)
         # get current stage
-        stage = kwargs.get("stage")
+        stage = bound_args.arguments.get("stage")
         if stage is None:
             stage = stage_utils.get_current_stage()
         # get USD prim

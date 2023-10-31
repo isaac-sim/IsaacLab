@@ -79,6 +79,6 @@ def spawn_light(
             else:
                 prim_prop_name = f"inputs:{attr_name}"
             # set the attribute
-            safe_set_attribute_on_usd_prim(prim, prim_prop_name, value)
+            safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
     # return the prim
     return prim

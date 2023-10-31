@@ -87,8 +87,6 @@ class TestMeshConverter(unittest.TestCase):
         mesh_converter = MeshConverter(mesh_config)
         time_usd_file_created = os.stat(mesh_converter.usd_path).st_mtime_ns
 
-        omni.usd.get_context().close_stage()
-
         # change the config
         new_config = mesh_config
         new_config.make_instanceable = not mesh_config.make_instanceable

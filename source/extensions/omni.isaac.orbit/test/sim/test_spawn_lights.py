@@ -33,6 +33,8 @@ class TestSpawningLights(unittest.TestCase):
 
     def setUp(self) -> None:
         """Create a blank new stage for each test."""
+        # Create a new stage
+        stage_utils.create_new_stage()
         # Simulation time-step
         self.dt = 0.1
         # Load kit helper
@@ -47,6 +49,8 @@ class TestSpawningLights(unittest.TestCase):
         # stop simulation
         self.sim.stop()
         self.sim.clear()
+        self.sim.clear_all_callbacks()
+        self.sim.clear_instance()
 
     """
     Basic spawning.
@@ -133,10 +137,13 @@ class TestSpawningLights(unittest.TestCase):
             prim_path: The prim name.
             cfg: The configuration for the light source.
         """
+        # default list of params to skip
+        non_usd_params = ["func", "prim_type", "visible", "semantic_tags", "copy_from_source"]
+        # obtain prim
         prim = prim_utils.get_prim_at_path(prim_path)
         for attr_name, attr_value in cfg.__dict__.items():
             # skip names we know are not present
-            if attr_name in ["func", "prim_type"] or attr_value is None:
+            if attr_name in non_usd_params or attr_value is None:
                 continue
             # deal with texture input names
             if "texture" in attr_name:
@@ -155,7 +162,7 @@ class TestSpawningLights(unittest.TestCase):
                 # configured value
                 configured_value = prim.GetAttribute(prim_prop_name).Get()
             # validate the values
-            self.assertEqual(configured_value, attr_value)
+            self.assertEqual(configured_value, attr_value, msg=f"Failed for attribute: '{attr_name}'")
 
 
 if __name__ == "__main__":

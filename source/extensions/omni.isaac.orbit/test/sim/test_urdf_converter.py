@@ -24,6 +24,7 @@ import unittest
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
@@ -37,6 +38,8 @@ class TestUrdfConverter(unittest.TestCase):
 
     def setUp(self):
         """Create a blank new stage for each test."""
+        # Create a new stage
+        stage_utils.create_new_stage()
         # Isaac Sim version
         self.isaacsim_version_year = int(get_version()[2])
         # retrieve path to urdf importer extension
@@ -138,10 +141,12 @@ class TestUrdfConverter(unittest.TestCase):
         np.testing.assert_array_equal(drive_stiffness[:, :7], expected_drive_stiffness)
         np.testing.assert_array_equal(drive_damping[:, :7], expected_drive_damping)
         # -- for the hand (prismatic joints)
+        # note: from isaac sim 2023.1, the test asset has mimic joints for the hand
+        #  so the mimic joint doesn't have drive values
         expected_drive_stiffness = self.config.default_drive_stiffness
         expected_drive_damping = self.config.default_drive_damping
-        np.testing.assert_array_equal(drive_stiffness[:, 7:], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, 7:], expected_drive_damping)
+        np.testing.assert_array_equal(drive_stiffness[:, 7], expected_drive_stiffness)
+        np.testing.assert_array_equal(drive_damping[:, 7], expected_drive_damping)
 
         # check drive values for the robot (read from usd)
         self.sim.stop()
@@ -153,10 +158,12 @@ class TestUrdfConverter(unittest.TestCase):
         np.testing.assert_array_equal(drive_stiffness[:, :7], expected_drive_stiffness)
         np.testing.assert_array_equal(drive_damping[:, :7], expected_drive_damping)
         # -- for the hand (prismatic joints)
+        # note: from isaac sim 2023.1, the test asset has mimic joints for the hand
+        #  so the mimic joint doesn't have drive values
         expected_drive_stiffness = self.config.default_drive_stiffness
         expected_drive_damping = self.config.default_drive_damping
-        np.testing.assert_array_equal(drive_stiffness[:, 7:], expected_drive_stiffness)
-        np.testing.assert_array_equal(drive_damping[:, 7:], expected_drive_damping)
+        np.testing.assert_array_equal(drive_stiffness[:, 7], expected_drive_stiffness)
+        np.testing.assert_array_equal(drive_damping[:, 7], expected_drive_damping)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.9.27 (2023-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the default value of the argument ``camel_case`` in setters of USD attributes. This is to avoid
+  confusion with the naming of the attributes in the USD file.
+
+Fixed
+^^^^^
+
+* Fixed the selection of material prim in the :class:`omni.isaac.orbit.sim.spawners.materials.spawn_preview_surface`
+  method. Earlier, the created prim was being selected in the viewport which interfered with the selection of
+  prims by the user.
+* Updated :class:`omni.isaac.orbit.sim.converters.MeshConverter` to use a different stage than the default stage
+  for the conversion. This is to avoid the issue of the stage being closed when the conversion is done.
+
+
 0.9.26 (2023-10-31)
 ~~~~~~~~~~~~~~~~~~~
 

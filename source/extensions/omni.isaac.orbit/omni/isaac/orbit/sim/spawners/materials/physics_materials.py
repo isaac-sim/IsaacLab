@@ -65,9 +65,9 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     # set into USD API
     for attr_name in ["static_friction", "dynamic_friction", "restitution"]:
         value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_material_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(physx_material_api, attr_name, value, camel_case=True)
     # return the prim
     return prim

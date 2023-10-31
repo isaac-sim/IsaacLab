@@ -83,6 +83,7 @@ class TestCamera(unittest.TestCase):
         self.sim._timeline.stop()
         # clear the stage
         self.sim.clear()
+        self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 
     """

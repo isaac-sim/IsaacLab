@@ -97,7 +97,7 @@ def modify_articulation_root_properties(
     cfg = cfg.to_dict()
     # set into physx api
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value, camel_case=True)
     # success
     return True
 
@@ -187,10 +187,10 @@ def modify_rigid_body_properties(
     # set into USD API
     for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
         value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_rigid_body_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(physx_rigid_body_api, attr_name, value, camel_case=True)
     # success
     return True
 
@@ -277,10 +277,10 @@ def modify_collision_properties(
     # set into USD API
     for attr_name in ["collision_enabled"]:
         value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
     # success
     return True
 
@@ -362,7 +362,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     # set into USD API
     for attr_name in ["mass", "density"]:
         value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_mass_api, attr_name, value)
+        safe_set_attribute_on_usd_schema(usd_physics_mass_api, attr_name, value, camel_case=True)
     # success
     return True
 

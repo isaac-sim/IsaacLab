@@ -48,7 +48,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     """
     # spawn material if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
-        omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=True)
+        omni.kit.commands.execute("CreatePreviewSurfaceMaterialPrim", mtl_path=prim_path, select_new_prim=False)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # obtain prim
@@ -57,7 +57,7 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     cfg = cfg.to_dict()
     del cfg["func"]
     for attr_name, attr_value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value)
+        safe_set_attribute_on_usd_prim(prim, f"inputs:{attr_name}", attr_value, camel_case=True)
     # return prim
     return prim
 
