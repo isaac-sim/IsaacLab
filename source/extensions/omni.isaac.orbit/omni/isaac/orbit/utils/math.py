@@ -53,6 +53,7 @@ __all__ = [
     "quat_rotate",
     "quat_rotate_inverse",
     # Transformations
+    "is_identity_pose",
     "combine_frame_transforms",
     "subtract_frame_transforms",
     "compute_pose_error",
@@ -522,6 +523,27 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
 """
 Transformations
 """
+
+
+def is_identity_pose(pos: torch.tensor, rot: torch.tensor) -> bool:
+    """Checks if input poses are identity transforms.
+
+    The function checks if the input position and orientation are close to zero and
+    identity respectively using L2-norm. It does NOT check the error in the orientation.
+
+    Args:
+        pos: The cartesian position. Shape is (N, 3).
+        rot: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
+
+    Returns:
+        True if all the input poses result in identity transform. Otherwise, False.
+    """
+    # create identity transformations
+    pos_identity = torch.zeros_like(pos)
+    rot_identity = torch.zeros_like(rot)
+    rot_identity[..., 0] = 1
+    # compare input to identity
+    return torch.allclose(pos, pos_identity) and torch.allclose(rot, rot_identity)
 
 
 # @torch.jit.script

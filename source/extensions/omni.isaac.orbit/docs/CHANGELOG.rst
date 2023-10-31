@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.26 (2023-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the sensor implementation for :class:`omni.isaac.orbit.sensors.FrameTransformer` class. Currently,
+  it handles obtaining the transformation between two frames in the same articulation.
+
+
 0.9.25 (2023-10-27)
 ~~~~~~~~~~~~~~~~~~~
 
