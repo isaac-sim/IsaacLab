@@ -37,8 +37,10 @@ def spawn_sphere(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.
@@ -77,8 +79,10 @@ def spawn_cuboid(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.
@@ -116,8 +120,10 @@ def spawn_cylinder(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.
@@ -152,8 +158,10 @@ def spawn_capsule(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.
@@ -188,8 +196,10 @@ def spawn_cone(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.
@@ -237,9 +247,11 @@ def _spawn_geom_from_prim_type(
         cfg: The config containing the properties to apply.
         prim_type: The type of prim to create.
         attributes: The attributes to apply to the prim.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
-        scale: The scale to apply to the prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
+        scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
 
     Raises:
         ValueError: If a prim already exists at the given path.

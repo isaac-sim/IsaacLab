@@ -50,12 +50,9 @@ def main():
     sim.set_camera_view([0.0, 17.0, 12.0], [0.0, 2.0, 0.0])
 
     # Spawn things into stage
-    # Lights-1
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
-    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
-    # Lights-2
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
-    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    # Lights
+    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg.func("/World/Light", cfg)
 
     # Create markers with various different shapes
     marker_cfg = VisualizationMarkersCfg(

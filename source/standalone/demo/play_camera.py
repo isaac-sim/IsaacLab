@@ -65,12 +65,10 @@ def design_scene():
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights-1
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
-    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
-    # Lights-2
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
-    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    # Lights
+    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg.func("/World/Light", cfg)
+
     # Xform to hold objects
     prim_utils.create_prim("/World/Objects", "Xform")
     # Random objects

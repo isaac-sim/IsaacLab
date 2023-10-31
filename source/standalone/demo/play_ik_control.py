@@ -67,14 +67,11 @@ def main():
 
     # Spawn things into stage
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg(height=-1.05)
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights-1
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)
-    cfg.func("/World/Light/greyLight", cfg, translation=(4.5, 3.5, 10.0))
-    # Lights-2
-    cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(1.0, 1.0, 1.0), radius=2.5)
-    cfg.func("/World/Light/whiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
+    cfg = sim_utils.GroundPlaneCfg()
+    cfg.func("/World/defaultGroundPlane", cfg, translation=(0.0, 0.0, -1.05))
+    # Lights
+    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg.func("/World/Light", cfg)
     # Table
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/envs/env_0/Table", cfg)

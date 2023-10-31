@@ -37,8 +37,9 @@ def spawn_light(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration for the light source.
-        translation: The translation of the prim. Defaults to None.
-        orientation: The orientation of the prim as ``(w, x, y, z)``. Defaults to None.
+        translation: The translation of the prim. Defaults to None, in which case this is set to the origin.
+        orientation: The orientation of the prim as ``(w, x, y, z)``. Defaults to None, in which case this
+            is set to identity.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path.

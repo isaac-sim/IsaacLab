@@ -95,14 +95,15 @@ class GroundPlaneCfg(SpawnerCfg):
 
     usd_path: str = f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd"
     """Path to the USD file to spawn asset from. Defaults to the grid-world ground plane."""
-    height: float = 0.0
-    """The height of the ground plane. Defaults to 0.0."""
-    color: tuple[float, float, float] | None = (0.065, 0.0725, 0.080)
-    """The color of the ground plane. Defaults to (0.065, 0.0725, 0.080).
+
+    color: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
+    """The color of the ground plane. Defaults to (0.0, 0.0, 0.0).
 
     If None, then the color remains unchanged.
     """
+
     size: tuple[float, float] = (100.0, 100.0)
     """The size of the ground plane. Defaults to 100 m x 100 m."""
+
     physics_material: materials.RigidBodyMaterialCfg = materials.RigidBodyMaterialCfg()
     """Physics material properties. Defaults to the default rigid body material."""

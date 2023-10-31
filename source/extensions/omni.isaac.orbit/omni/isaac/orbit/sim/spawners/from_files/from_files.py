@@ -46,8 +46,10 @@ def spawn_from_usd(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
 
     Returns:
         The prim of the spawned asset.
@@ -119,8 +121,10 @@ def spawn_from_urdf(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the generated USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the generated USD file is used.
 
     Returns:
         The prim of the spawned asset.
@@ -166,7 +170,12 @@ def spawn_from_urdf(
     return prim_utils.get_prim_at_path(prim_path)
 
 
-def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwargs) -> Usd.Prim:
+def spawn_ground_plane(
+    prim_path: str,
+    cfg: from_files_cfg.GroundPlaneCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
     """Spawns a ground plane into the scene.
 
     This function loads the USD file containing the grid plane asset from Isaac Sim. It may
@@ -180,6 +189,10 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
     Args:
         prim_path: The path to spawn the asset at.
         cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
+            case the translation specified in the USD file is used.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case the orientation specified in the USD file is used.
 
     Returns:
         The prim of the spawned asset.
@@ -189,7 +202,7 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
     """
     # Spawn Ground-plane
     if not prim_utils.is_prim_path_valid(prim_path):
-        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=(0.0, 0.0, cfg.height))
+        prim_utils.create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
@@ -231,10 +244,13 @@ def spawn_ground_plane(prim_path: str, cfg: from_files_cfg.GroundPlaneCfg, **kwa
         omni.kit.commands.execute(
             "ChangePropertyCommand",
             prop_path=Sdf.Path(prop_path),
-            value=Gf.Vec3d(*cfg.color),
+            value=Gf.Vec3f(*cfg.color),
             prev=None,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
         )
+    # Remove the light from the ground plane
+    # It isn't bright enough and messes up with the user's lighting settings
+    omni.kit.commands.execute("ToggleVisibilitySelectedPrims", selected_paths=[f"{prim_path}/SphereLight"])
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)

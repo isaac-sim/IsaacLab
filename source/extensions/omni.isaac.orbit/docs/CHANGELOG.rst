@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.28 (2023-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the way the :func:`omni.isaac.orbit.sim.spawners.from_files.spawn_ground_plane` function sets the
+  height of the ground. Earlier, it was reading the height from the configuration object. Now, it expects the
+  desired transformation as inputs to the function. This makes it consistent with the other spawner functions.
+
+
 0.9.27 (2023-10-31)
 ~~~~~~~~~~~~~~~~~~~
 

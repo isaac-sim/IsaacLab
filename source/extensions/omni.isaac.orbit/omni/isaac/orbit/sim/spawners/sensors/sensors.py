@@ -68,8 +68,10 @@ def spawn_camera(
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
         cfg: The configuration instance.
-        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
 
     Returns:
         The created prim.

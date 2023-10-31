@@ -51,7 +51,7 @@ def main():
 
     # Spawn things into stage
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg(height=0.0)
+    cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
     # Lights-1
     cfg = sim_utils.SphereLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75), radius=2.5)

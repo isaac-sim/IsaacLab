@@ -40,6 +40,7 @@ def get_checkpoint_path(log_path: str, run_dir: str = "*", checkpoint: str = Non
     try:
         # find all runs in the directory
         runs = [os.path.join(log_path, run) for run in os.scandir(log_path)]
+        runs = [run for run in runs if os.path.isdir(run)]
         # sort by date to handle change of month
         runs = sorted(runs, key=os.path.getmtime)
         # create last run file path

@@ -79,10 +79,6 @@ def main():
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
-    # Enable flatcache which avoids passing data over to USD structure
-    # this speeds up the read-write operation of GPU buffers
-    if world.get_physics_context().use_gpu_pipeline:
-        world.get_physics_context().enable_flatcache(True)
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
     set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
