@@ -20,11 +20,11 @@ positional arguments:
   output              The path to store the USD file.
 
 optional arguments:
-  -h, --help            Show this help message and exit
-  --headless            Force display off at all times. (default: False)
-  --merge-joints, -m    Consolidate links that are connected by fixed joints. (default: False)
-  --fix-base, -f        Fix the base to where it is imported. (default: False)
-  --make-instanced, -i  Make the asset instanceable for efficient cloning. (default: False)
+  -h, --help                Show this help message and exit
+  --headless                Force display off at all times. (default: False)
+  --merge-joints, -m        Consolidate links that are connected by fixed joints. (default: False)
+  --fix-base, -f            Fix the base to where it is imported. (default: False)
+  --make-instanceable, -i   Make the asset instanceable for efficient cloning. (default: False)
 
 """
 
@@ -55,7 +55,7 @@ parser.add_argument(
     "--fix-base", "-f", action="store_true", default=False, help="Fix the base to where it is imported."
 )
 parser.add_argument(
-    "--make-instanced",
+    "--make-instanceable",
     "-i",
     action="store_true",
     default=False,
@@ -102,7 +102,7 @@ def main():
         fix_base=args_cli.fix_base,
         merge_fixed_joints=args_cli.merge_joints,
         force_usd_conversion=True,
-        make_instanceable=args_cli.make_instanced,
+        make_instanceable=args_cli.make_instanceable,
     )
 
     # Print info

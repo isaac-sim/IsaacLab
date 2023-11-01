@@ -28,8 +28,11 @@ class AssetConverterBaseCfg:
     usd_file_name: str | None = None
     """The name of the generated usd file. Defaults to :obj:`None`.
 
-    If set to :obj:`None`, it is resolved from the asset file name. The extension of the asset file
-    is replaced with ``.usd``.
+    If set to :obj:`None`, it is resolved from the asset file name. For example, if the asset file
+    name is ``"my_asset.urdf"``, then the generated USD file name is ``"my_asset.usd"``.
+
+    If the providing file name does not end with ".usd" or ".usda", then the extension
+    ".usd" is appended to the file name.
     """
 
     force_usd_conversion: bool = False

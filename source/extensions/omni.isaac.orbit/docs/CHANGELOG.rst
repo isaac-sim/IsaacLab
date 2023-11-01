@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.29 (2023-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the material path resolution inside the :class:`omni.isaac.orbit.sim.converters.UrdfConverter` class.
+  With Isaac Sim 2023.1, the material paths from the importer are always saved as absolute paths. This caused
+  issues when the generated USD file was moved to a different location. The fix now resolves the material paths
+  relative to the USD file location.
+
+
 0.9.28 (2023-11-01)
 ~~~~~~~~~~~~~~~~~~~
 
