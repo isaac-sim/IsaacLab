@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import torch
 from typing import TYPE_CHECKING
 
@@ -41,26 +40,46 @@ def grid_pattern(cfg: patterns_cfg.GridPatternCfg, device: str) -> tuple[torch.T
     return ray_starts, ray_directions
 
 
-def pinhole_camera_pattern(cfg: patterns_cfg.PinholeCameraPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
-    """The depth-image pattern for ray casting.
+def pinhole_camera_pattern(
+    cfg: patterns_cfg.PinholeCameraPatternCfg, intrinsic_matrices: torch.Tensor, device: str
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """The image pattern for ray casting.
+
+    .. caution::
+        This function does not follow the standard pattern interface. It requires the intrinsic matrices
+        of the cameras to be passed in. This is because we want to be able to randomize the intrinsic
+        matrices of the cameras, which is not possible with the standard pattern interface.
 
     Args:
         cfg: The configuration instance for the pattern.
+        intrinsic_matrices: The intrinsic matrices of the cameras. Shape is (N, 3, 3).
         device: The device to create the pattern on.
 
     Returns:
-        The starting positions and directions of the rays.
+        The starting positions and directions of the rays. The shape of the tensors are
+        (N, H * W, 3) and (N, H * W, 3) respectively.
     """
-    x_grid = torch.full((cfg.height, cfg.width), cfg.far_plane, device=device)
-    y_range = np.tan(np.deg2rad(cfg.horizontal_fov) / 2.0) * cfg.far_plane
-    y = torch.linspace(y_range, -y_range, cfg.width, device=device)
-    z_range = y_range * cfg.height / cfg.width
-    z = torch.linspace(z_range, -z_range, cfg.height, device=device)
-    y_grid, z_grid = torch.meshgrid(y, z, indexing="xy")
+    # get image plane mesh grid
+    grid = torch.meshgrid(
+        torch.arange(start=0, end=cfg.width, dtype=torch.int32, device=device),
+        torch.arange(start=0, end=cfg.height, dtype=torch.int32, device=device),
+        indexing="xy",
+    )
+    pixels = torch.vstack(list(map(torch.ravel, grid))).T
+    # convert to homogeneous coordinate system
+    pixels = torch.hstack([pixels, torch.ones((len(pixels), 1), device=device)])
+    # get pixel coordinates in camera frame
+    pix_in_cam_frame = torch.matmul(torch.inverse(intrinsic_matrices), pixels.T)
 
-    ray_directions = torch.cat([x_grid.unsqueeze(2), y_grid.unsqueeze(2), z_grid.unsqueeze(2)], dim=2)
-    ray_directions = torch.nn.functional.normalize(ray_directions, p=2.0, dim=-1).view(-1, 3)
-    ray_starts = torch.zeros_like(ray_directions)
+    # robotics camera frame is (x forward, y left, z up) from camera frame with (x right, y down, z forward)
+    # transform to robotics camera frame
+    transform_vec = torch.tensor([1, -1, -1], device=device).unsqueeze(0).unsqueeze(2)
+    pix_in_cam_frame = pix_in_cam_frame[:, [2, 0, 1], :] * transform_vec
+    # normalize ray directions
+    ray_directions = (pix_in_cam_frame / torch.norm(pix_in_cam_frame, dim=1, keepdim=True)).permute(0, 2, 1)
+    # for camera, we always ray-cast from the sensor's origin
+    ray_starts = torch.zeros_like(ray_directions, device=device)
+
     return ray_starts, ray_directions
 
 

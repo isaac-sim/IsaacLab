@@ -15,6 +15,13 @@ def raycast_mesh_kernel(
     ray_starts: wp.array(dtype=wp.vec3),
     ray_directions: wp.array(dtype=wp.vec3),
     ray_hits: wp.array(dtype=wp.vec3),
+    ray_distance: wp.array(dtype=wp.float32),
+    ray_normal: wp.array(dtype=wp.vec3),
+    ray_face_id: wp.array(dtype=wp.int32),
+    max_dist: float = 1e6,
+    return_distance: int = False,
+    return_normal: int = False,
+    return_face_id: int = False,
 ):
     """Performs ray-casting against a mesh.
 
@@ -36,7 +43,6 @@ def raycast_mesh_kernel(
     # get the thread id
     tid = wp.tid()
 
-    max_dist = float(1e6)  # max ray-cast distance
     t = float(0.0)  # hit distance along ray
     u = float(0.0)  # hit face barycentric u
     v = float(0.0)  # hit face barycentric v
@@ -47,3 +53,9 @@ def raycast_mesh_kernel(
     # ray cast against the mesh and store the hit position
     if wp.mesh_query_ray(mesh, ray_starts[tid], ray_directions[tid], max_dist, t, u, v, sign, n, f):
         ray_hits[tid] = ray_starts[tid] + t * ray_directions[tid]
+        if return_distance == 1:
+            ray_distance[tid] = t
+        if return_normal == 1:
+            ray_normal[tid] = n
+        if return_face_id == 1:
+            ray_face_id[tid] = f

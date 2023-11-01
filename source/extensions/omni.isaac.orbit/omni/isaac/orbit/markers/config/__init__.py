@@ -19,7 +19,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
             radius=0.02,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
         ),
-    }
+    },
 )
 """Configuration for the ray-caster marker."""
 

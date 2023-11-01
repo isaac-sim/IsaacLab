@@ -13,12 +13,10 @@ from typing import TYPE_CHECKING, Any, Sequence
 from typing_extensions import Literal
 
 import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.core.utils.rotations import gf_quat_to_np_array
-from pxr import Gf, Usd, UsdGeom
+from pxr import Usd, UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import to_camel_case
@@ -27,7 +25,7 @@ from omni.isaac.orbit.utils.math import quat_from_matrix
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
-from .utils import convert_orientation_convention
+from .utils import convert_orientation_convention, create_rotation_matrix_from_view
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -66,6 +64,8 @@ class Camera(SensorBase):
 
     cfg: CameraCfg
     """The configuration parameters."""
+    UNSUPPORTED_TYPES: set[str] = {"bounding_box_2d_tight", "bounding_box_2d_loose", "bounding_box_3d"}
+    """The set of sensor types that are not supported by the camera class."""
 
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
@@ -101,8 +101,7 @@ class Camera(SensorBase):
         self._data = CameraData()
         # check if there is any intersection in unsupported types
         # reason: these use np structured data types which we can't yet convert to torch tensor
-        unsupported_types = {"bounding_box_2d_tight", "bounding_box_2d_loose", "bounding_box_3d"}
-        common_elements = set(self.cfg.data_types) & unsupported_types
+        common_elements = set(self.cfg.data_types) & Camera.UNSUPPORTED_TYPES
         if common_elements:
             raise ValueError(
                 f"Camera class does not support the following sensor types: {common_elements}."
@@ -167,7 +166,7 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float = 1.0, indices: Sequence[int] | None = None
+        self, matrices: torch.Tensor, focal_length: float = 1.0, env_ids: Sequence[int] | None = None
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
@@ -186,20 +185,15 @@ class Camera(SensorBase):
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
-            matrices: The intrinsic matrices for the camera. Shape is :math:`(N, 3, 3)`.
+            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
             focal_length: Focal length to use when computing aperture values. Defaults to 1.0.
-            indices: A list of indices of length :obj:`N` to specify the prims to manipulate.
-                Defaults to None, which means all prims will be manipulated.
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
-        # resolve indices
-        # check camera prim exists
-        if not self._is_initialized:
-            raise RuntimeError("Camera is not initialized. Please call 'sim.play()' first.")
-        # resolve indices
-        if indices is None:
-            indices = self._ALL_INDICES
-        # iterate over indices
-        for i, matrix in zip(indices, matrices):
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
+        # iterate over env_ids
+        for i, matrix in zip(env_ids, matrices):
             # convert to numpy for sanity
             intrinsic_matrix = np.asarray(matrix, dtype=float)
             # extract parameters from matrix
@@ -240,7 +234,7 @@ class Camera(SensorBase):
         self,
         positions: torch.Tensor | None = None,
         orientations: torch.Tensor | None = None,
-        indices: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
         r"""Set the pose of the camera w.r.t. the world frame using specified convention.
@@ -248,32 +242,27 @@ class Camera(SensorBase):
         Since different fields use different conventions for camera orientations, the method allows users to
         set the camera poses in the specified convention. Possible conventions are:
 
-        - :obj:"opengl" - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
-        - :obj:"ros"    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
-        - :obj:"world"  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
+        - :obj:`"opengl"` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
+        - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
+        - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
         See :meth:`omni.isaac.orbit.sensors.camera.utils.convert_orientation_convention` for more details
         on the conventions.
 
         Args:
-            positions: The cartesian coordinates (in meters). Shape is :math:`(N, 3)`.
+            positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
-            orientations: The quaternion orientation in (w, x, y, z). Shape is :math:`(N, 4)`.
+            orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
                 Defaults to None, in which case the camera orientation in not changed.
-            indices: A list of indices of length :obj:`N` to specify the prims to manipulate.
-                Defaults to None, which means all prims will be manipulated.
-            convention: The convention in which the poses are fed.
-                Defaults to "ros".
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
+            convention: The convention in which the poses are fed. Defaults to "ros".
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
-        # check camera prim exists
-        if not self._is_initialized:
-            raise RuntimeError("Camera is not initialized. Please call 'sim.play()' first.")
-        # resolve indices
-        if indices is None:
-            indices = self._ALL_INDICES
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
         # convert to backend tensor
         if positions is not None:
             if isinstance(positions, np.ndarray):
@@ -288,71 +277,28 @@ class Camera(SensorBase):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_orientation_convention(orientations, origin=convention, target="opengl")
         # set the pose
-        self._view.set_world_poses(positions, orientations, indices)
+        self._view.set_world_poses(positions, orientations, env_ids)
 
     def set_world_poses_from_view(
-        self, eyes: torch.Tensor, targets: torch.Tensor, indices: Sequence[int] | None = None
+        self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is :math:`(N, 3)`.
-            targets: The target locations to look at. Shape is :math:`(N, 3)`.
-            indices: A list of indices of length :math:`N` to specify the prims to manipulate.
-                Defaults to None, which means all prims will be manipulated.
+            eyes: The positions of the camera's eye. Shape is (N, 3).
+            targets: The target locations to look at. Shape is (N, 3).
+            env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
-        # check camera prim exists
-        if not self._is_initialized:
-            raise RuntimeError("Camera is not initialized. Please 'sim.play()' first.")
-        # resolve indices
-        if indices is None:
-            indices = self._ALL_INDICES
-        # create tensors for storing poses
-        positions = torch.zeros((len(indices), 3), device=self._device)
-        orientations = torch.zeros((len(indices), 4), device=self._device)
-        # iterate over all indices
-        # TODO: Can we do this in parallel?
-        for i, eye, target in zip(indices, eyes, targets):
-            # compute camera's eye pose
-            eye_position = Gf.Vec3d(np.asarray(eye).tolist())
-            target_position = Gf.Vec3d(np.asarray(target).tolist())
-            # compute forward direction
-            forward_dir = (eye_position - target_position).GetNormalized()
-            # get up axis
-            up_axis_token = stage_utils.get_stage_up_axis()
-            if up_axis_token == UsdGeom.Tokens.y:
-                # deal with degenerate case
-                if forward_dir == Gf.Vec3d(0, 1, 0):
-                    up_axis = Gf.Vec3d(0, 0, 1)
-                elif forward_dir == Gf.Vec3d(0, -1, 0):
-                    up_axis = Gf.Vec3d(0, 0, -1)
-                else:
-                    up_axis = Gf.Vec3d(0, 1, 0)
-            elif up_axis_token == UsdGeom.Tokens.z:
-                # deal with degenerate case
-                if forward_dir == Gf.Vec3d(0, 0, 1):
-                    up_axis = Gf.Vec3d(0, 1, 0)
-                elif forward_dir == Gf.Vec3d(0, 0, -1):
-                    up_axis = Gf.Vec3d(0, -1, 0)
-                else:
-                    up_axis = Gf.Vec3d(0, 0, 1)
-            else:
-                raise NotImplementedError(f"This method is not supported for up-axis '{up_axis_token}'.")
-            # compute matrix transformation
-            # view matrix: camera_T_world
-            matrix_gf = Gf.Matrix4d(1).SetLookAt(eye_position, target_position, up_axis)
-            # camera position and rotation in world frame
-            matrix_gf = matrix_gf.GetInverse()
-            positions[i] = torch.from_numpy(np.asarray(matrix_gf.ExtractTranslation())).to(device=self._device)
-            orientations[i] = torch.from_numpy(gf_quat_to_np_array(matrix_gf.ExtractRotationQuat())).to(
-                device=self._device
-            )
+        # resolve env_ids
+        if env_ids is None:
+            env_ids = self._ALL_INDICES
         # set camera poses using the view
-        self._view.set_world_poses(positions, orientations, indices)
+        orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        self._view.set_world_poses(eyes, orientations, env_ids)
 
     """
     Operations
@@ -401,7 +347,7 @@ class Camera(SensorBase):
                 f" the number of environments ({self._num_envs})."
             )
 
-        # Create all indices buffer
+        # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
@@ -455,9 +401,6 @@ class Camera(SensorBase):
         self._create_buffers()
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
-        # check camera prim exists
-        if not self._is_initialized:
-            raise RuntimeError("Camera is not initialized. Please call 'sim.play()' first.")
         # Increment frame count
         self._frame[env_ids] += 1
         # -- intrinsic matrix
@@ -493,9 +436,7 @@ class Camera(SensorBase):
         # create the data object
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_ros = torch.zeros((self._view.count, 4), device=self._device)
-        self._data.quat_w_world = torch.zeros_like(self._data.quat_w_ros)
-        self._data.quat_w_opengl = torch.zeros_like(self._data.quat_w_ros)
+        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         # -- intrinsic matrix
         self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
         self._data.image_shape = self.image_shape
@@ -564,13 +505,9 @@ class Camera(SensorBase):
         # extract the position (convert it to SI units-- assumed that stage units is 1.0)
         self._data.pos_w[env_ids] = torch.tensor(prim_tf_all[:, 0:3, 3], device=self._device, dtype=torch.float32)
 
-        # save opengl convention
+        # save quat in world convention
         quat_opengl = quat_from_matrix(torch.tensor(prim_tf_all[:, 0:3, 0:3], device=self._device, dtype=torch.float32))
-        self._data.quat_w_opengl[env_ids] = quat_opengl
-
-        # save world and ros convention
         self._data.quat_w_world[env_ids] = convert_orientation_convention(quat_opengl, origin="opengl", target="world")
-        self._data.quat_w_ros[env_ids] = convert_orientation_convention(quat_opengl, origin="opengl", target="ros")
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.

@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, ClassVar, Sequence
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import warp as wp
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.prims import RigidPrimView, XFormPrimView
 from pxr import UsdGeom, UsdPhysics
@@ -47,6 +48,14 @@ class RayCaster(SensorBase):
 
     cfg: RayCasterCfg
     """The configuration parameters."""
+    meshes: ClassVar[dict[str, wp.Mesh]] = {}
+    """The warp meshes available for raycasting.
+
+    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
+
+    Note:
+           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.
+    """
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -58,8 +67,6 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # List of meshes to ray-cast
-        self.warp_meshes = []
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -67,7 +74,7 @@ class RayCaster(SensorBase):
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(self.warp_meshes)}\n"
+            f"\tnumber of meshes     : {len(RayCaster.meshes)}\n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -127,13 +134,24 @@ class RayCaster(SensorBase):
         self._view = prim_view_class(self.cfg.prim_path, reset_xform_properties=False)
         self._view.initialize()
 
+        # load the meshes by parsing the stage
+        self._initialize_warp_meshes()
+        # initialize the ray start and directions
+        self._initialize_rays_impl()
+
+    def _initialize_warp_meshes(self):
         # check number of mesh prims provided
         if len(self.cfg.mesh_prim_paths) != 1:
             raise NotImplementedError(
                 f"RayCaster currently only supports one mesh prim. Received: {len(self.cfg.mesh_prim_paths)}"
             )
+
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
+            # check if mesh already casted into warp mesh
+            if mesh_prim_path in RayCaster.meshes:
+                continue
+
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = prim_utils.get_first_matching_child_prim(
@@ -164,13 +182,15 @@ class RayCaster(SensorBase):
                 # print info
                 carb.log_info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             # add the warp mesh to the list
-            self.warp_meshes.append(wp_mesh)
+            RayCaster.meshes[mesh_prim_path] = wp_mesh
+
         # throw an error if no meshes are found
-        if len(self.warp_meshes) == 0:
+        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
 
+    def _initialize_rays_impl(self):
         # compute ray stars and directions
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
@@ -210,7 +230,11 @@ class RayCaster(SensorBase):
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
         # ray cast and store the hits
         # TODO: Make this work for multiple meshes?
-        self._data.ray_hits_w[env_ids] = raycast_mesh(ray_starts_w, ray_directions_w, self.warp_meshes[0])
+        self._data.ray_hits_w[env_ids] = raycast_mesh(
+            ray_starts_w,
+            ray_directions_w,
+            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
+        )[0]
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers

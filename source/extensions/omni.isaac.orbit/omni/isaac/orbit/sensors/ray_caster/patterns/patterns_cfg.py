@@ -52,14 +52,27 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 
     func = patterns.pinhole_camera_pattern
 
-    horizontal_fov: float = MISSING
-    """Horizontal field of view (in degrees)."""
+    focal_length: float = 24.0
+    """Perspective focal length (in cm). Defaults to 24.0cm.
+
+    Longer lens lengths narrower FOV, shorter lens lengths wider FOV.
+    """
+    horizontal_aperture: float = 20.955
+    """Horizontal aperture (in mm). Defaults to 20.955mm.
+
+    Emulates sensor/film width on a camera.
+
+    Note:
+        The default value is the horizontal aperture of a 35 mm spherical projector.
+    """
+    horizontal_aperture_offset: float = 0.0
+    """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
+    vertical_aperture_offset: float = 0.0
+    """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
     width: int = MISSING
     """Width of the image (in pixels)."""
     height: int = MISSING
     """Height of the image (in pixels)."""
-    far_plane: float = MISSING
-    """Far plane of the image (in meters)."""
 
 
 @configclass

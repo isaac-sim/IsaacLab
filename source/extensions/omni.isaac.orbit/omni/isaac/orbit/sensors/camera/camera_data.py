@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from tensordict import TensorDict
 from typing import Any
 
+from .utils import convert_orientation_convention
+
 
 @dataclass
 class CameraData:
@@ -25,29 +27,11 @@ class CameraData:
     Shape is (N, 3) where ``N`` is the number of sensors.
     """
 
-    quat_w_ros: torch.Tensor = None
-    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following ROS convention.
-
-    .. note::
-        ROS convention follows the camera aligned with forward axis +Z and up axis -Y.
-
-    Shape is (N, 4) where ``N`` is the number of sensors.
-    """
-
     quat_w_world: torch.Tensor = None
     """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following the world coordinate frame
 
     .. note::
         World frame convention follows the camera aligned with forward axis +X and up axis +Z.
-
-    Shape is ``(N, 4)`` where ``N`` is the number of sensors.
-    """
-
-    quat_w_opengl: torch.Tensor = None
-    """Quaternion orientation `(w, x, y, z)` of the sensor origin in world frame, following Opengl / Usd.Camera convention
-
-    .. note::
-        OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.
 
     Shape is ``(N, 4)`` where ``N`` is the number of sensors.
     """
@@ -81,3 +65,30 @@ class CameraData:
     For semantic-based data, this corresponds to the ``"info"`` key in the output of the sensor. For other sensor
     types, the info is empty.
     """
+
+    ##
+    # Additional Frame orientation conventions
+    ##
+
+    @property
+    def quat_w_ros(self) -> torch.Tensor:
+        """Quaternion orientation `(w, x, y, z)` of the sensor origin in the world frame, following ROS convention.
+
+        .. note::
+            ROS convention follows the camera aligned with forward axis +Z and up axis -Y.
+
+        Shape is (N, 4) where ``N`` is the number of sensors.
+        """
+        return convert_orientation_convention(self.quat_w_world, origin="world", target="ros")
+
+    @property
+    def quat_w_opengl(self) -> torch.Tensor:
+        """Quaternion orientation `(w, x, y, z)` of the sensor origin in the world frame, following
+        Opengl / USD Camera convention.
+
+        .. note::
+            OpenGL convention follows the camera aligned with forward axis -Z and up axis +Y.
+
+        Shape is ``(N, 4)`` where ``N`` is the number of sensors.
+        """
+        return convert_orientation_convention(self.quat_w_world, origin="world", target="opengl")

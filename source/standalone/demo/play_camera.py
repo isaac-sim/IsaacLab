@@ -20,8 +20,9 @@ from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
-parser.add_argument("--gpu", action="store_true", default=False, help="Use GPU device for camera rendering output.")
+parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU device for camera output.")
 parser.add_argument("--draw", action="store_true", default=False, help="Draw the obtained pointcloud on viewport.")
+parser.add_argument("--save", action="store_true", default=False, help="Save the obtained data to disk.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -45,8 +46,6 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
 import omni.replicator.core as rep
 from omni.isaac.core.prims import RigidPrim
-from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import Gf, UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -54,13 +53,19 @@ from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
 from omni.isaac.orbit.utils import convert_dict_to_backend
 from omni.isaac.orbit.utils.math import project_points, transform_points, unproject_depth
 
-"""
-Helpers
-"""
 
+def main():
+    """Main function."""
 
-def design_scene():
-    """Add prims to the scene."""
+    # Load kit helper
+    sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+    sim = sim_utils.SimulationContext(sim_cfg)
+    # Set main camera
+    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    # Acquire draw interface
+    draw_interface = omni_debug_draw.acquire_debug_draw_interface()
+
+    # Populate scene
     # Spawn things into stage
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
@@ -94,26 +99,6 @@ def design_scene():
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
 
-
-"""
-Main
-"""
-
-
-def main():
-    """Runs a camera sensor from orbit."""
-
-    # Load kit helper
-    sim = SimulationContext(
-        physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda" if args_cli.gpu else "cpu"
-    )
-    # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-    # Acquire draw interface
-    draw_interface = omni_debug_draw.acquire_debug_draw_interface()
-
-    # Populate scene
-    design_scene()
     # Setup camera sensor
     camera_cfg = CameraCfg(
         prim_path="/World/CameraSensor_.*/Cam",
@@ -140,12 +125,12 @@ def main():
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
-    eyes = [[2.5, 2.5, 2.5], [-2.5, -2.5, 2.5]]
-    targets = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    eyes = torch.tensor([[2.5, 2.5, 2.5], [-2.5, -2.5, 2.5]], device=sim.device)
+    targets = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sim.device)
     camera.set_world_poses_from_view(eyes, targets)
     # -- Option-2: Set pose using ROS
-    # position = [[2.5, 2.5, 2.5]]
-    # orientation = [[-0.17591989, 0.33985114, 0.82047325, -0.42470819]]
+    # position = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device)
+    # orientation = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=sim.device)
     # camera.set_world_pose_ros(position, orientation, indices=[0])
 
     # Simulate for a few steps
@@ -168,44 +153,48 @@ def main():
         print("-------------------------------")
 
         # Extract camera data
-        camera_index = 1
-        # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
-        if sim.backend == "torch":
-            # tensordict allows easy indexing of tensors in the dictionary
-            single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
-        else:
-            # for numpy, we need to manually index the data
-            single_cam_data = dict()
-            for key, value in camera.data.output.items():
-                single_cam_data[key] = value[camera_index]
-        # Extract the other information
-        single_cam_info = camera.data.info[camera_index]
-
-        # Pack data back into replicator format to save them using its writer
-        rep_output = dict()
-        for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-            if info is not None:
-                rep_output[key] = {"data": data, "info": info}
+        if args_cli.save:
+            # Save images from camera 1
+            camera_index = 1
+            # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
+            if sim.backend == "torch":
+                # tensordict allows easy indexing of tensors in the dictionary
+                single_cam_data = convert_dict_to_backend(camera.data.output[camera_index], backend="numpy")
             else:
-                rep_output[key] = data
-        # Save images
-        rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
-        rep_writer.write(rep_output)
+                # for numpy, we need to manually index the data
+                single_cam_data = dict()
+                for key, value in camera.data.output.items():
+                    single_cam_data[key] = value[camera_index]
+            # Extract the other information
+            single_cam_info = camera.data.info[camera_index]
 
-        # Pointcloud in world frame
-        points_3d_cam = unproject_depth(camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices)
-        points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
-
-        # Check methods are valid
-        im_height, im_width = camera.image_shape
-        # -- project points to (u, v, d)
-        reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
-        reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
-        sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
-        torch.testing.assert_allclose(reproj_depths, sim_depths)
+            # Pack data back into replicator format to save them using its writer
+            rep_output = dict()
+            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                if info is not None:
+                    rep_output[key] = {"data": data, "info": info}
+                else:
+                    rep_output[key] = data
+            # Save images
+            rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+            rep_writer.write(rep_output)
 
         # Draw pointcloud
         if not args_cli.headless and args_cli.draw:
+            # Pointcloud in world frame
+            points_3d_cam = unproject_depth(
+                camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices
+            )
+            points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
+
+            # Check methods are valid
+            im_height, im_width = camera.image_shape
+            # -- project points to (u, v, d)
+            reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
+            reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
+            sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
+            torch.testing.assert_allclose(reproj_depths, sim_depths)
+
             # Convert to numpy for visualization
             if not isinstance(points_3d_world, np.ndarray):
                 points_3d_world = points_3d_world.cpu().numpy()

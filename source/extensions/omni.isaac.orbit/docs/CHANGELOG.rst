@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.31 (2023-11-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :class:`omni.isaac.orbit.sensors.RayCasterCamera` class, as a ray-casting based camera for
+  "distance_to_camera", "distance_to_image_plane" and "normals" annotations. It has the same interface and
+  functionalities as the USD Camera while it is on average 30% faster.
+
+
 0.9.30 (2023-11-01)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -155,7 +166,6 @@ Added
 
 
 0.9.18 (2023-10-23)
-~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
