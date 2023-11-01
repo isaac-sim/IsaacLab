@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.30 (2023-11-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added skipping of None values in the :class:`InteractiveScene` class when creating the scene from configuration
+  objects. Earlier, it was throwing an error when the user passed a None value for a scene element.
+* Added ``kwargs`` to the :class:`RLEnv` class to allow passing additional arguments from gym registry function.
+  This is now needed since the registry function passes args beyond the ones specified in the constructor.
+
+
 0.9.29 (2023-11-01)
 ~~~~~~~~~~~~~~~~~~~
 

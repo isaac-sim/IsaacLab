@@ -50,7 +50,7 @@ def main():
     for task_spec in gym.envs.registry.all():
         if "Isaac" in task_spec.id:
             # add details to table
-            table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec._kwargs["cfg_entry_point"]])
+            table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec._kwargs["env_cfg_entry_point"]])
             # increment count
             index += 1
 

@@ -78,7 +78,7 @@ class RLEnv(BaseEnv, gym.Env):
     cfg: RLEnvCfg
     """Configuration for the environment."""
 
-    def __init__(self, cfg: RLEnvCfg):
+    def __init__(self, cfg: RLEnvCfg, **kwargs):
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
 

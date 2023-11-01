@@ -34,11 +34,27 @@ Args:
     task: name of the environment.
     name: if provided, override the experiment name defined in the config
     dataset: if provided, override the dataset path defined in the config
+
+This file has been modified from the original version in the following ways:
+
+* Added import of AppLauncher from omni.isaac.orbit.app to resolve the configuration to load for training.
 """
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import argparse
+import gym
 import json
 import numpy as np
 import os
@@ -58,8 +74,6 @@ import robomimic.utils.train_utils as TrainUtils
 from robomimic.algo import RolloutPolicy, algo_factory
 from robomimic.config import config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
-
-from config import ROBOMIMIC_CONFIG_FILES_DICT
 
 
 def train(config, device):
@@ -331,8 +345,17 @@ def main(args):
     """Train a model on a task using a specified algorithm."""
     # load config
     if args.task is not None:
+        # obtain the configuration entry point
+        cfg_entry_point_key = f"robomimic_{args.algo}_cfg_entry_point"
+        cfg_entry_point_file = gym.spec(args.task)._kwargs.pop(cfg_entry_point_key)
+        # check if entry point exists
+        if cfg_entry_point_file is None:
+            raise ValueError(
+                f"Could not find configuration for the environment: '{args.task}'."
+                f" Please check that the gym registry has the entry point: '{cfg_entry_point_key}'."
+            )
         # load config from json file
-        with open(ROBOMIMIC_CONFIG_FILES_DICT[args.task][args.algo]) as f:
+        with open(cfg_entry_point_file) as f:
             ext_cfg = json.load(f)
             config = config_factory(ext_cfg["algo_name"])
         # update config with external json - this will throw errors if
@@ -387,4 +410,12 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default=None, help="Name of the algorithm.")
 
     args = parser.parse_args()
-    main(args)
+
+    try:
+        # run training
+        main(args)
+    except Exception:
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

@@ -15,18 +15,49 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 """
 
+from __future__ import annotations
 
 import gym
 import numpy as np
 import torch
-from typing import Any, Dict, List
+from typing import Any
 
-# stable-baselines3
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
 from omni.isaac.orbit.envs import RLEnv
 
-__all__ = ["Sb3VecEnvWrapper"]
+__all__ = ["process_sb3_cfg", "Sb3VecEnvWrapper"]
+
+"""
+Configuration Parser.
+"""
+
+
+def process_sb3_cfg(cfg: dict) -> dict:
+    """Convert simple YAML types to Stable-Baselines classes/components.
+
+    Args:
+        cfg: A configuration dictionary.
+
+    Returns:
+        A dictionary containing the converted configuration.
+
+    Reference:
+        https://github.com/DLR-RM/rl-baselines3-zoo/blob/0e5eb145faefa33e7d79c7f8c179788574b20da5/utils/exp_manager.py#L358
+    """
+    _direct_eval = ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]
+
+    def update_dict(d):
+        for key, value in d.items():
+            if isinstance(value, dict):
+                update_dict(value)
+            else:
+                if key in _direct_eval:
+                    d[key] = eval(value)
+        return d
+
+    # parse agent configuration and convert to classes
+    return update_dict(cfg)
 
 
 """
@@ -90,11 +121,11 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     Properties
     """
 
-    def get_episode_rewards(self) -> List[float]:
+    def get_episode_rewards(self) -> list[float]:
         """Returns the rewards of all the episodes."""
         return self._ep_rew_buf.cpu().tolist()
 
-    def get_episode_lengths(self) -> List[int]:
+    def get_episode_lengths(self) -> list[int]:
         """Returns the number of time-steps of all the episodes."""
         return self._ep_len_buf.cpu().tolist()
 
@@ -180,10 +211,10 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
             raise NotImplementedError(f"Unsupported backend for simulation: {self.env.sim.backend}")
         return obs
 
-    def _process_extras(self, obs, dones, extras, reset_ids) -> List[Dict[str, Any]]:
+    def _process_extras(self, obs, dones, extras, reset_ids) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
         # create empty list of dictionaries to fill
-        infos: List[Dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.env.num_envs)]
+        infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.env.num_envs)]
         # fill-in information for each sub-environment
         # Note: This loop becomes slow when number of environments is large.
         for idx in range(self.env.num_envs):

@@ -29,11 +29,10 @@ Usage:
 
 from __future__ import annotations
 
+import importlib
 import os
+import pkgutil
 import toml
-
-# TODO: include classics, manipulation again when updated on newest version
-from . import locomotion  # noqa: F401
 
 # Conveniences to other module directories via relative paths
 ORBIT_ENVS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
@@ -47,3 +46,47 @@ ORBIT_ENVS_METADATA = toml.load(os.path.join(ORBIT_ENVS_EXT_DIR, "config", "exte
 
 # Configure the module-level variables
 __version__ = ORBIT_ENVS_METADATA["package"]["version"]
+
+##
+# Register Gym environments.
+##
+
+
+def _import_all(package_name: str, blacklist_pkgs: list[str] = None):
+    """Import all sub-packages in a package recursively.
+
+    It is easier to use this function to import all sub-packages in a package recursively
+    than to manually import each sub-package.
+
+    It replaces the need of the following code:
+
+    .. code-block:: python
+
+        import .locomotion.velocity
+        import .manipulation.reach
+        import .manipulation.lift
+
+    Args:
+        package_name: The package name.
+        blacklist_pkgs: The list of blacklisted packages to skip. Defaults to None,
+            which means no packages are blacklisted.
+    """
+    # Default blacklist
+    if blacklist_pkgs is None:
+        blacklist_pkgs = []
+    # Import the package
+    package = importlib.import_module(package_name)
+    # Import all Python files
+    for file_name, module_name, is_pkg in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+        # check blacklisted
+        if any([pkg_name in module_name for pkg_name in blacklist_pkgs]):
+            continue
+        if is_pkg:
+            importlib.import_module(module_name)
+            _import_all(module_name, blacklist_pkgs)
+
+
+# The blacklist is used to prevent importing configs from sub-packages
+_BLACKLIST_PKGS = ["locomotion.velocity.config.anymal_d", "classic", "manipulation", "utils"]
+# Import all configs in this package
+_import_all(__name__, _BLACKLIST_PKGS)

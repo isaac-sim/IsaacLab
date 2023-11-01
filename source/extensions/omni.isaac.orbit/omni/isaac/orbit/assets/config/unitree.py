@@ -28,7 +28,7 @@ from ..articulation import ArticulationCfg
 UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/Unitree/A1/a1_instanceable.usd",
-        activate_contact_sensors=False,
+        activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             retain_accelerations=False,
@@ -49,10 +49,11 @@ UNITREE_A1_CFG = ArticulationCfg(
             ".*R_hip_joint": -0.1,
             "F[L,R]_thigh_joint": 0.8,
             "R[L,R]_thigh_joint": 1.0,
-            ".*_calf_joint": -1.8,
+            ".*_calf_joint": -1.5,
         },
         joint_vel={".*": 0.0},
     ),
+    soft_joint_pos_limit_factor=0.9,
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*"],

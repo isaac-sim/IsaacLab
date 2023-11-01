@@ -29,15 +29,62 @@ import copy
 import torch
 import tqdm
 
-# skrl
 from skrl.agents.torch import Agent
 from skrl.envs.torch.wrappers import Wrapper, wrap_env
+from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
+from skrl.resources.schedulers.torch import KLAdaptiveRL  # noqa: F401
 from skrl.trainers.torch import Trainer
 from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
+from skrl.utils.model_instantiators import Shape  # noqa: F401
 
 from omni.isaac.orbit.envs import RLEnv
 
 __all__ = ["SkrlVecEnvWrapper", "SkrlSequentialLogTrainer"]
+
+"""
+Configuration Parser.
+"""
+
+
+def process_skrl_cfg(cfg: dict) -> dict:
+    """Convert simple YAML types to skrl classes/components.
+
+    Args:
+        cfg: A configuration dictionary.
+
+    Returns:
+        A dictionary containing the converted configuration.
+    """
+    _direct_eval = [
+        "learning_rate_scheduler",
+        "state_preprocessor",
+        "value_preprocessor",
+        "input_shape",
+        "output_shape",
+    ]
+
+    def reward_shaper_function(scale):
+        def reward_shaper(rewards, timestep, timesteps):
+            return rewards * scale
+
+        return reward_shaper
+
+    def update_dict(d):
+        for key, value in d.items():
+            if isinstance(value, dict):
+                update_dict(value)
+            else:
+                if key in _direct_eval:
+                    d[key] = eval(value)
+                elif key.endswith("_kwargs"):
+                    d[key] = value if value is not None else {}
+                elif key in ["rewards_shaper_scale"]:
+                    d["rewards_shaper"] = reward_shaper_function(value)
+
+        return d
+
+    # parse agent configuration and convert to classes
+    return update_dict(cfg)
 
 
 """

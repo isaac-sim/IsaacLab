@@ -48,17 +48,15 @@ from skrl.utils.model_instantiators import deterministic_model, gaussian_model, 
 
 import omni.isaac.contrib_envs  # noqa: F401
 import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import get_checkpoint_path, parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlVecEnvWrapper
-
-from config import convert_skrl_cfg, parse_skrl_cfg
+from omni.isaac.orbit_envs.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
 
 
 def main():
     """Play with skrl agent."""
     # parse env configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
-    experiment_cfg = parse_skrl_cfg(args_cli.task)
+    experiment_cfg = load_cfg_from_registry(args_cli.task, "skrl_cfg_entry_point")
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg)
@@ -74,13 +72,13 @@ def main():
             observation_space=env.observation_space,
             action_space=env.action_space,
             device=env.device,
-            **convert_skrl_cfg(experiment_cfg["models"]["policy"]),
+            **process_skrl_cfg(experiment_cfg["models"]["policy"]),
         )
         models["value"] = deterministic_model(
             observation_space=env.observation_space,
             action_space=env.action_space,
             device=env.device,
-            **convert_skrl_cfg(experiment_cfg["models"]["value"]),
+            **process_skrl_cfg(experiment_cfg["models"]["value"]),
         )
     # shared models
     else:
@@ -91,8 +89,8 @@ def main():
             structure=None,
             roles=["policy", "value"],
             parameters=[
-                convert_skrl_cfg(experiment_cfg["models"]["policy"]),
-                convert_skrl_cfg(experiment_cfg["models"]["value"]),
+                process_skrl_cfg(experiment_cfg["models"]["policy"]),
+                process_skrl_cfg(experiment_cfg["models"]["value"]),
             ],
         )
         models["value"] = models["policy"]
@@ -101,7 +99,7 @@ def main():
     # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
-    agent_cfg.update(convert_skrl_cfg(experiment_cfg["agent"]))
+    agent_cfg.update(process_skrl_cfg(experiment_cfg["agent"]))
 
     agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
     agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})

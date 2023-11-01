@@ -327,7 +327,7 @@ class InteractiveScene:
         for asset_name, asset_cfg in self.cfg.__dict__.items():
             # skip keywords
             # note: easier than writing a list of keywords: [num_envs, env_spacing, lazy_sensor_update]
-            if asset_name in InteractiveSceneCfg.__dataclass_fields__:
+            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
                 continue
             # resolve regex
             asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
