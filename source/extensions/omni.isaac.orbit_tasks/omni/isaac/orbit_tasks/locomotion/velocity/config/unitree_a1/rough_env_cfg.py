@@ -10,8 +10,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-# isort: off
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG
+from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG  # isort: skip
 
 
 @configclass
@@ -32,7 +31,8 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.randomization.add_base_mass = None
 
         # change body and joint names
-        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*calf"  # TODO: Change to .*foot
+        # TODO: Change to .*foot once we make a new USD for the robot
+        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*calf"
         self.rewards.undesired_contacts.params["sensor_cfg"].body_names = [".*thigh", ".*hip"]
 
 

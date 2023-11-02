@@ -5,6 +5,8 @@
 
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
+from __future__ import annotations
+
 import numpy as np
 import torch
 

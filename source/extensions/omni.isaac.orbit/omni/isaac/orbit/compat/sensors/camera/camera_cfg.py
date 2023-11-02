@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-# omni-isaac-orbit
 from omni.isaac.orbit.utils import configclass
 
 __all__ = ["PinholeCameraCfg", "FisheyeCameraCfg"]

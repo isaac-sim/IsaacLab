@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.34 (2023-11-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added missing import of ``from __future__ import annotations`` in the :mod:`omni.isaac.orbit.utils.warp`
+  module. This is needed to have a consistent behavior across Python versions.
+
+
 0.9.33 (2023-11-02)
 ~~~~~~~~~~~~~~~~~~~
 

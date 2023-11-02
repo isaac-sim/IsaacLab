@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Operations based on warp."""
+
+from __future__ import annotations
 
 from .ops import convert_to_warp_mesh, raycast_mesh
 

@@ -5,6 +5,8 @@
 
 """Custom kernels for warp."""
 
+from __future__ import annotations
+
 import warp as wp
 
 

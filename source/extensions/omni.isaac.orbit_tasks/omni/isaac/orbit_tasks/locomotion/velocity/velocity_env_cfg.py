@@ -30,8 +30,7 @@ import omni.isaac.orbit_tasks.locomotion.velocity.mdp as mdp
 ##
 # Pre-defined configs
 ##
-# isort: off
-from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
+from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
 
 ##

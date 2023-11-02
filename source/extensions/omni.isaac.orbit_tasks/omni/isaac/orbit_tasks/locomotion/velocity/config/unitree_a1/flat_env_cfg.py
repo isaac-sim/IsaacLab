@@ -10,8 +10,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-# isort: off
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG
+from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG  # isort: skip
 
 
 @configclass
