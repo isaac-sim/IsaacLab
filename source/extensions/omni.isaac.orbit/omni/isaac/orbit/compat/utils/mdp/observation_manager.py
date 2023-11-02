@@ -1,8 +1,7 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# Copyright (c) 2022-2023, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 
 """Observation manager for computing observation signals for a given world."""
 

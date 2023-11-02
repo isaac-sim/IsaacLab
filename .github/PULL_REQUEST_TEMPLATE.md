@@ -45,6 +45,7 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 - [ ] My changes generate no new warnings
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] I have updated the changelog and the corresponding version in the extension's `config/extension.toml` file
+- [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there
 
 <!--
 As you go through the checklist above, you can mark something as done by putting an x character in it

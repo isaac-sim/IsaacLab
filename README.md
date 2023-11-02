@@ -2,7 +2,7 @@
 
 ---
 
-# Omniverse Isaac Orbit
+# Orbit
 
 [![IsaacSim](https://img.shields.io/badge/Isaac%20Sim-2022.2.0-orange.svg)](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html)
 [![Python](https://img.shields.io/badge/python-3.7-blue.svg)](https://docs.python.org/3/whatsnew/3.7.html)
@@ -13,7 +13,7 @@
 
 <!-- TODO: Replace docs status with workflow badge? Link: https://github.com/isaac-orbit/orbit/actions/workflows/docs.yaml/badge.svg -->
 
-Isaac Orbit (or *orbit* in short) is a unified and modular framework for robot learning powered by [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html). It offers a modular design to easily and efficiently create robotic environments with photo-realistic scenes, and fast and accurate simulation.
+Orbit is a unified and modular framework for robot learning powered by [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html). It offers a modular design to easily and efficiently create robotic environments with photo-realistic scenes, and fast and accurate simulation.
 
 Please refer our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features and tutorials.
 
@@ -44,10 +44,14 @@ ORBIT framework is released under [BSD-3 License](LICENSE). The license files of
 Please cite [this paper](https://arxiv.org/abs/2301.04195) if you use this framework in your work:
 
 ```
-@misc{mittal2023orbit,
-	author = {Mayank Mittal and Calvin Yu and Qinxi Yu and Jingzhou Liu and Nikita Rudin and David 	Hoeller and Jia Lin Yuan and Pooria Poorsarvi Tehrani and Ritvik Singh and Yunrong Guo and Hammad Mazhar and Ajay Mandlekar and Buck Babich and Gavriel State and Marco Hutter and Animesh Garg},
-	title = {ORBIT: A Unified Simulation Framework for Interactive Robot Learning Environments},
-	year = {2023},
-	eprint = {arXiv:2301.04195},
+@article{mittal2023orbit,
+   author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
+   journal={IEEE Robotics and Automation Letters},
+   title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
+   year={2023},
+   volume={8},
+   number={6},
+   pages={3740-3747},
+   doi={10.1109/LRA.2023.3270034}
 }
 ```

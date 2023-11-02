@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from omni.isaac.orbit_envs.utils.wrappers.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlPpoActorCriticCfg,

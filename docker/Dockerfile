@@ -1,10 +1,10 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
+# Copyright (c) 2022-2023, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-#
-# Nvidia Dockerfiles:
-# https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
+
+# Nvidia Dockerfiles: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
+# Please check above link for license information.
 
 # Base image
 ARG ISAACSIM_VERSION
