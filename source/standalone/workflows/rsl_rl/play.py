@@ -44,10 +44,10 @@ import traceback
 import carb
 from rsl_rl.runners import OnPolicyRunner
 
-import omni.isaac.contrib_envs  # noqa: F401
-import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import get_checkpoint_path, parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.rsl_rl import (
+import omni.isaac.contrib_tasks  # noqa: F401
+import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.utils import get_checkpoint_path, parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlVecEnvWrapper,
     export_policy_as_onnx,

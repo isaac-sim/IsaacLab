@@ -5,8 +5,8 @@
 
 from .base_env import BaseEnv
 from .base_env_cfg import BaseEnvCfg, ViewerCfg
-from .rl_env import RLEnv, VecEnvObs, VecEnvStepReturn
-from .rl_env_cfg import RLEnvCfg
+from .rl_task_env import RLTaskEnv, VecEnvObs, VecEnvStepReturn
+from .rl_task_env_cfg import RLTaskEnvCfg
 
 __all__ = [
     # base
@@ -14,8 +14,8 @@ __all__ = [
     "BaseEnvCfg",
     "ViewerCfg",
     # rl
-    "RLEnv",
-    "RLEnvCfg",
+    "RLTaskEnv",
+    "RLTaskEnvCfg",
     # env type variables
     "VecEnvObs",
     "VecEnvStepReturn",

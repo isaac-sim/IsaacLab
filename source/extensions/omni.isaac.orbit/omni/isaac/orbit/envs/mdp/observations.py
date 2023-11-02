@@ -19,7 +19,7 @@ from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.sensors import RayCaster
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs.base_env import BaseEnv
+    from omni.isaac.orbit.envs import BaseEnv
 
 """
 Root state.

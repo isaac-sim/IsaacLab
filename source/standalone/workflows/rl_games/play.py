@@ -48,10 +48,10 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
-import omni.isaac.contrib_envs  # noqa: F401
-import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+import omni.isaac.contrib_tasks  # noqa: F401
+import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 
 def main():

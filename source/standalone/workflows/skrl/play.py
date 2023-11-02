@@ -46,10 +46,10 @@ import carb
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
 
-import omni.isaac.contrib_envs  # noqa: F401
-import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
+import omni.isaac.contrib_tasks  # noqa: F401
+import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
 
 
 def main():

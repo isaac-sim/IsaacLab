@@ -90,8 +90,8 @@ The ``orbit`` repository is structured as follows:
    ├── source
    │   ├── extensions
    │   │   ├── omni.isaac.orbit
-   │   │   └── omni.isaac.orbit_envs
-   │   │   └── omni.isaac.contrib_envs
+   │   │   └── omni.isaac.orbit_tasks
+   │   │   └── omni.isaac.contrib_tasks
    │   ├── standalone
    │   │   ├── demo
    │   │   ├── environments
@@ -227,7 +227,7 @@ The ``source/standalone`` directory contains various standalone applications des
 provided by ``orbit``. These applications are written in python and are structured as follows:
 
 * **demo**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
-* **environments**: Contains applications for running environments defined in ``omni.isaac.orbit_envs`` with different agents.
+* **environments**: Contains applications for running environments defined in ``omni.isaac.orbit_tasks`` with different agents.
   These include a random policy, zero-action policy, teleoperation or scripted state machines.
 * **workflows**: Contains applications for using environments with various learning-based frameworks. These include different
   reinforcement learning or imitation learning libraries.

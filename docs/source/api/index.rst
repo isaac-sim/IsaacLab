@@ -25,13 +25,13 @@ omni.isaac.orbit extension
    orbit.utils.mdp
    orbit.compat
 
-omni.isaac.orbit_envs extension
--------------------------------
+omni.isaac.orbit_tasks extension
+--------------------------------
 
 .. toctree::
    :maxdepth: 1
 
-   orbit_envs.isaac_env
-   orbit_envs.utils
-   orbit_envs.utils.data_collector
-   orbit_envs.utils.wrappers
+   orbit_tasks.isaac_env
+   orbit_tasks.utils
+   orbit_tasks.utils.data_collector
+   orbit_tasks.utils.wrappers

@@ -44,7 +44,7 @@ Environments
 ------------
 
 With Orbit, we also provide a suite of benchmark environments included
-in the ``omni.isaac.orbit_envs`` extension. We use the OpenAI Gym registry
+in the ``omni.isaac.orbit_tasks`` extension. We use the OpenAI Gym registry
 to register these environments. For each environment, we provide a default
 configuration file that defines the scene, observations, rewards and action spaces.
 
@@ -141,7 +141,7 @@ format.
    .. code:: bash
 
       # install python module (for robomimic)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[robomimic]'
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_tasks[robomimic]'
       # split data
       ./orbit.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Franka-v0/hdf_dataset.hdf5 --ratio 0.2
 
@@ -171,7 +171,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for stable-baselines3)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[sb3]'
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_tasks[sb3]'
       # run script for training
       # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
       ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
@@ -184,7 +184,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for skrl)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[skrl]'
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_tasks[skrl]'
       # run script for training
       ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
@@ -196,7 +196,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rl-games)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[rl_games]'
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_tasks[rl_games]'
       # run script for training
       ./orbit.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
       # run script for playing with 32 environments
@@ -208,7 +208,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rsl-rl)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[rsl_rl]'
+      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_tasks[rsl_rl]'
       # run script for training
       ./orbit.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments

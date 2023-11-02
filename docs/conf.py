@@ -20,8 +20,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit"))
 sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit/omni/isaac/orbit"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_envs"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks"))
 
 # -- Project information -----------------------------------------------------
 

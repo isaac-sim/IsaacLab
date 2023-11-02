@@ -15,7 +15,7 @@ from omni.isaac.orbit.assets.articulation import Articulation
 from omni.isaac.orbit.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs.rl_env import BaseEnv
+    from omni.isaac.orbit.envs import BaseEnv
 
     from . import actions_cfg
 

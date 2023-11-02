@@ -56,14 +56,14 @@ from datetime import datetime
 import carb
 from rsl_rl.runners import OnPolicyRunner
 
-from omni.isaac.orbit.envs.rl_env_cfg import RLEnvCfg
+from omni.isaac.orbit.envs import RLTaskEnvCfg
 from omni.isaac.orbit.utils.dict import print_dict
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.contrib_envs  # noqa: F401
-import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils import get_checkpoint_path, parse_env_cfg
-from omni.isaac.orbit_envs.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+import omni.isaac.contrib_tasks  # noqa: F401
+import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.utils import get_checkpoint_path, parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -74,7 +74,7 @@ torch.backends.cudnn.benchmark = False
 def main():
     """Train with RSL-RL agent."""
     # parse configuration
-    env_cfg: RLEnvCfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg: RLTaskEnvCfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
     # specify directory for logging experiments

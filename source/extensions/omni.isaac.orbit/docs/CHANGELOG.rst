@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.32 (2023-11-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the :class:`omni.isaac.orbit.envs.RLEnv` class to :class:`omni.isaac.orbit.envs.RLTaskEnv` to
+  avoid confusions in terminologies between environments and tasks.
+
+
 0.9.31 (2023-11-02)
 ~~~~~~~~~~~~~~~~~~~
 

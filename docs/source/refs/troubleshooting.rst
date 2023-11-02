@@ -68,7 +68,7 @@ argument to the :class:`SimulationContext` class. For example, to increase the s
 
     sim = SimulationContext(sim_params={"gpu_found_lost_pairs_capacity": 4096})
 
-These settings are also directly exposed through the :class:`PhysxCfg` class in the ``omni.isaac.orbit_envs``
+These settings are also directly exposed through the :class:`PhysxCfg` class in the ``omni.isaac.orbit_tasks``
 extension, which can be used to configure the simulation engine. Please see the documentation for
 :class:`PhysxCfg` for more details.
 

@@ -19,6 +19,6 @@ enable_extension("omni.isaac.ui")
 
 # import all UI elements here
 from .base_env_window import BaseEnvWindow
-from .rl_env_window import RLEnvWindow
+from .rl_task_env_window import RLTaskEnvWindow
 
-__all__ = ["BaseEnvWindow", "RLEnvWindow"]
+__all__ = ["BaseEnvWindow", "RLTaskEnvWindow"]

@@ -51,8 +51,8 @@ known_third_party = [
 known_first_party = "omni.isaac.orbit"
 known_assets_firstparty = "omni.isaac.assets"
 known_extra_firstparty = [
-    "omni.isaac.contrib_envs",
-    "omni.isaac.orbit_envs"
+    "omni.isaac.contrib_tasks",
+    "omni.isaac.orbit_tasks"
 ]
 # Imports from the local folder
 known_local_folder = "config"

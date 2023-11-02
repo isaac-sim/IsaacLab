@@ -45,10 +45,10 @@ import carb
 from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.contrib_envs  # noqa: F401
-import omni.isaac.orbit_envs  # noqa: F401
-from omni.isaac.orbit_envs.utils.data_collector import RobomimicDataCollector
-from omni.isaac.orbit_envs.utils.parse_cfg import parse_env_cfg
+import omni.isaac.contrib_tasks  # noqa: F401
+import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.utils.data_collector import RobomimicDataCollector
+from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
 
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:

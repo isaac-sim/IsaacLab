@@ -1,7 +1,7 @@
 Running an RL environment
 =========================
 
-In this tutorial, we will learn how to run existing learning environments provided in the ``omni.isaac.orbit_envs``
+In this tutorial, we will learn how to run existing learning environments provided in the ``omni.isaac.orbit_tasks``
 extension. All the environments included in Orbit follow the ``gym.Env`` interface, which means that they can be used
 with any reinforcement learning framework that supports OpenAI Gym. However, since the environments are implemented
 in a vectorized fashion, they can only be used with frameworks that support vectorized environments.
@@ -9,7 +9,7 @@ in a vectorized fashion, they can only be used with frameworks that support vect
 Many common frameworks come with their own desired definitions of a vectorized environment and require the returned data
 to follow their supported data types and data structures. For example, ``stable-baselines3`` uses ``numpy`` arrays, while
 ``rsl-rl``, ``rl-games``, or ``skrl`` use ``torch.Tensor``. We provide wrappers for these different frameworks, which can be found
-in the ``omni.isaac.orbit_envs.utils.wrappers`` module.
+in the ``omni.isaac.orbit_tasks.utils.wrappers`` module.
 
 
 The Code
@@ -31,24 +31,24 @@ Using gym registry for environments
 
 All environments are registered using the ``gym`` registry, which means that you can create an instance of
 an environment by calling ``gym.make``. The environments are registered in the ``__init__.py`` file of the
-``omni.isaac.orbit_envs`` extension with the following syntax:
+``omni.isaac.orbit_tasks`` extension with the following syntax:
 
 .. code-block:: python
 
     # Cartpole environment
     gym.register(
         id="Isaac-Cartpole-v0",
-        entry_point="omni.isaac.orbit_envs.classic.cartpole:CartpoleEnv",
-        kwargs={"cfg_entry_point": "omni.isaac.orbit_envs.classic.cartpole:cartpole_cfg.yaml"},
+        entry_point="omni.isaac.orbit_tasks.classic.cartpole:CartpoleEnv",
+        kwargs={"cfg_entry_point": "omni.isaac.orbit_tasks.classic.cartpole:cartpole_cfg.yaml"},
     )
 
 The ``cfg_entry_point`` argument is used to load the default configuration for the environment. The default
-configuration is loaded using the :meth:`omni.isaac.orbit_envs.utils.parse_cfg.load_default_env_cfg` function.
+configuration is loaded using the :meth:`omni.isaac.orbit_tasks.utils.parse_cfg.load_default_env_cfg` function.
 The configuration entry point can correspond to both a YAML file or a python configuration
 class. The default configuration can be overridden by passing a custom configuration instance to the ``gym.make``
 function as shown later in the tutorial.
 
-To inform the ``gym`` registry with all the environments provided by the ``omni.isaac.orbit_envs`` extension,
+To inform the ``gym`` registry with all the environments provided by the ``omni.isaac.orbit_tasks`` extension,
 we must import the module at the start of the script.
 
 .. literalinclude:: ../../../source/standalone/environments/zero_agent.py
@@ -59,7 +59,7 @@ we must import the module at the start of the script.
 
 .. note::
 
-    As a convention, we name all the environments in ``omni.isaac.orbit_envs`` extension with the prefix ``Isaac-``.
+    As a convention, we name all the environments in ``omni.isaac.orbit_tasks`` extension with the prefix ``Isaac-``.
     For more complicated environments, we follow the pattern: ``Isaac-<TaskName>-<RobotName>-v<N>``,
     where `N` is used to specify different observations or action spaces within the same task definition. For example,
     for legged locomotion with ANYmal C, the environment is called ``Isaac-Velocity-Anymal-C-v0``.

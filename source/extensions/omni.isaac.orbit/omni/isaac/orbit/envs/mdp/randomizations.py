@@ -22,7 +22,7 @@ from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.utils.math import quat_from_euler_xyz, sample_uniform
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs.base_env import BaseEnv
+    from omni.isaac.orbit.envs import BaseEnv
 
 
 def randomize_rigid_body_material(

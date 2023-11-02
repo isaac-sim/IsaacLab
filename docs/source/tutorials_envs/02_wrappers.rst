@@ -6,7 +6,7 @@ This can be used to apply functions to modify observations or rewards, record vi
 A detailed description of the API is available in the `gym.Wrapper <https://gymnasium.farama.org/api/wrappers/>`_ class.
 
 
-At present, all environments inheriting from the :class:`omni.isaac.orbit_envs.isaac_env.IsaacEnv` class
+At present, all environments inheriting from the :class:`omni.isaac.orbit_tasks.isaac_env.IsaacEnv` class
 are compatible with ``gym.Wrapper``, since the base class implements the ``gym.Env`` interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling `env = wrapper(env, *args, **kwargs)` repeatedly.
@@ -28,8 +28,8 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     import gym
 
-    import omni.isaac.orbit_envs  # noqa: F401
-    from omni.isaac.orbit_envs.utils import load_default_env_cfg
+    import omni.isaac.orbit_tasks  # noqa: F401
+    from omni.isaac.orbit_tasks.utils import load_default_env_cfg
 
     # create base environment
     cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
@@ -138,7 +138,7 @@ As an example of how to use the :class:`IsaacEnv` with Stable-Baselines3:
 
 .. code:: python
 
-    from omni.isaac.orbit_envs.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from omni.isaac.orbit_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
     env = gym.make(task_name, cfg=env_cfg, render=headless)
@@ -156,5 +156,5 @@ As an example of how to use the :class:`IsaacEnv` with Stable-Baselines3:
 To add support for a new learning framework, you need to implement a wrapper class that
 converts the :class:`IsaacEnv` to the learning framework's environment definition. This
 wrapper class should typically inherit from the ``gym.Wrapper`` class. We include a
-set of these wrappers in the :mod:`omni.isaac.orbit_envs.utils.wrappers` module. You can
+set of these wrappers in the :mod:`omni.isaac.orbit_tasks.utils.wrappers` module. You can
 use these wrappers as a reference to implement your own wrapper for a new learning framework.

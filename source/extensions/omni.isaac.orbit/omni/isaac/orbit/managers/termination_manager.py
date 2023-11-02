@@ -15,7 +15,7 @@ from .manager_base import ManagerBase
 from .manager_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs import RLEnv
+    from omni.isaac.orbit.envs import RLTaskEnv
 
 
 class TerminationManager(ManagerBase):
@@ -30,10 +30,10 @@ class TerminationManager(ManagerBase):
     parameters. Each termination term should instantiate the :class:`TerminationTermCfg` class.
     """
 
-    _env: RLEnv
+    _env: RLTaskEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLEnv):
+    def __init__(self, cfg: object, env: RLTaskEnv):
         """Initializes the termination manager.
 
         Args:

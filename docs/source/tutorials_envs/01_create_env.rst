@@ -4,8 +4,8 @@ Creating an environment
 In Orbit, we provide a set of environments that are ready to use. However, you may want to create your own
 environment for your application. This tutorial will show you how to create a new environment from scratch.
 
-As a practice, we maintain all the environments that are *officially* provided in the ``omni.isaac.orbit_envs``
-extension. It is recommended to add your environment to the extension ``omni.isaac.contrib_envs``. This way, you can
+As a practice, we maintain all the environments that are *officially* provided in the ``omni.isaac.orbit_tasks``
+extension. It is recommended to add your environment to the extension ``omni.isaac.contrib_tasks``. This way, you can
 easily update your environment when the API changes and you can also contribute your environment to the community.
 
 In this tutorial, we will look at the base class :py:class:`IsaacEnv` and discuss the different methods that you
@@ -60,7 +60,7 @@ The base class :py:class:`IsaacEnv` is defined in the file ``isaac_env.py``:
 
 .. dropdown:: :fa:`eye,mr-1` Code for `isaac_env.py`
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/isaac_env.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/isaac_env.py
       :language: python
       :linenos:
 
@@ -91,7 +91,7 @@ under the prim path ``/World/defaultGroundPlane`` and optionally, markers for de
 
 .. dropdown:: :fa:`eye,mr-1` Code for `_design_scene` method in `lift_env.py`
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/manipulation/lift/lift_env.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/lift_env.py
       :language: python
       :lines: 75-110
       :linenos:
@@ -114,7 +114,7 @@ various buffers corresponding to episode counter, episode reward, history, senso
 
 .. dropdown:: :fa:`eye,mr-1` Code for `_reset_idx` method in `lift_env.py`
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/manipulation/lift/lift_env.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/lift_env.py
       :language: python
       :lines: 112-137
       :linenos:
@@ -126,7 +126,7 @@ instances are displaced correctly in the simulation stage (i.e. account for the 
 
 An example of this is shown in the :py:meth:`_randomize_object_initial_pose` method for the Lift environment:
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/manipulation/lift/lift_env.py
+.. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/lift_env.py
    :language: python
    :lines: 298-326
    :lineno-start: 298
@@ -171,7 +171,7 @@ the simulator at a specified , updates the buffers and sensors, and computes the
 
 .. dropdown:: :fa:`eye,mr-1` Code for `_step_impl` method in `lift_env.py`
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/manipulation/lift/lift_env.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/lift_env.py
       :language: python
       :lines: 139-189
       :emphasize-lines: 21-29,42-47
@@ -197,7 +197,7 @@ found in the `MDP managers <../api/orbit.utils.mdp.html>`_ section.
 
 .. dropdown:: :fa:`eye,mr-1` Code for `_get_observations` method in `lift_env.py`
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/manipulation/lift/lift_env.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/lift_env.py
       :language: python
       :lines: 191-193
       :linenos:
@@ -209,7 +209,7 @@ Registering the environment
 Before you can run your environment, you need to register your environment with the OpenAI Gym interface.
 
 To register an environment, call the :py:meth:`gym.register` method in the :py:mod:`__init__.py` file of your environment package
-(for instance, in ``omni.isaac.contrib_envs.__init__.py``). This has the following components:
+(for instance, in ``omni.isaac.contrib_tasks.__init__.py``). This has the following components:
 
 * **Name of the environment:** This should ideally be in the format :py:const:`Isaac-\<EnvironmentName\>-\<Robot\>-\<Version\>`.
   However, this is not a strict requirement and you can use any name you want.
@@ -217,11 +217,11 @@ To register an environment, call the :py:meth:`gym.register` method in the :py:m
 * **Config entry point:** This is the import path of the environment configuration file. This is used to instantiate the environment configuration.
   The configuration file can be either a YAML file or a Python dataclass
 
-As examples of this in the ``omni.isaac.orbit_envs`` package, we have the following:
+As examples of this in the ``omni.isaac.orbit_tasks`` package, we have the following:
 
 .. dropdown:: :fa:`eye,mr-1` Registering an environment with a YAML configuration file
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/__init__.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/__init__.py
       :language: python
       :lines: 52-56
       :linenos:
@@ -229,7 +229,7 @@ As examples of this in the ``omni.isaac.orbit_envs`` package, we have the follow
 
 .. dropdown:: :fa:`eye,mr-1` Registering an environment with a Python dataclass configuration file
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_envs/omni/isaac/orbit_envs/__init__.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/__init__.py
       :language: python
       :lines: 84-88
       :linenos:
@@ -239,8 +239,8 @@ As examples of this in the ``omni.isaac.orbit_envs`` package, we have the follow
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code, let's run the environment. All environments registered in the ``omni.isaac.orbit_envs``
-and ``omni.isaac.contrib_envs`` packages are automatically available in the included standalone environments and workflows scripts.
+Now that we have gone through the code, let's run the environment. All environments registered in the ``omni.isaac.orbit_tasks``
+and ``omni.isaac.contrib_tasks`` packages are automatically available in the included standalone environments and workflows scripts.
 
 As an example, to run the Lift environment, you can use the following command.
 

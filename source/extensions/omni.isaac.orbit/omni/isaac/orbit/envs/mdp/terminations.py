@@ -19,19 +19,19 @@ from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.sensors import ContactSensor
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs.rl_env import RLEnv
+    from omni.isaac.orbit.envs import RLTaskEnv
 
 """
 MDP terminations.
 """
 
 
-def time_out(env: RLEnv) -> torch.Tensor:
+def time_out(env: RLTaskEnv) -> torch.Tensor:
     """Terminate the episode when the episode length exceeds the maximum episode length."""
     return env.episode_length_buf >= env.max_episode_length
 
 
-def command_resample(env: RLEnv, num_resamples: int = 1) -> torch.Tensor:
+def command_resample(env: RLTaskEnv, num_resamples: int = 1) -> torch.Tensor:
     """Terminate the episode based on the total number of times commands have been re-sampled.
 
     This makes the maximum episode length fluid in nature as it depends on how the commands are
@@ -48,7 +48,7 @@ Root terminations.
 
 
 def bad_orientation(
-    env: RLEnv, limit_angle: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: RLTaskEnv, limit_angle: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's orientation is too far from the desired orientation limits.
 
@@ -59,7 +59,9 @@ def bad_orientation(
     return torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle
 
 
-def base_height(env: RLEnv, minimum_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_height(
+    env: RLTaskEnv, minimum_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Terminate when the asset's height is below the minimum height.
 
     Note:
@@ -75,7 +77,7 @@ Joint terminations.
 """
 
 
-def joint_pos_limit(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_pos_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -85,7 +87,9 @@ def joint_pos_limit(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robo
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_velocity_limit(env: RLEnv, max_velocity, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_velocity_limit(
+    env: RLTaskEnv, max_velocity, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -93,7 +97,7 @@ def joint_velocity_limit(env: RLEnv, max_velocity, asset_cfg: SceneEntityCfg = S
     return torch.any(torch.abs(asset.data.joint_vel) > max_velocity, dim=1)
 
 
-def joint_torque_limit(env: RLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_torque_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when torque applied on the asset's joints are are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -108,7 +112,7 @@ Contact sensor.
 """
 
 
-def illegal_contact(env: RLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+def illegal_contact(env: RLTaskEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Terminate when the contact force on the sensor exceeds the force threshold."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
