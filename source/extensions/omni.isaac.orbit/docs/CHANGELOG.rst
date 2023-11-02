@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.33 (2023-11-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :class:`omni.isaac.orbit.command_generators.NullCommandGenerator` class. Earlier,
+  it was having a runtime error due to infinity in the resampling time range. Now, the class just
+  overrides the parent methods to perform no operations.
+
+
 0.9.32 (2023-11-02)
 ~~~~~~~~~~~~~~~~~~~
 

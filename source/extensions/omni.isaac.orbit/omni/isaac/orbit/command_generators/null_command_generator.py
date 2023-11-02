@@ -25,6 +25,12 @@ class NullCommandGenerator(CommandGeneratorBase):
     cfg: NullCommandGeneratorCfg
     """Configuration for the command generator."""
 
+    def __str__(self) -> str:
+        msg = "NullCommandGenerator:\n"
+        msg += "\tCommand dimension: N/A\n"
+        msg += f"\tResampling time range: {self.cfg.resampling_time_range}"
+        return msg
+
     """
     Properties
     """
@@ -37,6 +43,16 @@ class NullCommandGenerator(CommandGeneratorBase):
             RuntimeError: No command is generated. Always raises this error.
         """
         raise RuntimeError("NullCommandGenerator does not generate any commands.")
+
+    """
+    Operations.
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        return {}
+
+    def compute(self, dt: float):
+        pass
 
     """
     Implementation specific functions.
