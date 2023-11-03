@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.35 (2023-11-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the error: ``'str' object has no attribute '__module__'`` introduced by adding the future import inside the
+  :mod:`omni.isaac.orbit.utils.warp.kernels` module. Warp language does not support the ``__future__`` imports.
+
+
 0.9.34 (2023-11-02)
 ~~~~~~~~~~~~~~~~~~~
 
