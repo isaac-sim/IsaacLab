@@ -26,7 +26,7 @@ INSTALL_REQUIRES = [
     # gym
     "gym==0.21.0",
     "importlib-metadata~=4.13.0",
-    "setuptools<=66"  # setuptools 67.0 breaks gym
+    "setuptools<=66",  # setuptools 67.0 breaks gym
     # data collection
     "h5py",
 ]
