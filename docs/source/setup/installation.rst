@@ -176,8 +176,17 @@ running the following on your terminal:
    # note: execute the command from where the `orbit.sh` executable exists
    # option1: for bash users
    echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.bashrc
+   source ${HOME}/.bashrc
+
    # option2: for zshell users
    echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.zshrc
+   source ${HOME}/.zshrc
+
+To finalize the installation, please run:
+
+.. code:: bash
+
+   orbit --install
 
 Setting up the environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

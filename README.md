@@ -13,9 +13,17 @@
 
 <!-- TODO: Replace docs status with workflow badge? Link: https://github.com/isaac-orbit/orbit/actions/workflows/docs.yaml/badge.svg -->
 
-Isaac Orbit (or *orbit* in short) is a unified and modular framework for robot learning powered by [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html). It offers a modular design to easily and efficiently create robotic environments with photo-realistic scenes, and fast and accurate simulation.
+Isaac Orbit (or *orbit* in short) is a unified and modular framework for robot learning powered by [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html). It offers a modular design to easily and efficiently create robotic environments with photo-realistic scenes and fast and accurate simulation.
 
-Please refer our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features and tutorials.
+Please refer to our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features, and tutorials.
+
+## ⚠️ Annoucement (22.09.2023)
+
+We are currently in a phase of heavy development, and our team is actively working on various aspects of the framework to enhance its modularity and overall functionality. We understand the anticipation for a new release and assure you that we are working diligently towards it. While we have yet to set an exact release date to share, we are targeting a release in early October 2023. We believe that the improvements we are making will be well worth the wait.
+
+For more details, please check the post here: https://github.com/NVIDIA-Omniverse/Orbit/discussions/106
+
+---
 
 ## Contributing to Orbit
 
