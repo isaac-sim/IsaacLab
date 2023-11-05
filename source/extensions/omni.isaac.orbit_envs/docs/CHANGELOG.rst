@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.4.0 (2023-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added environment wrapper and sequential trainer in JAX for the skrl RL library.
+
+Changed
+^^^^^^^
+
+* Rename the skrl wrapper ``SkrlVecEnvWrapper`` and trainer ``SkrlVecTrainer`` to disambiguate
+  the implementations in PyTorch (``SkrlTorchVecEnvWrapper``, ``SkrlTorchVecTrainer``)
+  and JAX (``SkrlJaxVecEnvWrapper``, ``SkrlJaxVecTrainer``).
+
 0.3.0 (2023-04-14)
 ~~~~~~~~~~~~~~~~~~
 
@@ -79,8 +94,8 @@ Changed
 Added
 ^^^^^
 
-* Added environment wrapper and sequential trainer for the skrl RL library
-* Added training/evaluation configuration files for the skrl RL library
+* Added environment wrapper and sequential trainer for the skrl RL library.
+* Added training/evaluation configuration files for the skrl RL library.
 
 0.1.2 (2023-01-19)
 ~~~~~~~~~~~~~~~~~~

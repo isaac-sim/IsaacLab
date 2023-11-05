@@ -1,19 +1,20 @@
 seed: 42
 
 # Models are instantiated using skrl's model instantiator utility
-# https://skrl.readthedocs.io/en/develop/modules/skrl.utils.model_instantiators.html
+# https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
 models:
   separate: False
   policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
-    clip_actions: True
+    clip_actions: False
     clip_log_std: True
     min_log_std: -20.0
     max_log_std: 2.0
+    initial_log_std: 1.0
     input_shape: "Shape.STATES"
     hiddens: [32, 32]
     hidden_activation: ["elu", "elu"]
     output_shape: "Shape.ACTIONS"
-    output_activation: "tanh"
+    output_activation: ""
     output_scale: 1.0
   value:  # see skrl.utils.model_instantiators.deterministic_model for parameter details
     clip_actions: False
@@ -26,7 +27,7 @@ models:
 
 
 # PPO agent configuration (field names are from PPO_DEFAULT_CONFIG)
-# https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+# https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
   rollouts: 16
   learning_epochs: 8
@@ -51,6 +52,7 @@ agent:
   value_loss_scale: 2.0
   kl_threshold: 0
   rewards_shaper_scale: 1.0
+  time_limit_bootstrap: True
   # logging and checkpoint
   experiment:
     directory: "cartpole"
@@ -60,6 +62,6 @@ agent:
 
 
 # Sequential trainer
-# https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.sequential.html
+# https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
   timesteps: 1600

@@ -179,16 +179,37 @@ from the environments into the respective libraries function argument and return
       ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
 
 -  Training an agent with
-   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
+   `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Lift-Franka-v0``:
 
-   .. code:: bash
+   .. tabs::
 
-      # install python module (for skrl)
-      ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[skrl]'
-      # run script for training
-      ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
-      # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+      .. group-tab:: PyTorch
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[skrl.torch]'
+            # run script for training
+            ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Lift-Franka-v0 --headless --framework torch
+            # run script for playing with 32 environments
+            ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Lift-Franka-v0 --num_envs 32 --framework torch --checkpoint /PATH/TO/model.pt
+
+      .. group-tab:: JAX
+
+         .. note::
+
+            To install the JAX version for GPU, or to troubleshoot any setup errors, please refer to the skrl
+            `Installation <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ page before
+            proceeding with the steps described below.
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./orbit.sh -p -m pip install -e 'source/extensions/omni.isaac.orbit_envs[skrl.jax]'
+            # run script for training
+            ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Lift-Franka-v0 --headless --framework jax
+            # run script for playing with 32 environments
+            ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Lift-Franka-v0 --num_envs 32 --framework jax --checkpoint /PATH/TO/model.pickle
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:

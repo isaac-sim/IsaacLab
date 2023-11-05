@@ -43,6 +43,7 @@ extensions = [
     "myst_parser",
     "autodocsumm",
     "sphinx_copybutton",
+    "sphinx_tabs.tabs",
     "sphinx_panels",
 ]
 

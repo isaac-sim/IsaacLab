@@ -8,6 +8,7 @@ sphinxcontrib-bibtex==2.5.0
 autodocsumm==0.2.9
 sphinx-copybutton
 sphinx-panels
+sphinx-tabs
 
 # basic python
 numpy

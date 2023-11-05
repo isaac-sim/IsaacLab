@@ -9,10 +9,6 @@
 import os
 import yaml
 
-from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
-from skrl.resources.schedulers.torch import KLAdaptiveRL  # noqa: F401
-from skrl.utils.model_instantiators import Shape  # noqa: F401
-
 from omni.isaac.orbit_envs import ORBIT_ENVS_DATA_DIR
 
 __all__ = ["SKRL_PPO_CONFIG_FILE", "parse_skrl_cfg"]
@@ -54,15 +50,28 @@ def parse_skrl_cfg(task_name) -> dict:
     return cfg
 
 
-def convert_skrl_cfg(cfg):
+def convert_skrl_cfg(cfg, framework):
     """Convert simple YAML types to skrl classes/components.
 
     Args:
         cfg (dict): configuration dictionary.
+        framework (str): deep learning framework to use ("torch" or "jax").
 
     Returns:
         dict: A dictionary containing the converted configuration.
     """
+    if framework.startswith("torch"):
+        from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
+        from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
+        from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
+    elif framework.startswith("jax"):
+        from skrl.resources.preprocessors.jax import RunningStandardScaler  # noqa: F401
+        from skrl.resources.schedulers.jax import KLAdaptiveLR  # noqa: F401
+        from skrl.utils.model_instantiators.jax import Shape  # noqa: F401
+
+    KLAdaptiveRL = KLAdaptiveLR  # known typo in skrl versions prior to 1.0.0
+
+    _globals = locals()
     _direct_eval = [
         "learning_rate_scheduler",
         "state_preprocessor",
@@ -72,7 +81,7 @@ def convert_skrl_cfg(cfg):
     ]
 
     def reward_shaper_function(scale):
-        def reward_shaper(rewards, timestep, timesteps):
+        def reward_shaper(rewards, *args, **kwargs):
             return rewards * scale
 
         return reward_shaper
@@ -83,7 +92,7 @@ def convert_skrl_cfg(cfg):
                 update_dict(value)
             else:
                 if key in _direct_eval:
-                    d[key] = eval(value)
+                    d[key] = eval(value, _globals)
                 elif key.endswith("_kwargs"):
                     d[key] = value if value is not None else {}
                 elif key in ["rewards_shaper_scale"]:
