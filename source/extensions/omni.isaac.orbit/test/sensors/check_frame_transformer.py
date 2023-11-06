@@ -33,7 +33,7 @@ parser.add_argument(
     "--visualize",
     action="store_true",
     help=(
-        "Whether to enable FrameTransformer's debug_vis (True)                     or visualize each frame one at a"
+        "Whether to enable FrameTransformer's debug_vis (True) or visualize each frame one at a"
         " time and print to console (False)."
     ),
 )
@@ -182,7 +182,7 @@ def main():
     # to step through each frame so the user can verify that the correct frame
     # is being visualized as the frame names are printing to console
     if not args_cli.visualize:
-        cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+        cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameVisualizerFromScript")
         cfg.markers["frame"].scale = (0.05, 0.05, 0.05)
         transform_visualizer = VisualizationMarkers(cfg)
     else:
@@ -237,6 +237,7 @@ def main():
                 print(f"Displaying {frame_index}: {frame_name}")
                 frame_index += 1
                 frame_index = frame_index % len(frame_names)
+
             # visualize frame
             pos = scene["frame_transformer"].data.target_pos_w[:, frame_index]
             rot = scene["frame_transformer"].data.target_rot_w[:, frame_index]

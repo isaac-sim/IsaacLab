@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.37 (2023-11-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed broken visualization in :mod:`omni.isaac.orbit.sensors.FrameTramsformer` class by overwriting the
+  correct ``_debug_vis_callback`` function.
+* Moved the visualization marker configurations of sensors to their respective sensor configuration classes.
+  This allows users to set these configurations from the configuration object itself.
+
+
 0.9.36 (2023-11-03)
 ~~~~~~~~~~~~~~~~~~~
 

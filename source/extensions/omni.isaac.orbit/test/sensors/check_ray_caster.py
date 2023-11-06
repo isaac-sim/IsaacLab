@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 
-# omni-isaac-orbit
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
@@ -41,18 +40,17 @@ simulation_app = SimulationApp(config)
 """Rest everything follows."""
 
 
-import numpy as np
 import torch
 import traceback
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
-from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import RigidPrimView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 
+import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.terrains as terrain_gen
 from omni.isaac.orbit.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -70,16 +68,17 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     prim_utils.define_prim("/World/envs/env_0")
     # Define the scene
     # -- Light
-    prim_utils.create_prim("/World/light", "DistantLight")
+    cfg = sim_utils.DistantLightCfg(intensity=2000)
+    cfg.func("/World/light", cfg)
     # -- Balls
-    # -- Ball physics
-    DynamicSphere(
-        prim_path="/World/envs/env_0/ball",
-        translation=np.array([0.0, 0.0, 5.0]),
-        mass=0.5,
+    cfg = sim_utils.SphereCfg(
         radius=0.25,
-        color=np.asarray((0.0, 0.0, 1.0)),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
+    cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
     # Clone the scene
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
+from omni.isaac.orbit.markers import VisualizationMarkersCfg
+from omni.isaac.orbit.markers.config import RAY_CASTER_MARKER_CFG
 from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
@@ -58,4 +60,11 @@ class RayCasterCfg(SensorBaseCfg):
     """The range of drift (in meters) to add to the ray starting positions (xyz). Defaults to (0.0, 0.0).
 
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
+    """
+
+    visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+    """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
     """

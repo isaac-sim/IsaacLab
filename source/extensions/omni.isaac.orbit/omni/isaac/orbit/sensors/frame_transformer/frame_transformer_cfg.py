@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
+from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
 from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
@@ -59,4 +60,11 @@ class FrameTransformerCfg(SensorBaseCfg):
     This allows a single FrameTransformer to handle multiple target prims. For example, in a quadruped,
     we can use a single FrameTransformer to track each foot's position and orientation in the body
     frame using four frame offsets.
+    """
+
+    visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+    """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
     """

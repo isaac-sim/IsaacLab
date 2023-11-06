@@ -93,7 +93,7 @@ class CommandGeneratorBase(ABC):
     def has_debug_vis_implementation(self) -> bool:
         """Whether the command generator has a debug visualization implemented."""
         # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._debug_vis_callback)
+        source_code = inspect.getsource(self._set_debug_vis_impl)
         return "NotImplementedError" not in source_code
 
     """

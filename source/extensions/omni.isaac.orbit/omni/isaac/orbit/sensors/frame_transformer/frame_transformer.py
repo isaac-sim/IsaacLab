@@ -14,7 +14,6 @@ from omni.isaac.core.prims import RigidPrimView
 from pxr import UsdPhysics
 
 from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.utils.math import (
     combine_frame_transforms,
     convert_quat,
@@ -72,9 +71,6 @@ class FrameTransformer(SensorBase):
         # Create empty variables for storing output data
         self._data: FrameTransformerData = FrameTransformerData()
 
-        # visualization markers
-        self.transform_visualizer = None
-
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
@@ -99,11 +95,6 @@ class FrameTransformer(SensorBase):
     """
     Operations
     """
-
-    def set_debug_vis(self, debug_vis: bool):
-        super().set_debug_vis(debug_vis)
-        if self.frame_transform_visualizer is not None:
-            self.frame_transform_visualizer.set_visibility(debug_vis)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         # reset the timers and counters
@@ -341,11 +332,19 @@ class FrameTransformer(SensorBase):
         self._data.target_pos_source[:] = target_pos_source.view(-1, total_num_frames, 3)
         self._data.target_rot_source[:] = target_rot_source.view(-1, total_num_frames, 4)
 
-    def _debug_vis_impl(self):
-        # visualize the transform
-        if self.transform_visualizer is None:
-            cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
-            cfg.markers["frame"].scale = (0.05, 0.05, 0.05)
-            self.transform_visualizer = VisualizationMarkers(cfg)
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            if not hasattr(self, "frame_visualizer"):
+                self.frame_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+            # set their visibility to true
+            self.frame_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "frame_visualizer"):
+                self.frame_visualizer.set_visibility(False)
 
-        self.transform_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_rot_w.view(-1, 4))
+    def _debug_vis_callback(self, event):
+        # Update the visualized markers
+        if self.frame_visualizer is not None:
+            self.frame_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_rot_w.view(-1, 4))

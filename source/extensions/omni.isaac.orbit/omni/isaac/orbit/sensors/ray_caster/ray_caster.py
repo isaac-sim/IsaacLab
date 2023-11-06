@@ -17,7 +17,6 @@ from omni.isaac.core.prims import RigidPrimView, XFormPrimView
 from pxr import UsdGeom, UsdPhysics
 
 from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import RAY_CASTER_MARKER_CFG
 from omni.isaac.orbit.terrains.trimesh.utils import make_plane
 from omni.isaac.orbit.utils.math import quat_apply, quat_apply_yaw
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh, raycast_mesh
@@ -240,8 +239,7 @@ class RayCaster(SensorBase):
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
             if not hasattr(self, "ray_visualizer"):
-                visualizer_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
-                self.ray_visualizer = VisualizationMarkers(visualizer_cfg)
+                self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
             # set their visibility to true
             self.ray_visualizer.set_visibility(True)
         else:

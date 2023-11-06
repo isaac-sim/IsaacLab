@@ -18,7 +18,6 @@ from pxr import PhysxSchema
 
 import omni.isaac.orbit.utils.string as string_utils
 from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import CONTACT_SENSOR_MARKER_CFG
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -280,8 +279,7 @@ class ContactSensor(SensorBase):
         if debug_vis:
             # create markers if necessary for the first tome
             if not hasattr(self, "contact_visualizer"):
-                visualizer_cfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
-                self.contact_visualizer = VisualizationMarkers(visualizer_cfg)
+                self.contact_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
         else:

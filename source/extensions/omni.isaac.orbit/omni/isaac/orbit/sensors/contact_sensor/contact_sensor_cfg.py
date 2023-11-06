@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from omni.isaac.orbit.markers import VisualizationMarkersCfg
+from omni.isaac.orbit.markers.config import CONTACT_SENSOR_MARKER_CFG
 from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
@@ -32,4 +34,11 @@ class ContactSensorCfg(SensorBaseCfg):
     method.
 
     If an empty list is provided, then only net contact forces are reported.
+    """
+
+    visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
+    """The configuration object for the visualization markers. Defaults to CONTACT_SENSOR_MARKER_CFG.
+
+    Note:
+        This attribute is only used when debug visualization is enabled.
     """
