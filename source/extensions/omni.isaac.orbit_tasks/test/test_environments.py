@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
 from __future__ import annotations
+
+"""Launch Isaac Sim Simulator first."""
 
 import os
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch the simulator
 app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-config = {"headless": True}
-simulation_app = SimulationApp(config, experience=app_experience)
+app_launcher = AppLauncher(headless=True, experience=app_experience)
+simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
@@ -23,9 +23,13 @@ simulation_app = SimulationApp(config, experience=app_experience)
 import gym
 import gym.envs
 import torch
+import traceback
 import unittest
 
+import carb
 import omni.usd
+
+from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
 
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
@@ -35,34 +39,35 @@ class TestEnvironments(unittest.TestCase):
     """Test cases for all registered environments."""
 
     @classmethod
-    def tearDownClass(cls):
-        """Closes simulator after running all test fixtures."""
-        simulation_app.close()
-
-    def setUp(self) -> None:
-        self.num_envs = 512
-        self.headless = simulation_app.config["headless"]
+    def setUpClass(cls):
         # acquire all Isaac environments names
-        self.registered_tasks = list()
+        cls.registered_tasks = list()
         for task_spec in gym.envs.registry.all():
             if "Isaac" in task_spec.id:
-                self.registered_tasks.append(task_spec.id)
+                cls.registered_tasks.append(task_spec.id)
         # sort environments by name
-        self.registered_tasks.sort()
+        cls.registered_tasks.sort()
         # print all existing task names
-        print(">>> All registered environments:", self.registered_tasks)
+        print(">>> All registered environments:", cls.registered_tasks)
+
+    def setUp(self) -> None:
+        # common parameters
+        self.num_envs = 512
+        self.use_gpu = True
 
     def test_random_actions(self):
         """Run random actions and check environments return valid signals."""
-
         for task_name in self.registered_tasks:
             print(f">>> Running test for environment: {task_name}")
             # create a new stage
             omni.usd.get_context().new_stage()
             # parse configuration
-            env_cfg = parse_env_cfg(task_name, use_gpu=True, num_envs=self.num_envs)
+            env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            # note: we don't want to shutdown the app on stop during the tests since we reload the stage
+            env_cfg.sim.shutdown_app_on_stop = False
+
             # create environment
-            env = gym.make(task_name, cfg=env_cfg)
+            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
 
             # reset environment
             obs = env.reset()
@@ -74,12 +79,10 @@ class TestEnvironments(unittest.TestCase):
                 # sample actions from -1 to 1
                 actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
                 # apply actions
-                obs, rew, dones, info = env.step(actions)
+                transition = env.step(actions)
                 # check signals
-                self.assertTrue(self._check_valid_tensor(obs))
-                self.assertTrue(self._check_valid_tensor(rew))
-                self.assertTrue(self._check_valid_tensor(dones))
-                self.assertTrue(self._check_valid_tensor(info))
+                for data in transition:
+                    self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
 
             # close the environment
             print(f">>> Closing environment: {task_name}")
@@ -106,7 +109,7 @@ class TestEnvironments(unittest.TestCase):
             for value in data.values():
                 if isinstance(value, dict):
                     return TestEnvironments._check_valid_tensor(value)
-                else:
+                elif isinstance(value, torch.Tensor):
                     valid_tensor = valid_tensor and not torch.any(torch.isnan(value))
             return valid_tensor
         else:
@@ -114,4 +117,12 @@ class TestEnvironments(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

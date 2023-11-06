@@ -11,9 +11,9 @@ and have the same image as the previous episode for the first few steps.
 
 ```
 # run with cube
-_isaac_sim/python.sh source/extensions/omni.isaac.orbit/test/isaacsim/check_camera.py --scenario cube
+_isaac_sim/python.sh source/extensions/omni.isaac.orbit/test/deps/isaacsim/check_camera.py --scenario cube
 # run with anymal
-_isaac_sim/python.sh source/extensions/omni.isaac.orbit/test/isaacsim/check_camera.py --scenario anymal
+_isaac_sim/python.sh source/extensions/omni.isaac.orbit/test/deps/isaacsim/check_camera.py --scenario anymal
 ```
 """
 

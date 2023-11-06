@@ -15,7 +15,7 @@ Usage:
 
 .. code-block:: bash
 
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/isaacsim/check_rep_texture_randomizer.py
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/deps/isaacsim/check_rep_texture_randomizer.py
 
 """
 

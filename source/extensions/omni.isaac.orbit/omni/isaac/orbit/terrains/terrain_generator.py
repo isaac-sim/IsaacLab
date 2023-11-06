@@ -150,7 +150,7 @@ class TerrainGenerator:
         for index in range(self.cfg.num_cols):
             sub_index = np.min(np.where(index / self.cfg.num_cols + 0.001 < np.cumsum(proportions))[0])
             sub_indices.append(sub_index)
-        sub_indices = np.array(sub_indices, dtype=np.int)
+        sub_indices = np.array(sub_indices, dtype=np.int32)
         # create a list of all terrain configs
         sub_terrains_cfgs = list(self.cfg.sub_terrains.values())
 

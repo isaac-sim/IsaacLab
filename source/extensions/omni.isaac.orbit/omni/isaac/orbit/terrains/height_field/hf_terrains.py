@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy.interpolate import interpolate
+import scipy.interpolate as interpolate
 from typing import TYPE_CHECKING
 
 from .utils import height_field_to_mesh
@@ -69,7 +69,7 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
     # create interpolation function for the sampled heights
     x = np.linspace(0, cfg.size[0] * cfg.horizontal_scale, width_downsampled)
     y = np.linspace(0, cfg.size[1] * cfg.horizontal_scale, length_downsampled)
-    func = interpolate.interp2d(y, x, height_field_downsampled, kind="linear")
+    func = interpolate.RectBivariateSpline(y, x, height_field_downsampled)
 
     # interpolate the sampled heights to obtain the height field
     x_upsampled = np.linspace(0, cfg.size[0] * cfg.horizontal_scale, width_pixels)

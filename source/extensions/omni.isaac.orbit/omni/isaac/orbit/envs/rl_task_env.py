@@ -285,6 +285,16 @@ class RLTaskEnv(BaseEnv, gym.Env):
                 f"Render mode '{mode}' is not supported. Please use: {self.metadata['render.modes']}."
             )
 
+    def close(self):
+        if not self._is_closed:
+            # destructor is order-sensitive
+            del self.command_manager
+            del self.reward_manager
+            del self.termination_manager
+            del self.curriculum_manager
+            # call the parent class to close the environment
+            super().close()
+
     """
     Implementation specifics.
     """

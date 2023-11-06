@@ -76,7 +76,9 @@ class BaseEnv:
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
         # set camera view for "/OmniverseKit_Persp" camera
-        self.sim.set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
+        # viewport is not available in other rendering modes so the function will throw a warning
+        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+            self.sim.set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -187,6 +189,11 @@ class BaseEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # destructor is order-sensitive
+            del self.action_manager
+            del self.observation_manager
+            del self.randomization_manager
+            del self.scene
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()

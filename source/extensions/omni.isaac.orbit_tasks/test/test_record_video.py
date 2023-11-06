@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import os
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch the simulator
-app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.render.kit"
-config = {"headless": True}
-simulation_app = SimulationApp(config, experience=app_experience)
+app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+app_launcher = AppLauncher(headless=True, offscreen_render=True, experience=app_experience)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -22,7 +22,13 @@ simulation_app = SimulationApp(config, experience=app_experience)
 import gym
 import os
 import torch
+import traceback
 import unittest
+
+import carb
+import omni.usd
+
+from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
 
 import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
@@ -33,41 +39,41 @@ class TestRecordVideoWrapper(unittest.TestCase):
     """Test recording videos using the RecordVideo wrapper."""
 
     @classmethod
-    def tearDownClass(cls):
-        """Closes simulator after running all test fixtures."""
-        simulation_app.close()
+    def setUpClass(cls):
+        # acquire all Isaac environments names
+        cls.registered_tasks = list()
+        for task_spec in gym.envs.registry.all():
+            if "Isaac" in task_spec.id:
+                cls.registered_tasks.append(task_spec.id)
+        # sort environments by name
+        cls.registered_tasks.sort()
+        # print all existing task names
+        print(">>> All registered environments:", cls.registered_tasks)
+        # directory to save videos
+        cls.videos_dir = os.path.join(os.path.dirname(__file__), "output", "videos")
 
     def setUp(self) -> None:
         # common parameters
         self.num_envs = 64
         self.use_gpu = True
-        self.headless = simulation_app.config["headless"]
-        # directory to save videos
-        self.videos_dir = os.path.join(os.path.dirname(__file__), "videos")
+        # video parameters
         self.step_trigger = lambda step: step % 225 == 0
         self.video_length = 200
-        # acquire all Isaac environments names
-        self.registered_tasks = list()
-        for task_spec in gym.envs.registry.all():
-            if "Isaac" in task_spec.id:
-                self.registered_tasks.append(task_spec.id)
-        # sort environments by name
-        self.registered_tasks.sort()
-        # print all existing task names
-        print(">>> All registered environments:", self.registered_tasks)
 
     def test_record_video(self):
         """Run random actions agent with recording of videos."""
-        import omni.usd
-
         for task_name in self.registered_tasks:
             print(f">>> Running test for environment: {task_name}")
             # create a new stage
             omni.usd.get_context().new_stage()
+
             # parse configuration
-            env_cfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            # note: we don't want to shutdown the app on stop during the tests since we reload the stage
+            env_cfg.sim.shutdown_app_on_stop = False
+
             # create environment
-            env = gym.make(task_name, cfg=env_cfg)
+            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
 
             # directory to save videos
             videos_dir = os.path.join(self.videos_dir, task_name)
@@ -83,16 +89,21 @@ class TestRecordVideoWrapper(unittest.TestCase):
                 # compute zero actions
                 actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
                 # apply actions
-                _, _, _, _ = env.step(actions)
+                _ = env.step(actions)
                 # render environment
                 env.render(mode="human")
-                # check if simulator is stopped
-                if env.unwrapped.sim.is_stopped():
-                    break
 
             # close the simulator
             env.close()
 
 
 if __name__ == "__main__":
-    unittest.main()
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

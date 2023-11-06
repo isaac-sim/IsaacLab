@@ -18,10 +18,10 @@ class TestRobomimicDataCollector(unittest.TestCase):
     def test_basic_flushing(self):
         """Adds random data into the collector and checks saving of the data."""
         # name of the environment (needed by robomimic)
-        task_name = "Isaac-Franka-Lift-v0"
+        task_name = "My-Task-v0"
         # specify directory for logging experiments
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        log_dir = os.path.join(test_dir, "logs", "demos")
+        log_dir = os.path.join(test_dir, "output", "demos")
         # name of the file to save data
         filename = "hdf_dataset.hdf5"
         # number of episodes to collect

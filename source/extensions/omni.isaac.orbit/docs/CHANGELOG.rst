@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.36 (2023-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added explicit deleting of different managers in the :class:`omni.isaac.orbit.envs.BaseEnv` and
+  :class:`omni.isaac.orbit.envs.RLTaskEnv` classes. This is required since deleting the managers
+  is order-sensitive (many managers need to be deleted before the scene is deleted).
+
+
 0.9.35 (2023-11-02)
 ~~~~~~~~~~~~~~~~~~~
 
