@@ -15,7 +15,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Orbit environments.")
+parser = argparse.ArgumentParser(description="Keyboard teleoperation for Orbit environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--device", type=str, default="keyboard", help="Device for interacting with environment")
@@ -33,7 +33,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gym
+import gymnasium as gym
 import torch
 import traceback
 

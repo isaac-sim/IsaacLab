@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.5.1 (2023-11-04)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the wrappers to different learning frameworks to use the new :class:`omni.isaac.orbit_tasks.RLTaskEnv` class.
+  The :class:`RLTaskEnv` class inherits from the :class:`gymnasium.Env` class (Gym 0.29.0).
+* Fixed the registration of tasks in the Gym registry based on Gym 0.29.0 API.
+
+Changed
+^^^^^^^
+
+* Removed the inheritance of all the RL-framework specific wrappers from the :class:`gymnasium.Wrapper` class.
+  This is because the wrappers don't comply with the new Gym 0.29.0 API. The wrappers are now only inherit
+  from their respective RL-framework specific base classes.
+
+
 0.5.0 (2023-10-30)
 ~~~~~~~~~~~~~~~~~~
 

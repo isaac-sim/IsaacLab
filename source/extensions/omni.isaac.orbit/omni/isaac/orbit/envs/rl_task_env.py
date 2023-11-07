@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
-import gym
+import gymnasium as gym
 import math
 import numpy as np
 import torch
 from typing import Any, ClassVar, Dict, Sequence, Tuple, Union
+
+from omni.isaac.version import get_version
 
 from omni.isaac.orbit.command_generators import CommandGeneratorBase
 from omni.isaac.orbit.managers import CurriculumManager, RewardManager, TerminationManager
@@ -41,10 +43,16 @@ Note:
 """
 
 
-VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, Dict]
+VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, Dict]
 """The environment signals processed at the end of each step.
 
-It contains the observation, reward, termination signal and additional information for each sub-environment.
+The tuple contains batched information for each sub-environment. The information is stored in the following order:
+
+1. **Observations**: The observations from the environment.
+2. **Rewards**: The rewards from the environment.
+3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
+4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
+5. **Extras**: A dictionary containing additional information from the environment.
 """
 
 
@@ -72,40 +80,43 @@ class RLTaskEnv(BaseEnv, gym.Env):
 
     is_vector_env: ClassVar[bool] = True
     """Whether the environment is a vectorized environment."""
-    metadata: ClassVar[dict[str, Any]] = {"render.modes": ["human", "rgb_array"]}
+    metadata: ClassVar[dict[str, Any]] = {
+        "render_modes": [None, "human", "rgb_array"],
+        "isaac_sim_version": get_version(),
+    }
     """Metadata for the environment."""
 
     cfg: RLTaskEnvCfg
     """Configuration for the environment."""
 
-    def __init__(self, cfg: RLTaskEnvCfg, **kwargs):
+    def __init__(self, cfg: RLTaskEnvCfg, render_mode: str | None = None, **kwargs):
+        """Initialize the environment.
+
+        Args:
+            cfg: The configuration for the environment.
+            render_mode: The render mode for the environment. Defaults to None, which
+                is similar to ``"human"``.
+        """
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
+        # store the render mode
+        self.render_mode = render_mode
 
         # initialize data and constants
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
-        self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
-        self.reward_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # -- allocate dictionary to store metrics
         self.extras = {}
-        # print the environment information
-        print("[INFO]: Completed setting up the environment...")
 
         # setup the action and observation spaces for Gym
-        # -- observation space
-        self.observation_space = gym.spaces.Dict()
-        for group_name, group_dim in self.observation_manager.group_obs_dim.items():
-            self.observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
-        # -- action space (unbounded since we don't impose any limits)
-        action_dim = sum(self.action_manager.action_term_dim)
-        self.action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
-
+        self._configure_gym_env_spaces()
         # perform randomization at the start of the simulation
         if "startup" in self.randomization_manager.available_modes:
             self.randomization_manager.randomize(mode="startup")
+        # print the environment information
+        print("[INFO]: Completed setting up the environment...")
 
     """
     Properties.
@@ -147,44 +158,54 @@ class RLTaskEnv(BaseEnv, gym.Env):
     Operations - MDP
     """
 
-    def reset(self) -> VecEnvObs:
-        """Resets all the environments and returns observations.
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
+        """Resets all the environments and returns observations and extras.
 
         Note:
             This function (if called) must **only** be called before the first call to :meth:`step`, i.e.
             after the environment is created. After that, the :meth:`step` function handles the reset
             of terminated sub-environments.
 
+        Args:
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            options: Additional information to specify how the environment is reset. Defaults to None.
+
+                Note:
+                    This is not used in the current implementation. It is mostly there for compatibility with
+                    Gymnasium environment definition.
+
         Returns:
-            Observations from the environment.
+            A tuple containing the observations and extras.
         """
+        # set the seed
+        if seed is not None:
+            gym.Env.reset(self, seed=seed)
+            self.seed(seed)
         # reset state of scene
         indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
         self._reset_idx(indices)
         # return observations
-        return self.observation_manager.compute()
+        return self.observation_manager.compute(), self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Apply actions on the environment and reset terminated environments.
+        """Run one timestep of the environment's dynamics and reset terminated environments.
 
-        This function deals with various timeline events (play, pause and stop) for clean execution.
-        When the simulation is stopped all the physics handles expire and we cannot perform any read or
-        write operations. The timeline event is only detected after every `sim.step()` call. Hence, at
-        every call we need to check the status of the simulator. The logic is as follows:
+        The environment dynamics may comprise of many steps of the physics engine. The number of steps
+        is controlled by the :attr:`RLTaskEnvCfg.decimation` parameter in the configuration. This means
+        that the agent control can happen at a slower rate than the physics simulation. This is useful
+        for real-time control of the robot, where the control loop may be slower than the frequency of
+        the actual dynamics.
 
-        1. If the simulation is stopped, the environment is closed and the simulator is shutdown.
-        2. If the simulation is paused, we step the simulator until it is playing.
-        3. If the simulation is playing, we set the actions and step the simulator.
+        The function also handles resetting of the terminated environments, at the end of the physics
+        stepping and computation of the reward and terminated signals. This is because it is not
+        possible to reset the sub-environments individually due to the vectorized implementation
+        of sub-environments in the simulator.
 
         Args:
-            action: Actions to apply on the simulator.
+            action: The actions to apply on the environment. Shape is ``(num_envs, action_dim)``.
 
         Returns:
-            VecEnvStepReturn: A tuple containing:
-                - (VecEnvObs) observations from the environment
-                - (torch.Tensor) reward from the environment
-                - (torch.Tensor) whether the current episode is completed or not
-                - (dict) misc information
+            A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
         # process actions
         self.action_manager.process_action(action)
@@ -206,13 +227,14 @@ class RLTaskEnv(BaseEnv, gym.Env):
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
-
-        # compute MDP signals
         # -- check terminations
-        self.reset_buf = self.termination_manager.compute().to(torch.long)
+        self.reset_buf = self.termination_manager.compute()
+        self.reset_terminated = self.termination_manager.terminated
+        self.reset_time_outs = self.termination_manager.time_outs
         # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
-        # -- reset envs that terminated and log the episode information
+
+        # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
@@ -221,11 +243,14 @@ class RLTaskEnv(BaseEnv, gym.Env):
         # -- step interval randomization
         if "interval" in self.randomization_manager.available_modes:
             self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+        # -- compute observations
+        # note: done after reset to get the correct observations for reset envs
+        self.obs_buf = self.observation_manager.compute()
 
         # return observations, rewards, resets and extras
-        return self.observation_manager.compute(), self.reward_buf, self.reset_buf, self.extras
+        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
-    def render(self, mode: str = "human") -> np.ndarray | None:
+    def render(self) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
 
         By convention, if mode is:
@@ -233,9 +258,6 @@ class RLTaskEnv(BaseEnv, gym.Env):
         - **human**: render to the current display and return nothing. Usually for human consumption.
         - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
-
-        Args:
-            mode: The mode to render with. Defaults to "human".
 
         Returns:
             The rendered image as a numpy array if mode is "rgb_array".
@@ -249,15 +271,15 @@ class RLTaskEnv(BaseEnv, gym.Env):
         # run a rendering step of the simulator
         self.sim.render()
         # decide the rendering mode
-        if mode == "human":
+        if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif mode == "rgb_array":
+        elif self.render_mode == "rgb_array":
             # check that if any render could have happened
             if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
                 raise RuntimeError(
-                    f"Cannot render '{mode}' when the simulation render mode is '{self.sim.render_mode.name}'."
-                    f" Please set the simulation render mode to '{self.sim.RenderMode.PARTIAL_RENDERING.name}' or "
-                    f" '{self.sim.RenderMode.FULL_RENDERING.name}'."
+                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
+                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
+                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):
@@ -282,7 +304,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
                 return rgb_data[:, :, :3]
         else:
             raise NotImplementedError(
-                f"Render mode '{mode}' is not supported. Please use: {self.metadata['render.modes']}."
+                f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
             )
 
     def close(self):
@@ -296,8 +318,36 @@ class RLTaskEnv(BaseEnv, gym.Env):
             super().close()
 
     """
-    Implementation specifics.
+    Helper functions.
     """
+
+    def _configure_gym_env_spaces(self):
+        """Configure the action and observation spaces for the Gym environment."""
+        # observation space (unbounded since we don't impose any limits)
+        self.single_observation_space = gym.spaces.Dict()
+        for group_name, group_term_names in self.observation_manager.active_terms.items():
+            # extract quantities about the group
+            has_concatenated_obs = self.observation_manager.group_obs_concatenate[group_name]
+            group_dim = self.observation_manager.group_obs_dim[group_name]
+            group_term_dim = self.observation_manager.group_obs_term_dim[group_name]
+            # check if group is concatenated or not
+            # if not concatenated, then we need to add each term separately as a dictionary
+            if has_concatenated_obs:
+                self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
+            else:
+                self.single_observation_space[group_name] = gym.spaces.Dict(
+                    {
+                        term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
+                        for term_name, term_dim in zip(group_term_names, group_term_dim)
+                    }
+                )
+        # action space (unbounded since we don't impose any limits)
+        action_dim = sum(self.action_manager.action_term_dim)
+        self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))
+
+        # batch the spaces for vectorized environments
+        self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
+        self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
@@ -341,6 +391,3 @@ class RLTaskEnv(BaseEnv, gym.Env):
 
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
-        #  -- add information to extra if timeout occurred due to episode length
-        # Note: this is used by algorithms like PPO where time-outs are handled differently
-        self.extras["time_outs"] = self.termination_manager.time_outs

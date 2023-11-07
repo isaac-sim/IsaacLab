@@ -21,6 +21,7 @@ simulation_app = app_launcher.app
 
 
 import gymnasium as gym
+import numpy as np
 import torch
 import traceback
 import unittest
@@ -28,14 +29,15 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
+from omni.isaac.orbit.envs import RLTaskEnvCfg
 
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
 
-class TestEnvironments(unittest.TestCase):
-    """Test cases for all registered environments."""
+class TestStableBaselines3VecEnvWrapper(unittest.TestCase):
+    """Test that RSL-RL VecEnv wrapper works as expected."""
 
     @classmethod
     def setUpClass(cls):
@@ -46,6 +48,8 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
+        # only pick the first three environments to test
+        cls.registered_tasks = cls.registered_tasks[:3]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -66,23 +70,25 @@ class TestEnvironments(unittest.TestCase):
             env_cfg.sim.shutdown_app_on_stop = False
 
             # create environment
-            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+            env = gym.make(task_name, cfg=env_cfg)
+            # wrap environment
+            env = Sb3VecEnvWrapper(env)
 
             # reset environment
-            obs, _ = env.reset()
+            obs = env.reset()
             # check signal
-            self.assertTrue(self._check_valid_tensor(obs))
+            self.assertTrue(self._check_valid_array(obs))
 
             # simulate environment for 1000 steps
             with torch.inference_mode():
                 for _ in range(1000):
                     # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    actions = 2 * np.random.rand(env.num_envs, env.action_space.shape) - 1
                     # apply actions
                     transition = env.step(actions)
                     # check signals
                     for data in transition:
-                        self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
+                        self.assertTrue(self._check_valid_array(data), msg=f"Invalid data: {data}")
 
             # close the environment
             print(f">>> Closing environment: {task_name}")
@@ -93,7 +99,7 @@ class TestEnvironments(unittest.TestCase):
     """
 
     @staticmethod
-    def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
+    def _check_valid_array(data: np.ndarray | dict | list) -> bool:
         """Checks if given data does not have corrupted values.
 
         Args:
@@ -102,16 +108,21 @@ class TestEnvironments(unittest.TestCase):
         Returns:
             True if the data is valid.
         """
-        if isinstance(data, torch.Tensor):
-            return not torch.any(torch.isnan(data))
+        if isinstance(data, np.ndarray):
+            return not np.any(np.isnan(data))
         elif isinstance(data, dict):
-            valid_tensor = True
+            valid_array = True
             for value in data.values():
                 if isinstance(value, dict):
-                    valid_tensor &= TestEnvironments._check_valid_tensor(value)
-                elif isinstance(value, torch.Tensor):
-                    valid_tensor &= not torch.any(torch.isnan(value))
-            return valid_tensor
+                    valid_array &= TestStableBaselines3VecEnvWrapper._check_valid_array(value)
+                elif isinstance(value, np.ndarray):
+                    valid_array &= not np.any(np.isnan(value))
+            return valid_array
+        elif isinstance(data, list):
+            valid_array = True
+            for value in data:
+                valid_array &= TestStableBaselines3VecEnvWrapper._check_valid_array(value)
+            return valid_array
         else:
             raise ValueError(f"Input data of invalid type: {type(data)}.")
 

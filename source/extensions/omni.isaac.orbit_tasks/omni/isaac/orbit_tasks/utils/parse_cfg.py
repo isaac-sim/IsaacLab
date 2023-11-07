@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-import gym
+import gymnasium as gym
 import importlib
 import inspect
 import os
@@ -52,7 +52,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Any:
         ValueError: If the entry point key is not available in the gym registry for the task.
     """
     # obtain the configuration entry point
-    cfg_entry_point = gym.spec(task_name)._kwargs.pop(entry_point_key)
+    cfg_entry_point = gym.spec(task_name).kwargs.pop(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
         raise ValueError(

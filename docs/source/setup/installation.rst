@@ -157,7 +157,7 @@ utilities to manage extensions:
 
    optional arguments:
       -h, --help           Display the help content.
-      -i, --install        Install the extensions inside Isaac Orbit.
+      -i, --install        Install the extensions inside Orbit.
       -e, --extra          Install extra dependencies such as the learning frameworks.
       -f, --format         Run pre-commit to format the code and check lints.
       -p, --python         Run the python executable (python.sh) provided by Isaac Sim.

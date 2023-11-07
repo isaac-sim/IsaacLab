@@ -7,7 +7,7 @@
 Ant locomotion environment (similar to OpenAI Gym Ant-v2).
 """
 
-import gym
+import gymnasium as gym
 
 from . import agents
 

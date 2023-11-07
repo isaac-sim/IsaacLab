@@ -19,7 +19,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gym
+import gymnasium as gym
 import os
 import torch
 import traceback
@@ -42,7 +42,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
     def setUpClass(cls):
         # acquire all Isaac environments names
         cls.registered_tasks = list()
-        for task_spec in gym.envs.registry.all():
+        for task_spec in gym.registry.values():
             if "Isaac" in task_spec.id:
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
@@ -73,25 +73,24 @@ class TestRecordVideoWrapper(unittest.TestCase):
             env_cfg.sim.shutdown_app_on_stop = False
 
             # create environment
-            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
 
             # directory to save videos
             videos_dir = os.path.join(self.videos_dir, task_name)
             # wrap environment to record videos
             env = gym.wrappers.RecordVideo(
-                env, videos_dir, step_trigger=self.step_trigger, video_length=self.video_length
+                env, videos_dir, step_trigger=self.step_trigger, video_length=self.video_length, disable_logger=True
             )
 
             # reset environment
             env.reset()
             # simulate environment
-            for _ in range(500):
-                # compute zero actions
-                actions = 2 * torch.rand((env.num_envs, env.action_space.shape[0]), device=env.device) - 1
-                # apply actions
-                _ = env.step(actions)
-                # render environment
-                env.render(mode="human")
+            with torch.inference_mode():
+                for _ in range(500):
+                    # compute zero actions
+                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    # apply actions
+                    _ = env.step(actions)
 
             # close the simulator
             env.close()

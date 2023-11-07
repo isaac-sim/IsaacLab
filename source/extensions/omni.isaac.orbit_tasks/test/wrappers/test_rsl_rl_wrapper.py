@@ -28,14 +28,15 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
+from omni.isaac.orbit.envs import RLTaskEnvCfg
 
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
 
 
-class TestEnvironments(unittest.TestCase):
-    """Test cases for all registered environments."""
+class TestRslRlVecEnvWrapper(unittest.TestCase):
+    """Test that RSL-RL VecEnv wrapper works as expected."""
 
     @classmethod
     def setUpClass(cls):
@@ -46,6 +47,8 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
+        # only pick the first three environments to test
+        cls.registered_tasks = cls.registered_tasks[:3]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -66,12 +69,15 @@ class TestEnvironments(unittest.TestCase):
             env_cfg.sim.shutdown_app_on_stop = False
 
             # create environment
-            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+            env = gym.make(task_name, cfg=env_cfg)
+            # wrap environment
+            env = RslRlVecEnvWrapper(env)
 
             # reset environment
-            obs, _ = env.reset()
+            obs, extras = env.reset()
             # check signal
             self.assertTrue(self._check_valid_tensor(obs))
+            self.assertTrue(self._check_valid_tensor(extras))
 
             # simulate environment for 1000 steps
             with torch.inference_mode():
@@ -108,7 +114,7 @@ class TestEnvironments(unittest.TestCase):
             valid_tensor = True
             for value in data.values():
                 if isinstance(value, dict):
-                    valid_tensor &= TestEnvironments._check_valid_tensor(value)
+                    valid_tensor &= TestRslRlVecEnvWrapper._check_valid_tensor(value)
                 elif isinstance(value, torch.Tensor):
                     valid_tensor &= not torch.any(torch.isnan(value))
             return valid_tensor

@@ -39,11 +39,12 @@ an environment by calling ``gym.make``. The environments are registered in the `
     gym.register(
         id="Isaac-Cartpole-v0",
         entry_point="omni.isaac.orbit_tasks.classic.cartpole:CartpoleEnv",
-        kwargs={"cfg_entry_point": "omni.isaac.orbit_tasks.classic.cartpole:cartpole_cfg.yaml"},
+        disable_env_checker=True,
+        kwargs={"env_cfg_entry_point": "omni.isaac.orbit_tasks.classic.cartpole:cartpole_cfg.yaml"},
     )
 
-The ``cfg_entry_point`` argument is used to load the default configuration for the environment. The default
-configuration is loaded using the :meth:`omni.isaac.orbit_tasks.utils.parse_cfg.load_default_env_cfg` function.
+The ``env_cfg_entry_point`` argument is used to load the default configuration for the environment. The default
+configuration is loaded using the :meth:`omni.isaac.orbit_tasks.utils.parse_cfg.load_cfg_from_registry` function.
 The configuration entry point can correspond to both a YAML file or a python configuration
 class. The default configuration can be overridden by passing a custom configuration instance to the ``gym.make``
 function as shown later in the tutorial.

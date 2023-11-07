@@ -26,13 +26,13 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     """Rest everything follows."""
 
-    import gym
+    import gymnasium as gym
 
     import omni.isaac.orbit_tasks  # noqa: F401
-    from omni.isaac.orbit_tasks.utils import load_default_env_cfg
+    from omni.isaac.orbit_tasks.utils import load_cfg_from_registry
 
     # create base environment
-    cfg = load_default_env_cfg("Isaac-Reach-Franka-v0")
+    cfg = load_cfg_from_registry("Isaac-Reach-Franka-v0", "env_cfg_entry_point")
     env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg)
     # wrap environment to enforce that reset is called before step
     env = gym.wrappers.OrderEnforcing(env)
@@ -105,7 +105,7 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     """Rest everything follows."""
 
 
-    import gym
+    import gymnasium as gym
 
     # adjust camera resolution and pose
     env_cfg.viewer.resolution = (640, 480)

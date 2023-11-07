@@ -91,6 +91,11 @@ class ObservationManager(ManagerBase):
         """Shape of observation tensor for each term in each group."""
         return self._group_obs_term_dim
 
+    @property
+    def group_obs_concatenate(self) -> dict[str, bool]:
+        """Whether the observation terms are concatenated in each group."""
+        return self._group_obs_concatenate
+
     """
     Operations.
     """

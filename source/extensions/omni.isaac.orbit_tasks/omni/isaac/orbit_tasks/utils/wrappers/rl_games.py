@@ -33,7 +33,7 @@ for RL-Games :class:`Runner` class:
 
 from __future__ import annotations
 
-import gym
+import gymnasium as gym
 import torch
 
 from rl_games.common import env_configurations
@@ -49,10 +49,10 @@ Vectorized environment wrapper.
 """
 
 
-class RlGamesVecEnvWrapper(gym.Wrapper):
-    """Wraps around Isaac Orbit environment for RL-Games.
+class RlGamesVecEnvWrapper(IVecEnv):
+    """Wraps around Orbit environment for RL-Games.
 
-    This class wraps around the Isaac Orbit environment. Since RL-Games works directly on
+    This class wraps around the Orbit environment. Since RL-Games works directly on
     GPU buffers, the wrapper handles moving of buffers from the simulation environment
     to the same device as the learning agent. Additionally, it performs clipping of
     observations and actions.
@@ -68,6 +68,13 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
     to the privileged observations. Since this is optional for some environments, the wrapper
     checks if these attributes exist. If they don't then the wrapper defaults to zero as number
     of privileged observations.
+
+    .. caution::
+
+        This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
+        the :class:`gym.Wrapper` interface. Any subsequent wrappers will need to be modified to work with this
+        wrapper.
+
 
     Reference:
         https://github.com/Denys88/rl_games/blob/master/rl_games/common/ivecenv.py
@@ -85,30 +92,77 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
 
         Raises:
             ValueError: The environment is not inherited from :class:`RLTaskEnv`.
+            ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
         if not isinstance(env.unwrapped, RLTaskEnv):
             raise ValueError(f"The environment must be inherited from RLTaskEnv. Environment type: {type(env)}")
-        # initialize gym wrapper
-        gym.Wrapper.__init__(self, env)
-        # initialize rl-games vec-env
-        IVecEnv.__init__(self)
+        # initialize the wrapper
+        self.env = env
         # store provided arguments
         self._rl_device = rl_device
         self._clip_obs = clip_obs
         self._clip_actions = clip_actions
+        self._sim_device = env.unwrapped.device
+
         # information about spaces for the wrapper
-        self.observation_space = self.env.observation_space
-        self.action_space = self.env.action_space
+        # note: rl-games only wants single observation and action spaces
+        self.rlg_observation_space = self.unwrapped.single_observation_space["policy"]
+        self.rlg_action_space = self.unwrapped.single_action_space
         # information for privileged observations
-        self.state_space = getattr(self.env, "state_space", None)
-        self.num_states = getattr(self.env, "num_states", 0)
-        # print information about wrapper
-        print("[INFO]: RL-Games Environment Wrapper:")
-        print(f"\t\t Observations clipping: {clip_obs}")
-        print(f"\t\t Actions clipping     : {clip_actions}")
-        print(f"\t\t Agent device         : {rl_device}")
-        print(f"\t\t Asymmetric-learning  : {self.num_states != 0}")
+        self.rlg_state_space = self.unwrapped.single_observation_space.get("critic")
+        if self.rlg_state_space is not None:
+            if not isinstance(self.rlg_state_space, gym.spaces.Box):
+                raise ValueError(f"Privileged observations must be of type Box. Type: {type(self.rlg_state_space)}")
+            self.rlg_num_states = self.rlg_state_space.shape[0]
+        else:
+            self.rlg_num_states = 0
+
+    def __str__(self):
+        """Returns the wrapper name and the :attr:`env` representation string."""
+        return (
+            f"<{type(self).__name__}{self.env}>"
+            f"\n\tObservations clipping: {self._clip_obs}"
+            f"\n\tActions clipping     : {self._clip_actions}"
+            f"\n\tAgent device         : {self._rl_device}"
+            f"\n\tAsymmetric-learning  : {self.rlg_num_states != 0}"
+        )
+
+    def __repr__(self):
+        """Returns the string representation of the wrapper."""
+        return str(self)
+
+    """
+    Properties -- Gym.Wrapper
+    """
+
+    @property
+    def render_mode(self) -> str | None:
+        """Returns the :attr:`Env` :attr:`render_mode`."""
+        return self.env.render_mode
+
+    @property
+    def observation_space(self) -> gym.Space:
+        """Returns the :attr:`Env` :attr:`observation_space`."""
+        return self.env.observation_space
+
+    @property
+    def action_space(self) -> gym.Space:
+        """Returns the :attr:`Env` :attr:`action_space`."""
+        return self.env.action_space
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Returns the class name of the wrapper."""
+        return cls.__name__
+
+    @property
+    def unwrapped(self) -> RLTaskEnv:
+        """Returns the base environment of the wrapper.
+
+        This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
+        """
+        return self.env.unwrapped
 
     """
     Properties
@@ -120,39 +174,45 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
 
     def get_env_info(self) -> dict:
         """Returns the Gym spaces for the environment."""
-        # fill the env info dict
-        env_info = {"observation_space": self.observation_space, "action_space": self.action_space}
-        # add information about privileged observations space
-        if self.num_states > 0:
-            env_info["state_space"] = self.state_space
-
-        return env_info
+        return {
+            "observation_space": self.rlg_observation_space,
+            "action_space": self.rlg_action_space,
+            "state_space": self.rlg_state_space,
+        }
 
     """
     Operations - MDP
     """
 
+    def seed(self, seed: int = -1) -> int:  # noqa: D102
+        return self.unwrapped.seed(seed)
+
     def reset(self):  # noqa: D102
-        obs_dict = self.env.reset()
+        obs_dict, _ = self.env.reset()
         # process observations and states
         return self._process_obs(obs_dict)
 
     def step(self, actions):  # noqa: D102
+        # move actions to sim-device
+        actions = actions.detach().clone().to(device=self._sim_device)
         # clip the actions
-        actions = torch.clamp(actions.clone(), -self._clip_actions, self._clip_actions)
+        actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
         # perform environment step
-        obs_dict, rew, dones, extras = self.env.step(actions)
+        obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
         # process observations and states
         obs_and_states = self._process_obs(obs_dict)
         # move buffers to rl-device
         # note: we perform clone to prevent issues when rl-device and sim-device are the same.
-        rew = rew.to(self._rl_device)
-        dones = dones.to(self._rl_device)
+        rew = rew.to(device=self._rl_device)
+        dones = (terminated | truncated).to(device=self._rl_device)
         extras = {
             k: v.to(device=self._rl_device, non_blocking=True) if hasattr(v, "to") else v for k, v in extras.items()
         }
 
         return obs_and_states, rew, dones, extras
+
+    def close(self):  # noqa: D102
+        return self.env.close()
 
     """
     Helper functions
@@ -163,34 +223,29 @@ class RlGamesVecEnvWrapper(gym.Wrapper):
 
         Note:
             States typically refers to privileged observations for the critic function. It is typically used in
-            asymmetric actor-critic algorithms [1].
+            asymmetric actor-critic algorithms.
 
         Args:
-            obs: The current observations from environment.
+            obs_dict: The current observations from environment.
 
         Returns:
-            If environment provides states, then a dictionary
-                containing the observations and states is returned. Otherwise just the observations tensor
-                is returned.
-
-        Reference:
-            1. Pinto, Lerrel, et al. "Asymmetric actor critic for image-based robot learning."
-               arXiv preprint arXiv:1710.06542 (2017).
+            If environment provides states, then a dictionary containing the observations and states is returned.
+            Otherwise just the observations tensor is returned.
         """
         # process policy obs
         obs = obs_dict["policy"]
         # clip the observations
         obs = torch.clamp(obs, -self._clip_obs, self._clip_obs)
         # move the buffer to rl-device
-        obs = obs.to(self._rl_device).clone()
+        obs = obs.to(device=self._rl_device).clone()
 
         # check if asymmetric actor-critic or not
-        if self.num_states > 0:
+        if self.rlg_num_states > 0:
             # acquire states from the environment if it exists
             try:
                 states = obs_dict["critic"]
             except AttributeError:
-                raise NotImplementedError("Environment does not define key `critic` for privileged observations.")
+                raise NotImplementedError("Environment does not define key 'critic' for privileged observations.")
             # clip the states
             states = torch.clamp(states, -self._clip_obs, self._clip_obs)
             # move buffers to rl-device

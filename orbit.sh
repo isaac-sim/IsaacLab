@@ -185,7 +185,7 @@ print_help () {
     echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
-    echo -e "\t-i, --install        Install the extensions inside Isaac Orbit."
+    echo -e "\t-i, --install        Install the extensions inside Orbit."
     echo -e "\t-e, --extra          Install extra dependencies such as the learning frameworks."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
@@ -220,9 +220,6 @@ while [[ $# -gt 0 ]]; do
             # this does not check dependencies between extensions
             export -f extract_python_exe
             export -f install_orbit_extension
-            # downgrade setuptools to avoid issues with OpenAI Gym
-            # Check the `Known Issues` section in the documentation
-            $(extract_python_exe) -m pip install --upgrade setuptools==66
             # source directory
             find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
             # unset local variables
@@ -235,8 +232,17 @@ while [[ $# -gt 0 ]]; do
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             python_exe=$(extract_python_exe)
+            # check if specified which rl-framework to install
+            if [ -z "$2" ]; then
+                echo "[INFO] Installing all rl-frameworks..."
+                framework_name="all"
+            else
+                echo "[INFO] Installing rl-framework: $2"
+                framework_name=$2
+                shift # past argument
+            fi
             # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_tasks[all]
+            ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_tasks["${framework_name}"]
             shift # past argument
             ;;
         -c|--conda)

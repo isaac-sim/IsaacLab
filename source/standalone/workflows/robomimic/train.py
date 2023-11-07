@@ -54,7 +54,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import argparse
-import gym
+import gymnasium as gym
 import json
 import numpy as np
 import os

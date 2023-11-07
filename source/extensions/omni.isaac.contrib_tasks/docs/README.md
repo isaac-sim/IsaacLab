@@ -18,9 +18,12 @@ itself. However, its various instances should be included in directories within 
 The environments should then be registered in the `omni/isaac/contrib_tasks/__init__.py`:
 
 ```python
+import gymnasium as gym
+
 gym.register(
     id="Isaac-Contrib-<my-awesome-env>-v0",
     entry_point="omni.isaac.contrib_tasks.<your-env-package>:<your-env-class>",
+    disable_env_checker=True,
     kwargs={"cfg_entry_point": "omni.isaac.contrib_tasks.<your-env-package-cfg>:<your-env-class-cfg>"},
 )
 ```

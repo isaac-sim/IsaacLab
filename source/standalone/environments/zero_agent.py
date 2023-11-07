@@ -15,7 +15,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Zero agent for Isaac Orbit environments.")
+parser = argparse.ArgumentParser(description="Zero agent for Orbit environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -30,7 +30,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gym
+import gymnasium as gym
 import torch
 import traceback
 
@@ -42,12 +42,15 @@ from omni.isaac.orbit_tasks.utils import parse_env_cfg
 
 
 def main():
-    """Zero actions agent with Isaac Orbit environment."""
+    """Zero actions agent with Orbit environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
+    # print info (this is vectorized environment)
+    print(f"[INFO]: Gym observation space: {env.observation_space}")
+    print(f"[INFO]: Gym action space: {env.action_space}")
     # reset environment
     env.reset()
     # simulate environment
@@ -55,9 +58,9 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
             # compute zero actions
-            actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)
+            actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
             # apply actions
-            _, _, _, _ = env.step(actions)
+            env.step(actions)
 
     # close the simulator
     env.close()

@@ -25,18 +25,17 @@ INSTALL_REQUIRES = [
     # devices
     "hidapi",
     # gym
-    "gym==0.21.0",
-    "importlib-metadata~=4.13.0",
-    "setuptools<=66",  # setuptools 67.0 breaks gym
+    "gymnasium==0.29.0",
     # procedural-generation
     "trimesh",
-    "pyglet==1.5.27",  # pyglet 2.0 requires python 3.8
+    "pyglet==1.5.27; python_version < '3.8'",  # pyglet 2.0 requires python 3.8
+    "pyglet; python_version >= '3.8'",
 ]
 
 # Installation operation
 setup(
     name="omni-isaac-orbit",
-    author="NVIDIA, ETH Zurich, and University of Toronto",
+    author="ORBIT Project Developers",
     maintainer="Mayank Mittal",
     maintainer_email="mittalma@ethz.ch",
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -48,6 +47,10 @@ setup(
     python_requires=">=3.7",
     install_requires=INSTALL_REQUIRES,
     packages=["omni.isaac.orbit"],
-    classifiers=["Natural Language :: English", "Programming Language :: Python :: 3.7"],
+    classifiers=[
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 2023.1.0-hotfix.1",
+    ],
     zip_safe=False,
 )

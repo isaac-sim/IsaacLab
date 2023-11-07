@@ -28,14 +28,15 @@ import unittest
 import carb
 import omni.usd
 
-from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
+from omni.isaac.orbit.envs import RLTaskEnvCfg
 
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
+from omni.isaac.orbit_tasks.utils.wrappers.rl_games import RlGamesVecEnvWrapper
 
 
-class TestEnvironments(unittest.TestCase):
-    """Test cases for all registered environments."""
+class TestRlGamesVecEnvWrapper(unittest.TestCase):
+    """Test that RL-Games VecEnv wrapper works as expected."""
 
     @classmethod
     def setUpClass(cls):
@@ -46,6 +47,8 @@ class TestEnvironments(unittest.TestCase):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
+        # only pick the first three environments to test
+        cls.registered_tasks = cls.registered_tasks[:3]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -66,18 +69,20 @@ class TestEnvironments(unittest.TestCase):
             env_cfg.sim.shutdown_app_on_stop = False
 
             # create environment
-            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+            env = gym.make(task_name, cfg=env_cfg)
+            # wrap environment
+            env = RlGamesVecEnvWrapper(env, "cuda:0", 100, 100)
 
             # reset environment
-            obs, _ = env.reset()
+            obs = env.reset()
             # check signal
             self.assertTrue(self._check_valid_tensor(obs))
 
-            # simulate environment for 1000 steps
+            # simulate environment for 100 steps
             with torch.inference_mode():
-                for _ in range(1000):
+                for _ in range(100):
                     # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    actions = 2 * torch.rand(env.action_space.shape, device=env.device) - 1
                     # apply actions
                     transition = env.step(actions)
                     # check signals
@@ -108,7 +113,7 @@ class TestEnvironments(unittest.TestCase):
             valid_tensor = True
             for value in data.values():
                 if isinstance(value, dict):
-                    valid_tensor &= TestEnvironments._check_valid_tensor(value)
+                    valid_tensor &= TestRlGamesVecEnvWrapper._check_valid_tensor(value)
                 elif isinstance(value, torch.Tensor):
                     valid_tensor &= not torch.any(torch.isnan(value))
             return valid_tensor

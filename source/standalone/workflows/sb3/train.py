@@ -43,7 +43,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gym
+import gymnasium as gym
 import os
 import traceback
 from datetime import datetime
@@ -95,6 +95,7 @@ def main():
             "video_folder": os.path.join(log_dir, "videos"),
             "step_trigger": lambda step: step % args_cli.video_interval == 0,
             "video_length": args_cli.video_length,
+            "disable_logger": True,
         }
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)

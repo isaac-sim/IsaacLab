@@ -15,7 +15,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Isaac Orbit environments.")
+parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Orbit environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Pytorch model checkpoint to load.")
@@ -31,7 +31,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gym
+import gymnasium as gym
 import torch
 import traceback
 
@@ -46,7 +46,7 @@ from omni.isaac.orbit_tasks.utils import parse_env_cfg
 
 
 def main():
-    """Run a trained policy from robomimic with Isaac Orbit environment."""
+    """Run a trained policy from robomimic with Orbit environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=1)
     # modify configuration

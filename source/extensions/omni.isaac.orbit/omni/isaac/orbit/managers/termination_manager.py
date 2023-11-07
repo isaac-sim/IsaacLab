@@ -26,8 +26,20 @@ class TerminationManager(ManagerBase):
     argument and returns a boolean tensor of shape ``(num_envs,)``. The termination manager
     computes the termination signal as the union (logical or) of all the termination terms.
 
+    Following the `Gymnasium API <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_,
+    the termination signal is computed as the logical OR of the following signals:
+
+    * **Time-out**: This signal is set to true if the environment has ended after an externally defined condition
+      (that is outside the scope of a MDP). For example, the environment may be terminated if the episode has
+      timed out (i.e. reached max episode length).
+    * **Terminated**: This signal is set to true if the environment has reached a terminal state defined by the
+      environment. This state may correspond to task success, task failure, robot falling, etc.
+
+    These signals can be individually accessed using the :attr:`time_outs` and :attr:`terminated` properties.
+
     The termination terms are parsed from a config class containing the manager's settings and each term's
-    parameters. Each termination term should instantiate the :class:`TerminationTermCfg` class.
+    parameters. Each termination term should instantiate the :class:`TerminationTermCfg` class. The term's
+    configuration :attr:`TerminationTermCfg.time_out` decides whether the term is a timeout or a termination term.
     """
 
     _env: RLTaskEnv
@@ -46,8 +58,8 @@ class TerminationManager(ManagerBase):
         for term_name in self._term_names:
             self._episode_dones[term_name] = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         # create buffer for managing termination per environment
-        self._done_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
-        self._time_out_buf = torch.zeros_like(self._done_buf)
+        self._truncated_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        self._terminated_buf = torch.zeros_like(self._truncated_buf)
 
     def __str__(self) -> str:
         """Returns: A string representation for termination manager."""
@@ -79,12 +91,26 @@ class TerminationManager(ManagerBase):
     @property
     def dones(self) -> torch.Tensor:
         """The net termination signal. Shape is ``(num_envs,)``."""
-        return self._done_buf
+        return self._truncated_buf | self._terminated_buf
 
     @property
     def time_outs(self) -> torch.Tensor:
-        """The timeout signal. Shape is ``(num_envs,)``."""
-        return self._time_out_buf
+        """The timeout signal (reaching max episode length). Shape is ``(num_envs,)``.
+
+        This signal is set to true if the environment has ended after an externally defined condition
+        (that is outside the scope of a MDP). For example, the environment may be terminated if the episode has
+        timed out (i.e. reached max episode length).
+        """
+        return self._truncated_buf
+
+    @property
+    def terminated(self) -> torch.Tensor:
+        """The terminated signal (reaching a terminal state). Shape is ``(num_envs,)``.
+
+        This signal is set to true if the environment has reached a terminal state defined by the environment.
+        This state may correspond to task success, task failure, robot falling, etc.
+        """
+        return self._terminated_buf
 
     """
     Operations.
@@ -122,20 +148,20 @@ class TerminationManager(ManagerBase):
             The combined termination signal of shape ``(num_envs,)``.
         """
         # reset computation
-        self._done_buf[:] = False
-        self._time_out_buf[:] = False
+        self._truncated_buf[:] = False
+        self._terminated_buf[:] = False
         # iterate over all the termination terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
             value = term_cfg.func(self._env, **term_cfg.params)
-            # update total termination
-            self._done_buf |= value
             # store timeout signal separately
             if term_cfg.time_out:
-                self._time_out_buf |= value
+                self._truncated_buf |= value
+            else:
+                self._terminated_buf |= value
             # add to episode dones
             self._episode_dones[name] |= value
-        # return termination signal
-        return self._done_buf
+        # return combined termination signal
+        return self._truncated_buf | self._terminated_buf
 
     """
     Operations - Term settings.

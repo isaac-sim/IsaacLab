@@ -17,28 +17,31 @@ This looks like as follows:
 omni/isaac/orbit_tasks/locomotion/
 ├── __init__.py
 └── velocity
-    ├── a1
-    │   └── flat_terrain_cfg.py
-    ├── anymal_c
-    │   └── flat_terrain_cfg.py
+    ├── config
+    │   └── anymal_c
+    │       ├── agent  # <- this is where we store the learning agent configurations
+    │       ├── __init__.py  # <- this is where we register the environment and configurations to gym registry
+    │       ├── flat_env_cfg.py
+    │       └── rough_env_cfg.py
     ├── __init__.py
-    ├── velocity_cfg.py
-    └── velocity_env.py
+    └── velocity_env_cfg.py  # <- this is the base task configuration
 ```
 
-The environments are then registered in the `omni/isaac/orbit_tasks/__init__.py`:
+The environments are then registered in the `omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_c/__init__.py`:
 
 ```python
 gym.register(
-    id="Isaac-Velocity-Anymal-C-v0",
-    entry_point="omni.isaac.orbit_tasks.locomotion.velocity:LocomotionEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_tasks.locomotion.velocity.anymal_c.flat_terrain_cfg:FlatTerrainCfg"},
+    id="Isaac-Velocity-Rough-Anymal-C-v0",
+    entry_point="omni.isaac.orbit.envs:RLTaskEnv",
+    disable_env_checker=True,
+    kwargs={"env_cfg_entry_point": f"{__name__}.rough_env_cfg:AnymalCRoughEnvCfg"},
 )
 
 gym.register(
-    id="Isaac-Velocity-A1-v0",
-    entry_point="omni.isaac.orbit_tasks.locomotion.velocity:LocomotionEnv",
-    kwargs={"cfg_entry_point": "omni.isaac.orbit_tasks.locomotion.velocity.a1.flat_terrain_cfg:FlatTerrainCfg"},
+    id="Isaac-Velocity-Flat-Anymal-C-v0",
+    entry_point="omni.isaac.orbit.envs:RLTaskEnv",
+    disable_env_checker=True,
+    kwargs={"env_cfg_entry_point": f"{__name__}.flat_env_cfg:AnymalCFlatEnvCfg"},
 )
 ```
 

@@ -1,33 +1,6 @@
 Known issues
 ============
 
-Installation errors due to gym==0.21.0
---------------------------------------
-
-When installing the gym package, you may encounter the following error:
-
-.. code-block::
-
-    error in gym setup command: 'extras_require' must be a dictionary whose values are strings or lists of
-    strings containing valid project/version requirement specifiers.
-    ----------------------------------------
-    ERROR: Could not find a version that satisfies the requirement gym==0.21.0 (from omni-isaac-orbit-envs[all])
-    (from versions: 0.0.2, 0.0.3, 0.0.4, 0.0.5, 0.0.6, 0.0.7, 0.1.0, 0.1.1, 0.1.2, 0.1.3, 0.1.4, 0.1.5, 0.1.6,
-    ...
-    0.15.7, 0.16.0, 0.17.0, 0.17.1, 0.17.2, 0.17.3, 0.18.0, 0.18.3, 0.19.0, 0.20.0, 0.21.0, 0.22.0, 0.23.0,
-    0.23.1, 0.24.0, 0.24.1, 0.25.0, 0.25.1, 0.25.2, 0.26.0, 0.26.1, 0.26.2)
-    ERROR: No matching distribution found for gym==0.21.0
-
-
-This issue arises since the ``setuptools`` package from version 67.0 onwards does not support malformed version strings.
-Since the OpenAI Gym package that is no longer being maintained (`issue link <https://github.com/openai/gym/issues/3200>`_),
-the current workaround is to install the ``setuptools`` package version 66.0.0. You can do this by running the following
-command:
-
-.. code-block:: bash
-
-    ./orbit.sh -p -m pip install -U setuptools==66
-
 Regression in Isaac Sim 2022.2.1
 --------------------------------
 

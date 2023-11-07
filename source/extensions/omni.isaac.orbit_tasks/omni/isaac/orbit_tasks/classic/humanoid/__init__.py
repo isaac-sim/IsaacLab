@@ -7,7 +7,7 @@
 Humanoid locomotion environment (similar to OpenAI Gym Humanoid-v2).
 """
 
-import gym
+import gymnasium as gym
 
 from . import agents
 

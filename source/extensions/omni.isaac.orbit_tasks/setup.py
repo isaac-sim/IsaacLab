@@ -22,18 +22,21 @@ INSTALL_REQUIRES = [
     "numpy",
     "torch",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
-    "protobuf==3.20.2",
+    "protobuf>=3.20.2",
     # data collection
     "h5py",
+    # basic logger
+    "tensorboard",
+    # video recording
+    "moviepy",
 ]
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
-    "sb3": ["stable-baselines3>=1.5,<=1.8", "tensorboard"],
+    "sb3": ["stable-baselines3>=2.0"],
     "skrl": ["skrl>=0.10.0"],
-    "rl_games": ["rl-games==1.5.2"],
-    # TODO: Uncomment when rsl_rl is updated to public.
-    # "rsl_rl": ["rsl_rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
+    "rl_games": ["rl-games==1.6.1"],
+    "rsl_rl": ["rsl_rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": ["robomimic@git+https://github.com/ARISE-Initiative/robomimic.git"],
 }
 # cumulation of all extra-requires
@@ -43,7 +46,7 @@ EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values
 # Installation operation
 setup(
     name="omni-isaac-orbit_tasks",
-    author="NVIDIA, ETH Zurich, and University of Toronto",
+    author="ORBIT Project Developers",
     maintainer="Mayank Mittal",
     maintainer_email="mittalma@ethz.ch",
     url=EXTENSION_TOML_DATA["package"]["repository"],
@@ -55,6 +58,10 @@ setup(
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     packages=["omni.isaac.orbit_tasks"],
-    classifiers=["Natural Language :: English", "Programming Language :: Python :: 3.7"],
+    classifiers=[
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 2023.1.0-hotfix.1",
+    ],
     zip_safe=False,
 )

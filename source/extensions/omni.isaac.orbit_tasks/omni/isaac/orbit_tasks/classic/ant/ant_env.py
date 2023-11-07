@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-import gym.spaces
+import gymnasium as gym
 import math
 import torch
 

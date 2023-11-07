@@ -17,7 +17,6 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 from __future__ import annotations
 
-import gym
 import numpy as np
 import torch
 from typing import Any
@@ -65,8 +64,8 @@ Vectorized environment wrapper.
 """
 
 
-class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
-    """Wraps around Isaac Orbit environment for Stable Baselines3.
+class Sb3VecEnvWrapper(VecEnv):
+    """Wraps around Orbit environment for Stable Baselines3.
 
     Isaac Sim internally implements a vectorized environment. However, since it is
     still considered a single environment instance, Stable Baselines tries to wrap
@@ -74,10 +73,15 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     is not inheriting from their :class:`VecEnv`. Thus, this class thinly wraps
     over the environment from :class:`RLTaskEnv`.
 
+    Note:
+        While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
+        still uses the old API (i.e. it is closer to Gym 0.21). Thus, we implement
+        the old API for the vectorized environment.
+
     We also add monitoring functionality that computes the un-discounted episode
     return and length. This information is added to the info dicts under key `episode`.
 
-    In contrast to Isaac Orbit environment, stable-baselines expect the following:
+    In contrast to the Orbit environment, stable-baselines expect the following:
 
     1. numpy datatype for MDP signals
     2. a list of info dicts for each sub-environment (instead of a dict)
@@ -85,16 +89,24 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
        to the one after reset. The "real" final observation is passed using the info dicts
        under the key ``terminal_observation``.
 
-    Warning:
+    .. warning::
+
         By the nature of physics stepping in Isaac Sim, it is not possible to forward the
-        simulation buffers without performing a physics step. Thus, reset is performed only
-        at the start of :meth:`step()` function before the actual physics step is taken.
-        Thus, the returned observations for terminated environments is still the final
-        observation and not the ones after the reset.
+        simulation buffers without performing a physics step. Thus, reset is performed
+        inside the :meth:`step()` function after the actual physics step is taken.
+        Thus, the returned observations for terminated environments is the one after the reset.
+
+    .. caution::
+
+        This class must be the last wrapper in the wrapper chain. This is because the wrapper does not follow
+        the :class:`gym.Wrapper` interface. Any subsequent wrappers will need to be modified to work with this
+        wrapper.
 
     Reference:
-        https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html
-        https://stable-baselines3.readthedocs.io/en/master/common/monitor.html
+
+    1. https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html
+    2. https://stable-baselines3.readthedocs.io/en/master/common/monitor.html
+
     """
 
     def __init__(self, env: RLTaskEnv):
@@ -110,12 +122,43 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
         if not isinstance(env.unwrapped, RLTaskEnv):
             raise ValueError(f"The environment must be inherited from RLTaskEnv. Environment type: {type(env)}")
         # initialize the wrapper
-        gym.Wrapper.__init__(self, env)
+        self.env = env
+        # collect common information
+        self.num_envs = self.unwrapped.num_envs
+        self.sim_device = self.unwrapped.device
+        self.render_mode = self.unwrapped.render_mode
         # initialize vec-env
-        VecEnv.__init__(self, self.env.num_envs, self.env.observation_space, self.env.action_space)
+        observation_space = self.unwrapped.single_observation_space["policy"]
+        action_space = self.unwrapped.single_action_space
+        VecEnv.__init__(self, self.num_envs, observation_space, action_space)
         # add buffer for logging episodic information
-        self._ep_rew_buf = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.env.device)
-        self._ep_len_buf = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.env.device)
+        self._ep_rew_buf = torch.zeros(self.num_envs, device=self.sim_device)
+        self._ep_len_buf = torch.zeros(self.num_envs, device=self.sim_device)
+
+    def __str__(self):
+        """Returns the wrapper name and the :attr:`env` representation string."""
+        return f"<{type(self).__name__}{self.env}>"
+
+    def __repr__(self):
+        """Returns the string representation of the wrapper."""
+        return str(self)
+
+    """
+    Properties -- Gym.Wrapper
+    """
+
+    @classmethod
+    def class_name(cls) -> str:
+        """Returns the class name of the wrapper."""
+        return cls.__name__
+
+    @property
+    def unwrapped(self) -> RLTaskEnv:
+        """Returns the base environment of the wrapper.
+
+        This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
+        """
+        return self.env.unwrapped
 
     """
     Properties
@@ -133,31 +176,43 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
     Operations - MDP
     """
 
+    def seed(self, seed: int | None = None) -> list[int | None]:  # noqa: D102
+        return [self.unwrapped.seed(seed)] * self.unwrapped.num_envs
+
     def reset(self) -> VecEnvObs:  # noqa: D102
-        obs_dict = self.env.reset()
+        obs_dict, _ = self.env.reset()
         # convert data types to numpy depending on backend
         return self._process_obs(obs_dict)
 
-    def step(self, actions: np.ndarray) -> VecEnvStepReturn:  # noqa: D102
+    def step_async(self, actions):  # noqa: D102
         # convert input to numpy array
-        actions = np.asarray(actions)
+        if not isinstance(actions, torch.Tensor):
+            actions = np.asarray(actions)
+            actions = torch.from_numpy(actions).to(device=self.sim_device, dtype=torch.float32)
+        else:
+            actions = actions.to(device=self.sim_device, dtype=torch.float32)
         # convert to tensor
-        actions = torch.from_numpy(actions).to(device=self.env.device)
-        # record step information
-        obs_dict, rew, dones, extras = self.env.step(actions)
+        self._async_actions = actions
 
+    def step_wait(self) -> VecEnvStepReturn:  # noqa: D102
+        # record step information
+        obs_dict, rew, terminated, truncated, extras = self.env.step(self._async_actions)
         # update episode un-discounted return and length
         self._ep_rew_buf += rew
         self._ep_len_buf += 1
+        # compute reset ids
+        dones = terminated | truncated
         reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
         # Note: RLTaskEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)
-        rew = rew.cpu().numpy()
-        dones = dones.cpu().numpy()
+        rew = rew.detach().cpu().numpy()
+        terminated = terminated.detach().cpu().numpy()
+        truncated = truncated.detach().cpu().numpy()
+        dones = dones.detach().cpu().numpy()
         # convert extra information to list of dicts
-        infos = self._process_extras(obs, dones, extras, reset_ids)
+        infos = self._process_extras(obs, terminated, truncated, extras, reset_ids)
 
         # reset info for terminated environments
         self._ep_rew_buf[reset_ids] = 0
@@ -165,59 +220,70 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
 
         return obs, rew, dones, infos
 
-    """
-    Unused methods.
-    """
+    def close(self):  # noqa: D102
+        self.env.close()
 
-    def step_async(self, actions):  # noqa: D102
-        self._async_actions = actions
-
-    def step_wait(self):  # noqa: D102
-        return self.step(self._async_actions)
-
-    def get_attr(self, attr_name, indices):  # noqa: D102
-        raise NotImplementedError
+    def get_attr(self, attr_name, indices=None):  # noqa: D102
+        # resolve indices
+        if indices is None:
+            indices = slice(None)
+            num_indices = self.num_envs
+        else:
+            num_indices = len(indices)
+        # obtain attribute value
+        attr_val = getattr(self.env, attr_name)
+        # return the value
+        if not isinstance(attr_val, torch.Tensor):
+            return [attr_val] * num_indices
+        else:
+            return attr_val[indices].detach().cpu().numpy()
 
     def set_attr(self, attr_name, value, indices=None):  # noqa: D102
-        raise NotImplementedError
+        raise NotImplementedError("Setting attributes is not supported.")
 
     def env_method(self, method_name: str, *method_args, indices=None, **method_kwargs):  # noqa: D102
-        raise NotImplementedError
+        if method_name == "render":
+            # gymnasium does not support changing render mode at runtime
+            return self.env.render()
+        else:
+            # this isn't properly implemented but it is not necessary.
+            # mostly done for completeness.
+            env_method = getattr(self.env, method_name)
+            return env_method(*method_args, indices=indices, **method_kwargs)
 
     def env_is_wrapped(self, wrapper_class, indices=None):  # noqa: D102
-        raise NotImplementedError
+        raise NotImplementedError("Checking if environment is wrapped is not supported.")
 
     def get_images(self):  # noqa: D102
-        raise NotImplementedError
+        raise NotImplementedError("Getting images is not supported.")
 
     """
     Helper functions.
     """
 
-    def _process_obs(self, obs_dict) -> np.ndarray:
+    def _process_obs(self, obs_dict: torch.Tensor | dict[str, torch.Tensor]) -> np.ndarray | dict[str, np.ndarray]:
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
         obs = obs_dict["policy"]
         # Note: RLTaskEnv uses torch backend (by default).
-        if self.env.sim.backend == "torch":
-            if isinstance(obs, dict):
-                for key, value in obs.items():
-                    obs[key] = value.detach().cpu().numpy()
-            else:
-                obs = obs.detach().cpu().numpy()
-        elif self.env.sim.backend == "numpy":
-            pass
+        if isinstance(obs, dict):
+            for key, value in obs.items():
+                obs[key] = value.detach().cpu().numpy()
+        elif isinstance(obs, torch.Tensor):
+            obs = obs.detach().cpu().numpy()
         else:
-            raise NotImplementedError(f"Unsupported backend for simulation: {self.env.sim.backend}")
+            raise NotImplementedError(f"Unsupported data type: {type(obs)}")
         return obs
 
-    def _process_extras(self, obs, dones, extras, reset_ids) -> list[dict[str, Any]]:
+    def _process_extras(
+        self, obs: np.ndarray, terminated: np.ndarray, truncated: np.ndarray, extras: dict, reset_ids: np.ndarray
+    ) -> list[dict[str, Any]]:
         """Convert miscellaneous information into dictionary for each sub-environment."""
         # create empty list of dictionaries to fill
-        infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.env.num_envs)]
+        infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
         # fill-in information for each sub-environment
         # Note: This loop becomes slow when number of environments is large.
-        for idx in range(self.env.num_envs):
+        for idx in range(self.num_envs):
             # fill-in episode monitoring info
             if idx in reset_ids:
                 infos[idx]["episode"] = dict()
@@ -225,14 +291,13 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
                 infos[idx]["episode"]["l"] = float(self._ep_len_buf[idx])
             else:
                 infos[idx]["episode"] = None
+            # fill-in bootstrap information
+            infos[idx]["TimeLimit.truncated"] = truncated[idx] and not terminated[idx]
             # fill-in information from extras
             for key, value in extras.items():
-                # 1. remap the key for time-outs for what SB3 expects
-                # 2. remap extra episodes information safely
-                # 3. for others just store their values
-                if key == "time_outs":
-                    infos[idx]["TimeLimit.truncated"] = bool(value[idx])
-                elif key == "episode":
+                # 1. remap extra episodes information safely
+                # 2. for others just store their values
+                if key == "log":
                     # only log this data for episodes that are terminated
                     if infos[idx]["episode"] is not None:
                         for sub_key, sub_value in value.items():
@@ -240,7 +305,7 @@ class Sb3VecEnvWrapper(gym.Wrapper, VecEnv):
                 else:
                     infos[idx][key] = value[idx]
             # add information about terminal observation separately
-            if dones[idx] == 1:
+            if idx in reset_ids:
                 # extract terminal observations
                 if isinstance(obs, dict):
                     terminal_obs = dict.fromkeys(obs.keys())

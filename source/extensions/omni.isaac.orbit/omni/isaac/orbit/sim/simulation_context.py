@@ -292,13 +292,13 @@ class SimulationContext(_SimulationContext):
                 # hide the viewport and disable updates
                 self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
                 self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
-                # reset the throttle counter
-                self._render_throttle_counter = 0
             elif mode == self.RenderMode.NO_RENDERING:
                 # hide the viewport and disable updates
                 if self._viewport_context is not None:
                     self._viewport_context.updates_enabled = False  # pyright: ignore [reportOptionalMemberAccess]
                     self._viewport_window.visible = False  # pyright: ignore [reportOptionalMemberAccess]
+                # reset the throttle counter
+                self._render_throttle_counter = 0
             else:
                 raise ValueError(f"Unsupported render mode: {mode}! Please check `RenderMode` for details.")
             # update render mode
@@ -403,14 +403,21 @@ class SimulationContext(_SimulationContext):
             self._render_throttle_counter += 1
             if self._render_throttle_counter % self._render_throttle_period == 0:
                 self._render_throttle_counter = 0
-                # here we don't render viewport so don't need to flush flatcache
-                super().render()
+                # here we don't render viewport so don't need to flush fabric data
+                # note: we don't call super().render() anymore because they do flush the fabric data
+                self.set_setting("/app/player/playSimulations", False)
+                self._app.update()
+                self.set_setting("/app/player/playSimulations", True)
         else:
-            # manually flush the flatcache data to update Hydra textures
+            # manually flush the fabric data to update Hydra textures
             if self._fabric_iface is not None:
                 self._fabric_iface.update(0.0, 0.0)
             # render the simulation
-            super().render()
+            # note: we don't call super().render() anymore because they do above operation inside
+            #  and we don't want to do it twice. We may remove it once we drop support for Isaac Sim 2022.2.
+            self.set_setting("/app/player/playSimulations", False)
+            self._app.update()
+            self.set_setting("/app/player/playSimulations", True)
 
     """
     Operations - Override (extension)

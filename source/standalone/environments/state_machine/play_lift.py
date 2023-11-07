@@ -36,7 +36,7 @@ simulation_app = app_launcher.app
 
 """Rest everything else."""
 
-import gym
+import gymnasium as gym
 import torch
 import traceback
 from enum import Enum

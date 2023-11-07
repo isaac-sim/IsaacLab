@@ -7,7 +7,7 @@
 Environment for lifting an object with fixed-base robot.
 """
 
-import gym
+import gymnasium as gym
 
 from . import agents
 
@@ -18,6 +18,7 @@ from . import agents
 gym.register(
     id="Isaac-Lift-Franka-v0",
     entry_point="omni.isaac.orbit.envs:RLTaskEnv",
+    disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_env_cfg:LiftEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",

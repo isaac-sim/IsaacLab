@@ -36,7 +36,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
-import gym
+import gymnasium as gym
 import os
 import torch
 import traceback

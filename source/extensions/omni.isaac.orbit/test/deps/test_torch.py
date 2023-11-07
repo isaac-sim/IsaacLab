@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import torch.utils.benchmark as benchmark
 import unittest
 
 
@@ -123,6 +124,30 @@ class TestTorchOperations(unittest.TestCase):
         # obtain a slice over tensor
         my_slice = my_tensor[torch.tensor([0, 1]), ...]
         self.assertNotEqual(my_slice.untyped_storage().data_ptr(), my_tensor.untyped_storage().data_ptr())
+
+    def test_logical_or(self):
+        """Test bitwise or operation."""
+
+        size = (400, 300, 5)
+        my_tensor_1 = torch.rand(size, device="cuda:0") > 0.5
+        my_tensor_2 = torch.rand(size, device="cuda:0") < 0.5
+
+        # check the speed of logical or
+        timer_logical_or = benchmark.Timer(
+            stmt="torch.logical_or(my_tensor_1, my_tensor_2)",
+            globals={"my_tensor_1": my_tensor_1, "my_tensor_2": my_tensor_2},
+        )
+        timer_bitwise_or = benchmark.Timer(
+            stmt="my_tensor_1 | my_tensor_2", globals={"my_tensor_1": my_tensor_1, "my_tensor_2": my_tensor_2}
+        )
+
+        print("Time for logical or:", timer_logical_or.timeit(number=1000))
+        print("Time for bitwise or:", timer_bitwise_or.timeit(number=1000))
+        # check that logical or works as expected
+        output_logical_or = torch.logical_or(my_tensor_1, my_tensor_2)
+        output_bitwise_or = my_tensor_1 | my_tensor_2
+
+        self.assertTrue(torch.allclose(output_logical_or, output_bitwise_or))
 
 
 if __name__ == "__main__":

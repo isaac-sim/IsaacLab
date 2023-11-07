@@ -28,6 +28,10 @@ setup(
     include_package_data=True,
     python_requires=">=3.7",
     packages=["omni.isaac.contrib_tasks"],
-    classifiers=["Natural Language :: English", "Programming Language :: Python :: 3.7"],
+    classifiers=[
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3.10",
+        "Isaac Sim :: 2023.1.0-hotfix.1",
+    ],
     zip_safe=False,
 )

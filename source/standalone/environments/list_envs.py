@@ -27,7 +27,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import gym
+import gymnasium as gym
 from prettytable import PrettyTable
 
 import omni.isaac.contrib_tasks  # noqa: F401
@@ -47,10 +47,10 @@ def main():
     # count of environments
     index = 0
     # acquire all Isaac environments names
-    for task_spec in gym.envs.registry.all():
+    for task_spec in gym.registry.values():
         if "Isaac" in task_spec.id:
             # add details to table
-            table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec._kwargs["env_cfg_entry_point"]])
+            table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec.kwargs["env_cfg_entry_point"]])
             # increment count
             index += 1
 
@@ -61,6 +61,8 @@ if __name__ == "__main__":
     try:
         # run the main function
         main()
+    except Exception as e:
+        raise e
     finally:
         # close the app
         simulation_app.close()

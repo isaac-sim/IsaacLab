@@ -9,7 +9,7 @@
 We use OpenAI Gym registry to register the environment and their default configuration file.
 The default configuration file is passed to the argument "kwargs" in the Gym specification registry.
 The string is parsed into respective configuration container which needs to be passed to the environment
-class. This is done using the function :meth:`load_default_env_cfg` in the sub-module
+class. This is done using the function :meth:`load_cfg_from_registry` in the sub-module
 :mod:`omni.isaac.orbit.utils.parse_cfg`.
 
 Note:
@@ -18,18 +18,18 @@ Note:
     the kwarg argument :obj:`cfg` while creating the environment.
 
 Usage:
-    >>> import gym
+    >>> import gymnasium as gym
     >>> import omni.isaac.contrib_tasks
-    >>> from omni.isaac.orbit_tasks.utils.parse_cfg import load_default_env_cfg
+    >>> from omni.isaac.orbit_tasks.utils.parse_cfg import load_cfg_from_registry
     >>>
     >>> task_name = "Isaac-Contrib-<my-registered-env-name>-v0"
-    >>> cfg = load_default_env_cfg(task_name)
+    >>> cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     >>> env = gym.make(task_name, cfg=cfg)
 """
 
 from __future__ import annotations
 
-import gym  # noqa: F401
+import gymnasium as gym  # noqa: F401
 import os
 import toml
 
