@@ -135,7 +135,7 @@ class InteractiveScene:
                 replicate_physics=False,
                 copy_from_source=True,
             )
-        self._default_env_origins = torch.tensor(env_origins, device=self.device)
+        self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         # add entities from config
         self._add_entities_from_cfg()
         # replicate physics if we have more than one environment
