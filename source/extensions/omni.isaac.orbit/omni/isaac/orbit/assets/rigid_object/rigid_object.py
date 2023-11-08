@@ -116,7 +116,7 @@ class RigidObject(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self._body_view._physics_view.apply_forces_and_torques_at_position(
+            self.body_physx_view.apply_forces_and_torques_at_position(
                 force_data=self._external_force_b.view(-1, 3),
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,

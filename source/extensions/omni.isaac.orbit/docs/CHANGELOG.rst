@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.39 (2023-11-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed the reference of private `_body_view` variable inside the :class:`RigidObject` class
+  to the public `body_view` property. For a rigid object, the private variable is not defined.
+
+
 0.9.38 (2023-11-07)
 ~~~~~~~~~~~~~~~~~~~
 
