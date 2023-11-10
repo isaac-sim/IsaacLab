@@ -82,14 +82,30 @@ def joint_pos_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos > asset.data.soft_joint_pos_limits[:, 0], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos < asset.data.soft_joint_pos_limits[:, 1], dim=1)
+    out_of_upper_limits = torch.any(asset.data.joint_pos > asset.data.soft_joint_pos_limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos < asset.data.soft_joint_pos_limits[..., 0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_velocity_limit(
-    env: RLTaskEnv, max_velocity, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+def joint_pos_manual_limit(
+    env: RLTaskEnv, bounds: tuple[float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
+    """Terminate when the asset's joint positions are outside of the configured bounds.
+
+    Note:
+        This function is similar to :func:`joint_pos_limit` but allows the user to specify the bounds manually.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    if asset_cfg.joint_ids is None:
+        asset_cfg.joint_ids = slice(None)
+    # compute any violations
+    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < bounds[0], dim=1)
+    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
+
+
+def joint_vel_limit(env: RLTaskEnv, max_velocity, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]

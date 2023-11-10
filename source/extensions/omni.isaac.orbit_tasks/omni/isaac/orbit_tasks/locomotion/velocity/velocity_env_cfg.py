@@ -157,7 +157,7 @@ class RandomizationCfg:
     )
 
     reset_base = RandTerm(
-        func=mdp.reset_root_state,
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},

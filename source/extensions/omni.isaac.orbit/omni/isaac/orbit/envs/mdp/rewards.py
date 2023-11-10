@@ -26,6 +26,11 @@ General.
 """
 
 
+def alive_bonus(env: RLTaskEnv) -> torch.Tensor:
+    """Reward for being alive."""
+    return ~env.reset_buf * 1.0
+
+
 def termination_penalty(env: RLTaskEnv) -> torch.Tensor:
     """Penalize terminated episodes that don't correspond to episodic timeouts."""
     return env.reset_buf * (~env.termination_manager.time_outs)
@@ -86,14 +91,21 @@ Joint penalties.
 
 
 def joint_torques_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize torques applied on the articulation using L2-kernel."""
+    """Penalize joint torques applied on the articulation using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.applied_torque), dim=1)
 
 
+def joint_vel_l1(env: RLTaskEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize joint velocities on the articulation using an L1-kernel."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
+
+
 def joint_vel_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint velocities on the articulation."""
+    """Penalize joint velocities on the articulation using L2-kernel."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.sum(torch.square(asset.data.joint_vel), dim=1)

@@ -169,14 +169,14 @@ def push_by_setting_velocity(
     asset.write_root_velocity_to_sim(vel_w, env_ids=env_ids)
 
 
-def reset_root_state(
+def reset_root_state_uniform(
     env: BaseEnv,
     env_ids: torch.Tensor,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    """Reset the asset root state to a random position and velocity within the given ranges.
+    """Reset the asset root state to a random position and velocity uniformly within the given ranges.
 
     This function randomizes the root position and velocity of the asset.
 
@@ -240,6 +240,32 @@ def reset_joints_by_scale(
     # scale these values randomly
     joint_pos *= sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
+
+    # set into the physics simulation
+    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+
+def reset_joints_by_offset(
+    env: BaseEnv,
+    env_ids: torch.Tensor,
+    position_range: tuple[float, float],
+    velocity_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the robot joints with offsets around the default position and velocity by the given ranges.
+
+    This function samples random values from the given ranges and biases the default joint positions and velocities
+    by these values. The biased values are then set into the physics simulation.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # get default joint state
+    joint_pos = asset.data.default_joint_pos[env_ids].clone()
+    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    # bias these values randomly
+    joint_pos += sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
+    joint_vel += sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)

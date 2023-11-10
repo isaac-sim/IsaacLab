@@ -50,9 +50,9 @@ params:
     multi_gpu: False
     ppo: True
     mixed_precision: False
-    normalize_input: True
-    normalize_value: True
-    num_actors: -1
+    normalize_input: False
+    normalize_value: False
+    num_actors: -1  # configured from the script (based on num_envs)
     reward_shaper:
       scale_value: 1.0
     normalize_advantage: False
@@ -62,7 +62,7 @@ params:
     lr_schedule: adaptive
     kl_threshold: 0.008
     score_to_win: 20000
-    max_epochs: 450
+    max_epochs: 150
     save_best_after: 50
     save_frequency: 25
     grad_norm: 1.0
@@ -74,5 +74,5 @@ params:
     mini_epochs: 8
     critic_coef: 4
     clip_value: True
-    seq_len: 4
-    bounds_loss_coef: 0
+    seq_length: 4
+    bounds_loss_coef: 0.0001
