@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.2 (2023-11-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the RL wrappers for Stable-Baselines3 and RL-Games. It now works with their most recent versions.
+* Fixed the :meth:`get_checkpoint_path` to allow any in-between sub-folders between the run directory and the
+  checkpoint directory.
+
+
 0.5.1 (2023-11-04)
 ~~~~~~~~~~~~~~~~~~
 

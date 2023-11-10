@@ -17,10 +17,13 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 from __future__ import annotations
 
+import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn as nn  # noqa: F401
 from typing import Any
 
+from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
 from omni.isaac.orbit.envs import RLTaskEnv
@@ -44,16 +47,28 @@ def process_sb3_cfg(cfg: dict) -> dict:
     Reference:
         https://github.com/DLR-RM/rl-baselines3-zoo/blob/0e5eb145faefa33e7d79c7f8c179788574b20da5/utils/exp_manager.py#L358
     """
-    _direct_eval = ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]
 
-    def update_dict(d):
-        for key, value in d.items():
+    def update_dict(hyperparams: dict[str, Any]) -> dict[str, Any]:
+        for key, value in hyperparams.items():
             if isinstance(value, dict):
                 update_dict(value)
             else:
-                if key in _direct_eval:
-                    d[key] = eval(value)
-        return d
+                if key in ["policy_kwargs", "replay_buffer_class", "replay_buffer_kwargs"]:
+                    hyperparams[key] = eval(value)
+                elif key in ["learning_rate", "clip_range", "clip_range_vf", "delta_std"]:
+                    if isinstance(value, str):
+                        _, initial_value = value.split("_")
+                        initial_value = float(initial_value)
+                        hyperparams[key] = lambda progress_remaining: progress_remaining * initial_value
+                    elif isinstance(value, (float, int)):
+                        # Negative value: ignore (ex: for clipping)
+                        if value < 0:
+                            continue
+                        hyperparams[key] = constant_fn(float(value))
+                    else:
+                        raise ValueError(f"Invalid value for {key}: {hyperparams[key]}")
+
+        return hyperparams
 
     # parse agent configuration and convert to classes
     return update_dict(cfg)
@@ -127,9 +142,14 @@ class Sb3VecEnvWrapper(VecEnv):
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
         self.render_mode = self.unwrapped.render_mode
-        # initialize vec-env
+        # obtain gym spaces
+        # note: stable-baselines3 does not like when we have unbounded action space so
+        #   we set it to some high value here. Maybe this is not general but something to think about.
         observation_space = self.unwrapped.single_observation_space["policy"]
         action_space = self.unwrapped.single_action_space
+        if isinstance(action_space, gym.spaces.Box) and action_space.is_bounded() != "both":
+            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+        # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)
         # add buffer for logging episodic information
         self._ep_rew_buf = torch.zeros(self.num_envs, device=self.sim_device)

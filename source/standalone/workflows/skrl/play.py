@@ -123,7 +123,7 @@ def main():
     if args_cli.checkpoint:
         resume_path = os.path.abspath(args_cli.checkpoint)
     else:
-        resume_path = get_checkpoint_path(log_root_path, os.path.join("*", "checkpoints"), None)
+        resume_path = get_checkpoint_path(log_root_path, other_dirs=["checkpoints"])
     print(f"[INFO] Loading model checkpoint from: {resume_path}")
 
     # initialize agent

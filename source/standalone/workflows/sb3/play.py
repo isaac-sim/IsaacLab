@@ -21,6 +21,11 @@ parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU p
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument(
+    "--use_last_checkpoint",
+    action="store_true",
+    help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -34,6 +39,7 @@ simulation_app = app_launcher.app
 
 
 import gymnasium as gym
+import os
 import torch
 import traceback
 
@@ -43,7 +49,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from omni.isaac.orbit_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from omni.isaac.orbit_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 
@@ -72,12 +78,21 @@ def main():
             clip_reward=np.inf,
         )
 
+    # directory for logging into
+    log_root_path = os.path.join("logs", "sb3", args_cli.task)
+    log_root_path = os.path.abspath(log_root_path)
     # check checkpoint is valid
     if args_cli.checkpoint is None:
-        raise ValueError("Checkpoint path is not valid.")
+        if args_cli.use_last_checkpoint:
+            checkpoint = "model_.*.zip"
+        else:
+            checkpoint = "model.zip"
+        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
+    else:
+        checkpoint_path = args_cli.checkpoint
     # create agent from stable baselines
-    print(f"Loading checkpoint from: {args_cli.checkpoint}")
-    agent = PPO.load(args_cli.checkpoint, env, print_system_info=True)
+    print(f"Loading checkpoint from: {checkpoint_path}")
+    agent = PPO.load(checkpoint_path, env, print_system_info=True)
 
     # reset environment
     obs = env.reset()

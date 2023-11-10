@@ -140,21 +140,26 @@ def parse_env_cfg(task_name: str, use_gpu: bool | None = None, num_envs: int | N
 
 
 def get_checkpoint_path(
-    log_path: str, run_dir: str = "*", checkpoint: str = "*", sort_alphabetical: bool = True
+    log_path: str, run_dir: str = ".*", checkpoint: str = ".*", other_dirs: list[str] = None, sort_alpha: bool = True
 ) -> str:
     """Get path to the model checkpoint in input directory.
 
-    The checkpoint file is resolved as: <log_path>/<run_dir>/<checkpoint>.
-    If run_dir and checkpoint are regex expressions then the most recent (highest alphabetical order) run and checkpoint are selected.
+    The checkpoint file is resolved as: <log_path>/<run_dir>/<*other_dirs>/<checkpoint>, where the
+    :attr:`other_dirs` are intermediate folder names to concatenate. These cannot be regex expressions.
+
+    If :attr:`run_dir` and :attr:`checkpoint` are regex expressions then the most recent (highest alphabetical order)
+    run and checkpoint are selected. To disable this behavior, set the flag :attr:`sort_alpha` to False.
 
     Args:
         log_path: The log directory path to find models in.
-        run_dir: Regex expression for the name of the directory containing the run. Defaults to the most
+        run_dir: The regex expression for the name of the directory containing the run. Defaults to the most
             recent directory created inside :obj:`log_dir`.
-        checkpoint: The model checkpoint file or directory name. Defaults to the most recent
+        other_dirs: The intermediate directories between the run directory and the checkpoint file. Defaults to
+            None, which implies that checkpoint file is directly under the run directory.
+        checkpoint: The regex expression for the model checkpoint file. Defaults to the most recent
             torch-model saved in the :obj:`run_dir` directory.
-        sort_alphabetical: Whether to sort the runs and checkpoints by alphabetical order. Defaults to True.
-            If False, the checkpoints are sorted by the last modified time.
+        sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.
+            If False, the folders in :attr:`run_dir` are sorted by the last modified time.
 
     Raises:
         ValueError: When no runs are found in the input directory.
@@ -173,12 +178,15 @@ def get_checkpoint_path(
             os.path.join(log_path, run) for run in os.scandir(log_path) if run.is_dir() and re.match(run_dir, run.name)
         ]
         # sort matched runs by alphabetical order (latest run should be last)
-        if sort_alphabetical:
+        if sort_alpha:
             runs.sort()
         else:
             runs = sorted(runs, key=os.path.getmtime)
         # create last run file path
-        run_path = runs[-1]
+        if other_dirs is not None:
+            run_path = os.path.join(runs[-1], *other_dirs)
+        else:
+            run_path = runs[-1]
     except IndexError:
         raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 

@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to train RL agent with Stable Baselines3."""
+"""Script to train RL agent with Stable Baselines3.
+
+Since Stable-Baselines3 does not support buffers living on GPU directly,
+we recommend using smaller number of environments. Otherwise,
+there will be significant overhead in GPU->CPU transfer.
+"""
 
 from __future__ import annotations
 
@@ -68,8 +73,6 @@ def main():
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
-    # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
 
     # override configuration with command line arguments
     if args_cli.seed is not None:
@@ -83,6 +86,8 @@ def main():
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
+    # post-process agent configuration
+    agent_cfg = process_sb3_cfg(agent_cfg)
     # read configurations about the agent-training
     policy_arch = agent_cfg.pop("policy")
     n_timesteps = agent_cfg.pop("n_timesteps")

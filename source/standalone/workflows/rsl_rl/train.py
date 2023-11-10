@@ -16,7 +16,7 @@ import os
 from omni.isaac.orbit.app import AppLauncher
 
 # local imports
-import source.standalone.workflows.rsl_rl.cli_args as cli_args  # isort: skip
+import cli_args  # isort: skip
 
 
 # add argparse arguments

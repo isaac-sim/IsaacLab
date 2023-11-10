@@ -28,6 +28,7 @@ extra_standard_library = [
     "bpy",
     "matplotlib",
     "gymnasium",
+    "gym",
     "scipy",
     "hid",
     "yaml",

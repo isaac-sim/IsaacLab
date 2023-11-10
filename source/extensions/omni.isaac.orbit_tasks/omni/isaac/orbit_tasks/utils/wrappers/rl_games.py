@@ -33,7 +33,8 @@ for RL-Games :class:`Runner` class:
 
 from __future__ import annotations
 
-import gymnasium as gym
+import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
+import gymnasium
 import torch
 
 from rl_games.common import env_configurations
@@ -61,13 +62,12 @@ class RlGamesVecEnvWrapper(IVecEnv):
     observations. This dictionary contains "obs" and "states" which typically correspond
     to the actor and critic observations respectively.
 
-    To use asymmetric actor-critic, the environment instance must have the attributes
+    To use asymmetric actor-critic, the environment observations from :class:`RLTaskEnv`
+    must have the key or group name "critic". The observation group is used to set the
     :attr:`num_states` (int) and :attr:`state_space` (:obj:`gym.spaces.Box`). These are
-    used by the learning agent to allocate buffers in the trajectory memory. Additionally,
-    the method :meth:`_get_observations()` should have the key "critic" which corresponds
-    to the privileged observations. Since this is optional for some environments, the wrapper
-    checks if these attributes exist. If they don't then the wrapper defaults to zero as number
-    of privileged observations.
+    used by the learning agent in RL-Games to allocate buffers in the trajectory memory.
+    Since this is optional for some environments, the wrapper checks if these attributes exist.
+    If they don't then the wrapper defaults to zero as number of privileged observations.
 
     .. caution::
 
@@ -104,19 +104,11 @@ class RlGamesVecEnvWrapper(IVecEnv):
         self._clip_obs = clip_obs
         self._clip_actions = clip_actions
         self._sim_device = env.unwrapped.device
-
-        # information about spaces for the wrapper
-        # note: rl-games only wants single observation and action spaces
-        self.rlg_observation_space = self.unwrapped.single_observation_space["policy"]
-        self.rlg_action_space = self.unwrapped.single_action_space
         # information for privileged observations
-        self.rlg_state_space = self.unwrapped.single_observation_space.get("critic")
-        if self.rlg_state_space is not None:
-            if not isinstance(self.rlg_state_space, gym.spaces.Box):
-                raise ValueError(f"Privileged observations must be of type Box. Type: {type(self.rlg_state_space)}")
-            self.rlg_num_states = self.rlg_state_space.shape[0]
-        else:
+        if self.state_space is None:
             self.rlg_num_states = 0
+        else:
+            self.rlg_num_states = self.state_space.shape[0]
 
     def __str__(self):
         """Returns the wrapper name and the :attr:`env` representation string."""
@@ -142,14 +134,35 @@ class RlGamesVecEnvWrapper(IVecEnv):
         return self.env.render_mode
 
     @property
-    def observation_space(self) -> gym.Space:
+    def observation_space(self) -> gym.spaces.Box:
         """Returns the :attr:`Env` :attr:`observation_space`."""
-        return self.env.observation_space
+        # note: rl-games only wants single observation space
+        policy_obs_space = self.unwrapped.single_observation_space["policy"]
+        if not isinstance(policy_obs_space, gymnasium.spaces.Box):
+            raise NotImplementedError(
+                f"The RL-Games wrapper does not currently support observation space: '{type(policy_obs_space)}'."
+                f" If you need to support this, please modify the wrapper: {self.__class__.__name__},"
+                " and if you are nice, please send a merge-request."
+            )
+        # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
+        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        return gym.spaces.Box(-self._clip_obs, self._clip_obs, policy_obs_space.shape)
 
     @property
     def action_space(self) -> gym.Space:
         """Returns the :attr:`Env` :attr:`action_space`."""
-        return self.env.action_space
+        # note: rl-games only wants single action space
+        action_space = self.unwrapped.single_action_space
+        if not isinstance(action_space, gymnasium.spaces.Box):
+            raise NotImplementedError(
+                f"The RL-Games wrapper does not currently support action space: '{type(action_space)}'."
+                f" If you need to support this, please modify the wrapper: {self.__class__.__name__},"
+                " and if you are nice, please send a merge-request."
+            )
+        # return casted space in gym.spaces.Box (OpenAI Gym)
+        # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
+        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        return gym.spaces.Box(-self._clip_actions, self._clip_actions, action_space.shape)
 
     @classmethod
     def class_name(cls) -> str:
@@ -168,6 +181,35 @@ class RlGamesVecEnvWrapper(IVecEnv):
     Properties
     """
 
+    @property
+    def num_envs(self) -> int:
+        """Returns the number of sub-environment instances."""
+        return self.unwrapped.num_envs
+
+    @property
+    def device(self) -> str:
+        """Returns the base environment simulation device."""
+        return self.unwrapped.device
+
+    @property
+    def state_space(self) -> gym.spaces.Box | None:
+        """Returns the :attr:`Env` :attr:`observation_space`."""
+        # note: rl-games only wants single observation space
+        critic_obs_space = self.unwrapped.single_observation_space.get("critic")
+        # check if we even have a critic obs
+        if critic_obs_space is None:
+            return None
+        elif not isinstance(critic_obs_space, gymnasium.spaces.Box):
+            raise NotImplementedError(
+                f"The RL-Games wrapper does not currently support state space: '{type(critic_obs_space)}'."
+                f" If you need to support this, please modify the wrapper: {self.__class__.__name__},"
+                " and if you are nice, please send a merge-request."
+            )
+        # return casted space in gym.spaces.Box (OpenAI Gym)
+        # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
+        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        return gym.spaces.Box(-self._clip_obs, self._clip_obs, critic_obs_space.shape)
+
     def get_number_of_agents(self) -> int:
         """Returns number of actors in the environment."""
         return getattr(self, "num_agents", 1)
@@ -175,9 +217,9 @@ class RlGamesVecEnvWrapper(IVecEnv):
     def get_env_info(self) -> dict:
         """Returns the Gym spaces for the environment."""
         return {
-            "observation_space": self.rlg_observation_space,
-            "action_space": self.rlg_action_space,
-            "state_space": self.rlg_state_space,
+            "observation_space": self.observation_space,
+            "action_space": self.action_space,
+            "state_space": self.state_space,
         }
 
     """

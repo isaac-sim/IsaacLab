@@ -83,7 +83,7 @@ class TestStableBaselines3VecEnvWrapper(unittest.TestCase):
             with torch.inference_mode():
                 for _ in range(1000):
                     # sample actions from -1 to 1
-                    actions = 2 * np.random.rand(env.num_envs, env.action_space.shape) - 1
+                    actions = 2 * np.random.rand(env.num_envs, *env.action_space.shape) - 1
                     # apply actions
                     transition = env.step(actions)
                     # check signals

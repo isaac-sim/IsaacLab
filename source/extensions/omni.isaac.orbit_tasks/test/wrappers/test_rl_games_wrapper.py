@@ -82,7 +82,7 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
             with torch.inference_mode():
                 for _ in range(100):
                     # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=env.device) - 1
+                    actions = 2 * torch.rand(env.num_envs, *env.action_space.shape, device=env.device) - 1
                     # apply actions
                     transition = env.step(actions)
                     # check signals

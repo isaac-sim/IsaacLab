@@ -84,17 +84,15 @@ def main():
     # find checkpoint
     if args_cli.checkpoint is None:
         # specify directory for logging runs
-        if "full_experiment_name" not in agent_cfg["params"]["config"]:
-            run_dir = os.path.join("*", "nn")
-        else:
-            run_dir = os.path.join(agent_cfg["params"]["config"]["full_experiment_name"], "nn")
+        run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
         # specify name of checkpoint
         if args_cli.use_last_checkpoint:
-            checkpoint_file = None
+            checkpoint_file = ".*"
         else:
+            # this loads the best checkpoint
             checkpoint_file = f"{agent_cfg['params']['config']['name']}.pth"
         # get path to previous checkpoint
-        resume_path = get_checkpoint_path(log_root_path, run_dir, checkpoint_file)
+        resume_path = get_checkpoint_path(log_root_path, run_dir, checkpoint_file, other_dirs=["nn"])
     else:
         resume_path = os.path.abspath(args_cli.checkpoint)
     # load previously trained model
