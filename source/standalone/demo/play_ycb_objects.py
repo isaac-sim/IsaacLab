@@ -95,7 +95,7 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = rigid_object.data.default_root_state_w.clone()
+            root_state = rigid_object.data.default_root_state.clone()
             # -- position
             root_state[:, :3] = sample_cylinder(
                 radius=0.5, h_range=(0.15, 0.25), size=rigid_object.root_view.count, device=rigid_object.device

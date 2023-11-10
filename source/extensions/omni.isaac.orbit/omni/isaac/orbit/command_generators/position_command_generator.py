@@ -85,7 +85,7 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         # TODO: need to add that here directly
         self.pos_command_w[env_ids] = self.terrain.sample_new_targets(env_ids)
         # offset the position command by the current root position
-        self.pos_command_w[env_ids, 2] += self.robot.data.default_root_state_w[env_ids, 2]
+        self.pos_command_w[env_ids, 2] += self.robot.data.default_root_state[env_ids, 2]
 
         if self.cfg.simple_heading:
             # set heading command to point towards target

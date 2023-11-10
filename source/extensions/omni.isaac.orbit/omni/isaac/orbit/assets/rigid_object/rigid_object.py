@@ -295,7 +295,7 @@ class RigidObject(AssetBase):
         self._data.body_names = self.body_names
         # -- root states
         self._data.root_state_w = torch.zeros(self.root_view.count, 13, device=self.device)
-        self._data.default_root_state_w = torch.zeros_like(self._data.root_state_w)
+        self._data.default_root_state = torch.zeros_like(self._data.root_state_w)
         # -- body states
         self._data.body_state_w = torch.zeros(self.root_view.count, self.num_bodies, 13, device=self.device)
         # -- post-computed
@@ -320,7 +320,7 @@ class RigidObject(AssetBase):
             + tuple(self.cfg.init_state.ang_vel)
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self._data.default_root_state_w = default_root_state.repeat(self.root_view.count, 1)
+        self._data.default_root_state = default_root_state.repeat(self.root_view.count, 1)
 
     def _update_common_data(self, dt: float):
         """Update common quantities related to rigid objects.

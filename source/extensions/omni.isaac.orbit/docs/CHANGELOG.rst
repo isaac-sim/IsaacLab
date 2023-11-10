@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.9.40 (2023-11-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Simplified the manual initialization of Isaac Sim :class:`ArticulationView` class. Earlier, we basically
+  copied the code from the Isaac Sim source code. Now, we just call their initialize method.
+
+Changed
+^^^^^^^
+
+* Changed the name of attribute :attr:`default_root_state_w` to :attr:`default_root_state`. The latter is
+  more correct since the data is actually in the local environment frame and not the simulation world frame.
+
+
 0.9.39 (2023-11-08)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -192,7 +192,7 @@ def reset_root_state(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
-    root_states = asset.data.default_root_state_w[env_ids].clone()
+    root_states = asset.data.default_root_state[env_ids].clone()
 
     # positions
     pos_offset = torch.zeros_like(root_states[:, 0:3])
@@ -250,7 +250,7 @@ def reset_scene_to_default(env: BaseEnv, env_ids: torch.Tensor):
     # root states
     for rigid_object in env.scene.rigid_objects.values() + env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_state = rigid_object.data.default_root_state_w[env_ids].clone()
+        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         rigid_object.write_root_state_to_sim(default_root_state, env_ids=env_ids)

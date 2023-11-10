@@ -119,7 +119,7 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = scene.articulations["robot_1"].data.default_root_state_w.clone()
+            root_state = scene.articulations["robot_1"].data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
             joint_pos = scene.articulations["robot_1"].data.default_joint_pos
             joint_vel = scene.articulations["robot_1"].data.default_joint_vel

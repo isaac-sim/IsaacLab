@@ -129,7 +129,7 @@ class TestArticulation(unittest.TestCase):
         # Now we are ready!
         for _ in range(5):
             # reset root state
-            root_state = robot.data.default_root_state_w.clone()
+            root_state = robot.data.default_root_state.clone()
             root_state[0, :2] = torch.tensor([0.0, -0.5], device=self.sim.device)
             root_state[1, :2] = torch.tensor([0.0, 0.5], device=self.sim.device)
             robot.write_root_state_to_sim(root_state)
@@ -176,7 +176,7 @@ class TestArticulation(unittest.TestCase):
         # Now we are ready!
         for _ in range(5):
             # reset root state
-            root_state = robot.data.default_root_state_w.clone()
+            root_state = robot.data.default_root_state.clone()
             root_state[0, :2] = torch.tensor([0.0, -0.5], device=self.sim.device)
             root_state[1, :2] = torch.tensor([0.0, 0.5], device=self.sim.device)
             robot.write_root_state_to_sim(root_state)

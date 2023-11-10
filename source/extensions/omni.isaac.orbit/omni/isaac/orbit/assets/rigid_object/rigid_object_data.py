@@ -24,8 +24,8 @@ class RigidObjectData:
     # Default states.
     ##
 
-    default_root_state_w: torch.Tensor = None
-    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is ``(count, 13)``."""
+    default_root_state: torch.Tensor = None
+    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is ``(count, 13)``."""
 
     ##
     # Frame states.

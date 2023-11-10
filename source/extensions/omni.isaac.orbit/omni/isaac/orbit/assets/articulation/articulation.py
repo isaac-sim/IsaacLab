@@ -12,7 +12,6 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
-import omni.physics.tensors
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.prims import RigidPrimView
@@ -364,35 +363,18 @@ class Articulation(RigidObject):
         # -- articulation
         self._root_view = ArticulationView(self.cfg.prim_path, reset_xform_properties=False)
         # Hacking the initialization of the articulation view.
-        # we cannot do the following operation and need to manually handle it because of Isaac Sim's implementation.
-        # self._root_view.initialize()
         # reason: The default initialization of the articulation view is not working properly as it tries to create
         # default actions that is not possible within the post-play callback.
-        physics_sim_view = omni.physics.tensors.create_simulation_view(self._root_view._backend)
-        physics_sim_view.set_subspace_roots("/")
-        # pyright: ignore [reportPrivateUsage]
-        self._root_view._physics_sim_view = physics_sim_view
-        self._root_view._physics_view = physics_sim_view.create_articulation_view(
-            self._root_view._regex_prim_paths.replace(".*", "*"), self._root_view._enable_dof_force_sensors
-        )
-        assert self._root_view._physics_view.is_homogeneous, "Root view's physics view is not homogeneous!"
-        if not self._root_view._is_initialized:
-            self._root_view._metadata = self._root_view._physics_view.shared_metatype
-            self._root_view._num_dof = self._root_view._physics_view.max_dofs
-            self._root_view._num_bodies = self._root_view._physics_view.max_links
-            self._root_view._num_shapes = self._root_view._physics_view.max_shapes
-            self._root_view._num_fixed_tendons = self._root_view._physics_view.max_fixed_tendons
-            self._root_view._body_names = self._root_view._metadata.link_names
-            self._root_view._body_indices = dict(
-                zip(self._root_view._body_names, range(len(self._root_view._body_names)))
-            )
-            self._root_view._dof_names = self._root_view._metadata.dof_names
-            self._root_view._dof_indices = self._root_view._metadata.dof_indices
-            self._root_view._dof_types = self._root_view._metadata.dof_types
-            self._root_view._dof_paths = self._root_view._physics_view.dof_paths
-            self._root_view._prim_paths = self._root_view._physics_view.prim_paths
-            carb.log_info(f"Articulation Prim View Device: {self._root_view._device}")
-            self._root_view._is_initialized = True
+        # We override their internal function that throws an error which is not desired or needed.
+        dummy_tensor = torch.empty(size=(0, 0), device=self.device)
+        dummy_joint_actions = ArticulationActions(dummy_tensor, dummy_tensor, dummy_tensor)
+        current_fn = self._root_view.get_applied_actions
+        self._root_view.get_applied_actions = lambda *args, **kwargs: dummy_joint_actions
+        # initialize the root view
+        self._root_view.initialize()
+        # restore the function
+        self._root_view.get_applied_actions = current_fn
+
         # -- link views
         # note: we use the root view to get the body names, but we use the body view to get the
         #       actual data. This is mainly needed to apply external forces to the bodies.

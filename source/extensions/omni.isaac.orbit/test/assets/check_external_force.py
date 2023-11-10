@@ -97,7 +97,7 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = robot.data.default_root_state_w.clone()
+            root_state = robot.data.default_root_state.clone()
             root_state[0, :2] = torch.tensor([0.0, -0.5], device=sim.device)
             root_state[1, :2] = torch.tensor([0.0, 0.5], device=sim.device)
             robot.write_root_state_to_sim(root_state)
