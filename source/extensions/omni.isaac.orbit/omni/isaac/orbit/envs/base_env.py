@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import builtins
+import torch
+from typing import Any, Dict, Sequence, Union
 
 import omni.isaac.core.utils.torch as torch_utils
 
@@ -15,6 +17,29 @@ from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.timer import Timer
 
 from .base_env_cfg import BaseEnvCfg
+
+VecEnvObs = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
+"""Observation returned by the environment.
+
+The observations are stored in a dictionary. The keys are the group to which the observations belong.
+This is useful for various setups such as reinforcement learning with asymmetric actor-critic or
+multi-agent learning. For non-learning paradigms, this may include observations for different components
+of a system.
+
+Within each group, the observations can be stored either as a dictionary with keys as the names of each
+observation term in the group, or a single tensor obtained from concatenating all the observation terms.
+For example, for asymmetric actor-critic, the observation for the actor and the critic can be accessed
+using the keys ``"policy"`` and ``"critic"`` respectively.
+
+Note:
+    By default, most learning frameworks deal with default and privileged observations in different ways.
+    This handling must be taken care of by the wrapper around the :class:`RLTaskEnv` instance.
+
+    For included frameworks (RSL-RL, RL-Games, skrl), the observations must have the key "policy". In case,
+    the key "critic" is also present, then the critic observations are taken from the "critic" group.
+    Otherwise, they are the same as the "policy" group.
+
+"""
 
 
 class BaseEnv:
@@ -112,6 +137,9 @@ class BaseEnv:
             # if no window, then we don't need to store the window
             self._window = None
 
+        # allocate dictionary to store metrics
+        self.extras = {}
+
     def __del__(self):
         """Cleanup for the environment."""
         self.close()
@@ -171,6 +199,66 @@ class BaseEnv:
     Operations - MDP.
     """
 
+    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
+        """Resets all the environments and returns observations.
+
+        Args:
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            options: Additional information to specify how the environment is reset. Defaults to None.
+
+                Note:
+                    This argument is used for compatibility with Gymnasium environment definition.
+
+        Returns:
+            A tuple containing the observations and extras.
+        """
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+        # reset state of scene
+        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        self._reset_idx(indices)
+        # return observations
+        return self.observation_manager.compute(), self.extras
+
+    def step(self, action: torch.Tensor) -> VecEnvObs:
+        """Execute one time-step of the environment's dynamics.
+
+        The environment steps forward at a fixed time-step, while the physics simulation is
+        decimated at a lower time-step. This is to ensure that the simulation is stable. These two
+        time-steps can be configured independently using the :attr:`BaseEnvCfg.decimation` (number of
+        simulation steps per environment step) and the :attr:`BaseEnvCfg.sim.dt` (physics time-step).
+        Based on these parameters, the environment time-step is computed as the product of the two.
+
+        Args:
+            action: The actions to apply on the environment. Shape is ``(num_envs, action_dim)``.
+
+        Returns:
+            A tuple containing the observations and extras.
+        """
+        # process actions
+        self.action_manager.process_action(action)
+        # perform physics stepping
+        for _ in range(self.cfg.decimation):
+            # set actions into buffers
+            self.action_manager.apply_action()
+            # set actions into simulator
+            self.scene.write_data_to_sim()
+            # simulate
+            self.sim.step(render=False)
+            # update buffers at sim dt
+            self.scene.update(dt=self.physics_dt)
+        # perform rendering if gui is enabled
+        if self.sim.has_gui():
+            self.sim.render()
+
+        # post-step: step interval randomization
+        if "interval" in self.randomization_manager.available_modes:
+            self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+
+        # return observations and extras
+        return self.observation_manager.compute(), self.extras
+
     @staticmethod
     def seed(seed: int = -1) -> int:
         """Set the seed for the environment.
@@ -202,3 +290,33 @@ class BaseEnv:
                 self._window = None
             # update closing status
             self._is_closed = True
+
+    """
+    Helper functions.
+    """
+
+    def _reset_idx(self, env_ids: Sequence[int]):
+        """Reset environments based on specified indices.
+
+        Args:
+            env_ids: List of environment ids which must be reset
+        """
+        # reset the internal buffers of the scene elements
+        self.scene.reset(env_ids)
+        # randomize the MDP for environments that need a reset
+        if "reset" in self.randomization_manager.available_modes:
+            self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
+
+        # iterate over all managers and reset them
+        # this returns a dictionary of information which is stored in the extras
+        # note: This is order-sensitive! Certain things need be reset before others.
+        self.extras["log"] = dict()
+        # -- observation manager
+        info = self.observation_manager.reset(env_ids)
+        self.extras["log"].update(info)
+        # -- action manager
+        info = self.action_manager.reset(env_ids)
+        self.extras["log"].update(info)
+        # -- randomization manager
+        info = self.randomization_manager.reset(env_ids)
+        self.extras["log"].update(info)

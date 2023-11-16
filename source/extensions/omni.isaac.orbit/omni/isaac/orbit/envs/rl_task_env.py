@@ -9,39 +9,15 @@ import gymnasium as gym
 import math
 import numpy as np
 import torch
-from typing import Any, ClassVar, Dict, Sequence, Tuple, Union
+from typing import Any, ClassVar, Dict, Sequence, Tuple
 
 from omni.isaac.version import get_version
 
 from omni.isaac.orbit.command_generators import CommandGeneratorBase
 from omni.isaac.orbit.managers import CurriculumManager, RewardManager, TerminationManager
 
-from .base_env import BaseEnv
+from .base_env import BaseEnv, VecEnvObs
 from .rl_task_env_cfg import RLTaskEnvCfg
-
-VecEnvObs = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
-"""Observation returned by the environment.
-
-The observations are stored in a dictionary. The keys are the group to which the observations belong.
-This is useful for various learning setups beyond vanilla reinforcement learning, such as asymmetric
-actor-critic, multi-agent, or hierarchical reinforcement learning.
-
-For example, for asymmetric actor-critic, the observation for the actor and the critic can be accessed
-using the keys ``"policy"`` and ``"critic"`` respectively.
-
-Within each group, the observations can be stored either as a dictionary with keys as the names of each
-observation term in the group, or a single tensor obtained from concatenating all the observation terms.
-
-Note:
-    By default, most learning frameworks deal with default and privileged observations in different ways.
-    This handling must be taken care of by the wrapper around the :class:`RLTaskEnv` instance.
-
-    For included frameworks (RSL-RL, RL-Games, skrl), the observations must have the key "policy". In case,
-    the key "critic" is also present, then the critic observations are taken from the "critic" group.
-    Otherwise, they are the same as the "policy" group.
-
-"""
-
 
 VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, Dict]
 """The environment signals processed at the end of each step.
@@ -76,6 +52,14 @@ class RLTaskEnv(BaseEnv, gym.Env):
     environment. Thus, to reduce complexity, we directly use the :class:`gym.Env` over
     here and leave it up to library-defined wrappers to take care of wrapping this
     environment for their agents.
+
+    Note:
+        For vectorized environments, it is recommended to **only** call the :meth:`reset`
+        method once before the first call to :meth:`step`, i.e. after the environment is created.
+        After that, the :meth:`step` function handles the reset of terminated sub-environments.
+        This is because the simulator does not support resetting individual sub-environments
+        in a vectorized environment.
+
     """
 
     is_vector_env: ClassVar[bool] = True
@@ -107,8 +91,6 @@ class RLTaskEnv(BaseEnv, gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        # -- allocate dictionary to store metrics
-        self.extras = {}
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -158,48 +140,18 @@ class RLTaskEnv(BaseEnv, gym.Env):
     Operations - MDP
     """
 
-    def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
-        """Resets all the environments and returns observations and extras.
-
-        Note:
-            This function (if called) must **only** be called before the first call to :meth:`step`, i.e.
-            after the environment is created. After that, the :meth:`step` function handles the reset
-            of terminated sub-environments.
-
-        Args:
-            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            options: Additional information to specify how the environment is reset. Defaults to None.
-
-                Note:
-                    This is not used in the current implementation. It is mostly there for compatibility with
-                    Gymnasium environment definition.
-
-        Returns:
-            A tuple containing the observations and extras.
-        """
-        # set the seed
-        if seed is not None:
-            gym.Env.reset(self, seed=seed)
-            self.seed(seed)
-        # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
-        self._reset_idx(indices)
-        # return observations
-        return self.observation_manager.compute(), self.extras
-
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Run one timestep of the environment's dynamics and reset terminated environments.
+        """Execute one time-step of the environment's dynamics and reset terminated environments.
 
-        The environment dynamics may comprise of many steps of the physics engine. The number of steps
-        is controlled by the :attr:`RLTaskEnvCfg.decimation` parameter in the configuration. This means
-        that the agent control can happen at a slower rate than the physics simulation. This is useful
-        for real-time control of the robot, where the control loop may be slower than the frequency of
-        the actual dynamics.
+        Unlike the :class:`BaseEnv.step` class, the function performs the following operations:
 
-        The function also handles resetting of the terminated environments, at the end of the physics
-        stepping and computation of the reward and terminated signals. This is because it is not
-        possible to reset the sub-environments individually due to the vectorized implementation
-        of sub-environments in the simulator.
+        1. Process the actions.
+        2. Perform physics stepping.
+        3. Perform rendering if gui is enabled.
+        4. Update the environment counters and compute the rewards and terminations.
+        5. Reset the environments that terminated.
+        6. Compute the observations.
+        7. Return the observations, rewards, resets and extras.
 
         Args:
             action: The actions to apply on the environment. Shape is ``(num_envs, action_dim)``.
@@ -255,12 +207,12 @@ class RLTaskEnv(BaseEnv, gym.Env):
 
         By convention, if mode is:
 
-        - **human**: render to the current display and return nothing. Usually for human consumption.
+        - **human**: Render to the current display and return nothing. Usually for human consumption.
         - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array".
+            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.

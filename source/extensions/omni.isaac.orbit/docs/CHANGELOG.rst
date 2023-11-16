@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.44 (2023-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added methods :meth:`reset` and :meth:`step` to the :class:`omni.isaac.orbit.envs.BaseEnv`. This unifies
+  the environment interface for simple standalone applications with the class.
+
+
 0.9.43 (2023-11-16)
 ~~~~~~~~~~~~~~~~~~~
 
