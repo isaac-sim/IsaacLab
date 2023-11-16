@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.9.42 (2023-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed setting of damping values from the configuration for :class:`ActuatorBase` class. Earlier,
+  the stiffness values were being set into damping when a dictionary configuration was passed to the
+  actuator model.
+* Added dealing with :class:`int` and :class:`float` values in the configurations of :class:`ActuatorBase`.
+  Earlier, a type-error was thrown when integer values were passed to the actuator model.
+
+
 0.9.41 (2023-11-16)
 ~~~~~~~~~~~~~~~~~~~
 

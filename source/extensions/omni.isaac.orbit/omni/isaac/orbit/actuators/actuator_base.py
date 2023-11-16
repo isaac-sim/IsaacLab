@@ -78,21 +78,21 @@ class ActuatorBase(ABC):
         # parse joint stiffness and damping
         # -- stiffness
         if self.cfg.stiffness is not None:
-            if isinstance(self.cfg.stiffness, float):
+            if isinstance(self.cfg.stiffness, (float, int)):
                 # if float, then use the same value for all joints
-                self.stiffness[:] = self.cfg.stiffness
+                self.stiffness[:] = float(self.cfg.stiffness)
             else:
                 # if dict, then parse the regular expression
                 indices, _, values = string_utils.resolve_matching_names_values(self.cfg.stiffness, self.joint_names)
                 self.stiffness[:, indices] = torch.tensor(values, device=self._device)
         # -- damping
         if self.cfg.damping is not None:
-            if isinstance(self.cfg.damping, float):
+            if isinstance(self.cfg.damping, (float, int)):
                 # if float, then use the same value for all joints
-                self.damping[:] = self.cfg.damping
+                self.damping[:] = float(self.cfg.damping)
             else:
                 # if dict, then parse the regular expression
-                indices, _, values = string_utils.resolve_matching_names_values(self.cfg.stiffness, self.joint_names)
+                indices, _, values = string_utils.resolve_matching_names_values(self.cfg.damping, self.joint_names)
                 self.damping[:, indices] = torch.tensor(values, device=self._device)
 
     def __str__(self) -> str:
