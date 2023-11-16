@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
-import omni.physx
+import omni.timeline
 from omni.isaac.core.simulation_context import SimulationContext
 
 if TYPE_CHECKING:
@@ -55,14 +55,14 @@ class SensorBase(ABC):
         # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
         # The order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        physx_event_stream = omni.physx.acquire_physx_interface().get_simulation_event_stream_v2()
-        self._initialize_handle = physx_event_stream.create_subscription_to_pop_by_type(
-            int(omni.physx.bindings._physx.SimulationEvent.RESUMED),
+        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            int(omni.timeline.TimelineEventType.PLAY),
             lambda event, obj=weakref.proxy(self): obj._initialize_callback(event),
             order=10,
         )
-        self._invalidate_initialize_handle = physx_event_stream.create_subscription_to_pop_by_type(
-            int(omni.physx.bindings._physx.SimulationEvent.STOPPED),
+        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+            int(omni.timeline.TimelineEventType.STOP),
             lambda event, obj=weakref.proxy(self): obj._invalidate_initialize_callback(event),
             order=10,
         )

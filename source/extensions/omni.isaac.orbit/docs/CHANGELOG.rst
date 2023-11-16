@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.43 (2023-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Replaced subscription of physics play and stop events in the :class:`omni.isaac.orbit.assets.AssetBase` and
+  :class:`omni.isaac.orbit.sensors.SensorBase` classes with subscription to time-line play and stop events.
+  This is to prevent issues in cases where physics first needs to perform mesh cooking and handles are not
+  available immediately. For instance, with deformable meshes.
+
+
 0.9.42 (2023-11-16)
 ~~~~~~~~~~~~~~~~~~~
 
