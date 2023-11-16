@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.9.41 (2023-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the naming and shaping issues in the binary joint action term.
+
+
 0.9.40 (2023-11-09)
 ~~~~~~~~~~~~~~~~~~~
 

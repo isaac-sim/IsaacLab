@@ -69,7 +69,7 @@ class BinaryJointAction(ActionTerm):
             raise ValueError(
                 f"Could not resolve all joints for the action term. Missing: {set(self._joint_names) - set(name_list)}"
             )
-        self._open_command[:, index_list] = torch.tensor(value_list, device=self.device)
+        self._open_command[index_list] = torch.tensor(value_list, device=self.device)
 
         # parse close command
         self._close_command = torch.zeros_like(self._open_command)
@@ -80,7 +80,7 @@ class BinaryJointAction(ActionTerm):
             raise ValueError(
                 f"Could not resolve all joints for the action term. Missing: {set(self._joint_names) - set(name_list)}"
             )
-        self._close_command[:, index_list] = torch.tensor(value_list, device=self.device)
+        self._close_command[index_list] = torch.tensor(value_list, device=self.device)
 
     """
     Properties.
@@ -108,10 +108,10 @@ class BinaryJointAction(ActionTerm):
         # compute the binary mask
         if actions.dtype == torch.bool:
             # true: close, false: open
-            binary_mask = (actions == 0).unsqueeze(1)
+            binary_mask = actions == 0
         else:
             # true: close, false: open
-            binary_mask = (actions < 0).unsqueeze(1)
+            binary_mask = actions < 0
         # compute the command
         self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
 

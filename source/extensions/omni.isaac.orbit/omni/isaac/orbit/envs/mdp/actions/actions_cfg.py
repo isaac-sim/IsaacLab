@@ -91,9 +91,9 @@ class BinaryJointActionCfg(ActionTermCfg):
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
-    open_command: dict[str, float] = MISSING
+    open_command_expr: dict[str, float] = MISSING
     """The joint command to move to *open* configuration."""
-    close_command: dict[str, float] = MISSING
+    close_command_expr: dict[str, float] = MISSING
     """The joint command to move to *close* configuration."""
 
 
