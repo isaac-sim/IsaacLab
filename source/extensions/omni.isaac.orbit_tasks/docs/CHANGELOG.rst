@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.3 (2023-11-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added raising of error in the :meth:`omni.isaac.orbit_tasks.utils.importer.import_all` method to make sure
+  all the packages are imported properly. Previously, error was being caught and ignored.
+
+
 0.5.2 (2023-11-08)
 ~~~~~~~~~~~~~~~~~~
 

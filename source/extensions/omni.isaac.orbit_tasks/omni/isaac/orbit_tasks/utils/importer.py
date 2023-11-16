@@ -75,9 +75,6 @@ def _walk_packages(
         if info.ispkg:
             try:
                 __import__(info.name)
-            except ImportError:
-                if onerror is not None:
-                    onerror(info.name)
             except Exception:
                 if onerror is not None:
                     onerror(info.name)
