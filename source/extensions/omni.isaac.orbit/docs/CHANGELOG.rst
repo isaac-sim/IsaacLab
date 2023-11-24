@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.47 (2023-11-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Automated identification of the root prim in the :class:`omni.isaac.orbit.assets.RigidObject` and
+  :class:`omni.isaac.orbit.assets.Articulation` classes. Earlier, the root prim was hard-coded to
+  the spawn prim path. Now, the class searches for the root prim under the spawn prim path.
+
+
 0.9.46 (2023-11-24)
 ~~~~~~~~~~~~~~~~~~~
 

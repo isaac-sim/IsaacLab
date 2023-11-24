@@ -12,6 +12,7 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
+import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.prims import RigidPrimView
@@ -357,8 +358,21 @@ class Articulation(RigidObject):
     """
 
     def _initialize_impl(self):
+        # find articulation root prims
+        asset_prim_path = prim_utils.find_matching_prim_paths(self.cfg.prim_path)[0]
+        root_prims = prim_utils.get_all_matching_child_prims(
+            asset_prim_path, predicate=lambda a: prim_utils.get_prim_at_path(a).HasAPI(UsdPhysics.ArticulationRootAPI)
+        )
+        if len(root_prims) != 1:
+            raise RuntimeError(
+                f"Failed to find a single articulation root when resolving '{self.cfg.prim_path}'."
+                f" Found roots '{root_prims}' under '{asset_prim_path}'."
+            )
+        # resolve articulation root prim back into regex expression
+        root_prim_path = prim_utils.get_prim_path(root_prims[0])
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(asset_prim_path) :]
         # -- articulation
-        self._root_view = ArticulationView(self.cfg.prim_path, reset_xform_properties=False)
+        self._root_view = ArticulationView(root_prim_path_expr, reset_xform_properties=False)
         # Hacking the initialization of the articulation view.
         # reason: The default initialization of the articulation view is not working properly as it tries to create
         # default actions that is not possible within the post-play callback.
@@ -395,8 +409,7 @@ class Articulation(RigidObject):
                     self._is_fixed_base = True
                     break
         # log information about the articulation
-        carb.log_info(f"Articulation initialized at: {self.cfg.prim_path}")
-        carb.log_info(f"Root name: {self.body_names[0]}")
+        carb.log_info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Is fixed root: {self.is_fixed_base}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
         carb.log_info(f"Body names: {self.body_names}")

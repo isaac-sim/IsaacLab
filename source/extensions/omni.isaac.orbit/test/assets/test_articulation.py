@@ -27,8 +27,10 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.actuators import ImplicitActuatorCfg
+from omni.isaac.orbit.assets import Articulation, ArticulationCfg
 from omni.isaac.orbit.assets.config import ANYMAL_C_CFG, FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 class TestArticulation(unittest.TestCase):
@@ -55,8 +57,41 @@ class TestArticulation(unittest.TestCase):
     Tests
     """
 
+    def test_initialization_floating_base_non_root(self):
+        """Test initialization for a floating-base with articulation root on a rigid body
+        under the provided prim path."""
+        # Create articulation
+        robot_cfg = ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd"),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
+            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        )
+        robot = Articulation(cfg=robot_cfg)
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertTrue(robot._is_initialized)
+        # Check that floating base
+        self.assertFalse(robot.is_fixed_base)
+        # Check buffers that exists and have correct shapes
+        self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
+        self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
+        self.assertTrue(robot.data.joint_pos.shape == (1, 21))
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update robot
+            robot.update(self.dt)
+
     def test_initialization_floating_base(self):
-        """Test articulation initialization for a floating-base."""
+        """Test initialization for a floating-base with articulation root on provided prim path."""
         # Create articulation
         robot = Articulation(cfg=ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
 
@@ -82,7 +117,7 @@ class TestArticulation(unittest.TestCase):
             robot.update(self.dt)
 
     def test_initialization_fixed_base(self):
-        """Test articulation initialization for fixed base."""
+        """Test initialization for fixed base."""
         # Create articulation
         robot = Articulation(cfg=FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG.replace(prim_path="/World/Robot"))
 
@@ -136,6 +171,7 @@ class TestArticulation(unittest.TestCase):
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            # reset robot
             robot.reset()
             # apply force
             robot.set_external_force_and_torque(
@@ -183,6 +219,7 @@ class TestArticulation(unittest.TestCase):
             # reset dof state
             joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            # reset robot
             robot.reset()
             # apply force
             robot.set_external_force_and_torque(

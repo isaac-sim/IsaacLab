@@ -127,15 +127,15 @@ def define_rigid_body_properties(
     # obtain stage
     if stage is None:
         stage = stage_utils.get_current_stage()
-    # get articulation USD prim
+    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has articulation applied on it
+    # check if prim has rigid body applied on it
     if not UsdPhysics.RigidBodyAPI(prim):
         UsdPhysics.RigidBodyAPI.Apply(prim)
-    # set articulation root properties
+    # set rigid body properties
     modify_rigid_body_properties(prim_path, cfg, stage)
 
 
@@ -219,15 +219,15 @@ def define_collision_properties(
     # obtain stage
     if stage is None:
         stage = stage_utils.get_current_stage()
-    # get articulation USD prim
+    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has articulation applied on it
+    # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(prim):
         UsdPhysics.CollisionAPI.Apply(prim)
-    # set articulation root properties
+    # set collision properties
     modify_collision_properties(prim_path, cfg, stage)
 
 
@@ -265,7 +265,7 @@ def modify_collision_properties(
     # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(collider_prim):
         return False
-    # retrieve the USD rigid-body api
+    # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
     # retrieve the collision api
     physx_collision_api = PhysxSchema.PhysxCollisionAPI(collider_prim)
@@ -307,15 +307,15 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     # obtain stage
     if stage is None:
         stage = stage_utils.get_current_stage()
-    # get articulation USD prim
+    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has articulation applied on it
+    # check if prim has mass applied on it
     if not UsdPhysics.MassAPI(prim):
         UsdPhysics.MassAPI.Apply(prim)
-    # set articulation root properties
+    # set mass properties
     modify_mass_properties(prim_path, cfg, stage)
 
 
@@ -351,10 +351,10 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
         stage = stage_utils.get_current_stage()
     # get USD prim
     rigid_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has collision applied on it
+    # check if prim has mass API applied on it
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
-    # retrieve the USD rigid-body api
+    # retrieve the USD mass api
     usd_physics_mass_api = UsdPhysics.MassAPI(rigid_prim)
 
     # convert to dict

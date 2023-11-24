@@ -9,8 +9,10 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
+import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import RigidPrimView
+from pxr import UsdPhysics
 
 import omni.isaac.orbit.utils.math as math_utils
 import omni.isaac.orbit.utils.string as string_utils
@@ -266,11 +268,24 @@ class RigidObject(AssetBase):
     """
 
     def _initialize_impl(self):
+        # find articulation root prims
+        asset_prim_path = prim_utils.find_matching_prim_paths(self.cfg.prim_path)[0]
+        root_prims = prim_utils.get_all_matching_child_prims(
+            asset_prim_path, predicate=lambda a: prim_utils.get_prim_at_path(a).HasAPI(UsdPhysics.RigidBodyAPI)
+        )
+        if len(root_prims) != 1:
+            raise RuntimeError(
+                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
+                f" Found multiple '{root_prims}' under '{asset_prim_path}'."
+            )
+        # resolve articulation root prim back into regex expression
+        root_prim_path = prim_utils.get_prim_path(root_prims[0])
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(asset_prim_path) :]
         # -- object views
-        self._root_view = RigidPrimView(self.cfg.prim_path, reset_xform_properties=False)
+        self._root_view = RigidPrimView(root_prim_path_expr, reset_xform_properties=False)
         self._root_view.initialize()
         # log information about the articulation
-        carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path}")
+        carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Number of bodies (orbit): {self.num_bodies}")
         carb.log_info(f"Body names (orbit): {self.body_names}")
         # create buffers
