@@ -174,8 +174,10 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
+        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = self._ALL_INDICES
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, :7] = root_pose.clone()
@@ -183,7 +185,7 @@ class RigidObject(AssetBase):
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
-        self.root_physx_view.set_transforms(root_poses_xyzw, indices=env_ids)
+        self.root_physx_view.set_transforms(root_poses_xyzw, indices=physx_env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root velocity over selected environment indices into the simulation.
@@ -193,13 +195,15 @@ class RigidObject(AssetBase):
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
+        physx_env_ids = env_ids
         if env_ids is None:
-            env_ids = self._ALL_INDICES
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
         # set into simulation
-        self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=env_ids)
+        self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
     """
     Operations - Setters.
