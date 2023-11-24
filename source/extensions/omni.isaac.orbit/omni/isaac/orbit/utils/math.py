@@ -42,6 +42,7 @@ __all__ = [
     "quat_from_matrix",
     "quat_apply_yaw",
     "quat_box_minus",
+    "quat_error_magnitude",
     "yaw_quat",
     "euler_xyz_from_quat",
     "axis_angle_from_quat",
@@ -496,9 +497,8 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
         eps: The tolerance for Taylor approximation. Defaults to 1.0e-6.
 
     Returns:
-        Rotations given as a vector in axis angle form, as a tensor
-            of shape (..., 3), where the magnitude is the angle turned
-            anti-clockwise in radians around the vector's direction.
+        Rotations given as a vector in axis angle form, as a tensor of shape (..., 3),
+        where the magnitude is the angle turned anti-clockwise in radians around the vector's direction.
 
     Reference:
         Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py#L526-L554)
@@ -518,6 +518,21 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
         torch.abs(angle.abs()) > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
     )
     return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
+
+
+@torch.jit.script
+def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """Computes the rotation difference between two quaternions.
+
+    Args:
+        q1: A (N, 4) tensor for quaternion (w, x, y, z).
+        q2: A (N, 4) tensor for quaternion (w, x, y, z).
+
+    Returns:
+        Angular error between input quaternions in radians.
+    """
+    quat_diff = quat_mul(q1, quat_conjugate(q2))
+    return torch.norm(axis_angle_from_quat(quat_diff), dim=1)
 
 
 """
@@ -625,6 +640,9 @@ def compute_pose_error(
 
     Returns:
         A tuple containing position and orientation error.
+
+        - If :attr:`rot_error_type` is "quat", the orientation error is returned as a quaternion.
+        - If :attr:`rot_error_type` is "axis_angle", the orientation error is returned as an axis-angle vector.
 
     Raises:
         ValueError: Invalid rotation error type.

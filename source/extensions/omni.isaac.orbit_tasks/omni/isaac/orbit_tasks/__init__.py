@@ -49,6 +49,6 @@ __version__ = ORBIT_TASKS_METADATA["package"]["version"]
 from .utils import import_packages
 
 # The blacklist is used to prevent importing configs from sub-packages
-_BLACKLIST_PKGS = ["locomotion.velocity.config.anymal_d", "manipulation", "utils", "classic.ant", "classic.humanoid"]
+_BLACKLIST_PKGS = ["locomotion.velocity.config.anymal_d", "utils", "classic.ant", "classic.humanoid"]
 # Import all configs in this package
 import_packages(__name__, _BLACKLIST_PKGS)

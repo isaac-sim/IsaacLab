@@ -12,6 +12,7 @@ from omni.isaac.orbit.utils import configclass
 
 from .command_generator_base import CommandGeneratorBase
 from .null_command_generator import NullCommandGenerator
+from .pose_command_generator import UniformPoseCommandGenerator
 from .position_command_generator import TerrainBasedPositionCommandGenerator
 from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
 
@@ -121,6 +122,32 @@ class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
 
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
+
+
+@configclass
+class UniformPoseCommandGeneratorCfg(CommandGeneratorBaseCfg):
+    """Configuration for uniform pose command generator."""
+
+    class_type: type = UniformPoseCommandGenerator
+
+    asset_name: str = MISSING
+    """Name of the asset in the environment for which the commands are generated."""
+    body_name: str = MISSING
+    """Name of the body in the asset for which the commands are generated."""
+
+    @configclass
+    class Ranges:
+        """Uniform distribution ranges for the pose commands."""
+
+        pos_x: tuple[float, float] = MISSING  # min max [m]
+        pos_y: tuple[float, float] = MISSING  # min max [m]
+        pos_z: tuple[float, float] = MISSING  # min max [m]
+        roll: tuple[float, float] = MISSING  # min max [rad]
+        pitch: tuple[float, float] = MISSING  # min max [rad]
+        yaw: tuple[float, float] = MISSING  # min max [rad]
+
+    ranges: Ranges = MISSING
+    """Ranges for the commands."""
 
 
 @configclass

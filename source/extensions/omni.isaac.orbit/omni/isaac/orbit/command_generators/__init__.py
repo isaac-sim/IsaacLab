@@ -23,15 +23,20 @@ from .command_generator_cfg import (
     NormalVelocityCommandGeneratorCfg,
     NullCommandGeneratorCfg,
     TerrainBasedPositionCommandGeneratorCfg,
+    UniformPoseCommandGeneratorCfg,
     UniformVelocityCommandGeneratorCfg,
 )
 from .null_command_generator import NullCommandGenerator
+from .pose_command_generator import UniformPoseCommandGenerator
 from .position_command_generator import TerrainBasedPositionCommandGenerator
 from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
 
 __all__ = [
     "CommandGeneratorBase",
     "CommandGeneratorBaseCfg",
+    # pose command generators
+    "UniformPoseCommandGenerator",
+    "UniformPoseCommandGeneratorCfg",
     # null command generator
     "NullCommandGenerator",
     "NullCommandGeneratorCfg",

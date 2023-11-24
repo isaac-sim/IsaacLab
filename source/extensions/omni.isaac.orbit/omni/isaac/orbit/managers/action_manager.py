@@ -251,6 +251,9 @@ class ActionManager(ManagerBase):
         else:
             cfg_items = self.cfg.__dict__.items()
         for term_name, term_cfg in cfg_items:
+            # check if term config is None
+            if term_cfg is None:
+                continue
             # check valid type
             if not isinstance(term_cfg, ActionTermCfg):
                 raise TypeError(

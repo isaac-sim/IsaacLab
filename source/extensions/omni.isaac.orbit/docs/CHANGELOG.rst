@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.45 (2023-11-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`omni.isaac.orbit.command_generators.UniformPoseCommandGenerator` to generate
+  poses in the asset's root frame by uniformly sampling from a given range.
+
+
 0.9.44 (2023-11-16)
 ~~~~~~~~~~~~~~~~~~~
 
