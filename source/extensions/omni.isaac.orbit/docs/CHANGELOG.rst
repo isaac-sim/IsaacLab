@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.9.48 (2023-11-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed initialization of drift in the :class:`omni.isaac.orbit.sensors.RayCasterCamera` class.
+
+
 0.9.47 (2023-11-24)
 ~~~~~~~~~~~~~~~~~~~
 

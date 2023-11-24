@@ -64,22 +64,16 @@ class RayCasterCamera(RayCaster):
 
         Args:
             cfg: The configuration parameters.
+
+        Raises:
+            ValueError: If the provided data types are not supported by the ray-caster camera.
         """
+        # perform check on supported data types
+        self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
-        # Create empty variables for storing output data
+        # create empty variables for storing output data
         self._data = CameraData()
-
-        # check if there is any intersection in unsupported types
-        # reason: we cannot obtain this data from simplified warp-based ray caster
-        common_elements = set(self.cfg.data_types) & RayCasterCamera.UNSUPPORTED_TYPES
-        if common_elements:
-            raise ValueError(
-                f"RayCasterCamera class does not support the following sensor types: {common_elements}."
-                "\n\tThis is because these sensor types cannot be obtained in a fast way using ''warp''."
-                "\n\tHint: If you need to work with these sensor types, we recommend using the USD camera"
-                " interface from the omni.isaac.orbit.sensors.camera module."
-            )
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -305,8 +299,23 @@ class RayCasterCamera(RayCaster):
     Private Helpers
     """
 
+    def _check_supported_data_types(self, cfg: RayCasterCameraCfg):
+        """Checks if the data types are supported by the ray-caster camera."""
+        # check if there is any intersection in unsupported types
+        # reason: we cannot obtain this data from simplified warp-based ray caster
+        common_elements = set(cfg.data_types) & RayCasterCamera.UNSUPPORTED_TYPES
+        if common_elements:
+            raise ValueError(
+                f"RayCasterCamera class does not support the following sensor types: {common_elements}."
+                "\n\tThis is because these sensor types cannot be obtained in a fast way using ''warp''."
+                "\n\tHint: If you need to work with these sensor types, we recommend using the USD camera"
+                " interface from the omni.isaac.orbit.sensors.camera module."
+            )
+
     def _create_buffers(self):
         """Create buffers for storing data."""
+        # prepare drift
+        self.drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
         # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)

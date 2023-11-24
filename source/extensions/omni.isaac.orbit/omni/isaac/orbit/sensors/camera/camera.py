@@ -75,8 +75,10 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the sensor types intersect with in the unsupported list.
+            ValueError: If the provided data types are not supported by the camera.
         """
+        # perform check on supported data types
+        self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
 
@@ -99,17 +101,6 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = CameraData()
-        # check if there is any intersection in unsupported types
-        # reason: these use np structured data types which we can't yet convert to torch tensor
-        common_elements = set(self.cfg.data_types) & Camera.UNSUPPORTED_TYPES
-        if common_elements:
-            raise ValueError(
-                f"Camera class does not support the following sensor types: {common_elements}."
-                "\n\tThis is because these sensor types output numpy structured data types which"
-                "can't be converted to torch tensors easily."
-                "\n\tHint: If you need to work with these sensor types, we recommend using the single camera"
-                " implementation from the omni.isaac.orbit.compat.camera module."
-            )
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
@@ -430,6 +421,20 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _check_supported_data_types(self, cfg: CameraCfg):
+        """Checks if the data types are supported by the ray-caster camera."""
+        # check if there is any intersection in unsupported types
+        # reason: these use np structured data types which we can't yet convert to torch tensor
+        common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
+        if common_elements:
+            raise ValueError(
+                f"Camera class does not support the following sensor types: {common_elements}."
+                "\n\tThis is because these sensor types output numpy structured data types which"
+                "can't be converted to torch tensors easily."
+                "\n\tHint: If you need to work with these sensor types, we recommend using the single camera"
+                " implementation from the omni.isaac.orbit.compat.camera module."
+            )
 
     def _create_buffers(self):
         """Create buffers for storing data."""

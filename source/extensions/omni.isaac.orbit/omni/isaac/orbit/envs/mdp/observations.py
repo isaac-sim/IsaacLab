@@ -19,7 +19,7 @@ from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.sensors import RayCaster
 
 if TYPE_CHECKING:
-    from omni.isaac.orbit.envs import BaseEnv
+    from omni.isaac.orbit.envs import BaseEnv, RLTaskEnv
 
 """
 Root state.
@@ -94,6 +94,6 @@ Commands.
 """
 
 
-def generated_commands(env: BaseEnv) -> torch.Tensor:
+def generated_commands(env: RLTaskEnv) -> torch.Tensor:
     """The generated command from the command generator."""
     return env.command_manager.command

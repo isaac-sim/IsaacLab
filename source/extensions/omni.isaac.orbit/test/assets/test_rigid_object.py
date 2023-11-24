@@ -24,8 +24,8 @@ import traceback
 import unittest
 
 import carb
-import omni.isaac.core.utils.stage as stage_utils
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
