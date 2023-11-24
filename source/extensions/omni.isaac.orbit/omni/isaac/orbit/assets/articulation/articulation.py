@@ -161,7 +161,7 @@ class Articulation(RigidObject):
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
         # resolve all indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, :7] = root_pose.clone()
@@ -169,17 +169,17 @@ class Articulation(RigidObject):
         root_poses_xyzw = self._data.root_state_w[:, :7].clone()
         root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="xyzw")
         # set into simulation
-        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=self._ALL_INDICES)
+        self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         # resolve all indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
         # set into simulation
-        self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=self._ALL_INDICES)
+        self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=env_ids)
 
     def write_joint_state_to_sim(
         self,
@@ -198,7 +198,7 @@ class Articulation(RigidObject):
         """
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
         # set into internal buffers
@@ -207,8 +207,8 @@ class Articulation(RigidObject):
         self._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
-        self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=self._ALL_INDICES)
-        self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=self._ALL_INDICES)
+        self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=env_ids)
+        self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=env_ids)
 
     def write_joint_stiffness_to_sim(
         self,
@@ -226,14 +226,13 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
-        # TODO: Check if this now is done on the GPU.
-        self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=self._ALL_INDICES.cpu())
+        self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=env_ids.cpu())
 
     def write_joint_damping_to_sim(
         self, damping: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
@@ -250,14 +249,13 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
-        # TODO: Check if this now is done on the GPU.
-        self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=self._ALL_INDICES.cpu())
+        self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=env_ids.cpu())
 
     def write_joint_torque_limit_to_sim(
         self,
@@ -275,15 +273,14 @@ class Articulation(RigidObject):
         # note: This function isn't setting the values for actuator models. (#128)
         # resolve indices
         if env_ids is None:
-            env_ids = slice(None)
+            env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
         # set into internal buffers
         torque_limit_all = self.root_physx_view.get_dof_max_forces()
         torque_limit_all[env_ids, joint_ids] = limits
         # set into simulation
-        # TODO: Check if this now is done on the GPU.
-        self.root_physx_view.set_dof_max_forces(torque_limit_all.cpu(), self._ALL_INDICES.cpu())
+        self.root_physx_view.set_dof_max_forces(torque_limit_all.cpu(), indices=env_ids.cpu())
 
     """
     Operations - State.
@@ -399,6 +396,8 @@ class Articulation(RigidObject):
                     break
         # log information about the articulation
         carb.log_info(f"Articulation initialized at: {self.cfg.prim_path}")
+        carb.log_info(f"Root name: {self.body_names[0]}")
+        carb.log_info(f"Is fixed root: {self.is_fixed_base}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
         carb.log_info(f"Body names: {self.body_names}")
         carb.log_info(f"Number of joints: {self.num_joints}")

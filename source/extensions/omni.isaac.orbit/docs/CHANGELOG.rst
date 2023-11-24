@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.46 (2023-11-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a critical issue in the asset classes with writing states into physics handles.
+  Earlier, the states were written over all the indices instead of the indices of the
+  asset that were being updated. This caused the physics handles to refresh the states
+  of all the assets in the scene, which is not desirable.
+
+
 0.9.45 (2023-11-24)
 ~~~~~~~~~~~~~~~~~~~
 
