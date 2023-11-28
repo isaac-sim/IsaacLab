@@ -54,7 +54,7 @@ def main():
     """Main function."""
 
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, shutdown_app_on_stop=False)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

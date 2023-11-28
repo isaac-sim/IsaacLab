@@ -193,6 +193,17 @@ class SimulationContext(_SimulationContext):
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
         self._isaacsim_version = get_version()
 
+        # add callback to deal the simulation app when simulation is stopped.
+        # this is needed because physics views go invalid once we stop the simulation
+        if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
+            self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.STOP),
+                lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_callback(*args),
+                order=10,
+            )
+        else:
+            self._app_control_on_stop_handle = None
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
@@ -336,22 +347,6 @@ class SimulationContext(_SimulationContext):
     Operations - Override (standalone)
     """
 
-    def reset(self, soft: bool = False):
-        # need to load all "physics" information from the USD file
-        # FIXME: Remove this for Isaac Sim 2023.1 release if it will be fixed in the core.
-        if not soft:
-            omni.physx.acquire_physx_interface().force_load_physics_from_usd()
-        # play the simulation
-        super().reset(soft=soft)
-        # add callback to shutdown the simulation when it is stopped.
-        # we do this because physics views go invalid once we stop the simulation. So there is
-        # no point in keeping the simulation running.
-        if self.cfg.shutdown_app_on_stop and not self.timeline_callback_exists("shutdown_app_on_stop"):
-            self.add_timeline_callback(
-                "shutdown_app_on_stop",
-                lambda *args, obj=weakref.proxy(self): obj._shutdown_app_on_stop_callback(*args),
-            )
-
     def step(self, render: bool = True):
         """Steps the physics simulation with the pre-defined time-step.
 
@@ -431,7 +426,7 @@ class SimulationContext(_SimulationContext):
         await super().reset_async(soft=soft)
 
     """
-    Initialization - Override.
+    Initialization/Destruction - Override.
     """
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
@@ -451,6 +446,16 @@ class SimulationContext(_SimulationContext):
         self._load_fabric_interface()
         # return the stage
         return self.stage
+
+    @classmethod
+    def clear_instance(cls):
+        # clear the callback
+        if cls._instance is not None:
+            if cls._instance._app_control_on_stop_handle is not None:
+                cls._instance._app_control_on_stop_handle.unsubscribe()
+                cls._instance._app_control_on_stop_handle = None
+        # call parent to clear the instance
+        super().clear_instance()
 
     """
     Helper Functions
@@ -526,15 +531,32 @@ class SimulationContext(_SimulationContext):
     Callbacks.
     """
 
-    def _shutdown_app_on_stop_callback(self, event: carb.events.IEvent):
-        """Callback to shutdown the app when the simulation is stopped.
+    def _app_control_on_stop_callback(self, event: carb.events.IEvent):
+        """Callback to deal with the app when the simulation is stopped.
 
-        This is used only when running the simulation in a standalone python script. This is because
-        the physics views go invalid once we stop the simulation. So there is no point in keeping the
-        simulation running.
+        Once the simulation is stopped, the physics handles go invalid. After that, it is not possible to
+        resume the simulation from the last state. This leaves the app in an inconsistent state, where
+        two possible actions can be taken:
+
+        1. **Keep the app rendering**: In this case, the simulation is kept running and the app is not shutdown.
+           However, the physics is not updated and the script cannot be resumed from the last state. The
+           user has to manually close the app to stop the simulation.
+        2. **Shutdown the app**: This is the default behavior. In this case, the app is shutdown and
+           the simulation is stopped.
+
+        Note:
+            This callback is used only when running the simulation in a standalone python script. In an extension,
+            it is expected that the user handles the extension shutdown.
         """
         # check if the simulation is stopped
         if event.type == int(omni.timeline.TimelineEventType.STOP):
+            # keep running the simulator when configured to not shutdown the app
+            self.app.print_and_log(
+                "Simulation is stopped. The app will keep running with physics disabled."
+                " Press Ctrl+C or close the window to exit the app."
+            )
+            while self.app.is_running():
+                self.render()
             # make sure that any replicator workflows finish rendering/writing
             if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
                 try:
@@ -559,5 +581,3 @@ class SimulationContext(_SimulationContext):
             self.app.shutdown()
             # disabled on linux to avoid a crash
             carb.get_framework().unload_all_plugins()
-            # exit the application
-            print("Exiting the application complete.")

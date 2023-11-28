@@ -69,8 +69,6 @@ class TestRecordVideoWrapper(unittest.TestCase):
 
             # parse configuration
             env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
-            # note: we don't want to shutdown the app on stop during the tests since we reload the stage
-            env_cfg.sim.shutdown_app_on_stop = False
 
             # create environment
             env: RLTaskEnv = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")

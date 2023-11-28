@@ -40,7 +40,7 @@ class TestDifferentialIKController(unittest.TestCase):
         # Constants
         self.num_envs = 128
         # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, shutdown_app_on_stop=False)
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01)
         self.sim = sim_utils.SimulationContext(sim_cfg)
 
         # Create a ground plane

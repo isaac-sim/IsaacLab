@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.9.50 (2023-11-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Hid the ``STOP`` button in the UI when running standalone Python scripts. This is to prevent
+  users from accidentally clicking the button and stopping the simulation. They should only be able to
+  play and pause the simulation from the UI.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`omni.isaac.orbit.sim.SimulationCfg.shutdown_app_on_stop`. The simulation is always rendering
+  if it is stopped from the UI. The user needs to close the window or press ``Ctrl+C`` to close the simulation.
+
+
 0.9.49 (2023-11-27)
 ~~~~~~~~~~~~~~~~~~~
 

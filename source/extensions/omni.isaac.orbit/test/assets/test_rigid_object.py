@@ -42,7 +42,7 @@ class TestRigidObject(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda:0", shutdown_app_on_stop=False)
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda:0")
         self.sim = sim_utils.SimulationContext(sim_cfg)
 
     def tearDown(self):
