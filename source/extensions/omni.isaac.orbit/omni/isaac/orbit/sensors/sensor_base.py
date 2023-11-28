@@ -51,6 +51,8 @@ class SensorBase(ABC):
         self.cfg = cfg
         # flag for whether the sensor is initialized
         self._is_initialized = False
+        # flag for whether the sensor is in visualization mode
+        self._is_visualizing = False
 
         # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         # add callbacks for stage play/stop
@@ -140,6 +142,8 @@ class SensorBase(ABC):
             return False
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
+        # toggle debug visualization flag
+        self._is_visualizing = debug_vis
         # toggle debug visualization handles
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
@@ -178,7 +182,7 @@ class SensorBase(ABC):
         # Update the buffers
         # TODO (from @mayank): Why is there a history length here when it doesn't mean anything in the sensor base?!?
         #   It is only for the contact sensor but there we should redefine the update function IMO.
-        if force_recompute or (self.cfg.history_length > 0):
+        if force_recompute or self._is_visualizing or (self.cfg.history_length > 0):
             self._update_outdated_buffers()
 
     """

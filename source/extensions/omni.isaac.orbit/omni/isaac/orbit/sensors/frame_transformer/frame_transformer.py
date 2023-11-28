@@ -151,7 +151,13 @@ class FrameTransformer(SensorBase):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         for frame, prim_path, offset in zip(frames, frame_prim_paths, frame_offsets):
             # Find correct prim
-            for matching_prim_path in prim_utils.find_matching_prim_paths(prim_path):
+            matching_prims = prim_utils.find_matching_prim_paths(prim_path)
+            if len(matching_prims) == 0:
+                raise ValueError(
+                    f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
+                    " No matching prims were found."
+                )
+            for matching_prim_path in matching_prims:
                 prim = prim_utils.get_prim_at_path(matching_prim_path)
                 # check if it is a rigid prim
                 if not prim.HasAPI(UsdPhysics.RigidBodyAPI):

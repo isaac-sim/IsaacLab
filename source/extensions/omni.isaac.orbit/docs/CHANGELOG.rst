@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.9.51 (2023-11-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the :meth:`omni.isaac.orbit.sensor.SensorBase.update` method to always recompute the buffers if
+  the sensor is in visualization mode.
+
+Added
+^^^^^
+
+* Added available entities to the error message when accessing a non-existent entity in the
+  :class:`InteractiveScene` class.
+* Added a warning message when the user tries to reference an invalid prim in the :class:`FrameTransformer` sensor.
+
+
 0.9.50 (2023-11-28)
 ~~~~~~~~~~~~~~~~~~~
 
