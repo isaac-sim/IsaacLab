@@ -11,8 +11,8 @@ import torch
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
-from .manager_base import ManagerBase
-from .manager_cfg import TerminationTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -136,6 +136,10 @@ class TerminationManager(ManagerBase):
             extras["Episode Termination/" + key] = torch.count_nonzero(self._episode_dones[key][env_ids]).item()
             # reset episode dones
             self._episode_dones[key][env_ids] = False
+        # reset all the reward terms
+        for term_cfg in self._class_term_cfgs:
+            term_cfg.func.reset(env_ids=env_ids)
+        # return logged information
         return extras
 
     def compute(self) -> torch.Tensor:
@@ -208,6 +212,7 @@ class TerminationManager(ManagerBase):
         # parse remaining termination terms and decimate their information
         self._term_names: list[str] = list()
         self._term_cfgs: list[TerminationTermCfg] = list()
+        self._class_term_cfgs: list[TerminationTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -230,3 +235,6 @@ class TerminationManager(ManagerBase):
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)
+            # check if the term is a class
+            if isinstance(term_cfg.func, ManagerTermBase):
+                self._class_term_cfgs.append(term_cfg)

@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import torch
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
-from .manager_base import ManagerBase
-from .manager_cfg import ObservationGroupCfg, ObservationTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
@@ -99,6 +99,14 @@ class ObservationManager(ManagerBase):
     """
     Operations.
     """
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # call all terms that are classes
+        for group_cfg in self._group_obs_class_term_cfgs.values():
+            for term_cfg in group_cfg:
+                term_cfg.func.reset(env_ids=env_ids)
+        # nothing to log here
+        return {}
 
     def compute(self) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Compute the observations per group for all groups.
@@ -188,6 +196,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_names: dict[str, list[str]] = dict()
         self._group_obs_term_dim: dict[str, list[int]] = dict()
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
+        self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
 
         # check if config is dict already
@@ -210,6 +219,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_names[group_name] = list()
             self._group_obs_term_dim[group_name] = list()
             self._group_obs_term_cfgs[group_name] = list()
+            self._group_obs_class_term_cfgs[group_name] = list()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
 
@@ -242,3 +252,8 @@ class ObservationManager(ManagerBase):
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape[1:])
                 self._group_obs_term_dim[group_name].append(obs_dims)
+                # add term in a separate list if term is a class
+                if isinstance(term_cfg.func, ManagerTermBase):
+                    self._group_obs_class_term_cfgs[group_name].append(term_cfg)
+                    # call reset (in-case above call to get obs dims changed the state)
+                    term_cfg.func.reset()

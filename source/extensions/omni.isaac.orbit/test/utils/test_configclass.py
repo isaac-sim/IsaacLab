@@ -256,6 +256,18 @@ class FunctionsDemoCfg:
     func_in_dict = {"func": dummy_function1}
 
 
+@configclass
+class FunctionImplementedDemoCfg:
+    """Dummy configuration class with functions as attributes."""
+
+    func = dummy_function1
+    a: int = 5
+    k = 100.0
+
+    def set_a(self, a: int):
+        self.a = a
+
+
 """
 Test solutions: Basic
 """
@@ -516,6 +528,13 @@ class TestConfigClass(unittest.TestCase):
         self.assertEqual(cfg.func(), 1)
         self.assertEqual(cfg.wrapped_func(), 4)
         self.assertEqual(cfg.func_in_dict["func"](), 1)
+
+    def test_function_impl_config(self):
+        cfg = FunctionImplementedDemoCfg()
+        # change value
+        self.assertEqual(cfg.a, 5)
+        cfg.set_a(10)
+        self.assertEqual(cfg.a, 10)
 
     def test_dict_conversion_functions_config(self):
         """Tests conversion of config with functions into dictionary."""

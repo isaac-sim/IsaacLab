@@ -19,7 +19,7 @@ import torch
 import unittest
 from collections import namedtuple
 
-from omni.isaac.orbit.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from omni.isaac.orbit.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from omni.isaac.orbit.utils import configclass
 
 
@@ -43,18 +43,24 @@ def grilled_chicken_with_yoghurt_and_bbq(env, hot: bool, bland: float, bbq: bool
     return hot * bland * bbq * torch.ones(env.num_envs, 3, device=env.device)
 
 
-class complex_function_class:
+class complex_function_class(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg
         self.env = env
         # define some variables
-        self._cost = 2 * self.env.num_envs
+        self._time_passed = torch.zeros(env.num_envs, device=env.device)
 
-    def __call__(self, env: object) -> torch.Tensor:
-        return torch.ones(env.num_envs, 2, device=env.device) * self._cost
+    def reset(self, env_ids: torch.Tensor | None = None):
+        if env_ids is None:
+            env_ids = slice(None)
+        self._time_passed[env_ids] = 0.0
+
+    def __call__(self, env: object, interval: float) -> torch.Tensor:
+        self._time_passed += interval
+        return self._time_passed.clone().unsqueeze(-1)
 
 
-class non_callable_complex_function_class:
+class non_callable_complex_function_class(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg
         self.env = env
@@ -242,7 +248,7 @@ class TestObservationManager(unittest.TestCase):
                 """Test config class for policy observation group."""
 
                 term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
-                term_2 = ObservationTermCfg(func=complex_function_class, scale=0.2)
+                term_2 = ObservationTermCfg(func=complex_function_class, scale=0.2, params={"interval": 0.5})
 
             policy: ObservationGroupCfg = PolicyCfg()
 
@@ -251,9 +257,21 @@ class TestObservationManager(unittest.TestCase):
         self.obs_man = ObservationManager(cfg, self.env)
         # compute observation using manager
         observations = self.obs_man.compute()
-        # check the observation shape
-        self.assertEqual((self.env.num_envs, 6), observations["policy"].shape)
-        self.assertEqual(observations["policy"][0, -1].item(), 2 * self.env.num_envs * 0.2)
+        # check the observation
+        self.assertEqual((self.env.num_envs, 5), observations["policy"].shape)
+        self.assertAlmostEqual(observations["policy"][0, -1].item(), 0.2 * 0.5)
+
+        # check memory in term
+        num_exec_count = 10
+        for _ in range(num_exec_count):
+            observations = self.obs_man.compute()
+        self.assertAlmostEqual(observations["policy"][0, -1].item(), 0.2 * 0.5 * (num_exec_count + 1))
+
+        # check reset works
+        self.obs_man.reset(env_ids=[0, 4, 9, 14, 19])
+        observations = self.obs_man.compute()
+        self.assertAlmostEqual(observations["policy"][0, -1].item(), 0.2 * 0.5)
+        self.assertAlmostEqual(observations["policy"][1, -1].item(), 0.2 * 0.5 * (num_exec_count + 2))
 
     def test_non_callable_class_term(self):
         """Test the observation computation with non-callable class term."""
@@ -274,9 +292,10 @@ class TestObservationManager(unittest.TestCase):
         # create observation manager config
         cfg = MyObservationManagerCfg()
         # create observation manager
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(NotImplementedError):
             self.obs_man = ObservationManager(cfg, self.env)
 
 
 if __name__ == "__main__":
     unittest.main()
+    simulation_app.close()

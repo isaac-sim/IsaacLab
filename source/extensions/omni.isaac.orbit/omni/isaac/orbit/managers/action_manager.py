@@ -8,20 +8,20 @@
 from __future__ import annotations
 
 import torch
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
 from omni.isaac.orbit.assets import AssetBase
 
-from .manager_base import ManagerBase
-from .manager_cfg import ActionTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
 
 
-class ActionTerm(ABC):
+class ActionTerm(ManagerTermBase):
     """Base class for action terms.
 
     The action term is responsible for processing the raw actions sent to the environment
@@ -41,25 +41,14 @@ class ActionTerm(ABC):
             cfg: The configuration object.
             env: The environment instance.
         """
-        # store the inputs
-        self.cfg = cfg
-        self._env = env
+        # call the base class constructor
+        super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
 
     """
     Properties.
     """
-
-    @property
-    def num_envs(self) -> int:
-        """Number of environments."""
-        return self._env.num_envs
-
-    @property
-    def device(self) -> str:
-        """Device on which to perform computations."""
-        return self._asset.device
 
     @property
     @abstractmethod
@@ -200,7 +189,10 @@ class ActionManager(ManagerBase):
         # reset the action history
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0
-        # reset the terms
+        # reset all action terms
+        for term in self._terms:
+            term.reset(env_ids=env_ids)
+        # nothing to log here
         return {}
 
     def process_action(self, action: torch.Tensor):

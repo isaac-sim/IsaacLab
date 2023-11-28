@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.9.49 (2023-11-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an interface class, :class:`omni.isaac.orbit.managers.ManagerTermBase`, to serve as the parent class
+  for term implementations that are functional classes.
+* Adapted all managers to support terms that are classes and not just functions clearer. This allows the user to
+  create more complex terms that require additional state information.
+
+
 0.9.48 (2023-11-24)
 ~~~~~~~~~~~~~~~~~~~
 

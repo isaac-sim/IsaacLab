@@ -7,6 +7,7 @@ from __future__ import annotations
 
 """Wrapper around the Python 3.7 onwards `dataclasses` module."""
 
+import inspect
 import sys
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
@@ -192,18 +193,13 @@ def _add_annotation_types(cls):
         # Note: Do not change this to dir(base) since it orders the members alphabetically.
         #   This is not desirable since the order of the members is important in some cases.
         for key in base.__dict__:
-            # skip dunder members
-            if key.startswith("__"):
-                continue
-            # skip class functions
-            if key in _CONFIGCLASS_METHODS:
-                continue
-            # check if key is already present
-            if key in hints:
+            # get class member
+            value = getattr(base, key)
+            # skip members
+            if _skippable_class_member(key, value, hints):
                 continue
             # add type annotations for members that don't have explicit type annotations
             # for these, we deduce the type from the default value
-            value = getattr(base, key)
             if not isinstance(value, type):
                 if key not in hints:
                     # check if var type is not MISSING
@@ -263,14 +259,11 @@ def _process_mutable_types(cls):
             continue
         # iterate over base class members
         for key in base.__dict__:
-            # skip dunder members
-            if key.startswith("__"):
-                continue
-            # skip class functions
-            if key in _CONFIGCLASS_METHODS:
-                continue
             # get class member
             f = getattr(base, key)
+            # skip members
+            if _skippable_class_member(key, f):
+                continue
             # store class member if it is not a type or if it is already present in annotations
             if not isinstance(f, type) or key in ann:
                 class_members[key] = f
@@ -354,6 +347,43 @@ def _combined_function(f1: Callable, f2: Callable) -> Callable:
 """
 Helper functions
 """
+
+
+def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> bool:
+    """Check if the class member should be skipped in configclass processing.
+
+    The following members are skipped:
+
+    * Dunder members: ``__name__``, ``__module__``, ``__qualname__``, ``__annotations__``, ``__dict__``.
+    * Manually-added special class functions: From :obj:`_CONFIGCLASS_METHODS`.
+    * Members that are already present in the type annotations.
+    * Functions bounded to class object or class.
+
+    Args:
+        key: The class member name.
+        value: The class member value.
+        hints: The type hints for the class. Defaults to None, in which case, the
+            members existence in type hints are not checked.
+
+    Returns:
+        True if the class member should be skipped, False otherwise.
+    """
+    # skip dunder members
+    if key.startswith("__"):
+        return True
+    # skip manually-added special class functions
+    if key in _CONFIGCLASS_METHODS:
+        return True
+    # check if key is already present
+    if hints is not None and key in hints:
+        return True
+    # skip functions bounded to class
+    if callable(value):
+        signature = inspect.signature(value)
+        if "self" in signature.parameters or "cls" in signature.parameters:
+            return True
+    # Otherwise, don't skip
+    return False
 
 
 def _return_f(f: Any) -> Callable[[], Any]:

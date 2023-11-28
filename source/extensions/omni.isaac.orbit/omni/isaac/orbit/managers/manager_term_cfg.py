@@ -14,73 +14,28 @@ from typing import TYPE_CHECKING, Any, Callable
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.noise import NoiseCfg
 
+from .scene_entity_cfg import SceneEntityCfg
+
 if TYPE_CHECKING:
     from .action_manager import ActionTerm
+    from .manager_base import ManagerTermBase
 
 
 @configclass
-class SceneEntityCfg:
-    """Configuration for a scene entity that is used by the manager's term.
-
-    This class is used to specify the name of the scene entity that is queried from the
-    :class:`InteractiveScene` and passed to the manager's term function.
-    """
-
-    name: str = MISSING
-    """The name of the scene entity.
-
-    This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
-    class for more details.
-    """
-
-    joint_names: str | list[str] | None = None
-    """The names of the joints from the scene entity. Defaults to None.
-
-    The names can be either joint names or a regular expression matching the joint names.
-
-    These are converted to joint indices on initialization of the manager and passed to the term
-    function as a list of joint indices under :attr:`dof_ids`.
-    """
-
-    joint_ids: list[int] | None = None
-    """The indices of the joints from the asset required by the term. Defaults to None.
-
-    If ``joint_names`` is specified, this is filled in automatically on initialization of the
-    manager.
-    """
-
-    body_names: str | list[str] | None = None
-    """The names of the bodies from the asset required by the term. Defaults to None.
-
-    The names can be either body names or a regular expression matching the body names.
-
-    These are converted to body indices on initialization of the manager and passed to the term
-    function as a list of body indices under :attr:`body_ids`.
-    """
-
-    body_ids: list[int] | None = None
-    """The indices of the bodies from the asset required by the term. Defaults to None.
-
-    If ``body_names`` is specified, this is filled in automatically on initialization of the
-    manager.
-    """
-
-
-@configclass
-class ManagerBaseTermCfg:
+class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable = MISSING
-    """The function to be called for the term.
+    func: Callable | ManagerTermBase = MISSING
+    """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
+    The remaining arguments are specified in the :attr:`params` attribute.
 
-    Note:
-        It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
-        method.
+    It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
+    method. In this case, the class should inherit from the :class:`ManagerTermBase` class
+    and implement the required methods.
 
     .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
-
     """
 
     params: dict[str, Any | SceneEntityCfg] = dict()
@@ -122,7 +77,7 @@ class ActionTermCfg:
 
 
 @configclass
-class CurriculumTermCfg(ManagerBaseTermCfg):
+class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
     func: Callable[..., float | dict[str, float]] = MISSING
@@ -140,7 +95,7 @@ class CurriculumTermCfg(ManagerBaseTermCfg):
 
 
 @configclass
-class ObservationTermCfg(ManagerBaseTermCfg):
+class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
     func: Callable[..., torch.Tensor] = MISSING
@@ -188,7 +143,7 @@ class ObservationGroupCfg:
 
 
 @configclass
-class RandomizationTermCfg(ManagerBaseTermCfg):
+class RandomizationTermCfg(ManagerTermBaseCfg):
     """Configuration for a randomization term."""
 
     func: Callable[..., None] = MISSING
@@ -224,7 +179,7 @@ class RandomizationTermCfg(ManagerBaseTermCfg):
 
 
 @configclass
-class RewardTermCfg(ManagerBaseTermCfg):
+class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
     func: Callable[..., torch.Tensor] = MISSING
@@ -252,7 +207,7 @@ class RewardTermCfg(ManagerBaseTermCfg):
 
 
 @configclass
-class TerminationTermCfg(ManagerBaseTermCfg):
+class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
     func: Callable[..., torch.Tensor] = MISSING

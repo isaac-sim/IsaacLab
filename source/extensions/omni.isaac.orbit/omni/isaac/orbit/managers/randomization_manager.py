@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Sequence
 
 import carb
 
-from .manager_base import ManagerBase
-from .manager_cfg import RandomizationTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import RandomizationTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -107,6 +107,14 @@ class RandomizationManager(ManagerBase):
     """
     Operations.
     """
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # call all terms that are classes
+        for mode_cfg in self._mode_class_term_cfgs.values():
+            for term_cfg in mode_cfg:
+                term_cfg.func.reset(env_ids=env_ids)
+        # nothing to log here
+        return {}
 
     def randomize(self, mode: str, env_ids: Sequence[int] | None = None, dt: float | None = None):
         """Calls each randomization term in the specified mode.
@@ -205,6 +213,7 @@ class RandomizationManager(ManagerBase):
         # parse remaining randomization terms and decimate their information
         self._mode_term_names: dict[str, list[str]] = dict()
         self._mode_term_cfgs: dict[str, list[RandomizationTermCfg]] = dict()
+        self._mode_class_term_cfgs: dict[str, list[RandomizationTermCfg]] = dict()
         # buffer to store the time left for each environment for "interval" mode
         self._interval_mode_time_left: list[torch.Tensor] = list()
 
@@ -231,9 +240,13 @@ class RandomizationManager(ManagerBase):
                 # add new mode
                 self._mode_term_names[term_cfg.mode] = list()
                 self._mode_term_cfgs[term_cfg.mode] = list()
+                self._mode_class_term_cfgs[term_cfg.mode] = list()
             # add term name and parameters
             self._mode_term_names[term_cfg.mode].append(term_name)
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
+            # check if the term is a class
+            if isinstance(term_cfg.func, ManagerTermBase):
+                self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # resolve the mode of randomization
             if term_cfg.mode == "interval":

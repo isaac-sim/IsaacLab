@@ -8,16 +8,107 @@ from __future__ import annotations
 import copy
 import inspect
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 import carb
 
 from omni.isaac.orbit.utils import string_to_callable
 
-from .manager_cfg import ManagerBaseTermCfg, SceneEntityCfg
+from .manager_term_cfg import ManagerTermBaseCfg
+from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
+
+
+class ManagerTermBase(ABC):
+    """Base class for manager terms.
+
+    Manager term implementations can be functions or classes. If the term is a class, it should
+    inherit from this base class and implement the required methods.
+
+    Each manager is implemented as a class that inherits from the :class:`ManagerBase` class. Each manager
+    class should also have a corresponding configuration class that defines the configuration terms for the
+    manager. Each term should the :class:`ManagerTermBaseCfg` class or its subclass.
+
+    Example pseudo-code for creating a manager:
+
+    .. code-block:: python
+
+        from omni.isaac.orbit.utils import configclass
+        from omni.isaac.orbit.utils.mdp import ManagerBase, ManagerTermBaseCfg
+
+        @configclass
+        class MyManagerCfg:
+
+            my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+            my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+            my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+
+        # define manager instance
+        my_manager = ManagerBase(cfg=ManagerCfg(), env=env)
+
+    """
+
+    def __init__(self, cfg: ManagerTermBaseCfg, env: BaseEnv):
+        """Initialize the manager term.
+
+        Args:
+            cfg: The configuration object.
+            env: The environment instance.
+        """
+        # store the inputs
+        self.cfg = cfg
+        self._env = env
+
+    """
+    Properties.
+    """
+
+    @property
+    def num_envs(self) -> int:
+        """Number of environments."""
+        return self._env.num_envs
+
+    @property
+    def device(self) -> str:
+        """Device on which to perform computations."""
+        return self._env.device
+
+    """
+    Operations.
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Resets the manager term.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case
+                all environments are considered.
+        """
+        pass
+
+    def __call__(self, *args) -> Any:
+        """Returns the value of the term required by the manager.
+
+        In case of a class implementation, this function is called by the manager
+        to get the value of the term. The arguments passed to this function are
+        the ones specified in the term configuration (see :attr:`ManagerTermBaseCfg.params`).
+
+        .. attention::
+            To be consistent with memory-less implementation of terms with functions, it is
+            recommended to ensure that the returned mutable quantities are cloned before
+            returning them. For instance, if the term returns a tensor, it is recommended
+            to ensure that the returned tensor is a clone of the original tensor. This prevents
+            the manager from storing references to the tensors and altering the original tensors.
+
+        Args:
+            *args: Variable length argument list.
+
+        Returns:
+            The value of the term.
+        """
+        raise NotImplementedError
 
 
 class ManagerBase(ABC):
@@ -85,7 +176,7 @@ class ManagerBase(ABC):
     Helper functions.
     """
 
-    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerBaseTermCfg, min_argc: int = 1):
+    def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
         """Resolve common term configuration.
 
         Usually, called by the :meth:`_prepare_terms` method to resolve common term configuration.
@@ -104,44 +195,26 @@ class ManagerBase(ABC):
                 by the manager.
 
         Raises:
-            TypeError: If the term configuration is not of type :class:`ManagerBaseTermCfg`.
+            TypeError: If the term configuration is not of type :class:`ManagerTermBaseCfg`.
             ValueError: If the scene entity defined in the term configuration does not exist.
             AttributeError: If the term function is not callable.
             ValueError: If the term function's arguments are not matched by the parameters.
         """
         # check if the term is a valid term config
-        if not isinstance(term_cfg, ManagerBaseTermCfg):
+        if not isinstance(term_cfg, ManagerTermBaseCfg):
             raise TypeError(
-                f"Configuration for the term '{term_name}' is not of type ManagerBaseTermCfg."
+                f"Configuration for the term '{term_name}' is not of type ManagerTermBaseCfg."
                 f" Received: '{type(term_cfg)}'."
             )
         # iterate over all the entities and parse the joint and body names
         for key, value in term_cfg.params.items():
             # deal with string
             if isinstance(value, SceneEntityCfg):
-                # check if the entity is valid
-                if value.name not in self._env.scene.keys():
-                    raise ValueError(f"For the term '{term_name}', the scene entity '{value.name}' does not exist.")
-                # convert joint names to indices based on regex
-                if value.joint_names is not None and value.joint_ids is not None:
-                    raise ValueError(
-                        f"For the term '{term_name}', both 'joint_names' and 'joint_ids' are specified in '{key}'."
-                    )
-                if value.joint_names is not None:
-                    if isinstance(value.joint_names, str):
-                        value.joint_names = [value.joint_names]
-                    joint_ids, _ = self._env.scene[value.name].find_joints(value.joint_names)
-                    value.joint_ids = joint_ids
-                # convert body names to indices based on regex
-                if value.body_names is not None and value.body_ids is not None:
-                    raise ValueError(
-                        f"For the term '{term_name}', both 'body_names' and 'body_ids' are specified in '{key}'."
-                    )
-                if value.body_names is not None:
-                    if isinstance(value.body_names, str):
-                        value.body_names = [value.body_names]
-                    body_ids, _ = self._env.scene[value.name].find_bodies(value.body_names)
-                    value.body_ids = body_ids
+                # load the entity
+                try:
+                    value.resolve(self._env.scene)
+                except ValueError as e:
+                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
                 # log the entity for checking later
                 msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
                 if value.joint_ids is not None:
@@ -158,9 +231,12 @@ class ManagerBase(ABC):
             term_cfg.func = string_to_callable(term_cfg.func)
         # initialize the term if it is a class
         if inspect.isclass(term_cfg.func):
+            if not issubclass(term_cfg.func, ManagerTermBase):
+                raise TypeError(
+                    f"Configuration for the term '{term_name}' is not of type ManagerTermBase."
+                    f" Received: '{type(term_cfg.func)}'."
+                )
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
-            # add the "self" argument to the count
-            min_argc += 1
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")

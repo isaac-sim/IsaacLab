@@ -11,8 +11,8 @@ import torch
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
-from .manager_base import ManagerBase
-from .manager_cfg import RewardTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -108,6 +108,10 @@ class RewardManager(ManagerBase):
             extras["Episode Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
             # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
+        # reset all the reward terms
+        for term_cfg in self._class_term_cfgs:
+            term_cfg.func.reset(env_ids=env_ids)
+        # return logged information
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:
@@ -183,6 +187,7 @@ class RewardManager(ManagerBase):
         # parse remaining reward terms and decimate their information
         self._term_names: list[str] = list()
         self._term_cfgs: list[RewardTermCfg] = list()
+        self._class_term_cfgs: list[RewardTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -211,3 +216,6 @@ class RewardManager(ManagerBase):
             # add function to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)
+            # check if the term is a class
+            if isinstance(term_cfg.func, ManagerTermBase):
+                self._class_term_cfgs.append(term_cfg)

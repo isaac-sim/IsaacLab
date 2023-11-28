@@ -169,3 +169,4 @@ class TestRewardManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    simulation_app.close()

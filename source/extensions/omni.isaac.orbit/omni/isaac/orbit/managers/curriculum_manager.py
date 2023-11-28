@@ -11,8 +11,8 @@ import torch
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
-from .manager_base import ManagerBase
-from .manager_cfg import CurriculumTermCfg
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -106,6 +106,10 @@ class CurriculumManager(ManagerBase):
                     if isinstance(term_state, torch.Tensor):
                         term_state = term_state.item()
                     extras[f"Curriculum/{term_name}"] = term_state
+        # reset all the curriculum terms
+        for term_cfg in self._class_term_cfgs:
+            term_cfg.func.reset(env_ids=env_ids)
+        # return logged information
         return extras
 
     def compute(self, env_ids: Sequence[int] | None = None):
@@ -133,6 +137,7 @@ class CurriculumManager(ManagerBase):
         # parse remaining curriculum terms and decimate their information
         self._term_names: list[str] = list()
         self._term_cfgs: list[CurriculumTermCfg] = list()
+        self._class_term_cfgs: list[CurriculumTermCfg] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -155,3 +160,6 @@ class CurriculumManager(ManagerBase):
             # add name and config to list
             self._term_names.append(term_name)
             self._term_cfgs.append(term_cfg)
+            # check if the term is a class
+            if isinstance(term_cfg.func, ManagerTermBase):
+                self._class_term_cfgs.append(term_cfg)
