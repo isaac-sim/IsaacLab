@@ -154,7 +154,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
         7. Return the observations, rewards, resets and extras.
 
         Args:
-            action: The actions to apply on the environment. Shape is ``(num_envs, action_dim)``.
+            action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.

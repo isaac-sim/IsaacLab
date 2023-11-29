@@ -52,7 +52,7 @@ class TerrainImporter:
     terrain_origins: torch.Tensor | None
     """The origins of the sub-terrains in the added terrain mesh. Shape is (num_rows, num_cols, 3).
 
-    If :obj:`None`, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.
+    If None, then it is assumed no sub-terrains exist. The environment origins are computed in a grid.
     """
     env_origins: torch.Tensor
     """The origins of the environments. Shape is (num_envs, 3)."""

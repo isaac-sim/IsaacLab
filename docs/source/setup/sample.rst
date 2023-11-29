@@ -18,7 +18,7 @@ A few quick demo scripts to run and checkout:
 
       ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
 
--  Spawn multiple Franka arms and apply random position commands:
+-  Spawn multiple Franka arms and apply random joint position commands:
 
    .. code:: bash
 

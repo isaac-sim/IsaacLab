@@ -130,7 +130,7 @@ class ObservationManager(ManagerBase):
 
         The observations for a given group are computed by calling the registered functions for each
         term in the group. The functions are called in the order of the terms in the group. The functions
-        are expected to return a tensor with shape ``(num_envs, ...)``.
+        are expected to return a tensor with shape (num_envs, ...).
 
         If a corruption/noise model is registered for a term, the function is called to corrupt
         the observation. The corruption function is expected to return a tensor with the same
@@ -141,7 +141,7 @@ class ObservationManager(ManagerBase):
         By default, no scaling or clipping is applied.
 
         Args:
-            group_name: The name of the group for which to compute the observations. Defaults to :obj:`None`,
+            group_name: The name of the group for which to compute the observations. Defaults to None,
                 in which case observations for all the groups are computed and returned.
 
         Returns:

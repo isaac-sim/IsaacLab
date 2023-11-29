@@ -115,12 +115,12 @@ class HeightScannerMarker:
 
         Args:
             positions:
-                Positions in the world frame. Shape is (M, 3). Defaults to :obj:`None`, which means left unchanged.
+                Positions in the world frame. Shape is (M, 3). Defaults to None, which means left unchanged.
             orientations:
                 Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape is (M, 4).
-                Defaults to :obj:`None`, which means left unchanged.
+                Defaults to None, which means left unchanged.
             indices: Indices to specify which alter poses.
-                Shape is (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+                Shape is (M,), where M <= total number of markers. Defaults to None (i.e: all markers).
         """
         # resolve inputs
         if positions is not None:
@@ -146,7 +146,7 @@ class HeightScannerMarker:
         Args:
             status: Decides which prototype marker to visualize. Shape is (M)
             indices: Indices to specify which alter poses. Shape is (M,), where M <= total number of markers.
-                Defaults to :obj:`None` (i.e: all markers).
+                Defaults to None (i.e: all markers).
         """
         # default values
         if indices is None:

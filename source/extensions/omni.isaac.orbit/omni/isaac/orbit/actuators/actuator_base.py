@@ -37,21 +37,21 @@ class ActuatorBase(ABC):
     """
 
     computed_effort: torch.Tensor
-    """The computed effort for the actuator group. Shape is ``(num_envs, num_joints)``."""
+    """The computed effort for the actuator group. Shape is (num_envs, num_joints)."""
     applied_effort: torch.Tensor
-    """The applied effort for the actuator group. Shape is ``(num_envs, num_joints)``."""
+    """The applied effort for the actuator group. Shape is (num_envs, num_joints)."""
     effort_limit: torch.Tensor
-    """The effort limit for the actuator group. Shape is ``(num_envs, num_joints)``."""
+    """The effort limit for the actuator group. Shape is (num_envs, num_joints)."""
     velocity_limit: torch.Tensor
-    """The velocity limit for the actuator group. Shape is ``(num_envs, num_joints)``."""
+    """The velocity limit for the actuator group. Shape is (num_envs, num_joints)."""
     stiffness: torch.Tensor
-    """The stiffness (P gain) of the PD controller. Shape is ``(num_envs, num_joints)``."""
+    """The stiffness (P gain) of the PD controller. Shape is (num_envs, num_joints)."""
     damping: torch.Tensor
-    """The damping (D gain) of the PD controller. Shape is ``(num_envs, num_joints)``."""
+    """The damping (D gain) of the PD controller. Shape is (num_envs, num_joints)."""
     armature: torch.Tensor
-    """The armature of the actuator joints. Shape is ``(num_envs, num_joints)``."""
+    """The armature of the actuator joints. Shape is (num_envs, num_joints)."""
     friction: torch.Tensor
-    """The joint friction of the actuator joints. Shape is ``(num_envs, num_joints)``."""
+    """The joint friction of the actuator joints. Shape is (num_envs, num_joints)."""
 
     def __init__(
         self,
@@ -81,17 +81,17 @@ class ActuatorBase(ABC):
             num_envs: Number of articulations in the view.
             device: Device used for processing.
             stiffness: The default joint stiffness (P gain). Defaults to 0.0.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
             damping: The default joint damping (D gain). Defaults to 0.0.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
             armature: The default joint armature. Defaults to 0.0.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
             friction: The default joint friction. Defaults to 0.0.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
             effort_limit: The default effort limit. Defaults to infinity.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
             velocity_limit: The default velocity limit. Defaults to infinity.
-                If a tensor, then the shape is ``(num_envs, num_joints)``.
+                If a tensor, then the shape is (num_envs, num_joints).
         """
         # save parameters
         self.cfg = cfg
@@ -177,8 +177,8 @@ class ActuatorBase(ABC):
         Args:
             control_action: The joint action instance comprising of the desired joint positions, joint velocities
                 and (feed-forward) joint efforts.
-            joint_pos: The current joint positions of the joints in the group. Shape is ``(num_envs, num_joints)``.
-            joint_vel: The current joint velocities of the joints in the group. Shape is ``(num_envs, num_joints)``.
+            joint_pos: The current joint positions of the joints in the group. Shape is (num_envs, num_joints).
+            joint_vel: The current joint velocities of the joints in the group. Shape is (num_envs, num_joints).
 
         Returns:
             The computed desired joint positions, joint velocities and joint efforts.

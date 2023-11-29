@@ -181,8 +181,18 @@ class BaseEnv:
     def load_managers(self):
         """Load the managers for the environment.
 
-        Note:
-            This must happen after the simulator is reset, i.e. after the first call to :meth:`self.sim.reset`.
+        This function is responsible for creating the various managers (action, observation,
+        randomization, etc.) for the environment. Since the managers require access to physics handles,
+        they can only be created after the simulator is reset (i.e. played for the first time).
+
+        .. note::
+            In case of standalone application (when running simulator from Python), the function is called
+            automatically when the class is initialized.
+
+            However, in case of extension mode, the user must call this function manually after the simulator
+            is reset. This is because the simulator is only reset when the user calls
+            :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
+
         """
         # prepare the managers
         # -- action manager
@@ -227,11 +237,11 @@ class BaseEnv:
         The environment steps forward at a fixed time-step, while the physics simulation is
         decimated at a lower time-step. This is to ensure that the simulation is stable. These two
         time-steps can be configured independently using the :attr:`BaseEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`BaseEnvCfg.sim.dt` (physics time-step).
+        simulation steps per environment step) and the :attr:`BaseEnvCfg.physics_dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
         Args:
-            action: The actions to apply on the environment. Shape is ``(num_envs, action_dim)``.
+            action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
         Returns:
             A tuple containing the observations and extras.

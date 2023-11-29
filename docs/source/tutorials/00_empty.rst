@@ -2,11 +2,8 @@ Creating an empty scene
 =======================
 
 This tutorial introduces how to create a standalone python script to set up a simple empty scene in Orbit.
-It introduces the two main classes used in the simulator, :class:`SimulationApp` and :class:`SimulationContext`,
+It introduces the two main classes used in the simulator, :class:`AppLauncher` and :class:`SimulationContext`,
 that help launch and control the simulation timeline respectively.
-
-Additionally, it introduces the :meth:`create_prim()` function that allows users to create objects in the scene.
-We will use this function to create two lights in the scene.
 
 Please review `Isaac Sim Interface <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_intro_interface.html#isaac-sim-app-tutorial-intro-interface>`_
 and `Isaac Sim Workflows <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_intro_workflows.html#standalone-application>`_
@@ -21,7 +18,7 @@ The tutorial corresponds to the ``play_empty.py`` script in the ``orbit/source/s
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :emphasize-lines: 20-22,41-42,64-65,69-79,85-86
+   :emphasize-lines: 11-23,27-31,37-41,44,49-51,64
    :linenos:
 
 
@@ -31,19 +28,23 @@ The Code Explained
 Launching the simulator
 -----------------------
 
-The first step when working with standalone python scripts is to import the ``SimulationApp`` class. This
-class is used to launch the simulation app from the python script. It takes in a dictionary of configuration parameters
-that can be used to configure the launched application. For more information on the configuration parameters, please
+The first step when working with standalone python scripts is to import the :class:`AppLauncher` class. This
+class is used to launch the simulation app from the python script. It takes in a :class:`argparse.Namespace` object of configuration parameters
+that can be used to configure the launched application. There is a set of standard parameters that can be
+added automatically to the parser with the :meth:`AppLauncher.add_app_launcher_args()` method. These parameters include
+`headless` (launch app in no-gui mode), `livestream` (determine the streamining option of the app), `ros`
+(enables the ROS1 or ROS2 bridge) and `offscreen_render`(enables offscreen-render mode).
+For more information on the configuration parameters, please
 check the `SimulationApp documentation <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html#simulation-application-omni-isaac-kit>`_.
 
-Here, we launch the simulation app with the default configuration parameters but with the ``headless`` flag
-read from the parsed command line arguments.
+Here, we only use the arguments defined by :meth:`AppLauncher.add_app_launcher_args()` which can be set from the
+command line. If not explicitly set, the default values are used.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 20-22
+   :lines: 11-23
    :linenos:
-   :lineno-start: 20
+   :lineno-start: 11
 
 Importing python modules
 ------------------------
@@ -56,7 +57,7 @@ we will be using in the script.
    :language: python
    :lines: 27-31
    :linenos:
-   :lineno-start: 27
+   :lineno-start: 31
 
 
 Designing the simulation scene
@@ -77,39 +78,25 @@ time-step size, and advanced solver algorithm settings).
     (such as ``"numpy"`` and ``"torch"``) in which the returned physics tensors are casted in. Currently, ``orbit``
     only supports ``"torch"`` backend.
 
-For this tutorial, we set the physics time step to 0.01 seconds and the rendering time step to 0.01 seconds. Rendering,
+For this tutorial, we set the physics and rendering time step to 0.01 seconds. Rendering,
 here, refers to updating a frame of the current simulation state, which includes the viewport, cameras, and other
 existing UI elements.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 41-44
+   :lines: 37-39
    :linenos:
-   :lineno-start: 41
+   :lineno-start: 37
 
-Next, we add a ground plane and some lights into the scene. These objects are referred to as primitives or prims in
-the USD definition. More concretely, prims are the basic building blocks of a USD scene. They can be considered
-similar to an "element" in HTML. For example, a polygonal mesh is a prim, a light is a prim, a material is a prim.
-An “xform” prim stores a transform that applies to it's child prims.
-
-Each prim has a unique name, zero or more *properties*, and zero or more *children*. Prims can be nested to create
-a hierarchy of objects that define a simulation *stage*. Using this powerful concept, it is possible to create
-complex scenes with a single USD file. For more information on USD,
-please refer to the `USD documentation <https://graphics.pixar.com/usd/release/index.html>`_.
-
-
-In this tutorial, we create prims, we use the :meth:`create_prim()` function which takes as inputs the USD prim path,
-the type of prim, prim's location and the prim's properties. The prim path is a string that specifies the prim's
-unique name in the USD stage. The prim type is the type of prim (such as ``"Xform"``, ``"Sphere"``, or ``"SphereLight"``).
-The prim's properties are passed as key-value pairs in a dictionary. For example, in this tutorial, the ``"radius"``
-property of a ``"SphereLight"`` prim is set to ``2.5``.
+Next, we set the initial view shown the GUI. The view is defined as the position where the viewpoint is placed (here `[2.5, 2.5, 2.5]`)
+and the target to look at which defines the orientation of the viewpoint (here `[0, 0, 0]`).
 
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 49-62
+   :lines: 40-41
    :linenos:
-   :lineno-start: 49
+   :lineno-start: 40
 
 
 Running the simulation loop
@@ -125,23 +112,23 @@ and other timeline events. The :meth:`sim.step()` method takes in a ``render`` p
 current simulation state should be rendered or not. This parameter is set to ``False`` when the ``headless`` flag is
 set to ``True``.
 
+.. literalinclude:: ../../../source/standalone/demo/play_empty.py
+   :language: python
+   :lines: 43-51
+   :linenos:
+   :lineno-start: 43
+
 To ensure a safe execution, we wrap the execution loop with checks to ensure that the simulation app is running and
 that the simulator is playing. If the simulator is not playing, we simply step the simulator and continue to the next
 iteration of the loop.
-
-.. literalinclude:: ../../../source/standalone/demo/play_empty.py
-   :language: python
-   :lines: 64-79
-   :linenos:
-   :lineno-start: 64
-
 Lastly, we call the :meth:`simulation_app.close()` method to stop the simulation application and close the window.
 
 .. literalinclude:: ../../../source/standalone/demo/play_empty.py
    :language: python
-   :lines: 85-86
+   :lines: 55-64
    :linenos:
-   :lineno-start: 85
+   :lineno-start: 55
+
 
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
@@ -153,10 +140,9 @@ Now that we have gone through the code, let's run the script and see the result:
    ./orbit.sh -p source/standalone/demo/play_empty.py
 
 
-This should open a stage with a ground plane and lights spawned at the specified locations.
 The simulation should be playing and the stage should be rendering. To stop the simulation,
 you can either close the window, or press the ``STOP`` button in the UI, or press ``Ctrl+C``
 in the terminal.
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the next tutorial
-where we will learn how to add a robot to the stage.
+where we will learn how to add a assets to the stage.

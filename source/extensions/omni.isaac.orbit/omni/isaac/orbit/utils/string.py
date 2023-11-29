@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Transformations of strings."""
+"""Sub-module containing utilities for transforming strings and regular expressions."""
 
 from __future__ import annotations
 
@@ -12,17 +12,6 @@ import importlib
 import inspect
 import re
 from typing import Any, Callable, Sequence
-
-__all__ = [
-    "to_camel_case",
-    "to_snake_case",
-    "is_lambda_expression",
-    "string_to_callable",
-    "callable_to_string",
-    "resolve_matching_names",
-    "resolve_matching_names_values",
-]
-
 
 """
 String formatting.

@@ -324,7 +324,8 @@ while [[ $# -gt 0 ]]; do
             # build the documentation
             echo "[INFO] Building documentation..."
             # retrieve the python executable
-            python_exe=$(extract_python_exe)
+            # python_exe=$(extract_python_exe)
+            python_exe=python3
             # install pip packages
             cd ${ORBIT_PATH}/docs
             ${python_exe} -m pip install -r requirements.txt > /dev/null

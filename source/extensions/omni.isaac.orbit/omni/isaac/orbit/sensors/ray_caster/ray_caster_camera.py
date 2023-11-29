@@ -28,7 +28,7 @@ class RayCasterCamera(RayCaster):
 
     The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor has the same interface as the
-    :class:`omni.isaac.orbit.sensors.camera.Camera` that implements the camera class through USD camera prims.
+    :class:`omni.isaac.orbit.sensors.Camera` that implements the camera class through USD camera prims.
     However, this class provides a faster image generation. The sensor converts meshes from the list of
     primitive paths provided in the configuration to Warp meshes. The camera then ray-casts against these
     Warp meshes only.

@@ -11,8 +11,6 @@ from dataclasses import MISSING
 
 from omni.isaac.orbit.utils import configclass
 
-__all__ = ["PinholeCameraCfg", "FisheyeCameraCfg"]
-
 
 @configclass
 class PinholeCameraCfg:
@@ -22,7 +20,7 @@ class PinholeCameraCfg:
     class UsdCameraCfg:
         """USD related configuration of the sensor.
 
-        The parameter is kept default from USD if it is set to :obj:`None`. This includes the default
+        The parameter is kept default from USD if it is set to None. This includes the default
         parameters (in case the sensor is created) or the ones set by the user (in case the sensor is
         loaded from existing USD stage).
 

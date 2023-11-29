@@ -89,7 +89,7 @@ class TerrainImporterCfg:
     """The maximum initial terrain level for defining environment origins. Defaults to None.
 
     The terrain levels are specified by the number of rows in the grid arrangement of
-    sub-terrains. If :obj:`None`, then the initial terrain level is set to the maximum
+    sub-terrains. If None, then the initial terrain level is set to the maximum
     terrain level available (``num_rows - 1``).
 
     Note:

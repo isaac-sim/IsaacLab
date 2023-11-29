@@ -27,10 +27,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from __future__ import annotations
-
-__all__ = ["convert_buffer"]
-
 
 def convert_buffer(b1, b2):
     """Converts raw SpaceMouse readings to commands.

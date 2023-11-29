@@ -15,7 +15,7 @@ different steps.
 The Code
 ~~~~~~~~
 
-All environments in Orbit inherit from the base class :py:class:`IsaacEnv`. The base class follows the ``gym.Env``
+All environments in Orbit inherit from the base class :py:class:`IsaacEnv`. The base class follows the :class:`gymnasium.Env`
 interface and provides the basic functionality for an environment. Similar to `IsaacGym <https://sites.google.com/view/isaacgym-nvidia>`_,
 all environments designed in Orbit are *vectorized* implementations. This means that multiple environment
 instances are packed into the simulation and the user can interact with the environment by passing in a batch of actions.

@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This submodule provides marker utilities for simplifying creation of UI elements in the GUI.
+"""Sub-package for marker utilities to simplify creation of UI elements in the GUI.
 
-Currently, the module provides the following classes:
+Currently, the sub-package provides the following classes:
 
 * :class:`VisualizationMarkers` for creating a group of markers using `UsdGeom.PointInstancer
   <https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html>`_.
@@ -26,5 +25,3 @@ from __future__ import annotations
 
 from .config import *  # noqa: F401, F403
 from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
-
-__all__ = ["VisualizationMarkersCfg", "VisualizationMarkers"]

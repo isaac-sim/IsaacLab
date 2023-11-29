@@ -3,9 +3,24 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Subpackage for handling actuator models."""
+"""Sub-package for different actuator models.
 
-from __future__ import annotations
+Actuator models are used to model the behavior of the actuators in an articulation. These
+are usually meant to be used in simulation to model different actuator dynamics and delays.
+
+There are two main categories of actuator models that are supported:
+
+- **Implicit**: Motor model with ideal PD from the physics engine. This is similar to having a continuous time
+  PD controller. The motor model is implicit in the sense that the motor model is not explicitly defined by the user.
+- **Explicit**: Motor models based on physical drive models.
+
+  - **Physics-based**: Derives the motor models based on first-principles.
+  - **Neural Network-based**: Learned motor models from actuator data.
+
+Every actuator model inherits from the :class:`omni.isaac.orbit.actuators.ActuatorBase` class,
+which defines the common interface for all actuator models. The actuator models are handled
+and called by the :class:`omni.isaac.orbit.assets.Articulation` class.
+"""
 
 from .actuator_base import ActuatorBase
 from .actuator_cfg import (
@@ -18,24 +33,3 @@ from .actuator_cfg import (
 )
 from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator
-
-__all__ = [
-    # base actuator
-    "ActuatorBase",
-    "ActuatorBaseCfg",
-    # implicit actuator
-    "ImplicitActuatorCfg",
-    "ImplicitActuator",
-    # ideal pd actuator
-    "IdealPDActuatorCfg",
-    "IdealPDActuator",
-    # dc motor
-    "DCMotorCfg",
-    "DCMotor",
-    # actuator net -- lstm
-    "ActuatorNetLSTMCfg",
-    "ActuatorNetLSTM",
-    # actuator net -- mlp
-    "ActuatorNetMLPCfg",
-    "ActuatorNetMLP",
-]

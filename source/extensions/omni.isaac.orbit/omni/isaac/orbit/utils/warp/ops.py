@@ -136,7 +136,6 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
     Returns:
         The warp mesh object.
     """
-    # create warp mesh
     return wp.Mesh(
         points=wp.array(points.astype(np.float32), dtype=wp.vec3, device=device),
         indices=wp.array(indices.astype(np.int32).flatten(), dtype=wp.int32, device=device),

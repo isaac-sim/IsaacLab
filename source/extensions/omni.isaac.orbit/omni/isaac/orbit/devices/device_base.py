@@ -20,7 +20,7 @@ class DeviceBase(ABC):
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
-        pass
+        return f"{self.__class__.__name__}"
 
     """
     Operations

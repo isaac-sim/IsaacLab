@@ -161,12 +161,12 @@ class ActionManager(ManagerBase):
 
     @property
     def action(self) -> torch.Tensor:
-        """The actions sent to the environment. Shape is ``(num_envs, total_action_dim)``."""
+        """The actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._action
 
     @property
     def prev_action(self) -> torch.Tensor:
-        """The previous actions sent to the environment. Shape is ``(num_envs, total_action_dim)``."""
+        """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
 
     """

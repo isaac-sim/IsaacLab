@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities and wrappers for environments."""
+"""Sub-package with utilities, data collectors and environment wrappers."""
 
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-
-__all__ = ["load_cfg_from_registry", "parse_env_cfg", "get_checkpoint_path", "import_packages"]

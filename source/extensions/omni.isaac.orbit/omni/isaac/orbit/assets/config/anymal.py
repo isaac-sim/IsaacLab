@@ -6,15 +6,16 @@
 """Configuration for the ANYbotics robots.
 
 The following configuration parameters are available:
+
 * :obj:`ANYMAL_B_CFG`: The ANYmal-B robot with ANYdrives 3.0
 * :obj:`ANYMAL_C_CFG`: The ANYmal-C robot with ANYdrives 3.0
 
 Reference:
+
 * https://github.com/ANYbotics/anymal_b_simple_description
 * https://github.com/ANYbotics/anymal_c_simple_description
-"""
 
-from __future__ import annotations
+"""
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ActuatorNetLSTMCfg, DCMotorCfg

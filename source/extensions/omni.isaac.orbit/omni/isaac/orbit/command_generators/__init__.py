@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This submodule provides command generators for goal-conditioned tasks.
+"""Sub-package for different command generators implementations.
 
 The command generators are used to generate commands for the agent to execute. The command generators act
 as utility classes to make it convenient to switch between different command generation strategies within
@@ -30,22 +29,3 @@ from .null_command_generator import NullCommandGenerator
 from .pose_command_generator import UniformPoseCommandGenerator
 from .position_command_generator import TerrainBasedPositionCommandGenerator
 from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
-
-__all__ = [
-    "CommandGeneratorBase",
-    "CommandGeneratorBaseCfg",
-    # pose command generators
-    "UniformPoseCommandGenerator",
-    "UniformPoseCommandGeneratorCfg",
-    # null command generator
-    "NullCommandGenerator",
-    "NullCommandGeneratorCfg",
-    # velocity command generators
-    "UniformVelocityCommandGenerator",
-    "UniformVelocityCommandGeneratorCfg",
-    "NormalVelocityCommandGenerator",
-    "NormalVelocityCommandGeneratorCfg",
-    # position command generators
-    "TerrainBasedPositionCommandGenerator",
-    "TerrainBasedPositionCommandGeneratorCfg",
-]

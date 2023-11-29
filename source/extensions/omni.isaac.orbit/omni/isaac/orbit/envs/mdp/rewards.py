@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the common functions that can be used to enable reward functions.
+"""Common functions that can be used to enable reward functions.
 
 The functions can be passed to the :class:`omni.isaac.orbit.managers.RewardTermCfg` object to include
 the reward introduced by the function.

@@ -16,16 +16,16 @@ class RayCasterData:
     pos_w: torch.Tensor = None
     """Position of the sensor origin in world frame.
 
-    Shape is (N, 3), where ``N`` is the number of sensors.
+    Shape is (N, 3), where N is the number of sensors.
     """
     quat_w: torch.Tensor = None
-    """Orientation of the sensor origin in quaternion ``(w, x, y, z)`` in world frame.
+    """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.
 
-    Shape is (N, 4), where ``N`` is the number of sensors.
+    Shape is (N, 4), where N is the number of sensors.
     """
     ray_hits_w: torch.Tensor = None
     """The ray hit positions in the world frame.
 
-    Shape is (N, B, 3), where ``N`` is the number of sensors, ``B`` is the number of rays
+    Shape is (N, B, 3), where N is the number of sensors, B is the number of rays
     in the scan pattern per sensor.
     """

@@ -9,8 +9,6 @@ from dataclasses import MISSING
 
 from omni.isaac.orbit.utils import configclass
 
-__all__ = ["RslRlPpoActorCriticCfg", "RslRlPpoAlgorithmCfg", "RslRlOnPolicyRunnerCfg"]
-
 
 @configclass
 class RslRlPpoActorCriticCfg:
@@ -114,7 +112,7 @@ class RslRlOnPolicyRunnerCfg:
     """
 
     load_checkpoint: str = "model_.*.pt"
-    """The checkpoint file to load. Default is "model_.*.pt" (all).
+    """The checkpoint file to load. Default is ``"model_.*.pt"`` (all).
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """

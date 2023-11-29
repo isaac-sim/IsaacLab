@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-package contains implementations of UI elements for the environments.
+"""Sub-module providing UI window implementation for environments.
 
 The UI elements are used to control the environment and visualize the state of the environment.
+This includes functionalities such as tracking a robot in the simulation,
+toggling different debug visualization tools, and other user-defined functionalities.
 """
-
-from __future__ import annotations
 
 # enable the extension for UI elements
 # this only needs to be done once
@@ -20,5 +19,3 @@ enable_extension("omni.isaac.ui")
 # import all UI elements here
 from .base_env_window import BaseEnvWindow
 from .rl_task_env_window import RLTaskEnvWindow
-
-__all__ = ["BaseEnvWindow", "RLTaskEnvWindow"]

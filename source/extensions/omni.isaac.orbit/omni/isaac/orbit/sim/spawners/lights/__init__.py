@@ -3,27 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-module contains spawners that spawn USD-based light prims.
+"""Sub-module for spawners that spawn lights in the simulation.
 
 There are various different kinds of lights that can be spawned into the USD stage.
 Please check the Omniverse documentation for `lighting overview
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/103/lighting.html>`_.
 """
 
-from __future__ import annotations
-
 from .lights import spawn_light
 from .lights_cfg import CylinderLightCfg, DiskLightCfg, DistantLightCfg, DomeLightCfg, LightCfg, SphereLightCfg
-
-__all__ = [
-    # base class
-    "LightCfg",
-    "spawn_light",
-    # derived classes
-    "CylinderLightCfg",
-    "DiskLightCfg",
-    "DistantLightCfg",
-    "DomeLightCfg",
-    "SphereLightCfg",
-]

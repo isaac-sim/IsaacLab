@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for working with dictionaries."""
+"""Sub-module for utilities for working with dictionaries."""
 
 from __future__ import annotations
 
@@ -14,15 +14,6 @@ from typing import Any, Iterable, Mapping
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable
-
-__all__ = [
-    "class_to_dict",
-    "update_class_from_dict",
-    "dict_to_md5_hash",
-    "convert_dict_to_backend",
-    "update_dict",
-    "print_dict",
-]
 
 """
 Dictionary <-> Class operations.

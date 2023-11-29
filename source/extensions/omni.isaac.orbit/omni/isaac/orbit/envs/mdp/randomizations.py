@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the common functions that can be used to enable different randomizations.
+"""Common functions that can be used to enable different randomizations.
 
 Randomization includes anything related to altering the simulation state. This includes changing the physics
 materials, applying external forces, and resetting the state of the asset.
@@ -41,7 +41,7 @@ def randomize_rigid_body_material(
     uniform random values from the given ranges.
 
     The material properties are then assigned to the geometries of the asset. The assignment is done by
-    creating a random integer tensor of shape  ``(total_body_count, num_shapes)`` where ``total_body_count``
+    creating a random integer tensor of shape  (total_body_count, num_shapes) where ``total_body_count``
     is the number of assets spawned times the number of bodies per asset and ``num_shapes`` is the number of
     shapes per body. The integer values are used as indices to select the material properties from the
     material buckets.

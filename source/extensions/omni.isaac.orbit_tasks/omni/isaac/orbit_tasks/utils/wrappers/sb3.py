@@ -28,8 +28,6 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 
 from omni.isaac.orbit.envs import RLTaskEnv
 
-__all__ = ["process_sb3_cfg", "Sb3VecEnvWrapper"]
-
 """
 Configuration Parser.
 """
@@ -225,7 +223,7 @@ class Sb3VecEnvWrapper(VecEnv):
         reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
-        # Note: RLTaskEnv uses torch backend (by default).
+        # note: RLTaskEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)
         rew = rew.detach().cpu().numpy()
         terminated = terminated.detach().cpu().numpy()
@@ -285,7 +283,7 @@ class Sb3VecEnvWrapper(VecEnv):
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
         obs = obs_dict["policy"]
-        # Note: RLTaskEnv uses torch backend (by default).
+        # note: RLTaskEnv uses torch backend (by default).
         if isinstance(obs, dict):
             for key, value in obs.items():
                 obs[key] = value.detach().cpu().numpy()
@@ -302,7 +300,7 @@ class Sb3VecEnvWrapper(VecEnv):
         # create empty list of dictionaries to fill
         infos: list[dict[str, Any]] = [dict.fromkeys(extras.keys()) for _ in range(self.num_envs)]
         # fill-in information for each sub-environment
-        # Note: This loop becomes slow when number of environments is large.
+        # note: This loop becomes slow when number of environments is large.
         for idx in range(self.num_envs):
             # fill-in episode monitoring info
             if idx in reset_ids:

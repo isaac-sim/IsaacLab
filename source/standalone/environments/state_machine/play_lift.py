@@ -15,7 +15,7 @@ Usage:
 
 from __future__ import annotations
 
-"""Launch Omniverse Toolkit first."""
+"""Launch Isaac Sim Simulator first."""
 
 import argparse
 
@@ -34,7 +34,7 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
-"""Rest everything else."""
+"""Rest everything follows."""
 
 import gymnasium as gym
 import torch

@@ -75,7 +75,7 @@ class TestObservationManager(unittest.TestCase):
     """Test cases for various situations with observation manager."""
 
     def setUp(self) -> None:
-        self.env = namedtuple("IsaacEnv", ["num_envs", "device"])(20, "cpu")
+        self.env = namedtuple("BaseEnv", ["num_envs", "device"])(20, "cpu")
 
     def test_str(self):
         """Test the string representation of the observation manager."""

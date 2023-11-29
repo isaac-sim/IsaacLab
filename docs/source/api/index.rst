@@ -1,37 +1,58 @@
 API Reference
 =============
 
+This page gives an overview of all the modules and classes in the Orbit extensions.
+
 omni.isaac.orbit extension
 --------------------------
 
-.. toctree::
-   :maxdepth: 1
+The following modules are available in the ``omni.isaac.orbit`` extension:
 
-   orbit.actuators.group
-   orbit.actuators.model
-   orbit.app
-   orbit.asset_loader
-   orbit.devices
-   orbit.markers
-   orbit.objects.articulated
-   orbit.objects.rigid
-   orbit.robots
-   orbit.sensors
-   orbit.terrains
-   orbit.command_generators
-   orbit.utils
-   orbit.utils.assets
-   orbit.utils.math
-   orbit.utils.mdp
-   orbit.compat
+.. currentmodule:: omni.isaac.orbit
+
+.. autosummary::
+   :toctree: orbit
+
+   app
+   actuators
+   assets
+   command_generators
+   controllers
+   devices
+   envs
+   managers
+   markers
+   scene
+   sensors
+   sim
+   terrains
+   utils
+
+.. toctree::
+   :hidden:
+
+   orbit/omni.isaac.orbit.envs.mdp
+   orbit/omni.isaac.orbit.envs.ui
+   orbit/omni.isaac.orbit.sensors.patterns
+   orbit/omni.isaac.orbit.sim.converters
+   orbit/omni.isaac.orbit.sim.schemas
+   orbit/omni.isaac.orbit.sim.spawners
 
 omni.isaac.orbit_tasks extension
 --------------------------------
 
-.. toctree::
-   :maxdepth: 1
+The following modules are available in the ``omni.isaac.orbit_tasks`` extension:
 
-   orbit_tasks.isaac_env
-   orbit_tasks.utils
-   orbit_tasks.utils.data_collector
-   orbit_tasks.utils.wrappers
+.. currentmodule:: omni.isaac.orbit_tasks
+
+.. autosummary::
+   :toctree: orbit_tasks
+
+   utils
+
+
+.. toctree::
+   :hidden:
+
+   orbit_tasks/omni.isaac.orbit_tasks.utils.wrappers
+   orbit_tasks/omni.isaac.orbit_tasks.utils.data_collector

@@ -103,7 +103,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 
     This function should take the environment object and any other parameters
     as input and return the observation signal as torch float tensors of
-    shape ``(num_envs, obs_term_dim)``.
+    shape (num_envs, obs_term_dim).
     """
 
     noise: NoiseCfg | None = None
@@ -187,7 +187,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
 
     This function should take the environment object and any other parameters
     as input and return the reward signals as torch float tensors of
-    shape ``(num_envs,)``.
+    shape (num_envs,).
     """
 
     weight: float = MISSING
@@ -215,7 +215,7 @@ class TerminationTermCfg(ManagerTermBaseCfg):
 
     This function should take the environment object and any other parameters
     as input and return the termination signals as torch boolean tensors of
-    shape ``(num_envs,)``.
+    shape (num_envs,).
     """
 
     time_out: bool = False

@@ -19,16 +19,16 @@ class AssetConverterBaseCfg:
     """The absolute path to the asset file to convert into USD."""
 
     usd_dir: str | None = None
-    """The output directory path to store the generated USD file. Defaults to :obj:`None`.
+    """The output directory path to store the generated USD file. Defaults to None.
 
-    If set to :obj:`None`, it is resolved as ``/tmp/Orbit/usd_{date}_{time}_{random}``, where
+    If None, it is resolved as ``/tmp/Orbit/usd_{date}_{time}_{random}``, where
     the parameters in braces are runtime generated.
     """
 
     usd_file_name: str | None = None
-    """The name of the generated usd file. Defaults to :obj:`None`.
+    """The name of the generated usd file. Defaults to None.
 
-    If set to :obj:`None`, it is resolved from the asset file name. For example, if the asset file
+    If None, it is resolved from the asset file name. For example, if the asset file
     name is ``"my_asset.urdf"``, then the generated USD file name is ``"my_asset.usd"``.
 
     If the providing file name does not end with ".usd" or ".usda", then the extension

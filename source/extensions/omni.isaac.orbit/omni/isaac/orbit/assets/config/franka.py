@@ -12,8 +12,6 @@ The following configurations are available:
 Reference: https://github.com/frankaemika/franka_ros
 """
 
-from __future__ import annotations
-
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR

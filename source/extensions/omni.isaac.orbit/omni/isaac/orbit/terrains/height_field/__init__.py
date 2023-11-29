@@ -23,15 +23,7 @@ the corresponding x and y coordinates.
     choose a discretization size that is small enough for the application. A larger discretization
     size will result in a faster simulation, but the terrain will be less accurate.
 
-All sub-terrains must inherit from the :class:`HfTerrainBaseCfg` class which contains the common
-parameters for all terrains generated from height fields.
-
-.. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg
-    :members:
-    :show-inheritance:
 """
-
-from __future__ import annotations
 
 from .hf_terrains_cfg import (
     HfDiscreteObstaclesTerrainCfg,
@@ -44,15 +36,3 @@ from .hf_terrains_cfg import (
     HfTerrainBaseCfg,
     HfWaveTerrainCfg,
 )
-
-__all__ = [
-    "HfTerrainBaseCfg",
-    "HfRandomUniformTerrainCfg",
-    "HfPyramidSlopedTerrainCfg",
-    "HfInvertedPyramidSlopedTerrainCfg",
-    "HfPyramidStairsTerrainCfg",
-    "HfInvertedPyramidStairsTerrainCfg",
-    "HfDiscreteObstaclesTerrainCfg",
-    "HfWaveTerrainCfg",
-    "HfSteppingStonesTerrainCfg",
-]

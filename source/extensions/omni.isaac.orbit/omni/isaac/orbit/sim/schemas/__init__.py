@@ -32,8 +32,6 @@ Locally, the schemas are defined in the following files:
 
 """
 
-from __future__ import annotations
-
 from .schemas import (
     activate_contact_sensors,
     define_articulation_root_properties,
@@ -51,23 +49,3 @@ from .schemas_cfg import (
     MassPropertiesCfg,
     RigidBodyPropertiesCfg,
 )
-
-__all__ = [
-    # articulation root
-    "ArticulationRootPropertiesCfg",
-    "define_articulation_root_properties",
-    "modify_articulation_root_properties",
-    # rigid bodies
-    "RigidBodyPropertiesCfg",
-    "define_rigid_body_properties",
-    "modify_rigid_body_properties",
-    "activate_contact_sensors",
-    # colliders
-    "CollisionPropertiesCfg",
-    "define_collision_properties",
-    "modify_collision_properties",
-    # mass
-    "MassPropertiesCfg",
-    "define_mass_properties",
-    "modify_mass_properties",
-]

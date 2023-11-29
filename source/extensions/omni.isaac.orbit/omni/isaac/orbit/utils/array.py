@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for working with different array backends."""
+"""Sub-module containing utilities for working with different array backends."""
 
 from __future__ import annotations
 
@@ -12,8 +12,6 @@ import torch
 from typing import Union
 
 import warp as wp
-
-__all__ = ["TensorData", "TENSOR_TYPES", "TENSOR_TYPE_CONVERSIONS", "convert_to_torch"]
 
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]
 """Type definition for a tensor data.
@@ -55,7 +53,7 @@ def convert_to_torch(
     list/tuples, it is converted to a torch tensor. If the array is already a torch tensor, it is returned
     directly.
 
-    If ``device`` is :obj:`None`, then the function deduces the current device of the data. For numpy arrays,
+    If ``device`` is None, then the function deduces the current device of the data. For numpy arrays,
     this defaults to "cpu", for torch tensors it is "cpu" or "cuda", and for warp arrays it is "cuda".
 
     Note:

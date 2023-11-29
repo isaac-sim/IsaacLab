@@ -133,7 +133,8 @@ class RslRlVecEnvWrapper(VecEnv):
     def episode_length_buf(self, value: torch.Tensor):
         """Set the episode length buffer.
 
-        Note: This is needed to perform random initialization of episode lengths in RSL-RL.
+        Note:
+            This is needed to perform random initialization of episode lengths in RSL-RL.
         """
         self.unwrapped.episode_length_buf = value
 

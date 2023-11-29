@@ -25,7 +25,28 @@ if TYPE_CHECKING:
 
 
 class RigidObject(AssetBase):
-    """Class for handling rigid objects."""
+    """A rigid object asset class.
+
+    Rigid objects are assets comprising of rigid bodies. They can be used to represent dynamic objects
+    such as boxes, spheres, etc. A rigid body is described by its pose, velocity and mass distribution.
+
+    For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
+    applied to it. This API is used to define the simulation properties of the rigid body. On playing the
+    simulation, the physics engine will automatically register the rigid body and create a corresponding
+    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` and :attr:`body_physx_view`
+    attributes. For a single rigid body asset, the :attr:`root_physx_view` and :attr:`body_physx_view` attributes
+    are the same. However, these are different for articulated assets as explained in the :class:`Articulation`
+    class.
+
+    .. note::
+
+        For users familiar with Isaac Sim, they can use the :attr:`root_view` and :attr:`body_view` attributes
+        to access the rigid body views. These views are wrappers around the PhysX rigid body handles. However,
+        for advanced users who have a deep understanding of PhysX SDK and TensorAPI, they can use the
+        :attr:`root_physx_view` and :attr:`body_physx_view` attributes to access the rigid body handles directly.
+
+    .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
+    """
 
     cfg: RigidObjectCfg
     """Configuration instance for the rigid object."""
@@ -137,9 +158,11 @@ class RigidObject(AssetBase):
     def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
+        Please check the :meth:`omni.isaac.orbit.utils.string_utils.resolve_matching_names` function for more
+        information on the name matching.
+
         Args:
-            name_keys: A regular expression or a list of regular expressions
-                to match the body names.
+            name_keys: A regular expression or a list of regular expressions to match the body names.
 
         Returns:
             A tuple of lists containing the body indices and names.
@@ -157,8 +180,8 @@ class RigidObject(AssetBase):
         and angular velocity. All the quantities are in the simulation frame.
 
         Args:
-            root_state: Root state in simulation frame. Shape is ``(len(env_ids), 13)``.
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # set into simulation
         self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
@@ -170,8 +193,8 @@ class RigidObject(AssetBase):
         The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
 
         Args:
-            root_pose: Root poses in simulation frame. Shape is ``(len(env_ids), 7)``.
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         physx_env_ids = env_ids
@@ -191,8 +214,8 @@ class RigidObject(AssetBase):
         """Set the root velocity over selected environment indices into the simulation.
 
         Args:
-            root_velocity: Root velocities in simulation frame. Shape is ``(len(env_ids), 6)``.
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         physx_env_ids = env_ids
@@ -227,6 +250,7 @@ class RigidObject(AssetBase):
             of external wrench to the simulation.
 
             .. code-block:: python
+
                 # example of disabling external wrench
                 asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
 
@@ -235,8 +259,8 @@ class RigidObject(AssetBase):
             the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function.
 
         Args:
-            forces: External forces in bodies' local frame. Shape is ``(len(env_ids), len(body_ids), 3)``.
-            torques: External torques in bodies' local frame. Shape is ``(len(env_ids), len(body_ids), 3)``.
+            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
             body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
             env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
         """

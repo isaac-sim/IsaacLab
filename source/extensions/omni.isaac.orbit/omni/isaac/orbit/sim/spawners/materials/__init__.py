@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-module contains spawners that spawn USD-based and PhysX-based materials.
+"""Sub-module for spawners that spawn USD-based and PhysX-based materials.
 
 `Materials`_ are used to define the appearance and physical properties of objects in the simulation.
 In Omniverse, they are defined using NVIDIA's `Material Definition Language (MDL)`_. MDL is based on
@@ -59,17 +58,3 @@ from .physics_materials import spawn_rigid_body_material
 from .physics_materials_cfg import PhysicsMaterialCfg, RigidBodyMaterialCfg
 from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
 from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg
-
-__all__ = [
-    # visual materials
-    "VisualMaterialCfg",
-    "spawn_preview_surface",
-    "PreviewSurfaceCfg",
-    "spawn_from_mdl_file",
-    "MdlFileCfg",
-    "GlassMdlCfg",
-    # physics materials
-    "PhysicsMaterialCfg",
-    "spawn_rigid_body_material",
-    "RigidBodyMaterialCfg",
-]

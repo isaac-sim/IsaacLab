@@ -156,7 +156,7 @@ class ManagerBase(ABC):
 
         Args:
             env_ids: The environment ids for which to log data.
-                Defaults :obj:`None`, which logs data for all environments.
+                Defaults None, which logs data for all environments.
 
         Returns:
             Dictionary containing the logging information.

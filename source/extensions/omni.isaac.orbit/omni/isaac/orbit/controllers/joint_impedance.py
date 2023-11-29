@@ -20,9 +20,9 @@ class JointImpedanceControllerCfg:
     """Type of command: p_abs (absolute) or p_rel (relative)."""
 
     dof_pos_offset: Sequence[float] | None = None
-    """Offset to DOF position command given to controller. (default: :obj:`None`).
+    """Offset to DOF position command given to controller. (default: None).
 
-    If :obj:`None` then position offsets are set to zero.
+    If None then position offsets are set to zero.
     """
 
     impedance_mode: str = MISSING

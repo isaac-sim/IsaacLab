@@ -141,9 +141,6 @@ To stop the container, you can use the following command:
     ./docker/container.sh stop
 
 
-Frequently Asked Questions
---------------------------
-
 Python Interpreter
 ~~~~~~~~~~~~~~~~~~
 
@@ -185,6 +182,9 @@ To view the contents of these volumes, you can use the following command:
     docker volume inspect isaac-cache-kit
 
 
+Known Issues
+------------
+
 Invalid mount config for type "bind"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -224,21 +224,17 @@ when you have multiple docker versions installed on your machine. To fix this, y
 
 * Install the latest version of docker based on the instructions in the setup section.
 
-
-Known Issues
-------------
-
 WebRTC and WebSocket Streaming
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When streaming the GUI from Isaac Sim, there are `several options`_ available. There is a `known issue`_ when
+When streaming the GUI from Isaac Sim, there are `several streaming clients`_ available. There is a `known issue`_ when
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
 To avoid this problem, we suggest using either the Native Streaming Client or WebSocket options, or using the
 Mozilla Firefox browser on which WebRTC works.
 
 
-.. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html
-.. _`container installation`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_container.html
+.. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
+.. _`container installation`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html
 .. _`Docker website`: https://docs.docker.com/desktop/install/linux-install/
 .. _`docker-compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
@@ -246,5 +242,5 @@ Mozilla Firefox browser on which WebRTC works.
 .. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
 .. _`Isaac Sim container`: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
 .. _`NGC API key`: https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key
-.. _several options: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
-.. _known issue: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916
+.. _`several streaming clients`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html
+.. _`known issue`: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916

@@ -3,15 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for importing all configs in a package recursively."""
+"""Sub-module with utility for importing all modules in a package recursively."""
 
 from __future__ import annotations
 
 import importlib
 import pkgutil
 import sys
-
-__all__ = ["import_packages"]
 
 
 def import_packages(package_name: str, blacklist_pkgs: list[str] = None):

@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Python module with robotic environments.
-"""
+"""Package containing the core framework."""
 
 import os
 import toml

@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-module contains spawners that spawn assets from files.
+"""Sub-module for spawners that spawn assets from files.
 
 Currently, the following spawners are supported:
 
@@ -14,19 +13,5 @@ Currently, the following spawners are supported:
 
 """
 
-from __future__ import annotations
-
 from .from_files import spawn_from_urdf, spawn_from_usd, spawn_ground_plane
 from .from_files_cfg import GroundPlaneCfg, UrdfFileCfg, UsdFileCfg
-
-__all__ = [
-    # usd
-    "UsdFileCfg",
-    "spawn_from_usd",
-    # urdf
-    "UrdfFileCfg",
-    "spawn_from_urdf",
-    # ground plane
-    "GroundPlaneCfg",
-    "spawn_ground_plane",
-]

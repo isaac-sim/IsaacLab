@@ -30,11 +30,11 @@ positional arguments:
 optional arguments:
   -h, --help                    Show this help message and exit
   --headless                    Force display off at all times. (default: False)
-  --make_instanceable,       -i Make the asset instanceable for efficient cloning. (default: False)
-  --force_usd_conversion     -f Convert the input file to USD even if the output file already exists.
-  --collision_approximation  -c The method used for approximating collision mesh. Defaults to convexDecomposition. Set to \"none\" "
-                                to not add a collision mesh to the converted mesh.
-  --mass                     -m The mass (in kg) to assign to the converted asset.
+  --make_instanceable,          Make the asset instanceable for efficient cloning. (default: False)
+  --force_usd_conversion        Convert the input file to USD even if the output file already exists. (default: False)
+  --collision_approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
+                                Set to \"none\" to not add a collision mesh to the converted mesh. (default: convexDecomposition)
+  --mass                        The mass (in kg) to assign to the converted asset. (default: None)
 
 """
 
@@ -53,21 +53,18 @@ parser.add_argument("output", type=str, help="The path to store the USD file.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument(
     "--make_instanceable",
-    "-i",
     action="store_true",
     default=False,
     help="Make the asset instanceable for efficient cloning.",
 )
 parser.add_argument(
     "--force_usd_conversion",
-    "-f",
     action="store_true",
     default=False,
     help="Convert the input file to USD even if the output file already exists.",
 )
 parser.add_argument(
     "--collision_approximation",
-    "-c",
     type=str,
     default="convexDecomposition",
     choices=["convexDecomposition", "convexHull", "none"],
@@ -78,7 +75,6 @@ parser.add_argument(
 )
 parser.add_argument(
     "--mass",
-    "-m",
     type=float,
     default=None,
     help="The mass (in kg) to assign to the converted asset. If not provided, then no mass is added.",

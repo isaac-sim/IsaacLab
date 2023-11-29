@@ -1,33 +1,24 @@
 Overview
 ========
 
-**Isaac Orbit** (or *orbit* in short) is a unified and modular framework, built on top of `NVIDIA
-Omniverse <https://docs.omniverse.nvidia.com/>`__ and `Isaac
-Sim <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html>`__,
-for robot learning. It offers a modular design to easily and efficiently
-create robot learning environments with photo-realistic scenes, and fast
-and efficient simulation.
+**Orbit** is a unified and modular framework for robot learning that aims to simplify common workflows
+in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
+`NVIDIA Isaac Sim` to leverage the latest simulation capabilities for photo-realistic scenes, and fast
+and efficient simulation. The core objectives of the framework are:
+
+- **Modularity**: Easily customize and add new environments, robots, and sensors.
+- **Agility**: Adapt to the changing needs of the community.
+- **Openness**: Remain open-sourced to allow the community to contribute and extend the framework.
+- **Battery-included**: Include a number of environments, sensors, and tasks that are ready to use.
+
+For more information about the framework, please refer to the `paper <https://arxiv.org/abs/2301.04195>`_
+:cite:`mittal2023orbit`. For clarifications on NVIDIA Isaac ecosystem, please check out the
+:doc:`/source/refs/faq` section.
 
 .. figure:: source/_static/tasks.jpg
    :width: 100%
    :alt: Example tasks created using orbit
 
-
-If you use ``orbit`` in your work, please cite the `paper <https://arxiv.org/abs/2301.04195>`_
-:cite:`mittal2023orbit` using the following BibTeX entry:
-
-.. code-block:: bibtex
-
-   @article{mittal2023orbit,
-      author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
-      journal={IEEE Robotics and Automation Letters},
-      title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
-      year={2023},
-      volume={8},
-      number={6},
-      pages={3740-3747},
-      doi={10.1109/LRA.2023.3270034}
-   }
 
 .. toctree::
    :maxdepth: 2
@@ -80,7 +71,6 @@ If you use ``orbit`` in your work, please cite the `paper <https://arxiv.org/abs
    source/refs/troubleshooting
    source/refs/issues
    source/refs/changelog
-   source/refs/roadmap
    source/refs/license
    source/refs/bibliography
 
@@ -91,3 +81,5 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html

@@ -3,11 +3,10 @@ Using environment wrappers
 
 Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
-A detailed description of the API is available in the `gym.Wrapper <https://gymnasium.farama.org/api/wrappers/>`_ class.
+A detailed description of the API is available in the :class:`gymnasium.Wrapper` class.
 
-
-At present, all environments inheriting from the :class:`omni.isaac.orbit_tasks.isaac_env.IsaacEnv` class
-are compatible with ``gym.Wrapper``, since the base class implements the ``gym.Env`` interface.
+At present, all RL environments inheriting from the :class:`omni.isaac.orbit.envs.RLTaskEnv` class
+are compatible with :class:`gymnasium.Wrapper`, since the base class implements the :class:`gymnasium.Env` interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling `env = wrapper(env, *args, **kwargs)` repeatedly.
 
@@ -41,7 +40,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
 Wrapper for recording videos
 ----------------------------
 
-The :class:`gym.wrappers.RecordVideo <gym:RecordVideo>` wrapper can be used to record videos of the environment.
+The :class:`gymnasium.wrappers.RecordVideo` wrapper can be used to record videos of the environment.
 The wrapper takes a ``video_dir`` argument, which specifies where to save the videos. The videos are saved in
 `mp4 <https://en.wikipedia.org/wiki/MP4_file_format>`__ format at specified intervals for specified
 number of environment steps or episodes.
@@ -51,13 +50,6 @@ To use the wrapper, you need to first install ``ffmpeg``. On Ubuntu, you can ins
 .. code-block:: bash
 
     sudo apt-get install ffmpeg
-
-The :class:`omni.isaac.orbit.envs.RlEnv` supports the rendering modes:
-
-* **"human"**: When you want to render the environment to the screen. It does not return any image.
-* **"rgb_array"**: When you want to get the rendered image as a numpy array. It returns the image as a numpy array.
-  This mode is only possible when viewport is enabled, i.e. either the GUI window is open or off-screen rendering flag
-  is enabled.
 
 .. attention::
 
@@ -74,21 +66,21 @@ The :class:`omni.isaac.orbit.envs.RlEnv` supports the rendering modes:
 
 The viewport camera used for rendering is the default camera in the scene called ``"/OmniverseKit_Persp"``.
 The camera's pose and image resolution can be configured through the
-:class:`omni.isaac.orbit.envs.base_env_cfg.ViewerCfg` class.
+:class:`omni.isaac.orbit.envs.ViewerCfg` class.
 
 
-.. dropdown:: :fa:`eye,mr-1` Default parameters of the :class:`ViewerCfg` in the ``base_env_cfg.py`` file:
+.. dropdown:: :fa:`eye,mr-1` Default parameters of the :class:`ViewerCfg` class:
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/envs/base_env_cfg.py
       :language: python
-      :lines: 23-38
-      :linenos:
-      :lineno-start: 31
+      :pyobject: ViewerCfg
 
 
 After adjusting the parameters, you can record videos by wrapping the environment with the
-:class:`gym.wrappers.RecordVideo <gym:RecordVideo>` wrapper and enabling the off-screen rendering
-flag. As an example, the following code records a video of the ``Isaac-Reach-Franka-v0`` environment
+:class:`gymnasium.wrappers.RecordVideo` wrapper and enabling the off-screen rendering
+flag. Additionally, you need to specify the render mode of the environment as ``"rgb_array"``.
+
+As an example, the following code records a video of the ``Isaac-Reach-Franka-v0`` environment
 for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 steps.
 
 .. code:: python
@@ -112,7 +104,8 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     env_cfg.viewer.eye = (1.0, 1.0, 1.0)
     env_cfg.viewer.lookat = (0.0, 0.0, 0.0)
     # create isaac-env instance
-    env = gym.make(task_name, cfg=env_cfg)
+    # set render mode to rgb_array to obtain images on render calls
+    env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
     # wrap for video recording
     video_kwargs = {
         "video_folder": "videos",
@@ -126,22 +119,21 @@ Wrapper for learning frameworks
 -------------------------------
 
 Every learning framework has its own API for interacting with environments. For example, the
-`Stable Baselines3 <https://stable-baselines3.readthedocs.io/en/master/>`__ library uses the
-`gym.Env <https://gymnasium.farama.org/api/env/>`__ interface to interact with environments.
-However, libraries like `RL-Games <https://github.com/Denys88/rl_games>`__ or
-`RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ use their own API for interfacing with a
-learning environments. Since there is no one-size-fits-all solution, we do not base the :class:`IsaacEnv`
-class on any particular learning framework's environment definition. Instead, we implement
-wrappers to make it compatible with the learning framework's environment definition.
+`Stable-Baselines3`_ library uses the `gym.Env <https://gymnasium.farama.org/api/env/>`_
+interface to interact with environments. However, libraries like `RL-Games`_ or `RSL-RL`_
+use their own API for interfacing with a learning environments. Since there is no one-size-fits-all
+solution, we do not base the :class:`RLTaskEnv` class on any particular learning framework's
+environment definition. Instead, we implement wrappers to make it compatible with the learning
+framework's environment definition.
 
-As an example of how to use the :class:`IsaacEnv` with Stable-Baselines3:
+As an example of how to use the RL task environment with Stable-Baselines3:
 
 .. code:: python
 
     from omni.isaac.orbit_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
-    env = gym.make(task_name, cfg=env_cfg, render=headless)
+    env = gym.make(task_name, cfg=env_cfg)
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
@@ -150,11 +142,19 @@ As an example of how to use the :class:`IsaacEnv` with Stable-Baselines3:
 
   Wrapping the environment with the respective learning framework's wrapper should happen in the end,
   i.e. after all other wrappers have been applied. This is because the learning framework's wrapper
-  modifies the interpretation of environment's APIs which may no longer be compatible with ``gym.Env``.
+  modifies the interpretation of environment's APIs which may no longer be compatible with :class:`gymnasium.Env`.
 
 
-To add support for a new learning framework, you need to implement a wrapper class that
-converts the :class:`IsaacEnv` to the learning framework's environment definition. This
-wrapper class should typically inherit from the ``gym.Wrapper`` class. We include a
-set of these wrappers in the :mod:`omni.isaac.orbit_tasks.utils.wrappers` module. You can
-use these wrappers as a reference to implement your own wrapper for a new learning framework.
+Adding new wrappers
+-------------------
+
+All new wrappers should be added to the :mod:`omni.isaac.orbit_tasks.utils.wrappers` module.
+They should check that the underlying environment is an instance of :class:`omni.isaac.orbit.envs.RLTaskEnv`
+before applying the wrapper. This can be done by using the :func:`unwrapped` property.
+
+We include a set of wrappers in this module that can be used as a reference to implement your own wrappers.
+If you implement a new wrapper, please consider contributing it to the framework by opening a pull request.
+
+.. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
+.. _RL-Games: https://github.com/Denys88/rl_games
+.. _RSL-RL: https://github.com/leggedrobotics/rsl_rl

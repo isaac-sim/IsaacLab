@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""A utility to convert various file types to a USD file.
+"""Sub-module containing converters for converting various file types to USD.
 
 In order to support direct loading of various file types into Omniverse, we provide a set of
 converters that can convert the file into a USD file. The converters are implemented as
@@ -17,20 +17,9 @@ The following converters are currently supported:
 
 """
 
-from __future__ import annotations
-
 from .asset_converter_base import AssetConverterBase
 from .asset_converter_base_cfg import AssetConverterBaseCfg
 from .mesh_converter import MeshConverter
 from .mesh_converter_cfg import MeshConverterCfg
 from .urdf_converter import UrdfConverter
 from .urdf_converter_cfg import UrdfConverterCfg
-
-__all__ = [
-    "AssetConverterBase",
-    "AssetConverterBaseCfg",
-    "MeshConverter",
-    "MeshConverterCfg",
-    "UrdfConverter",
-    "UrdfConverterCfg",
-]

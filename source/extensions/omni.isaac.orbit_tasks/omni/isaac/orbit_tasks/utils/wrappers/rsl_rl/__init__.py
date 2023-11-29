@@ -3,18 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .exporter import export_policy_as_jit, export_policy_as_onnx
-from .rl_cfg import *
-from .vecenv_wrapper import RslRlVecEnvWrapper
+"""Wrappers and utilities to configure an :class:`RLTaskEnv` for RSL-RL library."""
 
-__all__ = [
-    # wrapper
-    "RslRlVecEnvWrapper",
-    # rl-config
-    "RslRlPpoActorCriticCfg",
-    "RslRlPpoAlgorithmCfg",
-    "RslRlOnPolicyRunnerCfg",
-    # exporters
-    "export_policy_as_jit",
-    "export_policy_as_onnx",
-]
+from .exporter import export_policy_as_jit, export_policy_as_onnx
+from .rl_cfg import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from .vecenv_wrapper import RslRlVecEnvWrapper

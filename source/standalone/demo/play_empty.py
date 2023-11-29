@@ -8,19 +8,16 @@
 from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
-
-
 import argparse
 
 from omni.isaac.orbit.app import AppLauncher
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="This script creates an empty stage in Isaac Sim.")
+# create argparser
+parser = argparse.ArgumentParser(description="Create an empty stage.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -31,25 +28,17 @@ import traceback
 
 import carb
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.sim import SimulationContext
+from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
 
 
 def main():
     """Spawns lights in the stage and sets the camera view."""
 
-    # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01, substeps=1))
+    # Initialize the simulation context
+    sim_cfg = SimulationCfg(dt=0.01, substeps=1)
+    sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-
-    # Spawn things into stage
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
 
     # Play the simulator
     sim.reset()

@@ -35,7 +35,7 @@ class GridPatternCfg(PatternBaseCfg):
     Defines a 2D grid of rays in the coordinates of the sensor.
     """
 
-    func = patterns.grid_pattern
+    func: Callable = patterns.grid_pattern
 
     resolution: float = MISSING
     """Grid resolution (in meters)."""
@@ -49,7 +49,7 @@ class GridPatternCfg(PatternBaseCfg):
 class PinholeCameraPatternCfg(PatternBaseCfg):
     """Configuration for a pinhole camera depth image pattern for ray-casting."""
 
-    func = patterns.pinhole_camera_pattern
+    func: Callable = patterns.pinhole_camera_pattern
 
     focal_length: float = 24.0
     """Perspective focal length (in cm). Defaults to 24.0cm.
@@ -78,7 +78,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 class BpearlPatternCfg(PatternBaseCfg):
     """Configuration for the Bpearl pattern for ray-casting."""
 
-    func = patterns.bpearl_pattern
+    func: Callable = patterns.bpearl_pattern
 
     horizontal_fov: float = 360.0
     """Horizontal field of view (in degrees). Defaults to 360.0."""

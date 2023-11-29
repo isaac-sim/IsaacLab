@@ -22,7 +22,7 @@ def define_articulation_root_properties(
 ):
     """Apply the articulation root schema on the input prim and set its properties.
 
-    See :func:`set_articulation_root_properties` for more details on how the properties are set.
+    See :func:`modify_articulation_root_properties` for more details on how the properties are set.
 
     Args:
         prim_path: The prim path where to apply the articulation root schema.
@@ -112,7 +112,7 @@ def define_rigid_body_properties(
 ):
     """Apply the rigid body schema on the input prim and set its properties.
 
-    See :func:`set_rigid_body_properties` for more details on how the properties are set.
+    See :func:`modify_rigid_body_properties` for more details on how the properties are set.
 
     Args:
         prim_path: The prim path where to apply the rigid body schema.
@@ -205,7 +205,7 @@ def define_collision_properties(
 ):
     """Apply the collision schema on the input prim and set its properties.
 
-    See :func:`set_collision_properties` for more details on how the properties are set.
+    See :func:`modify_collision_properties` for more details on how the properties are set.
 
     Args:
         prim_path: The prim path where to apply the rigid body schema.
@@ -237,19 +237,19 @@ def modify_collision_properties(
 ):
     """Modify PhysX properties of collider prim.
 
-    These properties are based on the `UsdPhysics.CollisionAPI` and `PhysxSchema.PhysxCollisionAPI`_ schemas.
+    These properties are based on the `UsdPhysics.CollisionAPI`_ and `PhysxSchema.PhysxCollisionAPI`_ schemas.
     For more information on the properties, please refer to the official documentation.
 
     Tuning these parameters influence the contact behavior of the rigid body. For more information on
     tune them and their effect on the simulation, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html>`_.
+    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html>`__.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
-    .. PhysxSchema.PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
+    .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
+    .. _PhysxSchema.PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
 
     Args:
         prim_path: The prim path of parent.
@@ -293,7 +293,7 @@ Mass properties.
 def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
     """Apply the mass schema on the input prim and set its properties.
 
-    See :func:`set_mass_properties` for more details on how the properties are set.
+    See :func:`modify_mass_properties` for more details on how the properties are set.
 
     Args:
         prim_path: The prim path where to apply the rigid body schema.
@@ -326,7 +326,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     These properties are based on the `UsdPhysics.MassAPI` schema. If the mass is not defined, the density is used
     to compute the mass. However, in that case, a collision approximation of the rigid body is used to
     compute the density. For more information on the properties, please refer to the
-    `documentation <https://openusd.org/release/wp_rigid_body_physics.html#body-mass-properties>`_.
+    `documentation <https://openusd.org/release/wp_rigid_body_physics.html#body-mass-properties>`__.
 
     .. caution::
 

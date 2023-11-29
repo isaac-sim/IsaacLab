@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This submodule contains code from previous release of Orbit that is kept for compatibility reasons.
+"""Sub-package containing compatibility code with previous release of Orbit.
 
 .. note::
 
-    This module is not part of the public API and may be removed in future releases.
+    This package is not part of the public API and may be removed in future releases.
 """
-
-from __future__ import annotations

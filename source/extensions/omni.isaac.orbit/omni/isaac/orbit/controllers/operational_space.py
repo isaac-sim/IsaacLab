@@ -238,7 +238,7 @@ class OperationSpaceController:
         Args:
             jacobian: The Jacobian matrix of the end-effector.
             ee_pose: The current end-effector pose. It is a tensor of shape
-                (num_robots, 7), which contains the position and quaternion ``(w, x, y, z)``. Defaults to None.
+                (num_robots, 7), which contains the position and quaternion (w, x, y, z). Defaults to None.
             ee_vel: The current end-effector velocity. It is a tensor of shape
                 (num_robots, 6), which contains the linear and angular velocities. Defaults to None.
             ee_force: The current external force on the end-effector.

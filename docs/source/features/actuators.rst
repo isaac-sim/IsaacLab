@@ -25,8 +25,9 @@ The explicit actuator model performs two steps: 1) it computes the desired joint
 the input commands, and 2) it clips the desired torques based on the motor capabilities. The clipped
 torques are the desired actuation efforts that are set into the simulation.
 
-All explicit models inherit from the base actuator model, :class:`IdealActuator`, which implements a
-PD controller with feed-forward effort, and simple clipping based on the configured maximum effort:
+As an example of an ideal explicit actuator model, we provide the :class:`omni.isaac.orbit.actuators.IdealPDActuator`
+class, which implements a PD controller with feed-forward effort, and simple clipping based on the configured
+maximum effort:
 
 .. math::
 
@@ -39,38 +40,28 @@ are the current joint positions and velocities, :math:`q_{des}`, :math:`\dot{q}_
 are the desired joint positions, velocities and torques commands. The parameters :math:`\gamma` and
 :math:`\tau_{motor, max}`  are the gear box ratio and the maximum motor effort possible.
 
-.. seealso::
-
-    We provide implementations for various explicit actuator models. These are detailed in
-    `omni.isaac.orbit.actuators.model <../api/orbit.actuators.model.html>`_ sub-package.
-
 Actuator groups
 ---------------
 
 The actuator models by themselves are computational blocks that take as inputs the desired joint commands
 and output the the joint commands to apply into the simulator. They do not contain any knowledge about the
-joints they are acting on themselves. These are handled by the actuator groups.
+joints they are acting on themselves. These are handled by the :class:`omni.isaac.orbit.assets.Articulation`
+class, which wraps around the physics engine's articulation class.
 
-Actuator groups collect a set of actuated joints on an articulation that are using the same actuator model.
+Actuator are collected as a set of actuated joints on an articulation that are using the same actuator model.
 For instance, the quadruped, ANYmal-C, uses series elastic actuator, ANYdrive 3.0, for all its joints. This
 grouping configures the actuator model for those joints, translates the input commands to the joint level
-commands, and returns the articulation action to set into the simulator. Through this mechanism, it is also
-possible to configure the included joints under some constraints, such as mimicking of gripper commands or
-introducing non-holonomic constraints for a wheel base.
+commands, and returns the articulation action to set into the simulator. Having an arm with a different
+actuator model, such as a DC motor, would require configuring a different actuator group.
 
-An articulated system can be composed of different actuator groups. For instance, a legged mobile manipulator
-can be composed of a base group, an arm group, and a gripper group. If the base is the quadruped, ANYmal-C,
-the base group can utilize the actuator network to model the series elastic actuation. Similarly, the arm,
-a Kinova Jaco2, can use a DC motor model and take joint positions as input commands. Finally, the gripper group
-can employ the gripper mimic group which processes binary open/close command into individual gripper joint actions.
+The following figure shows the actuator groups for a legged mobile manipulator:
 
 .. image:: ../_static/actuator_groups.svg
     :width: 600
     :align: center
     :alt: Actuator groups for a legged mobile manipulator
 
-
 .. seealso::
 
-    For more information on the actuator groups, please refer to the documentation of the
-    `omni.isaac.orbit.actuators.group <../api/orbit.actuators.group.html>`_ subpackage.
+    We provide implementations for various explicit actuator models. These are detailed in
+    `omni.isaac.orbit.actuators <../api/orbit.actuators.html>`_ sub-package.

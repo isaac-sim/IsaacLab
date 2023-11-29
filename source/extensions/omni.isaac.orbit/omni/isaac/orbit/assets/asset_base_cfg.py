@@ -16,17 +16,28 @@ from .asset_base import AssetBase
 
 @configclass
 class AssetBaseCfg:
-    """Configuration parameters for an asset."""
+    """The base configuration class for an asset's parameters.
+
+    Please see the :class:`AssetBase` class for more information on the asset class.
+    """
 
     @configclass
     class InitialStateCfg:
-        """Initial state of the asset."""
+        """Initial state of the asset.
+
+        This defines the default initial state of the asset when it is spawned into the simulation, as
+        well as the default state when the simulation is reset.
+
+        After parsing the initial state, the asset class stores this information in the :attr:`data`
+        attribute of the asset class. This can then be accessed by the user to modify the state of the asset
+        during the simulation, for example, at resets.
+        """
 
         # root position
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Position of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0)."""
         rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation ``(w, x, y, z)`` of the root in simulation world frame.
+        """Quaternion rotation (w, x, y, z) of the root in simulation world frame.
         Defaults to (1.0, 0.0, 0.0, 0.0).
         """
 
@@ -46,15 +57,15 @@ class AssetBaseCfg:
         Example: ``{ENV_REGEX_NS}/Robot`` will be replaced with ``/World/envs/env_.*/Robot``.
     """
 
-    init_state: InitialStateCfg = InitialStateCfg()
-    """Initial state of the rigid object. Defaults to identity pose."""
-
     spawn: SpawnerCfg | None = MISSING
     """Spawn configuration for the asset.
 
-    If :obj:`None`, then no prims are spawned by the asset class. Instead, it is assumed that the
+    If None, then no prims are spawned by the asset class. Instead, it is assumed that the
     asset is already present in the scene.
     """
+
+    init_state: InitialStateCfg = InitialStateCfg()
+    """Initial state of the rigid object. Defaults to identity pose."""
 
     collision_group: Literal[0, -1] = 0
     """Collision group of the asset. Defaults to ``0``.

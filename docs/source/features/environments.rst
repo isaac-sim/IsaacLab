@@ -4,7 +4,7 @@ Environments
 .. note::
 
     The environments are currently under development. We will update the documentation as soon as
-    they are ready. Please check the :ref:`development_roadmap` for more information.
+    they are ready. Please check the GitHub repository for the latest updates.
 
 Rigid-body manipulation
 -----------------------

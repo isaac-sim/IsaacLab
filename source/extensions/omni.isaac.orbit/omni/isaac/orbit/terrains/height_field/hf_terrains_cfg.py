@@ -28,10 +28,8 @@ class HfTerrainBaseCfg(SubTerrainBaseCfg):
     vertical_scale: float = 0.005
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005."""
     slope_threshold: float | None = None
-    """The slope threshold above which surfaces are made vertical. Defaults to :obj:`None`.
-
-    If :obj:`None` no correction is applied.
-    """
+    """The slope threshold above which surfaces are made vertical. Defaults to None,
+    in which case no correction is applied."""
 
 
 """

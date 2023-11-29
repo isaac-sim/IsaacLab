@@ -151,11 +151,11 @@ class StaticMarker:
         """Update marker poses in the simulation world frame.
 
         Args:
-            positions: Positions in the world frame. Shape is (M, 3). Defaults to :obj:`None`, which means left unchanged.
+            positions: Positions in the world frame. Shape is (M, 3). Defaults to None, which means left unchanged.
             orientations: Quaternion orientations (w, x, y, z) in the world frame of the prims. Shape is (M, 4).
-                Defaults to :obj:`None`, which means left unchanged.
-            indices: Indices to specify which alter poses. Shape is ``(M,),`` where M <= total number of markers.
-                Defaults to :obj:`None` (i.e: all markers).
+                Defaults to None, which means left unchanged.
+            indices: Indices to specify which alter poses. Shape is (M,) where M <= total number of markers.
+                Defaults to None (i.e: all markers).
         """
         # resolve inputs
         if positions is not None:
@@ -181,7 +181,7 @@ class StaticMarker:
         Args:
             scales: Scale applied before any rotation is applied. Shape is (M, 3).
             indices: Indices to specify which alter poses.
-                Shape is (M,), where M <= total number of markers. Defaults to :obj:`None` (i.e: all markers).
+                Shape is (M,), where M <= total number of markers. Defaults to None (i.e: all markers).
         """
         # default arguments
         if indices is None:

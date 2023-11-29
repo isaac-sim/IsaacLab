@@ -83,7 +83,7 @@ class GlassMdlCfg(VisualMaterialCfg):
     """Configuration parameters for loading a glass MDL material.
 
     This is a convenience class for loading a glass MDL material. For more information on
-    glass materials, see the `documentation <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html#omniglass>`_.
+    glass materials, see the `documentation <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html#omniglass>`__.
 
     .. note::
         The default values are taken from the glass material in the NVIDIA Nucleus.

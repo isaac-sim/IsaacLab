@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the common functions that can be used to create observation terms.
+"""Common functions that can be used to create observation terms.
 
 The functions can be passed to the :class:`omni.isaac.orbit.managers.ObservationTermCfg` object to enable
 the observation introduced by the function.

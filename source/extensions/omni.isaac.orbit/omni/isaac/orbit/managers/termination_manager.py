@@ -23,7 +23,7 @@ class TerminationManager(ManagerBase):
 
     The termination manager computes the termination signal (also called dones) as a combination
     of termination terms. Each termination term is a function which takes the environment as an
-    argument and returns a boolean tensor of shape ``(num_envs,)``. The termination manager
+    argument and returns a boolean tensor of shape (num_envs,). The termination manager
     computes the termination signal as the union (logical or) of all the termination terms.
 
     Following the `Gymnasium API <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_,
@@ -90,12 +90,12 @@ class TerminationManager(ManagerBase):
 
     @property
     def dones(self) -> torch.Tensor:
-        """The net termination signal. Shape is ``(num_envs,)``."""
+        """The net termination signal. Shape is (num_envs,)."""
         return self._truncated_buf | self._terminated_buf
 
     @property
     def time_outs(self) -> torch.Tensor:
-        """The timeout signal (reaching max episode length). Shape is ``(num_envs,)``.
+        """The timeout signal (reaching max episode length). Shape is (num_envs,).
 
         This signal is set to true if the environment has ended after an externally defined condition
         (that is outside the scope of a MDP). For example, the environment may be terminated if the episode has
@@ -105,7 +105,7 @@ class TerminationManager(ManagerBase):
 
     @property
     def terminated(self) -> torch.Tensor:
-        """The terminated signal (reaching a terminal state). Shape is ``(num_envs,)``.
+        """The terminated signal (reaching a terminal state). Shape is (num_envs,).
 
         This signal is set to true if the environment has reached a terminal state defined by the environment.
         This state may correspond to task success, task failure, robot falling, etc.
@@ -149,7 +149,7 @@ class TerminationManager(ManagerBase):
         to compute the net termination signal.
 
         Returns:
-            The combined termination signal of shape ``(num_envs,)``.
+            The combined termination signal of shape (num_envs,).
         """
         # reset computation
         self._truncated_buf[:] = False

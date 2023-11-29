@@ -22,9 +22,5 @@ Currently, the module provides two classes:
 
 """
 
-from __future__ import annotations
-
 from .point_marker import PointMarker
 from .static_marker import StaticMarker
-
-__all__ = ["StaticMarker", "PointMarker"]

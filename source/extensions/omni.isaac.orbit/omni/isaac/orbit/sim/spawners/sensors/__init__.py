@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-module contains functions for spawning sensors in the simulation.
+"""Sub-module for spawners that spawn sensors in the simulation.
 
 Currently, the following sensors are supported:
 
@@ -12,14 +11,5 @@ Currently, the following sensors are supported:
 
 """
 
-from __future__ import annotations
-
 from .sensors import spawn_camera
 from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
-
-__all__ = [
-    # camera
-    "spawn_camera",
-    "PinholeCameraCfg",
-    "FisheyeCameraCfg",
-]

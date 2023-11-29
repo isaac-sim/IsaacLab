@@ -21,8 +21,6 @@ from omni.isaac.orbit.utils import configclass
 
 from .ui import BaseEnvWindow
 
-__all__ = ["BaseEnvCfg", "ViewerCfg"]
-
 
 @configclass
 class ViewerCfg:

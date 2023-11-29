@@ -1,0 +1,127 @@
+﻿orbit.managers
+==============
+
+.. automodule:: omni.isaac.orbit.managers
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    SceneEntityCfg
+    ManagerBase
+    ManagerTermBase
+    ManagerTermBaseCfg
+    ObservationManager
+    ObservationGroupCfg
+    ObservationTermCfg
+    ActionManager
+    ActionTerm
+    ActionTermCfg
+    RandomizationManager
+    RandomizationTermCfg
+    RewardManager
+    RewardTermCfg
+    TerminationManager
+    TerminationTermCfg
+    CurriculumManager
+    CurriculumTermCfg
+
+Scene Entity
+------------
+
+.. autoclass:: SceneEntityCfg
+    :members:
+    :exclude-members: __init__
+
+Manager Base
+------------
+
+.. autoclass:: ManagerBase
+    :members:
+
+.. autoclass:: ManagerTermBase
+    :members:
+
+.. autoclass:: ManagerTermBaseCfg
+    :members:
+    :exclude-members: __init__
+
+Observation Manager
+-------------------
+
+.. autoclass:: ObservationManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: ObservationGroupCfg
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: ObservationTermCfg
+    :members:
+    :exclude-members: __init__
+
+Action Manager
+--------------
+
+.. autoclass:: ActionManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: ActionTerm
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: ActionTermCfg
+    :members:
+    :exclude-members: __init__
+
+Randomization Manager
+---------------------
+
+.. autoclass:: RandomizationManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: RandomizationTermCfg
+    :members:
+    :exclude-members: __init__
+
+Reward Manager
+--------------
+
+.. autoclass:: RewardManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: RewardTermCfg
+    :exclude-members: __init__
+
+Termination Manager
+-------------------
+
+.. autoclass:: TerminationManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: TerminationTermCfg
+    :members:
+    :exclude-members: __init__
+
+Curriculum Manager
+------------------
+
+.. autoclass:: CurriculumManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: CurriculumTermCfg
+    :members:
+    :exclude-members: __init__

@@ -21,15 +21,6 @@ from pxr import UsdGeom
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.utils.array import TensorData, convert_to_torch
 
-__all__ = [
-    "transform_points",
-    "create_pointcloud_from_depth",
-    "create_pointcloud_from_rgbd",
-    "convert_orientation_convention",
-    "create_rotation_matrix_from_view",
-]
-
-
 """
 Depth <-> Pointcloud conversions.
 """
@@ -49,12 +40,12 @@ def transform_points(
     .. math::
         p_{target} = R_{target} \times p_{source} + t_{target}
 
-    If either the inputs `position` and `orientation` are :obj:`None`, the corresponding transformation is not applied.
+    If either the inputs `position` and `orientation` are None, the corresponding transformation is not applied.
 
     Args:
         points: a tensor of shape (p, 3) or (n, p, 3) comprising of 3d points in source frame.
         position: The position of source frame in target frame. Defaults to None.
-        orientation: The orientation ``(w, x, y, z)`` of source frame in target frame.
+        orientation: The orientation (w, x, y, z) of source frame in target frame.
             Defaults to None.
         device: The device for torch where the computation
             should be executed. Defaults to None, i.e. takes the device that matches the depth image.
@@ -120,7 +111,7 @@ def create_pointcloud_from_depth(
         keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
             correspond to pixels with depth values 0.0 or NaN. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
-        orientation: The orientation ``(w, x, y, z)`` of the camera in a target frame. Defaults to None.
+        orientation: The orientation (w, x, y, z) of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed.
             Defaults to None, i.e. takes the device that matches the depth image.
 
@@ -183,7 +174,7 @@ def create_pointcloud_from_rgbd(
 
     - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels encode RGB values.
     - If a tuple, then the point cloud has a single color specified by the values (r, g, b).
-    - If :obj:`None`, then default color is white, i.e. (0, 0, 0).
+    - If None, then default color is white, i.e. (0, 0, 0).
 
     If the input ``normalize_rgb`` is set to :obj:`True`, then the RGB values are normalized to be in the range [0, 1].
 

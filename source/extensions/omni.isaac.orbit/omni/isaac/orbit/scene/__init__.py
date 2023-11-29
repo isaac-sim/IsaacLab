@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This sub-package contains the classes for an interactive scene.
+"""Sub-package containing an interactive scene definition.
 
 A scene is a collection of entities (e.g., terrain, articulations, sensors, lights, etc.) that can be added to the
 simulation. However, only a subset of these entities are of direct interest for the user to interact with.
@@ -28,5 +27,3 @@ actions to the scene. All these are handled by different "managers" in the frame
 
 from .interactive_scene import InteractiveScene
 from .interactive_scene_cfg import InteractiveSceneCfg
-
-__all__ = ["InteractiveScene", "InteractiveSceneCfg"]

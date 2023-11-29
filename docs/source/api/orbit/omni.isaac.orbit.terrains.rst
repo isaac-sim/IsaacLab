@@ -1,41 +1,56 @@
-omni.isaac.orbit.terrains
-=========================
+﻿orbit.terrains
+==============
 
 .. automodule:: omni.isaac.orbit.terrains
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    TerrainImporter
+    TerrainImporterCfg
+    TerrainGenerator
+    TerrainGeneratorCfg
+    SubTerrainBaseCfg
+
 
 Terrain importer
 ----------------
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_cfg.TerrainImporterCfg
+.. autoclass:: TerrainImporter
     :members:
     :show-inheritance:
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_importer.TerrainImporter
+.. autoclass:: TerrainImporterCfg
     :members:
-    :show-inheritance:
+    :exclude-members: __init__, class_type
 
 Terrain generator
 -----------------
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_cfg.SubTerrainBaseCfg
+.. autoclass:: TerrainGenerator
     :members:
-    :show-inheritance:
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_cfg.TerrainGeneratorCfg
+.. autoclass:: TerrainGeneratorCfg
     :members:
-    :show-inheritance:
+    :exclude-members: __init__
 
-.. autoclass:: omni.isaac.orbit.terrains.terrain_generator.TerrainGenerator
+.. autoclass:: SubTerrainBaseCfg
     :members:
-    :show-inheritance:
+    :exclude-members: __init__
 
 Height fields
 -------------
 
 .. automodule:: omni.isaac.orbit.terrains.height_field
+
+All sub-terrains must inherit from the :class:`HfTerrainBaseCfg` class which contains the common
+parameters for all terrains generated from height fields.
+
+.. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfTerrainBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, function
 
 Random Uniform Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -45,6 +60,7 @@ Random Uniform Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfRandomUniformTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Pyramid Sloped Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -54,10 +70,12 @@ Pyramid Sloped Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfPyramidSlopedTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidSlopedTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Pyramid Stairs Terrain
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -67,10 +85,12 @@ Pyramid Stairs Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfInvertedPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Discrete Obstacles Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -80,6 +100,7 @@ Discrete Obstacles Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfDiscreteObstaclesTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Wave Terrain
 ^^^^^^^^^^^^
@@ -89,6 +110,7 @@ Wave Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfWaveTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Stepping Stones Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -98,6 +120,7 @@ Stepping Stones Terrain
 .. autoclass:: omni.isaac.orbit.terrains.height_field.hf_terrains_cfg.HfSteppingStonesTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Trimesh terrains
 ----------------
@@ -113,6 +136,7 @@ Flat terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshPlaneTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Pyramid terrain
 ^^^^^^^^^^^^^^^
@@ -122,6 +146,7 @@ Pyramid terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Inverted pyramid terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -131,6 +156,7 @@ Inverted pyramid terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshInvertedPyramidStairsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Random grid terrain
 ^^^^^^^^^^^^^^^^^^^
@@ -140,6 +166,7 @@ Random grid terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRandomGridTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Rails terrain
 ^^^^^^^^^^^^^
@@ -149,6 +176,7 @@ Rails terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRailsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Pit terrain
 ^^^^^^^^^^^
@@ -158,6 +186,7 @@ Pit terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshPitTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Box terrain
 ^^^^^^^^^^^^^
@@ -167,6 +196,7 @@ Box terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshBoxTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Gap terrain
 ^^^^^^^^^^^
@@ -176,6 +206,7 @@ Gap terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshGapTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Floating ring terrain
 ^^^^^^^^^^^^^^^^^^^^^
@@ -185,6 +216,7 @@ Floating ring terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshFloatingRingTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Star terrain
 ^^^^^^^^^^^^
@@ -194,7 +226,7 @@ Star terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshStarTerrainCfg
     :members:
     :show-inheritance:
-
+    :exclude-members: __init__, function
 
 Repeated Objects Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -204,18 +236,22 @@ Repeated Objects Terrain
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedPyramidsTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedBoxesTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 .. autoclass:: omni.isaac.orbit.terrains.trimesh.mesh_terrains_cfg.MeshRepeatedCylindersTerrainCfg
     :members:
     :show-inheritance:
+    :exclude-members: __init__, function
 
 Utilities
 ---------

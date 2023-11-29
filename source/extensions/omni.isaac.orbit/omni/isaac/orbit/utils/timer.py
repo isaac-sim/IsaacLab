@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Defines timer class for performance measurements."""
+"""Sub-module for a timer class that can be used for performance measurements."""
 
 from __future__ import annotations
 

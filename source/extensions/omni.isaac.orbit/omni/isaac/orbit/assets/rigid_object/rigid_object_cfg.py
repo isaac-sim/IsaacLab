@@ -15,8 +15,6 @@ from .rigid_object import RigidObject
 class RigidObjectCfg(AssetBaseCfg):
     """Configuration parameters for a rigid object."""
 
-    class_type: type = RigidObject
-
     @configclass
     class InitialStateCfg(AssetBaseCfg.InitialStateCfg):
         """Initial state of the rigid body."""
@@ -29,6 +27,8 @@ class RigidObjectCfg(AssetBaseCfg):
     ##
     # Initialize configurations.
     ##
+
+    class_type: type = RigidObject
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""

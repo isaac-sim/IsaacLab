@@ -3,22 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This module provides utilities to create different terrains procedurally.
+"""Sub-package with utilities for creating terrains procedurally.
 
-There are two main components in this module:
+There are two main components in this package:
 
 * :class:`TerrainGenerator`: This class procedurally generates terrains based on the passed
   sub-terrain configuration. It creates a ``trimesh`` mesh object and contains the origins of
   each generated sub-terrain.
 * :class:`TerrainImporter`: This class mainly deals with importing terrains from different
   possible sources and adding them to the simulator as a prim object. It also stores the
-  terrain mesh into a dictionary called :obj:`warp_meshes` that later can be used
+  terrain mesh into a dictionary called :obj:`TerrainImporter.warp_meshes` that later can be used
   for ray-casting. The following functions are available for importing terrains:
 
-  * :meth:`import_ground_plane`: spawn a grid plane which is default in isaacsim/orbit.
-  * :meth:`import_mesh`: spawn a prim from a ``trimesh`` object.
-  * :meth:`import_usd`: spawn a prim as reference to input USD file.
+  * :meth:`TerrainImporter.import_ground_plane`: spawn a grid plane which is default in isaacsim/orbit.
+  * :meth:`TerrainImporter.import_mesh`: spawn a prim from a ``trimesh`` object.
+  * :meth:`TerrainImporter.import_usd`: spawn a prim as reference to input USD file.
 
 """
 

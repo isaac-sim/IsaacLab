@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Ray-caster based on warp.
-"""
-
-from __future__ import annotations
+"""Sub-module for Warp-based ray-cast sensor."""
 
 from . import patterns
 from .ray_caster import RayCaster
@@ -15,15 +11,3 @@ from .ray_caster_camera import RayCasterCamera
 from .ray_caster_camera_cfg import RayCasterCameraCfg
 from .ray_caster_cfg import RayCasterCfg
 from .ray_caster_data import RayCasterData
-
-__all__ = [
-    # ray caster
-    "RayCaster",
-    "RayCasterData",
-    "RayCasterCfg",
-    # camera
-    "RayCasterCameraCfg",
-    "RayCasterCamera",
-    # patterns
-    "patterns",
-]

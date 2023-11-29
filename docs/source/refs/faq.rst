@@ -41,30 +41,16 @@ With the release of above two tools, NVIDIA also released an open-sourced set of
 These environments have been designed to display the capabilities of the underlying simulators and provide
 a starting point to understand what is possible with the simulators for robot learning. These environments
 can be used for benchmarking but are not designed for developing and testing custom environments and algorithms.
-This is where ``orbit`` comes in.
+This is where Orbit comes in.
 
 Orbit :cite:`mittal2023orbit` is built on top of Isaac Sim to provide a unified and flexible framework
 for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
-motion planning). The main goals of the framework are summarized as follows:
-
-- **Modularity**: It is possible to easily add new environments, sensors, and tasks. It is also possible
-  to easily swap out different components to suit the needs of the user.
-- **Agility**: While still dependent on Isaac Sim, the framework includes pre-release features that
-  are not yet available in Isaac Sim. This allows the framework to be more agile and adapt to the
-  changing needs of the community.
-- **Openness**: The framework is designed to be open-sourced. This makes it possible to easily
-  integrate with other tools and environments from the robotics community with long-term support and
-  maintenance.
-- **Battery-included**: The framework includes a number of environments, sensors, and tasks that are
-  ready to use. This allows researchers to get started quickly and focus on their research. It also
-  includes a number of examples to showcase the capabilities of the framework.
-
-While it includes some pre-built environments, sensors, and tasks, its main goal is to provide an open-sourced,
-unified and easy-to-use interface for developing and testing custom environments and robot learning algorithms.
-While it inherits the capabilities of Isaac Sim, it also adds a number of new features that pertain to robot
-learning research. For example, including actuator dynamics in the simulation and support to collect data from
-human demonstrations.
+motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
+provide an open-sourced, unified, and easy-to-use interface for developing and testing custom environments
+and robot learning algorithms. It not only inherits the capabilities of Isaac Sim, but also adds a number
+of new features that pertain to robot learning research. For example, including actuator dynamics in the
+simulation, procedural terrain generation, and support to collect data from human demonstrations.
 
 
 Where does the name come from?

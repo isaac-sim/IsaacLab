@@ -106,7 +106,7 @@ def convert_height_field_to_mesh(
         horizontal_scale: The discretization of the terrain along the x and y axis.
         vertical_scale: The discretization of the terrain along the z axis.
         slope_threshold: The slope threshold above which surfaces are made vertical.
-            If :obj:`None` no correction is applied. Defaults to :obj:`None`.
+            Defaults to None, in which case no correction is applied.
 
     Returns:
         The vertices and triangles of the mesh:

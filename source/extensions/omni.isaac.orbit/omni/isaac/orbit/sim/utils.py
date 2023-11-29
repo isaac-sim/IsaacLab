@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Sub-module with USD-related utilities."""
+
 from __future__ import annotations
 
 import functools

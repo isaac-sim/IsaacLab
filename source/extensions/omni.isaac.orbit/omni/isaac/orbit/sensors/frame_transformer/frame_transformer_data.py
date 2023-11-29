@@ -27,7 +27,7 @@ class FrameTransformerData:
     Shape is (N, M, 3), where N is the number of environments, and M is the number of target frames.
     """
     target_rot_source: torch.Tensor = None
-    """Orientation of the target frame(s) relative to source frame quaternion ``(w, x, y, z)``.
+    """Orientation of the target frame(s) relative to source frame quaternion (w, x, y, z).
 
     Shape is (N, M, 4), where N is the number of environments, and M is the number of target frames.
     """
@@ -37,7 +37,7 @@ class FrameTransformerData:
     Shape is (N, M, 3), where N is the number of environments, and M is the number of target frames.
     """
     target_rot_w: torch.Tensor = None
-    """Orientation of the target frame(s) after offset (in world frame) quaternion ``(w, x, y, z)``.
+    """Orientation of the target frame(s) after offset (in world frame) quaternion (w, x, y, z).
 
     Shape is (N, M, 4), where N is the number of environments, and M is the number of target frames.
     """
@@ -47,7 +47,7 @@ class FrameTransformerData:
     Shape is (N, 3), where N is the number of environments.
     """
     source_rot_w: torch.Tensor = None
-    """Orientation of the source frame after offset (in world frame) quaternion ``(w, x, y, z)``.
+    """Orientation of the source frame after offset (in world frame) quaternion (w, x, y, z).
 
     Shape is (N, 4), where N is the number of environments.
     """

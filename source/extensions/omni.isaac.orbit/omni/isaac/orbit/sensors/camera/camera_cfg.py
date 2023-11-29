@@ -27,7 +27,7 @@ class CameraCfg(SensorBaseCfg):
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
         rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+        """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
 
         convention: Literal["opengl", "ros", "world"] = "ros"
         """The convention in which the frame offset is applied. Defaults to "ros".
@@ -51,7 +51,7 @@ class CameraCfg(SensorBaseCfg):
     spawn: PinholeCameraCfg | FisheyeCameraCfg | None = MISSING
     """Spawn configuration for the asset.
 
-    If :obj:`None`, then the prim is not spawned by the asset. Instead, it is assumed that the
+    If None, then the prim is not spawned by the asset. Instead, it is assumed that the
     asset is already present in the scene.
     """
 

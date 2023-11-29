@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-Sub-module containing configuration instances for different assets.
-"""
+"""Configuration instances for different assets.
 
-from __future__ import annotations
+This sub-module contains the configuration instances for different assets. The configuration
+instances are used to spawn and configure the assets in the simulation. They are passed to
+their corresponding asset classes during construction.
+"""
 
 from .anymal import *
 from .franka import *

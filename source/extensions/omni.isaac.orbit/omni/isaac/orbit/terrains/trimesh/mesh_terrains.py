@@ -25,7 +25,7 @@ def flat_terrain(
 ) -> tuple[list[trimesh.Trimesh], np.ndarray]:
     """Generate a flat terrain as a plane.
 
-    .. image:: ../_static/terrains/trimesh/flat_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/flat_terrain.jpg
        :width: 45%
        :align: center
 
@@ -58,10 +58,10 @@ def pyramid_stairs_terrain(
     :obj:`cfg.platform_width` (depending on the direction) with no steps in the remaining area. Additionally,
     no border will be added.
 
-    .. image:: ../_static/terrains/trimesh/pyramid_stairs_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/pyramid_stairs_terrain.jpg
        :width: 45%
 
-    .. image:: ../_static/terrains/trimesh/pyramid_stairs_terrain_with_holes.jpg
+    .. image:: ../../_static/terrains/trimesh/pyramid_stairs_terrain_with_holes.jpg
        :width: 45%
 
     Args:
@@ -158,10 +158,10 @@ def inverted_pyramid_stairs_terrain(
     :obj:`cfg.platform_width` (depending on the direction) with no steps in the remaining area. Additionally,
     no border will be added.
 
-    .. image:: ../_static/terrains/trimesh/inverted_pyramid_stairs_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/inverted_pyramid_stairs_terrain.jpg
        :width: 45%
 
-    .. image:: ../_static/terrains/trimesh/inverted_pyramid_stairs_terrain_with_holes.jpg
+    .. image:: ../../_static/terrains/trimesh/inverted_pyramid_stairs_terrain_with_holes.jpg
        :width: 45%
 
     Args:
@@ -260,10 +260,10 @@ def random_grid_terrain(
     If :obj:`cfg.holes` is True, the terrain will have randomized grid cells only along the plane extending
     from the platform (like a plus sign). The remaining area remains empty and no border will be added.
 
-    .. image:: ../_static/terrains/trimesh/random_grid_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/random_grid_terrain.jpg
        :width: 45%
 
-    .. image:: ../_static/terrains/trimesh/random_grid_terrain_with_holes.jpg
+    .. image:: ../../_static/terrains/trimesh/random_grid_terrain_with_holes.jpg
        :width: 45%
 
     Args:
@@ -385,7 +385,7 @@ def rails_terrain(
     the platform at the center of the terrain, and the second set is extruded between the first set of rails
     and the terrain border. Each set of rails is extruded to the same height.
 
-    .. image:: ../_static/terrains/trimesh/rails_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/rails_terrain.jpg
        :width: 40%
        :align: center
 
@@ -440,10 +440,10 @@ def pit_terrain(
     created by extruding a ring along the x- and y- axis. If :obj:`is_double_pit` is True, the pit
     contains two levels.
 
-    .. image:: ../_static/terrains/trimesh/pit_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/pit_terrain.jpg
        :width: 40%
 
-    .. image:: ../_static/terrains/trimesh/pit_terrain_with_two_levels.jpg
+    .. image:: ../../_static/terrains/trimesh/pit_terrain_with_two_levels.jpg
        :width: 40%
 
     Args:
@@ -502,10 +502,10 @@ def box_terrain(
     The boxes are created by extruding a rectangle along the z-axis. If :obj:`double_box` is True,
     then two boxes of height :obj:`box_height` are stacked on top of each other.
 
-    .. image:: ../_static/terrains/trimesh/box_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/box_terrain.jpg
        :width: 40%
 
-    .. image:: ../_static/terrains/trimesh/box_terrain_with_two_boxes.jpg
+    .. image:: ../../_static/terrains/trimesh/box_terrain_with_two_boxes.jpg
        :width: 40%
 
     Args:
@@ -563,7 +563,7 @@ def gap_terrain(
     The terrain has a ground with a platform in the middle. The platform is surrounded by a gap
     of width :obj:`gap_width` on all sides.
 
-    .. image:: ../_static/terrains/trimesh/gap_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/gap_terrain.jpg
        :width: 40%
        :align: center
 
@@ -607,7 +607,7 @@ def floating_ring_terrain(
     The thickness of the ring is :obj:`ring_thickness` and the height of the ring from the terrain
     is :obj:`ring_height`.
 
-    .. image:: ../_static/terrains/trimesh/floating_ring_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/floating_ring_terrain.jpg
        :width: 40%
        :align: center
 
@@ -653,7 +653,7 @@ def star_terrain(
     with a width of :obj:`bar_width` and a height of :obj:`bar_height`. The bars are evenly
     spaced around the cylinder and connect to the peripheral of the terrain.
 
-    .. image:: ../_static/terrains/trimesh/star_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/star_terrain.jpg
        :width: 40%
        :align: center
 
@@ -732,13 +732,13 @@ def repeated_objects_terrain(
     The object parameters are specified in the configuration as curriculum parameters. The difficulty
     is used to linearly interpolate between the minimum and maximum values of the parameters.
 
-    .. image:: ../_static/terrains/trimesh/repeated_objects_cylinder_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/repeated_objects_cylinder_terrain.jpg
        :width: 30%
 
-    .. image:: ../_static/terrains/trimesh/repeated_objects_box_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/repeated_objects_box_terrain.jpg
        :width: 30%
 
-    .. image:: ../_static/terrains/trimesh/repeated_objects_pyramid_terrain.jpg
+    .. image:: ../../_static/terrains/trimesh/repeated_objects_pyramid_terrain.jpg
        :width: 30%
 
     Args:

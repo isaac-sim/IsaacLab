@@ -1,15 +1,15 @@
 # for building the docs
-importlib-metadata==4.11.3
-Jinja2==3.0.3
-Sphinx==4.5.0
-sphinx-book-theme==0.3.3
-myst-parser==0.18.1
-sphinxcontrib-bibtex==2.5.0
-autodocsumm==0.2.9
+sphinx-book-theme==1.0.1
+myst-parser
+sphinxcontrib-bibtex
+autodocsumm
 sphinx-copybutton
-sphinx-panels
+sphinx_design
+sphinxemoji
 
 # basic python
 numpy
 matplotlib
 warp-lang
+# learning
+gymnasium

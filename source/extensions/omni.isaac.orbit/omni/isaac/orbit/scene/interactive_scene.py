@@ -216,7 +216,7 @@ class InteractiveScene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        """The origins of the environments in the scene. Shape is ``(num_envs, 3)``."""
+        """The origins of the environments in the scene. Shape is (num_envs, 3)."""
         if self.terrain is not None:
             return self.terrain.env_origins
         else:

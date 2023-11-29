@@ -16,7 +16,7 @@ from . import noise_model
 
 @configclass
 class NoiseCfg:
-    """Configuration for a noise term."""
+    """Base configuration for a noise term."""
 
     func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = MISSING
     """The function to be called for applying the noise.

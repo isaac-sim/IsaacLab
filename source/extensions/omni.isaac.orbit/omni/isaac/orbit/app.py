@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utility to configure the ``omni.isaac.kit.SimulationApp`` based on environment variables.
+"""Sub-package with the utility class to configure the :class:`omni.isaac.kit.SimulationApp`.
 
 Based on the desired functionality, this class parses environment variables and input CLI arguments
 to launch the simulator in various different modes. This includes with or without GUI, switching between
@@ -11,8 +11,8 @@ different Omniverse remote clients, and enabling particular ROS bridges. Some of
 extensions to be loaded in a specific order, otherwise a segmentation fault occurs.
 The launched `SimulationApp`_ instance is accessible via the :attr:`AppLauncher.app` property.
 
-Available modes
----------------
+Environment variables
+---------------------
 
 The following details the behavior of the class based on the environment variables:
 
@@ -37,6 +37,12 @@ The following details the behavior of the class based on the environment variabl
   * ``ROS_ENABLED=1``: Enables the ROS1 Noetic bridge in Isaac Sim.
   * ``ROS_ENABLED=2``: Enables the ROS2 Foxy bridge in Isaac Sim.
 
+  .. caution::
+
+      In Isaac Sim 2022.2.1, loading ``omni.isaac.ros_bridge`` before ``omni.kit.livestream.native``
+      causes a segfault. Thus, to work around this issue, we enable the ROS-bridge extensions after the
+      livestreaming extensions.
+
 * **Offscreen Render**: If the environment variable ``OFFSCREEN_RENDER`` is set to 1, then the
   offscreen-render pipeline is enabled. This is useful for running the simulator without a GUI but
   still rendering the viewport and camera images.
@@ -44,19 +50,12 @@ The following details the behavior of the class based on the environment variabl
   * ``OFFSCREEN_RENDER=1``: Enables the offscreen-render pipeline which allows users to render
     the scene without launching a GUI.
 
-    .. note::
-        The off-screen rendering pipeline only works when used in conjunction with the
-        :class:`omni.isaac.orbit.sim.SimulationContext` class. This is because the off-screen rendering
-        pipeline enables flags that are internally used by the SimulationContext class.
+  .. note::
 
-  .. caution::
-    Currently, in Isaac Sim 2022.2.1, loading ``omni.isaac.ros_bridge`` before ``omni.kit.livestream.native``
-    causes a segfault. Thus, to work around this issue, we enable the ROS-bridge extensions after the
-    livestreaming extensions.
+      The off-screen rendering pipeline only works when used in conjunction with the
+      :class:`omni.isaac.orbit.sim.SimulationContext` class. This is because the off-screen rendering
+      pipeline enables flags that are internally used by the SimulationContext class.
 
-
-Usage
------
 
 To set the environment variables, one can use the following command in the terminal:
 
@@ -72,6 +71,44 @@ Alternatively, one can set the environment variables to the python script direct
 .. code:: bash
 
     REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
+
+
+Overriding the environment variables
+------------------------------------
+
+The environment variables can be overridden in the python script itself using the :class:`AppLauncher`.
+These can be passed as a dictionary, a :class:`argparse.Namespace` object or as keyword arguments.
+When the passed arguments are not the default values, then they override the environment variables.
+
+The following snippet shows how use the :class:`AppLauncher` in different ways:
+
+.. code:: python
+
+    import argparser
+
+    from omni.isaac.orbit.app import AppLauncher
+
+    # add argparse arguments
+    parser = argparse.ArgumentParser()
+    # add your own arguments
+    # ....
+    # add app launcher arguments for cli
+    AppLauncher.add_app_launcher_args(parser)
+    # parse arguments
+    args = parser.parse_args()
+
+    # launch omniverse isaac-sim app
+    # -- Option 1: Pass the settings as a Namespace object
+    app_launcher = AppLauncher(args).app
+    # -- Option 2: Pass the settings as keywords arguments
+    app_launcher = AppLauncher(headless=args.headless, livestream=args.livestream)
+    # -- Option 3: Pass the settings as a dictionary
+    app_launcher = AppLauncher(vars(args))
+    # -- Option 4: Pass no settings
+    app_launcher = AppLauncher()
+
+    # obtain the launched app
+    simulation_app = app_launcher.app
 
 
 .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
@@ -112,35 +149,6 @@ class AppLauncher:
         value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
 
-    Usage:
-
-    .. code:: python
-
-        import argparser
-
-        from omni.isaac.orbit.app import AppLauncher
-
-        # add argparse arguments
-        parser = argparse.ArgumentParser()
-        # add your own arguments
-        # ....
-        # add app launcher arguments for cli
-        AppLauncher.add_app_launcher_args(parser)
-        # parse arguments
-        args = parser.parse_args()
-
-        # launch omniverse isaac-sim app
-        # -- Option 1: Pass the settings as a Namespace object
-        app_launcher = AppLauncher(args).app
-        # -- Option 2: Pass the settings as keywords arguments
-        app_launcher = AppLauncher(headless=args.headless, livestream=args.livestream)
-        # -- Option 3: Pass the settings as a dictionary
-        app_launcher = AppLauncher(vars(args))
-        # -- Option 4: Pass no settings
-        app_launcher = AppLauncher()
-
-        # obtain the launched app
-        simulation_app = app_launcher.app
     """
 
     def __init__(self, launcher_args: argparse.Namespace | dict = None, **kwargs):
@@ -369,7 +377,7 @@ class AppLauncher:
 
     This is used to check against name collisions for arguments passed to the :class:`AppLauncher` class
     as well as for type checking. It corresponds closely to the :attr:`SimulationApp.DEFAULT_LAUNCHER_CONFIG`,
-    but specifically denotes where :obj:`None` types are allowed.
+    but specifically denotes where None types are allowed.
     """
 
     @staticmethod

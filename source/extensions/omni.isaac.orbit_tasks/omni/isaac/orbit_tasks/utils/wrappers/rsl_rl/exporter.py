@@ -7,8 +7,6 @@ import copy
 import os
 import torch
 
-__all__ = ["export_policy_as_jit", "export_policy_as_onnx"]
-
 
 def export_policy_as_jit(actor_critic: object, path: str, filename="policy.pt"):
     """Export policy into a Torch JIT file.

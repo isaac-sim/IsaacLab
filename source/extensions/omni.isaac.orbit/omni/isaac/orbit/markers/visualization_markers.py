@@ -253,19 +253,19 @@ class VisualizationMarkers:
 
         Args:
             translations: Translations w.r.t. parent prim frame. Shape is (M, 3).
-                Defaults to :obj:`None`, which means left unchanged.
+                Defaults to None, which means left unchanged.
             orientations: Quaternion orientations (w, x, y, z) w.r.t. parent prim frame. Shape is (M, 4).
-                Defaults to :obj:`None`, which means left unchanged.
+                Defaults to None, which means left unchanged.
             scales: Scale applied before any rotation is applied. Shape is (M, 3).
-                Defaults to :obj:`None`, which means left unchanged.
+                Defaults to None, which means left unchanged.
             marker_indices: Decides which marker prototype to visualize. Shape is (M).
-                Defaults to :obj:`None`, which means left unchanged provided that the total number of markers
+                Defaults to None, which means left unchanged provided that the total number of markers
                 is the same as the previous call. If the number of markers is different, the function
                 will update the number of markers in the scene.
 
         Raises:
             ValueError: When input arrays do not follow the expected shapes.
-            ValueError: When the function is called with all :obj:`None` arguments.
+            ValueError: When the function is called with all None arguments.
         """
         # check if it is visible (if not then let's not waste time)
         if not self.is_visible():

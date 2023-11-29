@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains simulation-specific functionalities.
+"""Sub-package containing simulation-specific functionalities.
 
 These include:
 

@@ -20,7 +20,33 @@ if TYPE_CHECKING:
 
 
 class AssetBase(ABC):
-    """The interface class for assets."""
+    """The base interface class for assets.
+
+    An asset corresponds to any physics-enabled object that can be spawned in the simulation. These include
+    rigid objects, articulated objects, deformable objects etc. The core functionality of an asset is to
+    provide a set of buffers that can be used to interact with the simulator. The buffers are updated
+    by the asset class and can be written into the simulator using the their respective ``write`` methods.
+    This allows a convenient way to perform post-processing operations on the buffers before writing them
+    into the simulator and obtaining the corresponding simulation results.
+
+    The class handles both the spawning of the asset into the USD stage as well as initialization of necessary
+    physics handles to interact with the asset. Upon construction of the asset instance, the prim corresponding
+    to the asset is spawned into the USD stage if the spawn configuration is not None. The spawn configuration
+    is defined in the :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path`
+    is an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is spawned
+    at the configured path. For more information on the spawn configuration, see the
+    :mod:`omni.isaac.orbit.sim.spawners` module.
+
+    Unlike Isaac Sim interface, where one usually needs to call the
+    :meth:`omni.isaac.core.prims.XFormPrimView.initialize` method to initialize the PhysX handles, the asset
+    class automatically initializes and invalidates the PhysX handles when the stage is played/stopped. This
+    is done by registering callbacks for the stage play/stop events.
+
+    Additionally, the class registers a callback for debug visualization of the asset if a debug visualization
+    is implemented in the asset class. This can be enabled by setting the :attr:`AssetBaseCfg.debug_vis` attribute
+    to True. The debug visualization is implemented through the :meth:`_set_debug_vis_impl` and
+    :meth:`_debug_vis_callback` methods.
+    """
 
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.

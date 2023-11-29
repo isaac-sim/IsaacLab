@@ -29,8 +29,6 @@ from omni.isaac.orbit.utils.math import convert_quat
 from ..sensor_base import SensorBase
 from .camera_cfg import FisheyeCameraCfg, PinholeCameraCfg
 
-__all__ = ["Camera", "CameraData"]
-
 
 @dataclass
 class CameraData:
@@ -335,7 +333,7 @@ class Camera(SensorBase):
         Args:
             parent_prim_path: The path of the parent prim to attach sensor to.
             translation: The local position offset w.r.t. parent prim. Defaults to None.
-            orientation: The local rotation offset in ``(w, x, y, z)`` w.r.t.
+            orientation: The local rotation offset in (w, x, y, z) w.r.t.
                 parent prim. Defaults to None.
         """
         # Check if sensor is already spawned
@@ -368,7 +366,7 @@ class Camera(SensorBase):
             has_rig: Whether the passed camera prim path is attached to a rig. Defaults to False.
 
         Raises:
-            RuntimeError: When input `cam_prim_path` is :obj:`None`, the method defaults to using the last
+            RuntimeError: When input `cam_prim_path` is None, the method defaults to using the last
                 camera prim path set when calling the :meth:`spawn` function. In case, the camera was not spawned
                 and no valid `cam_prim_path` is provided, the function throws an error.
         """

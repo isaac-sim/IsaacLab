@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Defines the host-server where assets and resources are stored.
+"""Sub-module that defines the host-server where assets and resources are stored.
 
 By default, we use the Isaac Sim Nucleus Server for hosting assets and resources. This makes
 distribution of the assets easier and makes the repository smaller in size code-wise.

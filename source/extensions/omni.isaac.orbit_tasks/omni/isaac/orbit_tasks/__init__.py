@@ -3,31 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Module containing environments with OpenAI Gym interface.
-
-
-We use OpenAI Gym registry to register the environment and their default configuration file.
-The default configuration file is passed to the argument "kwargs" in the Gym specification registry.
-The string is parsed into respective configuration container which needs to be passed to the environment
-class. This is done using the function :meth:`load_cfg_from_registry` in the sub-module
-:mod:`omni.isaac.orbit.utils.parse_cfg`.
-
-Note:
-    This is a slight abuse of kwargs since they are meant to be directly passed into the environment class.
-    Instead, we remove the key :obj:`cfg_file` from the "kwargs" dictionary and the user needs to provide
-    the kwarg argument :obj:`cfg` while creating the environment.
-
-Usage:
-    >>> import gymnasium as gym
-    >>> import omni.isaac.orbit_tasks
-    >>> from omni.isaac.orbit_tasks.utils.parse_cfg import load_cfg_from_registry
-    >>>
-    >>> task_name = "Isaac-Cartpole-v0"
-    >>> cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    >>> env = gym.make(task_name, cfg=cfg)
-"""
-
-from __future__ import annotations
+"""Package containing task implementations for various robotic environments."""
 
 import os
 import toml

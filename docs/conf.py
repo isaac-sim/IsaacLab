@@ -26,10 +26,10 @@ sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks/
 # -- Project information -----------------------------------------------------
 
 project = "orbit"
-copyright = "2022, NVIDIA, ETH Zurich and University of Toronto"
-author = "NVIDIA, ETH Zurich and University of Toronto"
+copyright = "2022-2023, The ORBIT Project Developers."
+author = "The ORBIT Project Developers."
 
-version = "0.1.0"
+version = "0.2.0"
 
 # -- General configuration ---------------------------------------------------
 
@@ -37,18 +37,20 @@ version = "0.1.0"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.autodoc",
+    "autodocsumm",
+    "myst_parser",
     "sphinx.ext.napoleon",
-    "sphinx.ext.mathjax",
-    "sphinx.ext.intersphinx",
+    "sphinxemoji.sphinxemoji",
+    "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
     "sphinx.ext.todo",
+    "sphinx.ext.viewcode",
     "sphinxcontrib.bibtex",
-    "myst_parser",
-    "autodocsumm",
     "sphinx_copybutton",
-    "sphinx_panels",
+    "sphinx_design",
 ]
 
 # mathjax hacks
@@ -69,17 +71,22 @@ source_suffix = {
     ".md": "markdown",
 }
 
-# put type hints inside the description instead of the signature (easier to read)
-autodoc_typehints = "description"
-autodoc_typehints_description_target = "documented"
+# put type hints inside the signature instead of the description (easier to maintain)
+autodoc_typehints = "signature"
+# autodoc_typehints_format = "fully-qualified"
 # document class *and* __init__ methods
 autoclass_content = "class"  #
 # separate class docstring from __init__ docstring
 autodoc_class_signature = "separated"
 # sort members by source order
-autodoc_member_order = "groupwise"
+autodoc_member_order = "bysource"
+# inherit docstrings from base classes
+autodoc_inherit_docstrings = True
 # BibTeX configuration
 bibtex_bibfiles = ["source/_static/refs.bib"]
+# generate autosummary even if no references
+autosummary_generate = True
+autosummary_generate_overwrite = False
 # default autodoc settings
 autodoc_default_options = {
     "autosummary": True,
@@ -88,8 +95,10 @@ autodoc_default_options = {
 # generate links to the documentation of objects in external projects
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "numpy": ("http://docs.scipy.org/doc/numpy", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
     "torch": ("https://pytorch.org/docs/stable/", None),
+    "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
+    "gymnasium": ("https://gymnasium.farama.org/", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -112,6 +121,8 @@ autodoc_mock_imports = [
     "omni.kit",
     "omni.usd",
     "omni.client",
+    "omni.physx",
+    "omni.physics",
     "pxr.PhysxSchema",
     "pxr.PhysicsSchemaTools",
     "omni.replicator",
@@ -120,6 +131,10 @@ autodoc_mock_imports = [
     "omni.isaac.cloner",
     "omni.isaac.urdf",
     "omni.isaac.version",
+    "omni.isaac.motion_generation",
+    "omni.isaac.ui",
+    "omni.timeline",
+    "omni.ui",
     "gym",
     "skrl",
     "stable_baselines3",
@@ -156,23 +171,28 @@ suppress_warnings = [
     "ref.python",
 ]
 
+# -- Internationalization ----------------------------------------------------
+
+# specifying the natural language populates some key tags
+language = "en"
+
 # -- Options for HTML output -------------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
 import sphinx_book_theme
 
+html_title = "orbit documentation"
 html_theme_path = [sphinx_book_theme.get_html_theme_path()]
 html_theme = "sphinx_book_theme"
-html_logo = "source/_static/nv-logo.png"
 html_favicon = "source/_static/favicon.ico"
+html_show_copyright = True
+html_show_sphinx = False
+html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["source/_static"]
-html_css_files = ["css/nvidia.css"]
+html_static_path = ["source/_static/css"]
+html_css_files = ["custom.css"]
 
 html_theme_options = {
     "collapse_navigation": True,
@@ -180,23 +200,45 @@ html_theme_options = {
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
-    "show_toc_level": 2,
+    "show_toc_level": 1,
     "use_sidenotes": True,
-    "announcement": (
-        "⚠️This is a pre-release version of Orbit. Please report any issues on <a"
-        " href='https://github.com/NVIDIA-Omniverse/orbit/issues'>GitHub</a>."
-    ),
+    "logo": {
+        "text": f"orbit documentation",
+        "image_light": "source/_static/NVIDIA-logo-white.png",
+        "image_dark": "source/_static/NVIDIA-logo-black.png",
+    },
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/NVIDIA-Omniverse/Orbit",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "Isaac Sim",
+            "url": "https://developer.nvidia.com/isaac-sim",
+            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.0-silver.svg",
+            "type": "url",
+        },
+        {
+            "name": "Stars",
+            "url": "https://img.shields.io/github/stars/NVIDIA-Omniverse/Orbit?color=fedcba",
+            "icon": "https://img.shields.io/github/stars/NVIDIA-Omniverse/Orbit?color=fedcba",
+            "type": "url",
+        },
+    ],
+    "icon_links_label": "Quick Links",
 }
 
-html_show_copyright = True
-html_show_sphinx = False
+html_sidebars = {"**": ["navbar-logo.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]}
 
 
 # -- Advanced configuration -------------------------------------------------
 
 
 def skip_member(app, what, name, obj, skip, options):
-    exclusions = ["from_dict", "to_dict", "replace"]  # List the names of the functions you want to skip here
+    # List the names of the functions you want to skip here
+    exclusions = ["from_dict", "to_dict", "replace", "copy", "__post_init__"]
     if name in exclusions:
         return True
     return None

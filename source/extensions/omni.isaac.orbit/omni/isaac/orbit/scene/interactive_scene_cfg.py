@@ -71,11 +71,14 @@ class InteractiveSceneCfg:
 
     num_envs: int = MISSING
     """Number of environment instances handled by the scene."""
+
     env_spacing: float = MISSING
     """Spacing between environments.
 
-    This is the default distance between environment origins in the scene. Used only when ``num_envs > 1``.
+    This is the default distance between environment origins in the scene. Used only when the
+    number of environments is greater than one.
     """
+
     lazy_sensor_update: bool = True
     """Whether to update sensors only when they are accessed. Default is True.
 

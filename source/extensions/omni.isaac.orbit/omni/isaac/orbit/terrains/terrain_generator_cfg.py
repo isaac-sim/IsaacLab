@@ -58,10 +58,8 @@ class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
     seed: int | None = None
-    """The seed for the random number generator. Defaults to :obj:`None`.
-
-    If :obj:`None`, the seed is not set.
-    """
+    """The seed for the random number generator. Defaults to None,
+    in which case the seed is not set."""
 
     curriculum: bool = False
     """Whether to use the curriculum mode. Defaults to False.
@@ -111,7 +109,7 @@ class TerrainGeneratorCfg:
     slope_threshold: float | None = 0.75
     """The slope threshold above which surfaces are made vertical. Defaults to 0.75.
 
-    If :obj:`None` no correction is applied.
+    If None no correction is applied.
 
     This value is passed on to all the height field sub-terrain configurations.
     """

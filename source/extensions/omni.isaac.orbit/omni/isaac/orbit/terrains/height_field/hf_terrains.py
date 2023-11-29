@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUniformTerrainCfg) -> np.ndarray:
     """Generate a terrain with height sampled uniformly from a specified range.
 
-    .. image:: ../_static/terrains/height_field/random_uniform_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/random_uniform_terrain.jpg
        :width: 40%
        :align: center
 
@@ -90,10 +90,10 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
     If the :obj:`cfg.inverted` flag is set to :obj:`True`, the terrain is inverted such that
     the platform is at the bottom.
 
-    .. image:: ../_static/terrains/height_field/pyramid_sloped_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/pyramid_sloped_terrain.jpg
        :width: 40%
 
-    .. image:: ../_static/terrains/height_field/inverted_pyramid_sloped_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/inverted_pyramid_sloped_terrain.jpg
        :width: 40%
 
     Args:
@@ -157,10 +157,10 @@ def pyramid_stairs_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidStai
     If the :obj:`cfg.inverted` flag is set to :obj:`True`, the terrain is inverted such that
     the platform is at the bottom.
 
-    .. image:: ../_static/terrains/height_field/pyramid_stairs_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/pyramid_stairs_terrain.jpg
        :width: 40%
 
-    .. image:: ../_static/terrains/height_field/inverted_pyramid_stairs_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/inverted_pyramid_stairs_terrain.jpg
        :width: 40%
 
     Args:
@@ -218,7 +218,7 @@ def discrete_obstacles_terrain(difficulty: float, cfg: hf_terrains_cfg.HfDiscret
     height. They are placed randomly on the terrain with a minimum distance of :obj:`cfg.platform_width`
     from the center of the terrain.
 
-    .. image:: ../_static/terrains/height_field/discrete_obstacles_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/discrete_obstacles_terrain.jpg
        :width: 40%
        :align: center
 
@@ -303,7 +303,7 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
 
     where :math:`A` is the amplitude of the waves, :math:`\lambda` is the wavelength of the waves.
 
-    .. image:: ../_static/terrains/height_field/wave_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/wave_terrain.jpg
        :width: 40%
        :align: center
 
@@ -355,7 +355,7 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
 
     The terrain is a stepping stones pattern which trims to a flat platform at the center of the terrain.
 
-    .. image:: ../_static/terrains/height_field/stepping_stones_terrain.jpg
+    .. image:: ../../_static/terrains/height_field/stepping_stones_terrain.jpg
        :width: 40%
        :align: center
 

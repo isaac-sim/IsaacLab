@@ -5,9 +5,5 @@
 
 """Gamepad device for SE(2) and SE(3) control."""
 
-from __future__ import annotations
-
 from .se2_gamepad import Se2Gamepad
 from .se3_gamepad import Se3Gamepad
-
-__all__ = ["Se2Gamepad", "Se3Gamepad"]

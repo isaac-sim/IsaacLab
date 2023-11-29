@@ -185,6 +185,9 @@ class DifferentialIKController:
         Returns:
             The desired delta in joint space. Shape is (N, num-jointsß).
         """
+        if self.cfg.ik_params is None:
+            raise RuntimeError(f"Inverse-kinematics parameters for method '{self.cfg.ik_method}' is not defined!")
+        # compute the delta in joint-space
         if self.cfg.ik_method == "pinv":  # Jacobian pseudo-inverse
             # parameters
             k_val = self.cfg.ik_params["k_val"]

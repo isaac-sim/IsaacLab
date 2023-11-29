@@ -32,7 +32,60 @@ if TYPE_CHECKING:
 
 
 class Articulation(RigidObject):
-    """Class for handling articulations."""
+    """An articulation asset class.
+
+    An articulation is a collection of rigid bodies connected by joints. The joints can be either
+    fixed or actuated. The joints can be of different types, such as revolute, prismatic, D-6, etc.
+    However, the articulation class has currently been tested with revolute and prismatic joints.
+    The class supports both floating-base and fixed-base articulations. The type of articulation
+    is determined based on the root joint of the articulation. If the root joint is fixed, then
+    the articulation is considered a fixed-base system. Otherwise, it is considered a floating-base
+    system. This can be checked using the :attr:`Articulation.is_fixed_base` attribute.
+
+    For an asset to be considered an articulation, the root prim of the asset must have the
+    `USD ArticulationRootAPI`_. This API is used to define the sub-tree of the articulation using
+    the reduced coordinate formulation. On playing the simulation, the physics engine parses the
+    articulation root prim and creates the corresponding articulation in the physics engine. The
+    articulation root prim can be specified using the :attr:`AssetBaseCfg.prim_path` attribute.
+
+    The articulation class is a subclass of the :class:`RigidObject` class. Therefore, it inherits
+    all the functionality of the rigid object class. In case of an articulation, the :attr:`root_view`
+    attribute corresponds to the articulation root view and can be used to access the articulation
+    related data. The :attr:`body_view` attribute corresponds to the rigid body view of the articulated
+    links and can be used to access the rigid body related data. The :attr:`root_physx_view` and
+    :attr:`body_physx_view` attributes correspond to the underlying physics views of the articulation
+    root and the articulated links, respectively.
+
+    The articulation class also provides the functionality to augment the simulation of an articulated
+    system with custom actuator models. These models can either be explicit or implicit, as detailed in
+    the :mod:`omni.isaac.orbit.actuators` module. The actuator models are specified using the
+    :attr:`ArticulationCfg.actuators` attribute. These are then parsed and used to initialize the
+    corresponding actuator models, when the simulation is played.
+
+    During the simulation step, the articulation class first applies the actuator models to compute
+    the joint commands based on the user-specified targets. These joint commands are then applied
+    into the simulation. The joint commands can be either position, velocity, or effort commands.
+    As an example, the following snippet shows how this can be used for position commands:
+
+    .. code-block:: python
+
+        # an example instance of the articulation class
+        my_articulation = Articulation(cfg)
+
+        # set joint position targets
+        my_articulation.set_joint_position_target(position)
+        # propagate the actuator models and apply the computed commands into the simulation
+        my_articulation.write_data_to_sim()
+
+        # step the simulation using the simulation context
+        sim_context.step()
+
+        # update the articulation state, where dt is the simulation time step
+        my_articulation.update(dt)
+
+    .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
+
+    """
 
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
@@ -143,6 +196,9 @@ class Articulation(RigidObject):
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
 
+        Please see the :func:`omni.isaac.orbit.utils.string.resolve_matching_names` function for more information
+        on the name matching.
+
         Args:
             name_keys: A regular expression or a list of regular expressions to match the joint names.
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
@@ -197,8 +253,8 @@ class Articulation(RigidObject):
         """Write joint positions and velocities to the simulation.
 
         Args:
-            position: Joint positions. Shape is ``(len(env_ids), len(joint_ids))``.
-            velocity: Joint velocities. Shape is ``(len(env_ids), len(joint_ids))``.
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
@@ -227,7 +283,7 @@ class Articulation(RigidObject):
         """Write joint stiffness into the simulation.
 
         Args:
-            stiffness: Joint stiffness. Shape is ``(len(env_ids), len(joint_ids))``.
+            stiffness: Joint stiffness. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the stiffness for. Defaults to None (all joints).
             env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
         """
@@ -253,7 +309,7 @@ class Articulation(RigidObject):
         """Write joint damping into the simulation.
 
         Args:
-            damping: Joint damping. Shape is ``(len(env_ids), len(joint_ids))``.
+            damping: Joint damping. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the damping for.
                 Defaults to None (all joints).
             env_ids: The environment indices to set the damping for.
@@ -281,7 +337,7 @@ class Articulation(RigidObject):
         """Write joint effort limits into the simulation.
 
         Args:
-            limits: Joint torque limits. Shape is ``(len(env_ids), len(joint_ids))``.
+            limits: Joint torque limits. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -311,7 +367,7 @@ class Articulation(RigidObject):
         """Write joint armature into the simulation.
 
         Args:
-            armature: Joint armature. Shape is ``(len(env_ids), len(joint_ids))``.
+            armature: Joint armature. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -336,7 +392,7 @@ class Articulation(RigidObject):
         """Write joint friction into the simulation.
 
         Args:
-            joint_friction: Joint friction. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_friction: Joint friction. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
         """
@@ -366,7 +422,7 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
@@ -388,7 +444,7 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint velocity targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """
@@ -410,7 +466,7 @@ class Articulation(RigidObject):
             the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint effort targets. Shape is ``(len(env_ids), len(joint_ids))``.
+            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all environments).
         """

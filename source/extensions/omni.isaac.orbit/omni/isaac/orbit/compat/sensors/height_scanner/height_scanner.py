@@ -21,8 +21,6 @@ from ..sensor_base import SensorBase
 from .height_scanner_cfg import HeightScannerCfg
 from .height_scanner_marker import HeightScannerMarker
 
-__all__ = ["HeightScanner", "HeightScannerData"]
-
 
 @dataclass
 class HeightScannerData:
@@ -31,15 +29,15 @@ class HeightScannerData:
     position: np.ndarray = None
     """Position of the sensor origin in world frame."""
     orientation: np.ndarray = None
-    """Orientation of the sensor origin in quaternion ``(w, x, y, z)`` in world frame."""
+    """Orientation of the sensor origin in quaternion (w, x, y, z) in world frame."""
     hit_points: np.ndarray = None
-    """The end point locations of ray-casted rays. Shape is (N, 3), where ``N`` is
+    """The end point locations of ray-casted rays. Shape is (N, 3), where N is
     the number of scan points."""
     hit_distance: np.ndarray = None
-    """The ray-cast travel distance from query point. Shape is (N,), where ``N`` is
+    """The ray-cast travel distance from query point. Shape is (N,), where N is
     the number of scan points."""
     hit_status: np.ndarray = None
-    """Whether the ray hit an object or not. Shape is (N,), where ``N`` is
+    """Whether the ray hit an object or not. Shape is (N,), where N is
     the number of scan points.
 
     It is set to ``1`` if the ray hit an object, and ``0`` otherwise.

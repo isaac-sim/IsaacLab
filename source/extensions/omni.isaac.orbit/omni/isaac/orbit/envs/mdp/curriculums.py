@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the common functions that can be used to create curriculum for the learning environment.
+"""Common functions that can be used to create curriculum for the learning environment.
 
 The functions can be passed to the :class:`omni.isaac.orbit.managers.CurriculumTermCfg` object to enable
 the curriculum introduced by the function.

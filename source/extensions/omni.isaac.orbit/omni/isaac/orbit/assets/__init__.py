@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
+"""Sub-package for different assets, such as rigid objects and articulations.
+
 An asset is a physical object that can be spawned in the simulation. The class handles both
 the spawning of the asset into the USD stage as well as initialization of necessary physics
 handles to interact with the asset.
@@ -22,13 +23,13 @@ asset. This can be enabled by setting the :attr:`AssetBaseCfg.debug_vis` attribu
 
 The asset class follows the following naming convention for its methods:
 
-* `set_xxx()`: These are used to only set the buffers into the :attr:`data` instance. However, they
-    do not write the data into the simulator. The writing of data only happens when the
-    :meth:`write_data_to_sim` method is called.
-* `write_xxx_to_sim()`: These are used to set the buffers into the :attr:`data` instance and write
-    the corresponding data into the simulator as well.
-* `update(dt)`: These are used to update the buffers in the :attr:`data` instance. This should
-    be called after a simulation step is performed.
+* **set_xxx()**: These are used to only set the buffers into the :attr:`data` instance. However, they
+  do not write the data into the simulator. The writing of data only happens when the
+  :meth:`write_data_to_sim` method is called.
+* **write_xxx_to_sim()**: These are used to set the buffers into the :attr:`data` instance and write
+  the corresponding data into the simulator as well.
+* **update(dt)**: These are used to update the buffers in the :attr:`data` instance. This should
+  be called after a simulation step is performed.
 
 The main reason to separate the ``set`` and ``write`` operations is to provide flexibility to the
 user when they need to perform a post-processing operation of the buffers before applying them
@@ -37,23 +38,7 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from __future__ import annotations
-
 from .articulation import Articulation, ArticulationCfg, ArticulationData
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg
 from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData
-
-__all__ = [
-    # asset base
-    "AssetBaseCfg",
-    "AssetBase",
-    # rigid object
-    "RigidObjectCfg",
-    "RigidObjectData",
-    "RigidObject",
-    # articulation
-    "ArticulationCfg",
-    "ArticulationData",
-    "Articulation",
-]

@@ -25,6 +25,7 @@ Guidelines for modifications:
 * James Smith
 * **Mayank Mittal** (maintainer)
 * Nikita Rudin
+* Pascal Roth
 
 ## Contributors
 
@@ -37,7 +38,6 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Kourosh Darvish
 * Qinxi Yu
-* Pascal Roth
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise

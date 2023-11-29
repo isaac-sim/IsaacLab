@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for parsing and loading configurations."""
+"""Sub-module with utilities for parsing and loading configurations."""
 
 from __future__ import annotations
 
@@ -34,12 +34,13 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Any:
             kwargs={"env_entry_point_cfg": "path.to.config:ConfigClass"},
         )
 
-    Usage:
-        .. code-block:: python
+    The parsed configuration object for above example can be obtained as:
 
-            from omni.isaac.orbit_tasks.utils.parse_cfg import load_cfg_from_registry
+    .. code-block:: python
 
-            cfg = load_cfg_from_registry("My-Awesome-Task-v0", "env_entry_point_cfg")
+        from omni.isaac.orbit_tasks.utils.parse_cfg import load_cfg_from_registry
+
+        cfg = load_cfg_from_registry("My-Awesome-Task-v0", "env_entry_point_cfg")
 
     Args:
         task_name: The name of the environment.
@@ -144,7 +145,7 @@ def get_checkpoint_path(
 ) -> str:
     """Get path to the model checkpoint in input directory.
 
-    The checkpoint file is resolved as: <log_path>/<run_dir>/<*other_dirs>/<checkpoint>, where the
+    The checkpoint file is resolved as: ``<log_path>/<run_dir>/<*other_dirs>/<checkpoint>``, where the
     :attr:`other_dirs` are intermediate folder names to concatenate. These cannot be regex expressions.
 
     If :attr:`run_dir` and :attr:`checkpoint` are regex expressions then the most recent (highest alphabetical order)
@@ -153,11 +154,11 @@ def get_checkpoint_path(
     Args:
         log_path: The log directory path to find models in.
         run_dir: The regex expression for the name of the directory containing the run. Defaults to the most
-            recent directory created inside :obj:`log_dir`.
+            recent directory created inside :attr:`log_path`.
         other_dirs: The intermediate directories between the run directory and the checkpoint file. Defaults to
             None, which implies that checkpoint file is directly under the run directory.
         checkpoint: The regex expression for the model checkpoint file. Defaults to the most recent
-            torch-model saved in the :obj:`run_dir` directory.
+            torch-model saved in the :attr:`run_dir` directory.
         sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.
             If False, the folders in :attr:`run_dir` are sorted by the last modified time.
 

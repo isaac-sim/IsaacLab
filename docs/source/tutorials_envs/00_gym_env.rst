@@ -2,7 +2,7 @@ Running an RL environment
 =========================
 
 In this tutorial, we will learn how to run existing learning environments provided in the ``omni.isaac.orbit_tasks``
-extension. All the environments included in Orbit follow the ``gym.Env`` interface, which means that they can be used
+extension. All the environments included in Orbit follow the :class:`gymnasium.Env` interface, which means that they can be used
 with any reinforcement learning framework that supports OpenAI Gym. However, since the environments are implemented
 in a vectorized fashion, they can only be used with frameworks that support vectorized environments.
 

@@ -23,13 +23,14 @@ class SensorBaseCfg:
     """
 
     prim_path: str = MISSING
-    """Prim path (or expression) to the asset.
+    """Prim path (or expression) to the sensor.
 
     .. note::
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
         will be replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Robot/sensor`` will be replaced with ``/World/envs/env_.*/Robot/sensor`.
+        Example: ``{ENV_REGEX_NS}/Robot/sensor`` will be replaced with ``/World/envs/env_.*/Robot/sensor``.
+
     """
 
     update_period: float = 0.0

@@ -12,10 +12,10 @@ from omni.isaac.orbit.utils import configclass
 class ArticulationRootPropertiesCfg:
     """Properties to apply to the root of an articulation.
 
-    See :meth:`set_articulation_root_properties` for more information.
+    See :meth:`modify_articulation_root_properties` for more information.
 
     .. note::
-        If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
 
@@ -37,10 +37,10 @@ class ArticulationRootPropertiesCfg:
 class RigidBodyPropertiesCfg:
     """Properties to apply to a rigid body.
 
-    See :meth:`set_rigid_body_properties` for more information.
+    See :meth:`modify_rigid_body_properties` for more information.
 
     .. note::
-        If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
 
@@ -86,10 +86,10 @@ class RigidBodyPropertiesCfg:
 class CollisionPropertiesCfg:
     """Properties to apply to colliders in a rigid body.
 
-    See :meth:`set_collision_properties` for more information.
+    See :meth:`modify_collision_properties` for more information.
 
     .. note::
-        If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
 
@@ -123,10 +123,10 @@ class CollisionPropertiesCfg:
 class MassPropertiesCfg:
     """Properties to define explicit mass properties of a rigid body.
 
-    See :meth:`set_mass_properties` for more information.
+    See :meth:`modify_mass_properties` for more information.
 
     .. note::
-        If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
 

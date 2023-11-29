@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the common functions that can be used to activate certain terminations.
+"""Common functions that can be used to activate certain terminations.
 
 The functions can be passed to the :class:`omni.isaac.orbit.managers.TerminationTermCfg` object to enable
 the termination introduced by the function.
