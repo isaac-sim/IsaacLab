@@ -49,13 +49,28 @@ class ArticulationData(RigidObjectData):
     ##
 
     joint_pos_target: torch.Tensor = None
-    """Joint position targets provided to simulation. Shape is ``(count, num_joints)``."""
+    """Joint position targets commanded by the user. Shape is ``(count, num_joints)``.
+
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
+    """
 
     joint_vel_target: torch.Tensor = None
-    """Joint velocity targets provided to simulation. Shape is ``(count, num_joints)``."""
+    """Joint velocity targets commanded by the user. Shape is ``(count, num_joints)``.
+
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
+    """
 
     joint_effort_target: torch.Tensor = None
-    """Joint effort targets provided to simulation. Shape is ``(count, num_joints)``."""
+    """Joint effort targets commanded by the user. Shape is ``(count, num_joints)``.
+
+    For an implicit actuator model, the targets are directly set into the simulation.
+    For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
+    which are then set into the simulation.
+    """
 
     joint_stiffness: torch.Tensor = None
     """Joint stiffness provided to simulation. Shape is ``(count, num_joints)``."""
@@ -63,20 +78,31 @@ class ArticulationData(RigidObjectData):
     joint_damping: torch.Tensor = None
     """Joint damping provided to simulation. Shape is ``(count, num_joints)``."""
 
+    joint_armature: torch.Tensor = None
+    """Joint armature provided to simulation. Shape is ``(count, num_joints)``."""
+
+    joint_friction: torch.Tensor = None
+    """Joint friction provided to simulation. Shape is ``(count, num_joints)``."""
+
     ##
     # Joint commands -- Explicit actuators.
     ##
 
     computed_torque: torch.Tensor = None
-    """Joint torques computed from the actuator model (before clipping).
-    Shape is ``(count, num_joints)``.
+    """Joint torques computed from the actuator model (before clipping). Shape is ``(count, num_joints)``.
+
+    This quantity is the raw torque output from the actuator mode, before any clipping is applied.
+    It is exposed for users who want to inspect the computations inside the actuator model.
+    For instance, to penalize the learning agent for a difference between the computed and applied torques.
 
     Note: The torques are zero for implicit actuator models.
     """
 
     applied_torque: torch.Tensor = None
-    """Joint torques applied from the actuator model (after clipping).
-    Shape is ``(count, num_joints)``.
+    """Joint torques applied from the actuator model (after clipping). Shape is ``(count, num_joints)``.
+
+    These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
+    actuator model.
 
     Note: The torques are zero for implicit actuator models.
     """

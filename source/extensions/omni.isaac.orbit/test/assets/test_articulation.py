@@ -27,6 +27,7 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.orbit.sim as sim_utils
+import omni.isaac.orbit.utils.string as string_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.assets import Articulation, ArticulationCfg
 from omni.isaac.orbit.assets.config import ANYMAL_C_CFG, FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
@@ -238,6 +239,78 @@ class TestArticulation(unittest.TestCase):
             # since there is a moment applied on the robot, the robot should rotate
             self.assertTrue(robot.data.root_ang_vel_w[0, 2].item() > 0.1)
             self.assertTrue(robot.data.root_ang_vel_w[1, 2].item() > 0.1)
+
+    def test_loading_gains_from_usd(self):
+        """Test that gains are loaded from USD file if actuator model has them as None."""
+        # Create articulation
+        robot_cfg = ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd"),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
+            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None)},
+        )
+        robot = Articulation(cfg=robot_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # Expected gains
+        # -- Stiffness values
+        expected_stiffness = {
+            ".*_waist.*": 20.0,
+            ".*_upper_arm.*": 10.0,
+            "pelvis": 10.0,
+            ".*_lower_arm": 2.0,
+            ".*_thigh:0": 10.0,
+            ".*_thigh:1": 20.0,
+            ".*_thigh:2": 10.0,
+            ".*_shin": 5.0,
+            ".*_foot.*": 2.0,
+        }
+        indices_list, _, values_list = string_utils.resolve_matching_names_values(expected_stiffness, robot.joint_names)
+        expected_stiffness = torch.zeros(robot.root_view.count, robot.num_joints, device=robot.device)
+        expected_stiffness[:, indices_list] = torch.tensor(values_list, device=robot.device)
+        # -- Damping values
+        expected_damping = {
+            ".*_waist.*": 5.0,
+            ".*_upper_arm.*": 5.0,
+            "pelvis": 5.0,
+            ".*_lower_arm": 1.0,
+            ".*_thigh:0": 5.0,
+            ".*_thigh:1": 5.0,
+            ".*_thigh:2": 5.0,
+            ".*_shin": 0.1,
+            ".*_foot.*": 1.0,
+        }
+        indices_list, _, values_list = string_utils.resolve_matching_names_values(expected_damping, robot.joint_names)
+        expected_damping = torch.zeros_like(expected_stiffness)
+        expected_damping[:, indices_list] = torch.tensor(values_list, device=robot.device)
+
+        # Check that gains are loaded from USD file
+        torch.testing.assert_close(robot.actuators["body"].stiffness, expected_stiffness)
+        torch.testing.assert_close(robot.actuators["body"].damping, expected_damping)
+
+    def test_setting_gains_from_cfg(self):
+        """Test that gains are loaded from the configuration correctly."""
+        # Create articulation
+        robot_cfg = ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd"),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
+            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0)},
+        )
+        robot = Articulation(cfg=robot_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # Expected gains
+        expected_stiffness = torch.full((robot.root_view.count, robot.num_joints), 10.0, device=robot.device)
+        expected_damping = torch.full_like(expected_stiffness, 2.0)
+
+        # Check that gains are loaded from USD file
+        torch.testing.assert_close(robot.actuators["body"].stiffness, expected_stiffness)
+        torch.testing.assert_close(robot.actuators["body"].damping, expected_damping)
 
 
 if __name__ == "__main__":

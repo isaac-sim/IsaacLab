@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import torch
+from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
 import carb
@@ -219,7 +220,7 @@ class Articulation(RigidObject):
 
     def write_joint_stiffness_to_sim(
         self,
-        stiffness: torch.Tensor,
+        stiffness: torch.Tensor | float,
         joint_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
     ):
@@ -244,7 +245,10 @@ class Articulation(RigidObject):
         self.root_physx_view.set_dof_stiffnesses(self._data.joint_stiffness.cpu(), indices=physx_env_ids.cpu())
 
     def write_joint_damping_to_sim(
-        self, damping: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self,
+        damping: torch.Tensor | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Write joint damping into the simulation.
 
@@ -268,13 +272,13 @@ class Articulation(RigidObject):
         # set into simulation
         self.root_physx_view.set_dof_dampings(self._data.joint_damping.cpu(), indices=physx_env_ids.cpu())
 
-    def write_joint_torque_limit_to_sim(
+    def write_joint_effort_limit_to_sim(
         self,
-        limits: torch.Tensor,
+        limits: torch.Tensor | float,
         joint_ids: Sequence[int] | None = None,
         env_ids: Sequence[int] | None = None,
     ):
-        """Write joint torque limits into the simulation.
+        """Write joint effort limits into the simulation.
 
         Args:
             limits: Joint torque limits. Shape is ``(len(env_ids), len(joint_ids))``.
@@ -289,11 +293,64 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # move tensor to cpu if needed
+        if isinstance(limits, torch.Tensor):
+            limits = limits.cpu()
         # set into internal buffers
         torque_limit_all = self.root_physx_view.get_dof_max_forces()
         torque_limit_all[env_ids, joint_ids] = limits
         # set into simulation
         self.root_physx_view.set_dof_max_forces(torque_limit_all.cpu(), indices=physx_env_ids.cpu())
+
+    def write_joint_armature_to_sim(
+        self,
+        armature: torch.Tensor | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint armature into the simulation.
+
+        Args:
+            armature: Joint armature. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # set into internal buffers
+        self._data.joint_armature[env_ids, joint_ids] = armature
+        # set into simulation
+        self.root_physx_view.set_dof_armatures(self._data.joint_armature.cpu(), indices=physx_env_ids.cpu())
+
+    def write_joint_friction_to_sim(
+        self,
+        joint_friction: torch.Tensor | float,
+        joint_ids: Sequence[int] | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint friction into the simulation.
+
+        Args:
+            joint_friction: Joint friction. Shape is ``(len(env_ids), len(joint_ids))``.
+            joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the joint torque limits for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # set into internal buffers
+        self._data.joint_friction[env_ids, joint_ids] = joint_friction
+        # set into simulation
+        self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
 
     """
     Operations - State.
@@ -435,9 +492,10 @@ class Articulation(RigidObject):
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
+        # log joint information
+        self._log_articulation_joint_info()
 
     def _create_buffers(self):
-        """Create buffers for storing data."""
         # allocate buffers
         super()._create_buffers()
         # history buffers
@@ -458,6 +516,8 @@ class Articulation(RigidObject):
         self._data.joint_effort_target = torch.zeros_like(self._data.joint_pos)
         self._data.joint_stiffness = torch.zeros_like(self._data.joint_pos)
         self._data.joint_damping = torch.zeros_like(self._data.joint_pos)
+        self._data.joint_armature = torch.zeros_like(self._data.joint_pos)
+        self._data.joint_friction = torch.zeros_like(self._data.joint_pos)
         # -- joint commands (explicit)
         self._data.computed_torque = torch.zeros_like(self._data.joint_pos)
         self._data.applied_torque = torch.zeros_like(self._data.joint_pos)
@@ -517,16 +577,20 @@ class Articulation(RigidObject):
                     f"No joints found for actuator group: {actuator_name} with joint name expression:"
                     f" {actuator_cfg.joint_names_expr}."
                 )
-            # for efficiency avoid indexing when over all indices
-            if len(joint_names) == self.num_joints:
-                joint_ids = slice(None)
             # create actuator collection
+            # note: for efficiency avoid indexing when over all indices
+            sim_stiffness, sim_damping = self.root_view.get_gains(joint_indices=joint_ids)
             actuator: ActuatorBase = actuator_cfg.class_type(
                 cfg=actuator_cfg,
                 joint_names=joint_names,
-                joint_ids=joint_ids,
+                joint_ids=slice(None) if len(joint_names) == self.num_joints else joint_ids,
                 num_envs=self.root_view.count,
                 device=self.device,
+                stiffness=sim_stiffness,
+                damping=sim_damping,
+                armature=self.root_view.get_armatures(joint_indices=joint_ids),
+                friction=self.root_view.get_friction_coefficients(joint_indices=joint_ids),
+                effort_limit=self.root_view.get_max_efforts(joint_indices=joint_ids),
             )
             # log information on actuator groups
             carb.log_info(
@@ -541,13 +605,17 @@ class Articulation(RigidObject):
                 # the gains and limits are set into the simulation since actuator model is implicit
                 self.write_joint_stiffness_to_sim(actuator.stiffness, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(actuator.damping, joint_ids=actuator.joint_indices)
-                self.write_joint_torque_limit_to_sim(actuator.effort_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_effort_limit_to_sim(actuator.effort_limit, joint_ids=actuator.joint_indices)
+                self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
+                self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
             else:
                 # the gains and limits are processed by the actuator model
                 # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
                 self.write_joint_stiffness_to_sim(0.0, joint_ids=actuator.joint_indices)
                 self.write_joint_damping_to_sim(0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_torque_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
+                self.write_joint_effort_limit_to_sim(1.0e9, joint_ids=actuator.joint_indices)
+                self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
+                self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -601,3 +669,39 @@ class Articulation(RigidObject):
                 # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
                 if hasattr(actuator, "gear_ratio"):
                     self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+
+    """
+    Internal helpers -- Debugging.
+    """
+
+    def _log_articulation_joint_info(self):
+        """Log information about the articulation's simulated joints."""
+        # read out all joint parameters from simulation
+        gains = self.root_view.get_gains(indices=[0])
+        stiffnesses, dampings = gains[0].squeeze(0).tolist(), gains[1].squeeze(0).tolist()
+        armatures = self.root_view.get_armatures(indices=[0]).squeeze(0).tolist()
+        frictions = self.root_view.get_friction_coefficients(indices=[0]).squeeze(0).tolist()
+        effort_limits = self.root_view.get_max_efforts(indices=[0]).squeeze(0).tolist()
+        pos_limits = self.root_view.get_dof_limits()[0].squeeze(0).tolist()
+        # create table for term information
+        table = PrettyTable(float_format=".3f")
+        table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
+        table.field_names = ["Index", "Name", "Stiffness", "Damping", "Armature", "Friction", "Effort Limit", "Limits"]
+        # set alignment of table columns
+        table.align["Name"] = "l"
+        # add info on each term
+        for index, name in enumerate(self.joint_names):
+            table.add_row(
+                [
+                    index,
+                    name,
+                    stiffnesses[index],
+                    dampings[index],
+                    armatures[index],
+                    frictions[index],
+                    effort_limits[index],
+                    pos_limits[index],
+                ]
+            )
+        # convert table to string
+        carb.log_info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())

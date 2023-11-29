@@ -176,8 +176,8 @@ class DCMotor(IdealPDActuator):
     cfg: DCMotorCfg
     """The configuration for the actuator model."""
 
-    def __init__(self, cfg: DCMotorCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str):
-        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
+    def __init__(self, cfg: DCMotorCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
         # parse configuration
         if self.cfg.saturation_effort is not None:
             self._saturation_effort = self.cfg.saturation_effort
@@ -185,6 +185,8 @@ class DCMotor(IdealPDActuator):
             self._saturation_effort = torch.inf
         # prepare joint vel buffer for max effort computation
         self._joint_vel = torch.zeros_like(self.computed_effort)
+        # create buffer for zeros effort
+        self._zeros_effort = torch.zeros_like(self.computed_effort)
         # check that quantities are provided
         if self.cfg.velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
@@ -209,10 +211,10 @@ class DCMotor(IdealPDActuator):
         # compute torque limits
         # -- max limit
         max_effort = self.cfg.saturation_effort * (1.0 - self._joint_vel / self.velocity_limit)
-        max_effort = torch.clip(max_effort, min=0.0, max=self.effort_limit)
+        max_effort = torch.clip(max_effort, min=self._zeros_effort, max=self.effort_limit)
         # -- min limit
         min_effort = self.cfg.saturation_effort * (-1.0 - self._joint_vel / self.velocity_limit)
-        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=0.0)
+        min_effort = torch.clip(min_effort, min=-self.effort_limit, max=self._zeros_effort)
 
         # clip the torques based on the motor limits
         return torch.clip(effort, min=min_effort, max=max_effort)

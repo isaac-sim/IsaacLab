@@ -21,7 +21,7 @@ class ActuatorBaseCfg:
     class_type: type[ActuatorBase] = MISSING
     """The associated actuator class.
 
-    The class should inherit from :class:`omni.isaac.orbit.actuators.actuator_base.ActuatorBase`.
+    The class should inherit from :class:`omni.isaac.orbit.actuators.ActuatorBase`.
     """
 
     joint_names_expr: list[str] = MISSING
@@ -34,7 +34,7 @@ class ActuatorBaseCfg:
     effort_limit: float | None = None
     """Force/Torque limit of the joints in the group. Defaults to :obj:`None`.
 
-    If :obj:`None`, the limit is set to infinity.
+    If :obj:`None`, the limit is set to the value specified in the USD joint prim.
     """
 
     velocity_limit: float | None = None
@@ -46,13 +46,25 @@ class ActuatorBaseCfg:
     stiffness: dict[str, float] | float | None = MISSING
     """Stiffness gains (also known as p-gain) of the joints in the group.
 
-    If :obj:`None`, the stiffness is set to 0.
+    If :obj:`None`, the stiffness is set to the value from the USD joint prim.
     """
 
     damping: dict[str, float] | float | None = MISSING
     """Damping gains (also known as d-gain) of the joints in the group.
 
-    If :obj:`None`, the damping is set to 0.
+    If :obj:`None`, the damping is set to the value from the USD joint prim.
+    """
+
+    armature: dict[str, float] | float | None = None
+    """Armature of the joints in the group.
+
+    If :obj:`None`, the armature is set to the value from the USD joint prim.
+    """
+
+    friction: dict[str, float] | float | None = None
+    """Joint friction of the joints in the group.
+
+    If :obj:`None`, the joint friction is set to the value from the USD joint prim.
     """
 
 

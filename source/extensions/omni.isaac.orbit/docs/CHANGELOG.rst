@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.9.53 (2023-11-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the behavior of passing :obj:`None` to the :class:`omni.isaac.orbit.actuators.ActuatorBaseCfg`
+  class. Earlier, they were resolved to fixed default values. Now, they imply that the values are loaded
+  from the USD joint drive configuration.
+
+Added
+^^^^^
+
+* Added setting of joint armature and friction quantities to the articulation class.
+
+
 0.9.52 (2023-11-29)
 ~~~~~~~~~~~~~~~~~~~
 

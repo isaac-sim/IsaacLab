@@ -42,10 +42,8 @@ class ActuatorNetLSTM(DCMotor):
     cfg: ActuatorNetLSTMCfg
     """The configuration of the actuator model."""
 
-    def __init__(
-        self, cfg: ActuatorNetLSTMCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str
-    ):
-        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
+    def __init__(self, cfg: ActuatorNetLSTMCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
@@ -64,6 +62,10 @@ class ActuatorNetLSTM(DCMotor):
         layer_shape_per_env = (num_layers, self._num_envs, self.num_joints, hidden_dim)
         self.sea_hidden_state_per_env = self.sea_hidden_state.view(layer_shape_per_env)
         self.sea_cell_state_per_env = self.sea_cell_state.view(layer_shape_per_env)
+
+    """
+    Operations.
+    """
 
     def reset(self, env_ids: Sequence[int]):
         # reset the hidden and cell states for the specified environments
@@ -119,10 +121,8 @@ class ActuatorNetMLP(DCMotor):
     cfg: ActuatorNetMLPCfg
     """The configuration of the actuator model."""
 
-    def __init__(
-        self, cfg: ActuatorNetMLPCfg, joint_names: list[str], joint_ids: list[int], num_envs: int, device: str
-    ):
-        super().__init__(cfg, joint_names, joint_ids, num_envs, device)
+    def __init__(self, cfg: ActuatorNetMLPCfg, *args, **kwargs):
+        super().__init__(cfg, *args, **kwargs)
 
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
@@ -134,6 +134,10 @@ class ActuatorNetMLP(DCMotor):
             self._num_envs, history_length, self.num_joints, device=self._device
         )
         self._joint_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
+
+    """
+    Operations.
+    """
 
     def reset(self, env_ids: Sequence[int]):
         # reset the history for the specified environments
