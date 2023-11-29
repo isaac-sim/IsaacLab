@@ -12,8 +12,11 @@ For more information on Omniverse Nucleus:
 https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus
 """
 
+from __future__ import annotations
+
 import io
 import os
+import tempfile
 from typing_extensions import Literal
 
 import carb
@@ -58,6 +61,53 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
         return 2
     else:
         return 0
+
+
+def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = True) -> str:
+    """Retrieves the path to a file on the Nucleus Server or locally.
+
+    If the file exists locally, then the absolute path to the file is returned.
+    If the file exists on the Nucleus Server, then the file is downloaded to the local machine
+    and the absolute path to the file is returned.
+
+    Args:
+        path: The path to the file.
+        download_dir: The directory where the file should be downloaded. Defaults to None, in which
+            case the file is downloaded to the system's temporary directory.
+        force_download: Whether to force download the file from the Nucleus Server. This will overwrite
+            the local file if it exists. Defaults to True.
+
+    Returns:
+        The path to the file on the local machine.
+
+    Raises:
+        FileNotFoundError: When the file not found locally or on Nucleus Server.
+        RuntimeError: When the file cannot be copied from the Nucleus Server to the local machine. This
+            can happen when the file already exists locally and :attr:`force_download` is set to False.
+    """
+    # check file status
+    file_status = check_file_path(path)
+    if file_status == 1:
+        return os.path.abspath(path)
+    elif file_status == 2:
+        # resolve download directory
+        if download_dir is None:
+            download_dir = tempfile.gettempdir()
+        else:
+            download_dir = os.path.abspath(download_dir)
+        # create download directory if it does not exist
+        if not os.path.exists(download_dir):
+            os.makedirs(download_dir)
+        # download file in temp directory using os
+        file_name = os.path.basename(omni.client.break_url(path).path)
+        target_path = os.path.join(download_dir, file_name)
+        # copy file to local machine
+        result = omni.client.copy(path, target_path)
+        if result != omni.client.Result.OK and not force_download:
+            raise RuntimeError(f"Unable to copy file: '{path}'. File already exists locally at: {target_path}")
+        return os.path.abspath(target_path)
+    else:
+        raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
 def read_file(path: str) -> io.BytesIO:

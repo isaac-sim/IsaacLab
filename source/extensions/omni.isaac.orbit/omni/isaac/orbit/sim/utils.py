@@ -123,11 +123,14 @@ def apply_nested(func: Callable) -> Callable:
     The function iterates over the provided prim path and all its children to apply input function
     to all prims under the specified prim path.
 
-    Note:
-        If the function succeeds to apply to a prim, it will not look at the children of that prim.
-        This is based on the physics behavior that nested schemas are not allowed. For example, a parent prim
-        and its child prim cannot both have a rigid-body schema applied on them, or it is not possible to
-        have nested articulations.
+    If the function succeeds to apply to a prim, it will not look at the children of that prim.
+    This is based on the physics behavior that nested schemas are not allowed. For example, a parent prim
+    and its child prim cannot both have a rigid-body schema applied on them, or it is not possible to
+    have nested articulations.
+
+    While traversing the prims under the specified prim path, the function will throw a warning if it
+    does not succeed to apply the function to any prim. This is because the user may have intended to
+    apply the function to a prim that does not have valid attributes, or the prim may be an instanced prim.
 
     Args:
         func: The function to apply to all prims under a specified prim-path. The function
@@ -156,6 +159,9 @@ def apply_nested(func: Callable) -> Callable:
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+        # add iterable to check if property was applied on any of the prims
+        count_success = 0
+        instanced_prim_paths = []
         # iterate over all prims under prim-path
         all_prims = [prim]
         while len(all_prims) > 0:
@@ -163,10 +169,8 @@ def apply_nested(func: Callable) -> Callable:
             child_prim = all_prims.pop(0)
             child_prim_path = child_prim.GetPath().pathString  # type: ignore
             # check if prim is a prototype
-            # note: we prefer throwing a warning instead of ignoring the prim since the user may
-            #   have intended to set properties on the prototype prim.
             if child_prim.IsInstance():
-                carb.log_warn(f"Cannot perform '{func.__name__}' on instanced prim: '{child_prim_path}'")
+                instanced_prim_paths.append(child_prim_path)
                 continue
             # set properties
             success = func(child_prim_path, *args, **kwargs)
@@ -174,6 +178,17 @@ def apply_nested(func: Callable) -> Callable:
             # this is based on the physics behavior that nested schemas are not allowed
             if not success:
                 all_prims += child_prim.GetChildren()
+            else:
+                count_success += 1
+        # check if we were successful in applying the function to any prim
+        if count_success == 0:
+            carb.log_warn(
+                f"Could not perform '{func.__name__}' on any prims under: '{prim_path}'."
+                " This might be because of the following reasons:"
+                "\n\t(1) The desired attribute does not exist on any of the prims."
+                "\n\t(2) The desired attribute exists on an instanced prim."
+                f"\n\t\tDiscovered list of instanced prim paths: {instanced_prim_paths}"
+            )
 
     return wrapper
 
@@ -208,7 +223,7 @@ def clone(func: Callable) -> Callable:
         is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
 
         # resolve matching prims for source prim path expression
-        if is_regex_expression:
+        if is_regex_expression and root_path != "":
             source_prim_paths = prim_utils.find_matching_prim_paths(root_path)
             # if no matching prims are found, raise an error
             if len(source_prim_paths) == 0:

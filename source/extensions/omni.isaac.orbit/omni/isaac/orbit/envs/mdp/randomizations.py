@@ -240,6 +240,9 @@ def reset_joints_by_scale(
     # scale these values randomly
     joint_pos *= sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
+    # clamp joint pos to limits
+    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
+    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
@@ -266,6 +269,9 @@ def reset_joints_by_offset(
     # bias these values randomly
     joint_pos += sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel += sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
+    # clamp joint pos to limits
+    joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
+    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
@@ -273,15 +279,20 @@ def reset_joints_by_offset(
 
 def reset_scene_to_default(env: BaseEnv, env_ids: torch.Tensor):
     """Reset the scene to the default state specified in the scene configuration."""
-    # root states
-    for rigid_object in env.scene.rigid_objects.values() + env.scene.articulations.values():
+    # rigid bodies
+    for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
         default_root_state = rigid_object.data.default_root_state[env_ids].clone()
         default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         rigid_object.write_root_state_to_sim(default_root_state, env_ids=env_ids)
-    # joint states
+    # articulations
     for articulation_asset in env.scene.articulations.values():
+        # obtain default and deal with the offset for env origins
+        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
+        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+        # set into the physics simulation
+        articulation_asset.write_root_state_to_sim(default_root_state, env_ids=env_ids)
         # obtain default joint positions
         default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
         default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()

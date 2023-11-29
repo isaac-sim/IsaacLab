@@ -54,8 +54,8 @@ class RigidBodyPropertiesCfg:
 
     For more information on kinematic bodies, please refer to the `documentation <https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies>`_.
     """
-    disable_gravity: bool | None = False
-    """Disable gravity for the actor. Defaults to False."""
+    disable_gravity: bool | None = None
+    """Disable gravity for the actor."""
     linear_damping: float | None = None
     """Linear damping for the body."""
     angular_damping: float | None = None

@@ -26,14 +26,14 @@ General.
 """
 
 
-def alive_bonus(env: RLTaskEnv) -> torch.Tensor:
+def is_alive(env: RLTaskEnv) -> torch.Tensor:
     """Reward for being alive."""
-    return ~env.reset_buf * 1.0
+    return (~env.termination_manager.terminated).float()
 
 
-def termination_penalty(env: RLTaskEnv) -> torch.Tensor:
+def is_terminated(env: RLTaskEnv) -> torch.Tensor:
     """Penalize terminated episodes that don't correspond to episodic timeouts."""
-    return env.reset_buf * (~env.termination_manager.time_outs)
+    return env.termination_manager.terminated.float()
 
 
 """
@@ -175,6 +175,11 @@ def applied_torque_limits(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntit
 def action_rate_l2(env: RLTaskEnv) -> torch.Tensor:
     """Penalize the rate of change of the actions using L2-kernel."""
     return torch.sum(torch.square(env.action_manager.action - env.action_manager.prev_action), dim=1)
+
+
+def action_l2(env: RLTaskEnv) -> torch.Tensor:
+    """Penalize the actions using L2-kernel."""
+    return torch.sum(torch.square(env.action_manager.action), dim=1)
 
 
 """

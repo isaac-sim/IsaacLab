@@ -208,6 +208,8 @@ class AppLauncher:
         self._create_app()
         # Load IsaacSim extensions
         self._load_extensions()
+        # Hide the stop button in the toolbar
+        self._hide_stop_button()
 
     """
     Properties.
@@ -561,8 +563,6 @@ class AppLauncher:
         # add orbit modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
-        # hide the stop button in the toolbar
-        self._hide_stop_button()
 
     def _load_extensions(self):
         """Load correct extensions based on AppLauncher's resolved config member variables."""
@@ -648,13 +648,20 @@ class AppLauncher:
             )
 
     def _hide_stop_button(self):
-        """Hide the stop button in the toolbar."""
-        import omni.kit.widget.toolbar
+        """Hide the stop button in the toolbar.
 
-        # grey out the stop button because we don't want to stop the simulation manually in standalone mode
-        toolbar = omni.kit.widget.toolbar.get_instance()
-        play_button_group = toolbar._builtin_tools._play_button_group  # type: ignore
-        if play_button_group is not None:
-            play_button_group._stop_button.visible = False  # type: ignore
-            play_button_group._stop_button.enabled = False  # type: ignore
-            play_button_group._stop_button = None  # type: ignore
+        For standalone executions, having a stop button is confusing since it invalidates the whole simulation.
+        Thus, we hide the button so that users don't accidentally click it.
+        """
+        # when we are truly headless, then we can't import the widget toolbar
+        # thus, we only hide the stop button when we are not headless (i.e. GUI is enabled)
+        if self._livestream >= 1 or not self._headless:
+            import omni.kit.widget.toolbar
+
+            # grey out the stop button because we don't want to stop the simulation manually in standalone mode
+            toolbar = omni.kit.widget.toolbar.get_instance()
+            play_button_group = toolbar._builtin_tools._play_button_group  # type: ignore
+            if play_button_group is not None:
+                play_button_group._stop_button.visible = False  # type: ignore
+                play_button_group._stop_button.enabled = False  # type: ignore
+                play_button_group._stop_button = None  # type: ignore

@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.9.52 (2023-11-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the warning print in :meth:`omni.isaac.orbit.sim.utils.apply_nested` method
+  to be more descriptive. Earlier, it was printing a warning for every instanced prim.
+  Now, it only prints a warning if it could not apply the attribute to any of the prims.
+
+Added
+^^^^^
+
+* Added the method :meth:`omni.isaac.orbit.utils.assets.retrieve_file_path` to
+  obtain the absolute path of a file on the Nucleus server or locally.
+
+Fixed
+^^^^^
+
+* Fixed hiding of STOP button in the :class:`AppLauncher` class when running the
+  simulation in headless mode.
+* Fixed a bug with :meth:`omni.isaac.orbit.sim.utils.clone` failing when the input prim path
+  had no parent (example: "/Table").
+
+
 0.9.51 (2023-11-29)
 ~~~~~~~~~~~~~~~~~~~
 

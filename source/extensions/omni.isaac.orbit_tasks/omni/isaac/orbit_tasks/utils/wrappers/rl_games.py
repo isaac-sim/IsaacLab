@@ -241,6 +241,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
         actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
         # perform environment step
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+
+        # move time out information to the extras dict
+        # note: only useful when `value_bootstrap` is True in the agent configuration
+        extras["time_outs"] = truncated.to(device=self._rl_device)
         # process observations and states
         obs_and_states = self._process_obs(obs_dict)
         # move buffers to rl-device

@@ -87,8 +87,8 @@ def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
         Angles in the range [-pi, pi].
     """
     angles = angles.clone()
-    angles %= 2 * np.pi
-    angles -= 2 * np.pi * (angles > np.pi)
+    angles %= 2 * torch.pi
+    angles -= 2 * torch.pi * (angles > torch.pi)
     return angles
 
 
@@ -418,14 +418,14 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor,
 
     # pitch (y-axis rotation)
     sin_pitch = 2.0 * (q_w * q_y - q_z * q_x)
-    pitch = torch.where(torch.abs(sin_pitch) >= 1, copysign(np.pi / 2.0, sin_pitch), torch.asin(sin_pitch))
+    pitch = torch.where(torch.abs(sin_pitch) >= 1, copysign(torch.pi / 2.0, sin_pitch), torch.asin(sin_pitch))
 
     # yaw (z-axis rotation)
     sin_yaw = 2.0 * (q_w * q_z + q_x * q_y)
     cos_yaw = 1 - 2 * (q_y * q_y + q_z * q_z)
     yaw = torch.atan2(sin_yaw, cos_yaw)
 
-    return roll % (2 * np.pi), pitch % (2 * np.pi), yaw % (2 * np.pi)  # TODO: why not wrap_to_pi here ?
+    return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)  # TODO: why not wrap_to_pi here ?
 
 
 @torch.jit.script
@@ -969,7 +969,7 @@ def random_yaw_orientation(num: int, device: str) -> torch.Tensor:
     """
     roll = torch.zeros(num, dtype=torch.float, device=device)
     pitch = torch.zeros(num, dtype=torch.float, device=device)
-    yaw = 2 * np.pi * torch.rand(num, dtype=torch.float, device=device)
+    yaw = 2 * torch.pi * torch.rand(num, dtype=torch.float, device=device)
 
     return quat_from_euler_xyz(roll, pitch, yaw)
 
@@ -1041,7 +1041,7 @@ def sample_cylinder(
         Sampled tensor of shape :obj:`(*size, 3)`.
     """
     # sample angles
-    angles = (torch.rand(size, device=device) * 2 - 1) * np.pi
+    angles = (torch.rand(size, device=device) * 2 - 1) * torch.pi
     h_min, h_max = h_range
     # add shape
     if isinstance(size, int):

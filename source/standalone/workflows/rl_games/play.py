@@ -48,6 +48,8 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from omni.isaac.orbit.utils.assets import retrieve_file_path
+
 import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
@@ -94,7 +96,7 @@ def main():
         # get path to previous checkpoint
         resume_path = get_checkpoint_path(log_root_path, run_dir, checkpoint_file, other_dirs=["nn"])
     else:
-        resume_path = os.path.abspath(args_cli.checkpoint)
+        resume_path = retrieve_file_path(args_cli.checkpoint)
     # load previously trained model
     agent_cfg["params"]["load_checkpoint"] = True
     agent_cfg["params"]["load_path"] = resume_path
@@ -109,8 +111,6 @@ def main():
     agent: BasePlayer = runner.create_player()
     agent.restore(resume_path)
     agent.reset()
-    # flag for inference
-    is_deterministic = True
 
     # reset environment
     obs = env.reset()
@@ -126,7 +126,7 @@ def main():
             # convert obs to agent format
             obs = agent.obs_to_torch(obs)
             # agent stepping
-            actions = agent.get_action(obs, is_deterministic)
+            actions = agent.get_action(obs, is_deterministic=True)
             # env stepping
             obs, _, dones, _ = env.step(actions)
 
