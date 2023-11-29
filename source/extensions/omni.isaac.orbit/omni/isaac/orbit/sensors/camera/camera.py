@@ -16,7 +16,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
-from pxr import Usd, UsdGeom
+from pxr import UsdGeom
 
 # omni-isaac-orbit
 from omni.isaac.orbit.utils import to_camel_case
@@ -450,7 +450,7 @@ class Camera(SensorBase):
         # since the size of the output data is not known in advance, we leave it as None
         # the memory will be allocated when the buffer() function is called for the first time.
         self._data.output = TensorDict({}, batch_size=self._view.count, device=self.device)
-        self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
+        self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -494,25 +494,10 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # iterate over all cameras
-        prim_tf_all = np.zeros((len(env_ids), 4, 4))
-        for i in env_ids:
-            # obtain corresponding sensor prim
-            sensor_prim = self._sensor_prims[i]
-            # get camera's location in world space
-            prim_tf = sensor_prim.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-            # GfVec datatypes are row vectors that post-multiply matrices to effect transformations,
-            # which implies, for example, that it is the fourth row of a GfMatrix4d that specifies
-            # the translation of the transformation. Thus, we take transpose here to make it post multiply.
-            prim_tf = np.transpose(prim_tf)
-            prim_tf_all[i] = prim_tf
-
-        # extract the position (convert it to SI units-- assumed that stage units is 1.0)
-        self._data.pos_w[env_ids] = torch.tensor(prim_tf_all[:, 0:3, 3], device=self._device, dtype=torch.float32)
-
-        # save quat in world convention
-        quat_opengl = quat_from_matrix(torch.tensor(prim_tf_all[:, 0:3, 0:3], device=self._device, dtype=torch.float32))
-        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat_opengl, origin="opengl", target="world")
+        # get the poses from the view
+        poses, quat = self._view.get_world_poses(env_ids)
+        self._data.pos_w[env_ids] = poses
+        self._data.quat_w_world[env_ids] = convert_orientation_convention(quat, origin="opengl", target="world")
 
     def _create_annotator_data(self):
         """Create the buffers to store the annotator data.

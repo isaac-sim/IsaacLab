@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.9.54 (2023-11-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed pose computation in the :class:`omni.isaac.orbit.sensors.Camera` class to obtain them from XFormPrimView
+  instead of using ``UsdGeomCamera.ComputeLocalToWorldTransform`` method. The latter is not updated correctly
+  during GPU simulation.
+* Fixed initialization of the annotator info in the class :class:`omni.isaac.orbit.sensors.Camera`. Previously
+  all dicts had the same memory address which caused all annotators to have the same info.
+* Fixed the conversion of ``uint32`` warp arrays inside the :meth:`omni.isaac.orbit.utils.array.convert_to_torch`
+  method. PyTorch does not support this type, so it is converted to ``int32`` before converting to PyTorch tensor.
+* Added render call inside :meth:`omni.isaac.orbit.sim.SimulationContext.reset` to initialize Replicator
+  buffers when the simulation is reset.
+
+
 0.9.53 (2023-11-29)
 ~~~~~~~~~~~~~~~~~~~
 

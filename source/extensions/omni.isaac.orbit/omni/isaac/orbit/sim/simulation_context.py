@@ -347,6 +347,14 @@ class SimulationContext(_SimulationContext):
     Operations - Override (standalone)
     """
 
+    def reset(self, soft: bool = False):
+        super().reset(soft=soft)
+        # perform additional rendering steps to warm up replicator buffers
+        # this is only needed for the first time we set the simulation
+        if not soft:
+            for _ in range(2):
+                self.render()
+
     def step(self, render: bool = True):
         """Steps the physics simulation with the pre-defined time-step.
 

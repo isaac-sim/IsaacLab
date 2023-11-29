@@ -58,6 +58,10 @@ def convert_to_torch(
     If ``device`` is :obj:`None`, then the function deduces the current device of the data. For numpy arrays,
     this defaults to "cpu", for torch tensors it is "cpu" or "cuda", and for warp arrays it is "cuda".
 
+    Note:
+        Since PyTorch does not support unsigned integer types, unsigned integer arrays are converted to
+        signed integer arrays. This is done by casting the array to the corresponding signed integer type.
+
     Args:
         array: The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
         dtype: Target data-type for the tensor.
@@ -67,16 +71,18 @@ def convert_to_torch(
         The converted array as torch tensor.
     """
     # Convert array to tensor
+    # if the datatype is not currently supported by torch we need to improvise
+    # supported types are: https://pytorch.org/docs/stable/tensors.html
     if isinstance(array, torch.Tensor):
         tensor = array
     elif isinstance(array, np.ndarray):
-        # if the datatype is not currently supported by torch we need to improvise
-        # supported types are: https://pytorch.org/docs/stable/tensors.html
         if array.dtype == np.uint32:
             array = array.astype(np.int64)
-        # need to deal with object arrays (np.void) separatelyWWW
+        # need to deal with object arrays (np.void) separately
         tensor = torch.from_numpy(array)
     elif isinstance(array, wp.array):
+        if array.dtype == wp.uint32:
+            array = array.view(wp.int32)
         tensor = wp.to_torch(array)
     else:
         tensor = torch.Tensor(array)
