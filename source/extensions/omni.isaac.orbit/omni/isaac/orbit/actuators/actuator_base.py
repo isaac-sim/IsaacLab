@@ -216,8 +216,9 @@ class ActuatorBase(ABC):
                 param[:] = float(cfg_value)
             elif isinstance(cfg_value, dict):
                 # if dict, then parse the regular expression
-                indices, _, values = string_utils.resolve_matching_names_values(param, self.joint_names)
-                param[:, indices] = torch.tensor(values, device=self._device)
+                indices, _, values = string_utils.resolve_matching_names_values(cfg_value, self.joint_names)
+                # note: need to specify type to be safe (e.g. values are ints, but we want floats)
+                param[:, indices] = torch.tensor(values, dtype=torch.float, device=self._device)
             else:
                 raise TypeError(f"Invalid type for parameter value: {type(cfg_value)}. Expected float or dict.")
         elif default_value is not None:
@@ -226,7 +227,7 @@ class ActuatorBase(ABC):
                 param[:] = float(default_value)
             elif isinstance(default_value, torch.Tensor):
                 # if tensor, then use the same tensor for all joints
-                param[:] = default_value
+                param[:] = default_value.float()
             else:
                 raise TypeError(f"Invalid type for default value: {type(default_value)}. Expected float or Tensor.")
         else:

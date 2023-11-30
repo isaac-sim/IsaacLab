@@ -291,13 +291,41 @@ class TestArticulation(unittest.TestCase):
         torch.testing.assert_close(robot.actuators["body"].damping, expected_damping)
 
     def test_setting_gains_from_cfg(self):
-        """Test that gains are loaded from the configuration correctly."""
+        """Test that gains are loaded from the configuration correctly.
+
+        Note: We purposefully give one argument as int and other as float to check that it is handled correctly.
+        """
         # Create articulation
         robot_cfg = ArticulationCfg(
             prim_path="/World/Robot",
             spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd"),
             init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
-            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=2.0)},
+            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10, damping=2.0)},
+        )
+        robot = Articulation(cfg=robot_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # Expected gains
+        expected_stiffness = torch.full((robot.root_view.count, robot.num_joints), 10.0, device=robot.device)
+        expected_damping = torch.full_like(expected_stiffness, 2.0)
+
+        # Check that gains are loaded from USD file
+        torch.testing.assert_close(robot.actuators["body"].stiffness, expected_stiffness)
+        torch.testing.assert_close(robot.actuators["body"].damping, expected_damping)
+
+    def test_setting_gains_from_cfg_dict(self):
+        """Test that gains are loaded from the configuration dictionary correctly.
+
+        Note: We purposefully give one argument as int and other as float to check that it is handled correctly.
+        """
+        # Create articulation
+        robot_cfg = ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Humanoid/humanoid_instanceable.usd"),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
+            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness={".*": 10}, damping={".*": 2.0})},
         )
         robot = Articulation(cfg=robot_cfg)
 
