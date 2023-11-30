@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing utilities for various math operations.
-
-Some of these are imported from the module `omni.isaac.core.utils.torch` for convenience.
-"""
+"""Sub-module containing utilities for various math operations."""
 
 from __future__ import annotations
 
@@ -690,7 +687,7 @@ def is_identity_pose(pos: torch.tensor, rot: torch.tensor) -> bool:
 
 # @torch.jit.script
 def combine_frame_transforms(
-    t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor = None, q12: torch.Tensor = None
+    t01: torch.Tensor, q01: torch.Tensor, t12: torch.Tensor | None = None, q12: torch.Tensor | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Combine transformations between two reference frames into a stationary frame.
 
@@ -701,7 +698,9 @@ def combine_frame_transforms(
         t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).
         q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).
         t12: Position of frame 2 w.r.t. frame 1. Shape is (N, 3).
+            Defaults to None, in which case the position is assumed to be zero.
         q12: Quaternion orientation of frame 2 w.r.t. frame 1 in (w, x, y, z). Shape is (N, 4).
+            Defaults to None, in which case the orientation is assumed to be identity.
 
     Returns:
         A tuple containing the position and orientation of frame 2 w.r.t. frame 0.
@@ -721,9 +720,9 @@ def combine_frame_transforms(
     return t02, q02
 
 
-@torch.jit.script
+# @torch.jit.script
 def subtract_frame_transforms(
-    t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor
+    t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor | None = None, q02: torch.Tensor | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
     r"""Subtract transformations between two reference frames into a stationary frame.
 
@@ -734,7 +733,9 @@ def subtract_frame_transforms(
         t01: Position of frame 1 w.r.t. frame 0. Shape is (N, 3).
         q01: Quaternion orientation of frame 1 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).
         t02: Position of frame 2 w.r.t. frame 0. Shape is (N, 3).
+            Defaults to None, in which case the position is assumed to be zero.
         q02: Quaternion orientation of frame 2 w.r.t. frame 0 in (w, x, y, z). Shape is (N, 4).
+            Defaults to None, in which case the orientation is assumed to be identity.
 
     Returns:
         A tuple containing the position and orientation of frame 2 w.r.t. frame 1.
@@ -742,10 +743,15 @@ def subtract_frame_transforms(
     """
     # compute orientation
     q10 = quat_inv(q01)
-    q12 = quat_mul(q10, q02)
+    if q02 is not None:
+        q12 = quat_mul(q10, q02)
+    else:
+        q12 = q10
     # compute translation
-    t12 = quat_apply(q10, t02 - t01)
-
+    if t02 is not None:
+        t12 = quat_apply(q10, t02 - t01)
+    else:
+        t12 = quat_apply(q10, -t01)
     return t12, q12
 
 
@@ -816,7 +822,7 @@ def apply_delta_pose(
         source_pos: Position of source frame. Shape is (N, 3).
         source_rot: Quaternion orientation of source frame in (w, x, y, z). Shape is (N, 4)..
         delta_pose: Position and orientation displacements. Shape is (N, 6).
-        eps: The tolerance to consider orientation displacement as zero.
+        eps: The tolerance to consider orientation displacement as zero. Defaults to 1.0e-6.
 
     Returns:
         A tuple containing the displaced position and orientation frames.
@@ -864,7 +870,9 @@ def transform_points(
     Args:
         points: Points to transform. Shape is (N, P, 3) or (P, 3).
         pos: Position of the target frame. Shape is (N, 3) or (3,).
+            Defaults to None, in which case the position is assumed to be zero.
         quat: Quaternion orientation of the target frame in (w, x, y, z). Shape is (N, 4) or (4,).
+            Defaults to None, in which case the orientation is assumed to be identity.
 
     Returns:
         Transformed points in the target frame. Shape is (N, P, 3) or (P, 3).
