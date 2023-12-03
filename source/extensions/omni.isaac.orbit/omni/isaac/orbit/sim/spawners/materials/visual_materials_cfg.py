@@ -60,11 +60,12 @@ class MdlFileCfg(VisualMaterialCfg):
 
     NVIDIA Omniverse provides various MDL materials in the NVIDIA Nucleus.
     To use these materials, you can set the path of the material in the nucleus directory
-    using the ``{NVIDIA_NUCLEUS_DIR}`` variable.
+    using the ``{NVIDIA_NUCLEUS_DIR}`` variable. This is internally resolved to the path of the
+    NVIDIA Nucleus directory on the host machine through the attribute
+    :attr:`omni.isaac.orbit.utils.assets.NVIDIA_NUCLEUS_DIR`.
 
-
-    For example, to use the "Brick_Wall_Brown" material, you can set the path to:
-    ``{NVIDIA_NUCLEUS_DIR}/Materials/Brick_Wall_Brown/Brick_Wall_Brown.mdl``.
+    For example, to use the "Aluminum_Anodized" material, you can set the path to:
+    ``{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl``.
     """
     project_uvw: bool | None = None
     """Whether to project the UVW coordinates of the material. Defaults to None.
@@ -73,6 +74,11 @@ class MdlFileCfg(VisualMaterialCfg):
     """
     albedo_brightness: float | None = None
     """Multiplier for the diffuse color of the material. Defaults to None.
+
+    If None, then the default setting in the MDL material will be used.
+    """
+    texture_scale: tuple[float, float] | None = None
+    """The scale of the texture. Defaults to None.
 
     If None, then the default setting in the MDL material will be used.
     """

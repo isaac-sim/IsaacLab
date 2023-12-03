@@ -32,13 +32,13 @@ if nucleus_utils.get_assets_root_path() is None:
     carb.log_error(msg)
     raise RuntimeError(msg)
 
-NVIDIA_NUCLEUS_DIR = nucleus_utils.get_nvidia_asset_root_path()
+NVIDIA_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
 
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
 
-ISAAC_ORBIT_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac/Samples/Orbit"
+ISAAC_ORBIT_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/Samples/Orbit"
 """Path to the `Isaac/Samples/Orbit` directory on the NVIDIA Nucleus Server."""
 
 

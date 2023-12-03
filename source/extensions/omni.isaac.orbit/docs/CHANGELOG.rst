@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.9.55 (2023-12-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Nucleus directory path in the :attr:`omni.isaac.orbit.utils.assets.NVIDIA_NUCLEUS_DIR`.
+  Earlier, it was referring to the ``NVIDIA/Assets`` directory instead of ``NVIDIA``.
+
+
 0.9.54 (2023-11-29)
 ~~~~~~~~~~~~~~~~~~~
 

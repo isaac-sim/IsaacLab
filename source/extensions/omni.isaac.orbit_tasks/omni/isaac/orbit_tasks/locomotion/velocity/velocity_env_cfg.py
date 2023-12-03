@@ -55,6 +55,10 @@ class MySceneCfg(InteractiveSceneCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
+        visual_material=sim_utils.MdlFileCfg(
+            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+            project_uvw=True,
+        ),
         debug_vis=False,
     )
     # robots
@@ -73,6 +77,10 @@ class MySceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+    sky_light = AssetBaseCfg(
+        prim_path="/World/skyLight",
+        spawn=sim_utils.DomeLightCfg(color=(0.13, 0.13, 0.13), intensity=1000.0),
     )
 
 
