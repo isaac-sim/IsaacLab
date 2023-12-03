@@ -101,7 +101,7 @@ def main():
     rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
 
     # Play simulator
-    sim.play()
+    sim.reset()
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view

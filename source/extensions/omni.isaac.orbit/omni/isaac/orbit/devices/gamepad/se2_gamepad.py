@@ -145,7 +145,6 @@ class Se2Gamepad(DeviceBase):
         cur_val = event.value
         if abs(cur_val) < self.dead_zone:
             cur_val = 0
-        print(event)
         # -- left and right stick
         if event.input in self._INPUT_STICK_VALUE_MAPPING:
             direction, axis, value = self._INPUT_STICK_VALUE_MAPPING[event.input]
