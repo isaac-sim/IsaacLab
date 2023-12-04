@@ -1,7 +1,7 @@
 # for building the docs
 sphinx-book-theme==1.0.1
 myst-parser
-sphinxcontrib-bibtex
+sphinxcontrib-bibtex==2.5.0
 autodocsumm
 sphinx-copybutton
 sphinx_design
