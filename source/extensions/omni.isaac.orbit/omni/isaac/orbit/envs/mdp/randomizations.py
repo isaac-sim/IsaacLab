@@ -67,10 +67,10 @@ def randomize_rigid_body_material(
     material_buckets[:, 1].uniform_(*dynamic_friction_range)
     material_buckets[:, 2].uniform_(*restitution_range)
     # create random material assignments based on the total number of shapes: num_assets x num_bodies x num_shapes
-    material_ids = torch.randint(0, num_buckets, (asset.body_view.count, asset.body_view.num_shapes))
+    material_ids = torch.randint(0, num_buckets, (asset.body_physx_view.count, asset.body_physx_view.max_shapes))
     materials = material_buckets[material_ids]
     # resolve the global body indices from the env_ids and the env_body_ids
-    bodies_per_env = asset.body_view.count // num_envs  # - number of bodies per spawned asset
+    bodies_per_env = asset.body_physx_view.count // num_envs  # - number of bodies per spawned asset
     indices = torch.tensor(asset_cfg.body_ids, dtype=torch.int).repeat(len(env_ids), 1)
     indices += env_ids.unsqueeze(1) * bodies_per_env
 
@@ -99,7 +99,7 @@ def add_body_mass(
     masses = asset.body_physx_view.get_masses()
     masses += sample_uniform(*mass_range, masses.shape, device=masses.device)
     # resolve the global body indices from the env_ids and the env_body_ids
-    bodies_per_env = asset.body_view.count // env.num_envs
+    bodies_per_env = asset.body_physx_view.count // env.num_envs
     indices = torch.tensor(asset_cfg.body_ids, dtype=torch.int).repeat(len(env_ids), 1)
     indices += env_ids.unsqueeze(1) * bodies_per_env
 

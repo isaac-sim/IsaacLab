@@ -10,15 +10,15 @@ import torch
 from typing import TYPE_CHECKING, ClassVar, Sequence
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
+import omni.physics.tensors.impl.api as physx
 import warp as wp
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.prims import RigidPrimView, XFormPrimView
+from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom, UsdPhysics
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.terrains.trimesh.utils import make_plane
-from omni.isaac.orbit.utils.math import quat_apply, quat_apply_yaw
+from omni.isaac.orbit.utils.math import convert_quat, quat_apply, quat_apply_yaw
 from omni.isaac.orbit.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
@@ -83,6 +83,10 @@ class RayCaster(SensorBase):
     """
 
     @property
+    def num_instances(self) -> int:
+        return self._view.count
+
+    @property
     def data(self) -> RayCasterData:
         # update sensors if needed
         self._update_outdated_buffers()
@@ -108,29 +112,30 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        # create simulation view
+        self._physics_sim_view = physx.create_simulation_view(self._backend)
+        self._physics_sim_view.set_subspace_roots("/")
         # check if the prim at path is an articulated or rigid prim
         # we do this since for physics-based view classes we can access their data directly
         # otherwise we need to use the xform view class which is slower
-        prim_view_class = None
-        for prim_path in prim_utils.find_matching_prim_paths(self.cfg.prim_path):
-            # get prim at path
-            prim = prim_utils.get_prim_at_path(prim_path)
-            # check if it is a rigid prim
-            if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                prim_view_class = ArticulationView
-            elif prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                prim_view_class = RigidPrimView
-            else:
-                prim_view_class = XFormPrimView
-                carb.log_warn(f"The prim at path {prim_path} is not a physics prim! Using XFormPrimView.")
-            # break the loop
-            break
+        found_supported_prim_class = False
+        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+        if prim is None:
+            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
+        # create view based on the type of prim
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            self._view = self._physics_sim_view.create_articulation_view(self.cfg.prim_path.replace(".*", "*"))
+            found_supported_prim_class = True
+        elif prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            self._view = self._physics_sim_view.create_rigid_body_view(self.cfg.prim_path.replace(".*", "*"))
+            found_supported_prim_class = True
+        else:
+            self._view = XFormPrimView(self.cfg.prim_path, reset_xform_properties=False)
+            found_supported_prim_class = True
+            carb.log_warn(f"The prim at path {prim.GetPath().pathString} is not a physics prim! Using XFormPrimView.")
         # check if prim view class is found
-        if prim_view_class is None:
+        if not found_supported_prim_class:
             raise RuntimeError(f"Failed to find a valid prim view class for the prim paths: {self.cfg.prim_path}")
-        # create a rigid prim view for the sensor
-        self._view = prim_view_class(self.cfg.prim_path, reset_xform_properties=False)
-        self._view.initialize()
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -152,17 +157,17 @@ class RayCaster(SensorBase):
 
             # check if the prim is a plane - handle PhysX plane as a special case
             # if a plane exists then we need to create an infinite mesh that is a plane
-            mesh_prim = prim_utils.get_first_matching_child_prim(
-                mesh_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Plane"
+            mesh_prim = sim_utils.get_first_matching_child_prim(
+                mesh_prim_path, lambda prim: prim.GetTypeName() == "Plane"
             )
             # if we did not find a plane then we need to read the mesh
             if mesh_prim is None:
                 # obtain the mesh prim
-                mesh_prim = prim_utils.get_first_matching_child_prim(
-                    mesh_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh"
+                mesh_prim = sim_utils.get_first_matching_child_prim(
+                    mesh_prim_path, lambda prim: prim.GetTypeName() == "Mesh"
                 )
                 # check if valid
-                if not prim_utils.is_prim_path_valid(mesh_prim_path):
+                if mesh_prim is None or not mesh_prim.IsValid():
                     raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
                 # cast into UsdGeomMesh
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
@@ -210,8 +215,22 @@ class RayCaster(SensorBase):
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
-        pos_w, quat_w = self._view.get_world_poses(env_ids, clone=False)
+        if isinstance(self._view, XFormPrimView):
+            pos_w, quat_w = self._view.get_world_poses(env_ids)
+        elif isinstance(self._view, physx.ArticulationView):
+            pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
+            quat_w = convert_quat(quat_w, to="wxyz")
+        elif isinstance(self._view, physx.RigidBodyView):
+            pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
+            quat_w = convert_quat(quat_w, to="wxyz")
+        else:
+            raise RuntimeError(f"Unsupported view type: {type(self._view)}")
+        # note: we clone here because we are read-only operations
+        pos_w = pos_w.clone()
+        quat_w = quat_w.clone()
+        # apply drift
         pos_w += self.drift[env_ids]
+        # store the poses
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 

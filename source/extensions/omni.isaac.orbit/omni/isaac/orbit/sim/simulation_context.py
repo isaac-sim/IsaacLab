@@ -559,12 +559,13 @@ class SimulationContext(_SimulationContext):
         # check if the simulation is stopped
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
-            self.app.print_and_log(
-                "Simulation is stopped. The app will keep running with physics disabled."
-                " Press Ctrl+C or close the window to exit the app."
-            )
-            while self.app.is_running():
-                self.render()
+            if self._has_gui:
+                self.app.print_and_log(
+                    "Simulation is stopped. The app will keep running with physics disabled."
+                    " Press Ctrl+C or close the window to exit the app."
+                )
+                while self.app.is_running():
+                    self.render()
             # make sure that any replicator workflows finish rendering/writing
             if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
                 try:

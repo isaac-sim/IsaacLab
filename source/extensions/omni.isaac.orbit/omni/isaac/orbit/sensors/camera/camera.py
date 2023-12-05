@@ -12,13 +12,12 @@ from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Sequence
 from typing_extensions import Literal
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
 
-# omni-isaac-orbit
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.utils import to_camel_case
 from omni.isaac.orbit.utils.array import convert_to_torch
 from omni.isaac.orbit.utils.math import quat_from_matrix
@@ -93,8 +92,8 @@ class Camera(SensorBase):
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
             )
         # check that spawn was successful
-        matching_prim_paths = prim_utils.find_matching_prim_paths(self.cfg.prim_path)
-        if len(matching_prim_paths) == 0:
+        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        if len(matching_prims) == 0:
             raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
 
         # UsdGeom Camera prim for the sensor
@@ -126,6 +125,10 @@ class Camera(SensorBase):
     """
     Properties
     """
+
+    @property
+    def num_instances(self) -> int:
+        return self._view.count
 
     @property
     def data(self) -> CameraData:
@@ -351,10 +354,12 @@ class Camera(SensorBase):
             device_name = self._device.split(":")[0]
         else:
             device_name = "cpu"
+        # Obtain current stage
+        stage = omni.usd.get_context().get_stage()
         # Convert all encapsulated prims to Camera
         for cam_prim_path in self._view.prim_paths:
             # Get camera prim
-            cam_prim = prim_utils.get_prim_at_path(cam_prim_path)
+            cam_prim = stage.GetPrimAtPath(cam_prim_path)
             # Check if prim is a camera
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")

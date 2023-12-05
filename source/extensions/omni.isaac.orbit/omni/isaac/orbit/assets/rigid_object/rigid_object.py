@@ -9,11 +9,10 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.prims import RigidPrimView
 from pxr import UsdPhysics
 
+import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.math as math_utils
 import omni.isaac.orbit.utils.string as string_utils
 
@@ -40,10 +39,10 @@ class RigidObject(AssetBase):
 
     .. note::
 
-        For users familiar with Isaac Sim, they can use the :attr:`root_view` and :attr:`body_view` attributes
-        to access the rigid body views. These views are wrappers around the PhysX rigid body handles. However,
-        for advanced users who have a deep understanding of PhysX SDK and TensorAPI, they can use the
-        :attr:`root_physx_view` and :attr:`body_physx_view` attributes to access the rigid body handles directly.
+        For users familiar with Isaac Sim, the PhysX view class API is not the exactly same as Isaac Sim view
+        class API. Similar to Orbit, Isaac Sim wraps around the PhysX view API. However, as of now (2023.1 release),
+        we see a large difference in initializing the view classes in Isaac Sim. This is because the view classes
+        in Isaac Sim perform additional USD-related operations which are slow and also not required.
 
     .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
@@ -66,14 +65,12 @@ class RigidObject(AssetBase):
     """
 
     @property
-    def device(self) -> str:
-        """Memory device for computation."""
-        return self.root_view._device  # pyright: ignore [reportPrivateUsage]
+    def data(self) -> RigidObjectData:
+        return self._data
 
     @property
-    def data(self) -> RigidObjectData:
-        """Data related to articulation."""
-        return self._data
+    def num_instances(self) -> int:
+        return self.root_physx_view.count
 
     @property
     def num_bodies(self) -> int:
@@ -83,38 +80,26 @@ class RigidObject(AssetBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        prim_paths = self.body_view.prim_paths[: self.num_bodies]
+        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
-
-    @property
-    def root_view(self) -> RigidPrimView:
-        """Rigid body view for the asset (Isaac Sim)."""
-        return self._root_view
-
-    @property
-    def body_view(self) -> RigidPrimView:
-        """View for the bodies in the asset (Isaac Sim)."""
-        return self._root_view
 
     @property
     def root_physx_view(self) -> physx.RigidBodyView:
         """Rigid body view for the asset (PhysX).
 
         Note:
-            Use this view with caution! It requires handling of tensors in a specific way and is exposed for
-            advanced users who have a deep understanding of PhysX SDK. Prefer using the Isaac Sim view when possible.
+            Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._root_view._physics_view  # pyright: ignore [reportPrivateUsage]
+        return self._root_physx_view
 
     @property
     def body_physx_view(self) -> physx.RigidBodyView:
         """View for the bodies in the asset (PhysX).
 
         Note:
-            Use this view with caution! It requires handling of tensors in a specific way and is exposed for
-            advanced users who have a deep understanding of PhysX SDK. Prefer using the Isaac Sim view when possible.
+            Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._root_view._physics_view  # pyright: ignore [reportPrivateUsage]
+        return self._body_physx_view
 
     """
     Operations.
@@ -281,7 +266,7 @@ class RigidObject(AssetBase):
             # note: we need to do this complicated indexing since torch doesn't support multi-indexing
             # create global body indices from env_ids and env_body_ids
             # (env_id * total_bodies_per_env) + body_id
-            total_bodies_per_env = self.body_view.count // self.root_view.count
+            total_bodies_per_env = self.body_physx_view.count // self.root_physx_view.count
             indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * total_bodies_per_env
             indices = indices.view(-1)
             # set into internal buffers
@@ -296,26 +281,34 @@ class RigidObject(AssetBase):
     """
 
     def _initialize_impl(self):
-        # find articulation root prims
-        asset_prim_path = prim_utils.find_matching_prim_paths(self.cfg.prim_path)[0]
-        root_prims = prim_utils.get_all_matching_child_prims(
-            asset_prim_path, predicate=lambda a: prim_utils.get_prim_at_path(a).HasAPI(UsdPhysics.RigidBodyAPI)
+        # create simulation view
+        self._physics_sim_view = physx.create_simulation_view(self._backend)
+        self._physics_sim_view.set_subspace_roots("/")
+        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
+        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+        if template_prim is None:
+            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
+        template_prim_path = template_prim.GetPath().pathString
+        # find rigid root prims
+        root_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
         )
         if len(root_prims) != 1:
             raise RuntimeError(
                 f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{asset_prim_path}'."
+                f" Found multiple '{root_prims}' under '{template_prim_path}'."
             )
-        # resolve articulation root prim back into regex expression
-        root_prim_path = prim_utils.get_prim_path(root_prims[0])
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(asset_prim_path) :]
-        # -- object views
-        self._root_view = RigidPrimView(root_prim_path_expr, reset_xform_properties=False)
-        self._root_view.initialize()
+        # resolve root prim back into regex expression
+        root_prim_path = root_prims[0].GetPath().pathString
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        # -- object view
+        self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
+        self._body_physx_view = self._root_physx_view
         # log information about the articulation
         carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        carb.log_info(f"Number of bodies (orbit): {self.num_bodies}")
-        carb.log_info(f"Body names (orbit): {self.body_names}")
+        carb.log_info(f"Number of instances: {self.num_instances}")
+        carb.log_info(f"Number of bodies: {self.num_bodies}")
+        carb.log_info(f"Body names: {self.body_names}")
         # create buffers
         self._create_buffers()
         # process configuration
@@ -324,32 +317,32 @@ class RigidObject(AssetBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants
-        self._ALL_INDICES = torch.arange(self.root_view.count, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES = torch.arange(self.body_view.count, dtype=torch.long, device=self.device)
-        self._GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.root_view.count, 1)
-        self._FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.root_view.count, 1)
+        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+        self._ALL_BODY_INDICES = torch.arange(self.body_physx_view.count, dtype=torch.long, device=self.device)
+        self.GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.num_instances, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, 1)
         # external forces and torques
         self.has_external_wrench = False
-        self._external_force_b = torch.zeros((self.root_view.count, self.num_bodies, 3), device=self.device)
+        self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
         # asset data
         # -- properties
         self._data.body_names = self.body_names
         # -- root states
-        self._data.root_state_w = torch.zeros(self.root_view.count, 13, device=self.device)
+        self._data.root_state_w = torch.zeros(self.num_instances, 13, device=self.device)
         self._data.default_root_state = torch.zeros_like(self._data.root_state_w)
         # -- body states
-        self._data.body_state_w = torch.zeros(self.root_view.count, self.num_bodies, 13, device=self.device)
+        self._data.body_state_w = torch.zeros(self.num_instances, self.num_bodies, 13, device=self.device)
         # -- post-computed
-        self._data.root_vel_b = torch.zeros(self.root_view.count, 6, device=self.device)
-        self._data.projected_gravity_b = torch.zeros(self.root_view.count, 3, device=self.device)
-        self._data.heading_w = torch.zeros(self.root_view.count, device=self.device)
-        self._data.body_acc_w = torch.zeros(self.root_view.count, self.num_bodies, 6, device=self.device)
+        self._data.root_vel_b = torch.zeros(self.num_instances, 6, device=self.device)
+        self._data.projected_gravity_b = torch.zeros(self.num_instances, 3, device=self.device)
+        self._data.heading_w = torch.zeros(self.num_instances, device=self.device)
+        self._data.body_acc_w = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
 
         # history buffers for quantities
         # -- used to compute body accelerations numerically
-        self._last_body_vel_w = torch.zeros(self.root_view.count, self.num_bodies, 6, device=self.device)
+        self._last_body_vel_w = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
@@ -363,7 +356,7 @@ class RigidObject(AssetBase):
             + tuple(self.cfg.init_state.ang_vel)
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self._data.default_root_state = default_root_state.repeat(self.root_view.count, 1)
+        self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
 
     def _update_common_data(self, dt: float):
         """Update common quantities related to rigid objects.
@@ -386,7 +379,7 @@ class RigidObject(AssetBase):
         self._data.root_vel_b[:, 3:6] = math_utils.quat_rotate_inverse(
             self._data.root_quat_w, self._data.root_ang_vel_w
         )
-        self._data.projected_gravity_b[:] = math_utils.quat_rotate_inverse(self._data.root_quat_w, self._GRAVITY_VEC_W)
+        self._data.projected_gravity_b[:] = math_utils.quat_rotate_inverse(self._data.root_quat_w, self.GRAVITY_VEC_W)
         # -- heading direction of root
-        forward_w = math_utils.quat_apply(self._data.root_quat_w, self._FORWARD_VEC_B)
+        forward_w = math_utils.quat_apply(self._data.root_quat_w, self.FORWARD_VEC_B)
         self._data.heading_w[:] = torch.atan2(forward_w[:, 1], forward_w[:, 0])

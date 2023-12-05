@@ -10,6 +10,7 @@ from tensordict import TensorDict
 from typing import TYPE_CHECKING, ClassVar, Sequence
 from typing_extensions import Literal
 
+import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
 
 import omni.isaac.orbit.utils.math as math_utils
@@ -365,12 +366,17 @@ class RayCasterCamera(RayCaster):
         # obtain the poses of the sensors
         # note: clone arg doesn't exist for xform prim view so we need to do this manually
         if isinstance(self._view, XFormPrimView):
-            pos_w_temp, quat_w_temp = self._view.get_world_poses(env_ids)
-            pos_w = pos_w_temp.clone()
-            quat_w = quat_w_temp.clone()
+            pos_w, quat_w = self._view.get_world_poses(env_ids)
+        elif isinstance(self._view, physx.ArticulationView):
+            pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
+            quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+        elif isinstance(self._view, physx.RigidBodyView):
+            pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
+            quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         else:
-            pos_w, quat_w = self._view.get_world_poses(env_ids, clone=True)
-        return pos_w, quat_w
+            raise RuntimeError(f"Unsupported view type: {type(self._view)}")
+        # return the pose
+        return pos_w.clone(), quat_w.clone()
 
     def _compute_camera_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the camera in the world frame.

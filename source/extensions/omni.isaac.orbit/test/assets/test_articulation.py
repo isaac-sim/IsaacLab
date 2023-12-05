@@ -159,7 +159,7 @@ class TestArticulation(unittest.TestCase):
         # Find bodies to apply the force
         body_ids, _ = robot.find_bodies("base")
         # Sample a large force
-        external_wrench_b = torch.zeros(robot.root_view.count, len(body_ids), 6, device=self.sim.device)
+        external_wrench_b = torch.zeros(robot.num_instances, len(body_ids), 6, device=self.sim.device)
         external_wrench_b[..., 1] = 1000.0
 
         # Now we are ready!
@@ -207,7 +207,7 @@ class TestArticulation(unittest.TestCase):
         # Find bodies to apply the force
         body_ids, _ = robot.find_bodies(".*_SHANK")
         # Sample a large force
-        external_wrench_b = torch.zeros(robot.root_view.count, len(body_ids), 6, device=self.sim.device)
+        external_wrench_b = torch.zeros(robot.num_instances, len(body_ids), 6, device=self.sim.device)
         external_wrench_b[..., 1] = 100.0
 
         # Now we are ready!
@@ -268,7 +268,7 @@ class TestArticulation(unittest.TestCase):
             ".*_foot.*": 2.0,
         }
         indices_list, _, values_list = string_utils.resolve_matching_names_values(expected_stiffness, robot.joint_names)
-        expected_stiffness = torch.zeros(robot.root_view.count, robot.num_joints, device=robot.device)
+        expected_stiffness = torch.zeros(robot.num_instances, robot.num_joints, device=robot.device)
         expected_stiffness[:, indices_list] = torch.tensor(values_list, device=robot.device)
         # -- Damping values
         expected_damping = {
@@ -308,7 +308,7 @@ class TestArticulation(unittest.TestCase):
         self.sim.reset()
 
         # Expected gains
-        expected_stiffness = torch.full((robot.root_view.count, robot.num_joints), 10.0, device=robot.device)
+        expected_stiffness = torch.full((robot.num_instances, robot.num_joints), 10.0, device=robot.device)
         expected_damping = torch.full_like(expected_stiffness, 2.0)
 
         # Check that gains are loaded from USD file
@@ -333,7 +333,7 @@ class TestArticulation(unittest.TestCase):
         self.sim.reset()
 
         # Expected gains
-        expected_stiffness = torch.full((robot.root_view.count, robot.num_joints), 10.0, device=robot.device)
+        expected_stiffness = torch.full((robot.num_instances, robot.num_joints), 10.0, device=robot.device)
         expected_damping = torch.full_like(expected_stiffness, 2.0)
 
         # Check that gains are loaded from USD file

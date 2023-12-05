@@ -25,8 +25,8 @@ from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to external force on a legged robot.")
-parser.add_argument("--body", type=str, help="Name of the body to apply force on.")
-parser.add_argument("--force", type=float, help="Force to apply on the body.")
+parser.add_argument("--body", default="base", type=str, help="Name of the body to apply force on.")
+parser.add_argument("--force", default=1000.0, type=float, help="Force to apply on the body.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -78,7 +78,7 @@ def main():
     # Find bodies to apply the force
     body_ids, body_names = robot.find_bodies(args_cli.body)
     # Sample a large force
-    external_wrench_b = torch.zeros(robot.root_view.count, len(body_ids), 6, device=sim.device)
+    external_wrench_b = torch.zeros(robot.num_instances, len(body_ids), 6, device=sim.device)
     external_wrench_b[..., 1] = args_cli.force
 
     # Now we are ready!

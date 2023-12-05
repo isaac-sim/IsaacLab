@@ -98,11 +98,11 @@ def main():
             root_state = rigid_object.data.default_root_state.clone()
             # -- position
             root_state[:, :3] = sample_cylinder(
-                radius=0.5, h_range=(0.15, 0.25), size=rigid_object.root_view.count, device=rigid_object.device
+                radius=0.5, h_range=(0.15, 0.25), size=rigid_object.num_instances, device=rigid_object.device
             )
             # -- orientation: apply yaw rotation
             root_state[:, 3:7] = quat_mul(
-                random_yaw_orientation(rigid_object.root_view.count, rigid_object.device), root_state[:, 3:7]
+                random_yaw_orientation(rigid_object.num_instances, rigid_object.device), root_state[:, 3:7]
             )
             # -- set root state
             rigid_object.write_root_state_to_sim(root_state)

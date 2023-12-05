@@ -95,7 +95,7 @@ def main():
     print("[INFO]: Setup complete...")
 
     # dummy actions
-    actions = torch.rand(robot.root_view.count, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
+    actions = torch.rand(robot.num_instances, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
     has_gripper = args_cli.robot == "franka_panda"
 
     # Define simulation stepping
@@ -114,9 +114,8 @@ def main():
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.reset()
             # reset command
-            actions = (
-                torch.rand(robot.root_view.count, robot.num_joints, device=robot.device) + robot.data.default_joint_pos
-            )
+            actions = torch.rand(robot.num_instances, robot.num_joints, device=robot.device)
+            actions += robot.data.default_joint_pos
             # reset gripper
             if has_gripper:
                 actions[:, -2:] = 0.04

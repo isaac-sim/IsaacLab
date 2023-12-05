@@ -147,9 +147,8 @@ def main():
             actions[:, 2] = 1.0
         # change the arm action
         if ep_step_count % 100:
-            actions[:, 3:10] = (
-                torch.rand(robot.root_view.count, 7, device=robot.device) + robot.data.default_joint_pos[:, 3:10]
-            )
+            actions[:, 3:10] = torch.rand(robot.num_instances, 7, device=robot.device)
+            actions[:, 3:10] += robot.data.default_joint_pos[:, 3:10]
         # apply action
         robot.set_joint_velocity_target(actions[:, :3], joint_ids=[0, 1, 2])
         robot.set_joint_position_target(actions[:, 3:], joint_ids=[3, 4, 5, 6, 7, 8, 9, 10, 11])

@@ -112,8 +112,8 @@ class TestRigidObject(unittest.TestCase):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Sample a large force
-        external_wrench_b = torch.zeros(cube_object.root_view.count, len(body_ids), 6, device=self.sim.device)
-        external_wrench_b[0, 0, 2] = 9.81 * cube_object.root_view.get_masses(indices=[0])
+        external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=self.sim.device)
+        external_wrench_b[0, 0, 2] = 9.81 * cube_object.root_physx_view.get_masses()[0]
 
         # Now we are ready!
         for _ in range(5):

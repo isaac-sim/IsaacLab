@@ -11,13 +11,13 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING, Sequence
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.prims import RigidContactView, RigidPrimView
 from pxr import PhysxSchema
 
+import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.string as string_utils
 from omni.isaac.orbit.markers import VisualizationMarkers
+from omni.isaac.orbit.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -62,7 +62,7 @@ class ContactSensor(SensorBase):
         """Returns: A string containing information about the instance."""
         return (
             f"Contact sensor @ '{self.cfg.prim_path}': \n"
-            f"\tview type         : {self._view.__class__}\n"
+            f"\tview type         : {self.body_physx_view.__class__}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of bodies  : {self.num_bodies}\n"
             f"\tbody names        : {self.body_names}\n"
@@ -71,6 +71,10 @@ class ContactSensor(SensorBase):
     """
     Properties
     """
+
+    @property
+    def num_instances(self) -> int:
+        return self.body_physx_view.count
 
     @property
     def data(self) -> ContactSensorData:
@@ -87,38 +91,26 @@ class ContactSensor(SensorBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies with contact sensors attached."""
-        prim_paths = self._view.prim_paths[: self.num_bodies]
+        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
-
-    @property
-    def body_view(self) -> RigidPrimView:
-        """View for the rigid bodies captured (Isaac Sim)."""
-        return self._view
-
-    @property
-    def contact_view(self) -> RigidContactView:
-        """Contact reporter view for the bodies (Isaac Sim)."""
-        return self._view._contact_view  # pyright: ignore [reportPrivateUsage]
 
     @property
     def body_physx_view(self) -> physx.RigidBodyView:
         """View for the rigid bodies captured (PhysX).
 
         Note:
-            Use this view with caution! It requires handling of tensors in a specific way and is exposed for
-            advanced users who have a deep understanding of PhysX SDK. Prefer using the Isaac Sim view when possible.
+            Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._view._physics_view  # pyright: ignore [reportPrivateUsage]
+        return self._body_physx_view
 
     @property
     def contact_physx_view(self) -> physx.RigidContactView:
         """Contact reporter view for the bodies (PhysX).
 
         Note:
-            Use this view with caution! It requires handling of tensors in a specific way and is exposed for
-            advanced users who have a deep understanding of PhysX SDK. Prefer using the Isaac Sim view when possible.
+            Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._view._contact_view._physics_view  # pyright: ignore [reportPrivateUsage]
+        return self._contact_physx_view
 
     """
     Operations
@@ -163,14 +155,17 @@ class ContactSensor(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
+        # create simulation view
+        self._physics_sim_view = physx.create_simulation_view(self._backend)
+        self._physics_sim_view.set_subspace_roots("/")
         # check that only rigid bodies are selected
-        matching_prim_paths = prim_utils.find_matching_prim_paths(self.cfg.prim_path)
-        num_prim_matches = len(matching_prim_paths) // self._num_envs
+        leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
+        template_prim_path = self._parent_prims[0].GetPath().pathString
         body_names = list()
-        for prim_path in matching_prim_paths[:num_prim_matches]:
-            prim = prim_utils.get_prim_at_path(prim_path)
+        for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
             # check if prim has contact reporter API
             if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+                prim_path = prim.GetPath().pathString
                 body_names.append(prim_path.rsplit("/", 1)[-1])
         # check that there is at least one body with contact reporter API
         if not body_names:
@@ -183,17 +178,12 @@ class ContactSensor(SensorBase):
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
         # construct a new regex expression
         # create a rigid prim view for the sensor
-        self._view = RigidPrimView(
-            prim_paths_expr=body_names_regex,
-            reset_xform_properties=False,
-            track_contact_forces=True,
-            contact_filter_prim_paths_expr=self.cfg.filter_prim_paths_expr,
-            prepare_contact_sensors=False,
-            disable_stablization=True,
+        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex.replace(".*", "*"))
+        self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
+            body_names_regex.replace(".*", "*"), filter_patterns=self.cfg.filter_prim_paths_expr
         )
-        self._view.initialize()
         # resolve the true count of bodies
-        self._num_bodies = self._view.count // self._num_envs
+        self._num_bodies = self.body_physx_view.count // self._num_envs
         # check that contact reporter succeeded
         if self._num_bodies != len(body_names):
             raise RuntimeError(
@@ -225,7 +215,7 @@ class ContactSensor(SensorBase):
             num_shapes = self.contact_physx_view.sensor_count // self._num_bodies
             num_filters = self.contact_physx_view.filter_count
             self._data.force_matrix_w = torch.zeros(
-                self.count, self._num_bodies, num_shapes, num_filters, 3, device=self._device
+                self._num_envs, self._num_bodies, num_shapes, num_filters, 3, device=self._device
             )
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
@@ -255,9 +245,9 @@ class ContactSensor(SensorBase):
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
         # obtain the pose of the sensor origin
         if self.cfg.track_pose:
-            pose = self.body_physx_view.get_transforms()
-            self._data.pos_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, :3]
-            self._data.quat_w[env_ids] = pose.view(-1, self._num_bodies, 7)[env_ids, :, 3:]
+            pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
+            pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
+            self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
         # obtain the air time
         if self.cfg.track_air_time:
             # -- time elapsed since last update

@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.10.0 (2023-12-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the sensor and asset base classes to use the underlying PhysX views instead of Isaac Sim views.
+  Using Isaac Sim classes led to a very high load time (of the order of minutes) when using a scene with
+  many assets. This is because Isaac Sim supports USD paths which are slow and not required.
+
+Added
+^^^^^
+
+* Added faster implementation of USD stage traversal methods inside the :class:`omni.isaac.orbit.sim.utils` module.
+* Added properties :attr:`omni.isaac.orbit.assets.AssetBase.num_instances` and
+  :attr:`omni.isaac.orbit.sensor.SensorBase.num_instances` to obtain the number of instances of the asset
+  or sensor in the simulation respectively.
+
+Removed
+^^^^^^^
+
+* Removed dependencies on Isaac Sim view classes. It is no longer possible to use :attr:`root_view` and
+  :attr:`body_view`. Instead use :attr:`root_physx_view` and :attr:`body_physx_view` to access the underlying
+  PhysX views.
+
+
 0.9.55 (2023-12-03)
 ~~~~~~~~~~~~~~~~~~~
 

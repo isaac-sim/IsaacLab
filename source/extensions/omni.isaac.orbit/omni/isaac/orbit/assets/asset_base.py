@@ -11,9 +11,10 @@ import weakref
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Sequence
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
+
+import omni.isaac.orbit.sim as sim_utils
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -77,8 +78,8 @@ class AssetBase(ABC):
                 orientation=self.cfg.init_state.rot,
             )
         # check that spawn was successful
-        matching_prim_paths = prim_utils.find_matching_prim_paths(self.cfg.prim_path)
-        if len(matching_prim_paths) == 0:
+        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        if len(matching_prims) == 0:
             raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
 
         # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor is called.
@@ -120,9 +121,17 @@ class AssetBase(ABC):
 
     @property
     @abstractmethod
+    def num_instances(self) -> int:
+        """Number of instances of the asset.
+
+        This is equal to the number of asset instances per environment multiplied by the number of environments.
+        """
+        return NotImplementedError
+
+    @property
     def device(self) -> str:
         """Memory device for computation."""
-        return NotImplementedError
+        return self._device
 
     @property
     @abstractmethod
@@ -235,7 +244,15 @@ class AssetBase(ABC):
             called whenever the simulator "plays" from a "stop" state.
         """
         if not self._is_initialized:
+            # obtain simulation related information
+            sim = sim_utils.SimulationContext.instance()
+            if sim is None:
+                raise RuntimeError("SimulationContext is not initialized! Please initialize SimulationContext first.")
+            self._backend = sim.backend
+            self._device = sim.device
+            # initialize the asset
             self._initialize_impl()
+            # set flag
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):

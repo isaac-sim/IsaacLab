@@ -639,9 +639,13 @@ class AppLauncher:
             enable_extension("omni.kit.viewport.bundle")
             # extension for window status bar
             enable_extension("omni.kit.window.status_bar")
-        # enable isaac replicator extension
+        # enable replicator extension
         # note: moved here since it requires to have the viewport extension to be enabled first.
-        enable_extension("omni.replicator.isaac")
+        enable_extension("omni.replicator.core")
+        # enable UI tools
+        # note: we need to always import this even with headless to make
+        #   the module for orbit.envs.ui work
+        enable_extension("omni.isaac.ui")
 
         # set the nucleus directory manually to the 2023.1.0 version
         # TODO: Remove this once the 2023.1.0 version is released

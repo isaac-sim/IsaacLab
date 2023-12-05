@@ -25,7 +25,10 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
 parser.add_argument(
-    "--asset", type=str, default="orbit", help="The asset source location for the robot. Can be: orbit, oige."
+    "--asset",
+    type=str,
+    default="orbit",
+    help="The asset source location for the robot. Can be: orbit, oige, custom asset path.",
 )
 args_cli = parser.parse_args()
 

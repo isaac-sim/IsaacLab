@@ -13,7 +13,6 @@ import re
 from typing import TYPE_CHECKING, Any, Callable
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from omni.isaac.cloner import Cloner
@@ -226,7 +225,7 @@ def clone(func: Callable) -> Callable:
 
         # resolve matching prims for source prim path expression
         if is_regex_expression and root_path != "":
-            source_prim_paths = prim_utils.find_matching_prim_paths(root_path)
+            source_prim_paths = find_matching_prim_paths(root_path)
             # if no matching prims are found, raise an error
             if len(source_prim_paths) == 0:
                 raise RuntimeError(
@@ -241,7 +240,11 @@ def clone(func: Callable) -> Callable:
         prim = func(prim_paths[0], cfg, *args, **kwargs)
         # set the prim visibility
         if hasattr(cfg, "visible"):
-            prim_utils.set_prim_visibility(prim, cfg.visible)
+            imageable = UsdGeom.Imageable(prim)
+            if cfg.visible:
+                imageable.MakeVisible()
+            else:
+                imageable.MakeInvisible()
         # set the semantic annotations
         if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
             # note: taken from replicator scripts.utils.utils.py
@@ -492,3 +495,164 @@ def make_uninstanceable(prim_path: str, stage: Usd.Stage | None = None):
             child_prim.SetInstanceable(False)
         # add children to list
         all_prims += child_prim.GetChildren()
+
+
+"""
+USD Stage traversal.
+"""
+
+
+def get_first_matching_child_prim(
+    prim_path: str, predicate: Callable[[Usd.Prim], bool], stage: Usd.Stage | None = None
+) -> Usd.Prim | None:
+    """Recursively get the first USD Prim at the path string that passes the predicate function
+
+    Args:
+        prim_path: The path of the prim in the stage.
+        predicate: The function to test the prims against. It takes a prim as input and returns a boolean.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The first prim on the path that passes the predicate. If no prim passes the predicate, it returns None.
+    """
+    # get current stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # iterate over all prims under prim-path
+    all_prims = [prim]
+    while len(all_prims) > 0:
+        # get current prim
+        child_prim = all_prims.pop(0)
+        # check if prim passes predicate
+        if predicate(child_prim):
+            return child_prim
+        # add children to list
+        all_prims += child_prim.GetChildren()
+    return None
+
+
+def get_all_matching_child_prims(
+    prim_path: str,
+    predicate: Callable[[Usd.Prim], bool] = lambda _: True,
+    depth: int | None = None,
+    stage: Usd.Stage | None = None,
+) -> list[Usd.Prim]:
+    """Performs a search starting from the root and returns all the prims matching the predicate.
+
+    Args:
+        prim_path: The root prim path to start the search from.
+        predicate: The predicate that checks if the prim matches the desired criteria. It takes a prim as input
+            and returns a boolean. Defaults to a function that always returns True.
+        depth: The maximum depth for traversal, should be bigger than zero if specified.
+            Defaults to None (i.e: traversal happens till the end of the tree).
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        A list containing all the prims matching the predicate.
+    """
+    # get current stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # check if depth is valid
+    if depth is not None and depth <= 0:
+        raise ValueError(f"Depth must be bigger than zero, got {depth}.")
+
+    # iterate over all prims under prim-path
+    # list of tuples (prim, current_depth)
+    all_prims_queue = [(prim, 0)]
+    output_prims = []
+    while len(all_prims_queue) > 0:
+        # get current prim
+        child_prim, current_depth = all_prims_queue.pop(0)
+        # check if prim passes predicate
+        if predicate(child_prim):
+            output_prims.append(child_prim)
+        # add children to list
+        if depth is None or current_depth < depth:
+            all_prims_queue += [(child, current_depth + 1) for child in child_prim.GetChildren()]
+
+    return output_prims
+
+
+def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = None) -> Usd.Prim | None:
+    """Find the first matching prim in the stage based on input regex expression.
+
+    Args:
+        prim_path_regex: The regex expression for prim path.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The first prim that matches input expression. If no prim matches, returns None.
+    """
+    # get current stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
+    pattern = f"^{prim_path_regex}$"
+    compiled_pattern = re.compile(pattern)
+    # obtain matching prim (depth-first search)
+    for prim in stage.Traverse():
+        # check if prim passes predicate
+        if compiled_pattern.match(prim.GetPath().pathString) is not None:
+            return prim
+    return None
+
+
+def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
+    """Find all the matching prims in the stage based on input regex expression.
+
+    Args:
+        prim_path_regex: The regex expression for prim path.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        A list of prims that match input expression.
+    """
+    # get current stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # need to wrap the token patterns in '^' and '$' to prevent matching anywhere in the string
+    tokens = prim_path_regex.split("/")[1:]
+    tokens = [f"^{token}$" for token in tokens]
+    # iterate over all prims in stage (breath-first search)
+    all_prims = [stage.GetPseudoRoot()]
+    output_prims = []
+    for index, token in enumerate(tokens):
+        token_compiled = re.compile(token)
+        for prim in all_prims:
+            for child in prim.GetAllChildren():
+                if token_compiled.match(child.GetName()) is not None:
+                    output_prims.append(child)
+        if index < len(tokens) - 1:
+            all_prims = output_prims
+            output_prims = []
+    return output_prims
+
+
+def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[str]:
+    """Find all the matching prim paths in the stage based on input regex expression.
+
+    Args:
+        prim_path_regex: The regex expression for prim path.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        A list of prim paths that match input expression.
+    """
+    # obtain matching prims
+    output_prims = find_matching_prims(prim_path_regex, stage)
+    # convert prims to prim paths
+    output_prim_paths = []
+    for prim in output_prims:
+        output_prim_paths.append(prim.GetPath().pathString)
+    return output_prim_paths

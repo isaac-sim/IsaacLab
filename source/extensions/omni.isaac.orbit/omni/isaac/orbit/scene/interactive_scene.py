@@ -10,14 +10,13 @@ import torch
 from typing import Any, Sequence
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
-import omni.isaac.core.utils.stage as stage_utils
+import omni.usd
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.version import get_version
 from pxr import PhysxSchema
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.orbit.sensors import FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.orbit.terrains import TerrainImporter, TerrainImporterCfg
@@ -112,12 +111,14 @@ class InteractiveScene:
         """
         # store inputs
         self.cfg = cfg
+        # obtain the current stage
+        self.stage = omni.usd.get_context().get_stage()
         # prepare cloner for environment replication
         self.cloner = GridCloner(spacing=self.cfg.env_spacing)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
-        prim_utils.define_prim(self.env_prim_paths[0], "Xform")
+        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         # obtain major isaac sim version
         isaac_major_version = int(get_version()[2])
         # clone the env xform
@@ -158,7 +159,7 @@ class InteractiveScene:
                 )
         # obtain the current physics scene
         physics_scene_prim_path = None
-        for prim in stage_utils.traverse_stage():
+        for prim in self.stage.Traverse():
             if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
                 physics_scene_prim_path = prim.GetPrimPath()
                 carb.log_info(f"Physics scene prim path: {physics_scene_prim_path}")
@@ -188,12 +189,12 @@ class InteractiveScene:
     @property
     def physics_dt(self) -> float:
         """The physics timestep of the scene."""
-        return SimulationContext.instance().get_physics_dt()  # pyright: ignore [reportOptionalMemberAccess]
+        return sim_utils.SimulationContext.instance().get_physics_dt()  # pyright: ignore [reportOptionalMemberAccess]
 
     @property
     def device(self) -> str:
         """The device on which the scene is created."""
-        return SimulationContext.instance().device  # pyright: ignore [reportOptionalMemberAccess]
+        return sim_utils.SimulationContext.instance().device  # pyright: ignore [reportOptionalMemberAccess]
 
     @property
     def env_ns(self) -> str:
@@ -247,7 +248,7 @@ class InteractiveScene:
         # note: In standalone mode, this method is called in the `step()` method of the simulation context.
         #   So we only need to flush when running in extension mode.
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
+            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
@@ -262,7 +263,7 @@ class InteractiveScene:
         # note: In standalone mode, this method is called in the `step()` method of the simulation context.
         #   So we only need to flush when running in extension mode.
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-            SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
+            sim_utils.SimulationContext.instance().physics_sim_view.flush()  # pyright: ignore [reportOptionalMemberAccess]
 
     def update(self, dt: float) -> None:
         """Update the scene entities.
@@ -370,5 +371,5 @@ class InteractiveScene:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
-                asset_paths = prim_utils.find_matching_prim_paths(asset_cfg.prim_path)
+                asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths

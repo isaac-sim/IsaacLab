@@ -123,7 +123,8 @@ class BaseEnv:
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            with Timer("[INFO]: Time taken for simulation reset"):
+            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+            with Timer("[INFO]: Time taken for simulation start"):
                 self.sim.reset()
             # add timeline event to load managers
             self.load_managers()
@@ -279,9 +280,14 @@ class BaseEnv:
         Returns:
             The seed used for random generator.
         """
-        import omni.replicator.core as rep
+        # set seed for replicator
+        try:
+            import omni.replicator.core as rep
 
-        rep.set_global_seed(seed)
+            rep.set_global_seed(seed)
+        except ModuleNotFoundError:
+            pass
+        # set seed for torch and other libraries
         return torch_utils.set_seed(seed)
 
     def close(self):

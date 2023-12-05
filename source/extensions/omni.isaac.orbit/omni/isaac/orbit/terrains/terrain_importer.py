@@ -10,9 +10,7 @@ import torch
 import trimesh
 from typing import TYPE_CHECKING
 
-import omni.isaac.core.utils.prims as prim_utils
 import warp
-from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -71,7 +69,7 @@ class TerrainImporter:
         """
         # store inputs
         self.cfg = cfg
-        self.device = SimulationContext.instance().device
+        self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
         # create a dict of meshes
         self.meshes = dict()
@@ -246,8 +244,8 @@ class TerrainImporter:
 
         # traverse the prim and get the collision mesh
         # THINK: Should the user specify the collision mesh?
-        mesh_prim = prim_utils.get_first_matching_child_prim(
-            self.cfg.prim_path + f"/{key}", lambda p: prim_utils.get_prim_type_name(p) == "Mesh"
+        mesh_prim = sim_utils.get_first_matching_child_prim(
+            self.cfg.prim_path + f"/{key}", lambda prim: prim.GetTypeName() == "Mesh"
         )
         # check if the mesh is valid
         if mesh_prim is None:

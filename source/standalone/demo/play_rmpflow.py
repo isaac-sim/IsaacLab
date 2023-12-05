@@ -142,8 +142,8 @@ def main():
     print("[INFO]: Setup complete...")
 
     # Create buffers to store actions
-    rmp_commands = torch.zeros(robot.count, rmp_controller.num_actions, device=robot.device)
-    robot_actions = torch.ones(robot.count, robot.num_actions, device=robot.device)
+    rmp_commands = torch.zeros(robot.num_instances, rmp_controller.num_actions, device=robot.device)
+    robot_actions = torch.ones(robot.num_instances, robot.num_actions, device=robot.device)
     has_gripper = robot.cfg.meta_info.tool_num_dof > 0
 
     # Set end effector goals

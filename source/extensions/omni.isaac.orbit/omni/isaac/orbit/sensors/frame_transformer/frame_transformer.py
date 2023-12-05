@@ -9,10 +9,10 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.core.prims import RigidPrimView
+import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.utils.math import (
     combine_frame_transforms,
@@ -151,14 +151,15 @@ class FrameTransformer(SensorBase):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         for frame, prim_path, offset in zip(frames, frame_prim_paths, frame_offsets):
             # Find correct prim
-            matching_prims = prim_utils.find_matching_prim_paths(prim_path)
+            matching_prims = sim_utils.find_matching_prims(prim_path)
             if len(matching_prims) == 0:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching prims were found."
                 )
-            for matching_prim_path in matching_prims:
-                prim = prim_utils.get_prim_at_path(matching_prim_path)
+            for prim in matching_prims:
+                # Get the prim path of the matching prim
+                matching_prim_path = prim.GetPath().pathString
                 # check if it is a rigid prim
                 if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     raise ValueError(
@@ -216,14 +217,16 @@ class FrameTransformer(SensorBase):
         body_names_regex = r"(" + "|".join(self._tracked_body_names) + r")"
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
 
+        # create simulation view
+        self._physics_sim_view = physx.create_simulation_view(self._backend)
+        self._physics_sim_view.set_subspace_roots("/")
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
-        self._frame_view = RigidPrimView(prim_paths_expr=body_names_regex, reset_xform_properties=False)
-        self._frame_view.initialize()
+        self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex.replace(".*", "*"))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly
-        all_prim_paths = self._frame_view.prim_paths
+        all_prim_paths = self._frame_physx_view.prim_paths
 
         # Only need first env as the names and their orderring are the same across environments
         first_env_prim_paths = all_prim_paths[0 : self._num_target_body_frames + 1]
@@ -282,18 +285,14 @@ class FrameTransformer(SensorBase):
 
         # Extract transforms from view - shape is:
         # (the total number of source and target body frames being tracked * self._num_envs, 7)
-        transforms = self._frame_view._physics_view.get_transforms()
+        transforms = self._frame_physx_view.get_transforms()
+        # Convert quaternions as PhysX uses xyzw form
+        transforms[:, 3:] = convert_quat(transforms[:, 3:], to="wxyz")
 
+        # Process source frame transform
         source_frames = transforms[self._source_frame_idxs]
-        target_frames = transforms[self._target_frame_idxs]
-
-        # Convert quaternions as Isaac uses xyzw form
-        source_frames[:, 3:] = convert_quat(source_frames[:, 3:], to="wxyz")
-        target_frames[:, 3:] = convert_quat(target_frames[:, 3:], to="wxyz")
-
         # Only apply offset if the offsets will result in a coordinate frame transform
         if self._apply_source_frame_offset:
-            # Apply offsets for source frame
             source_pos_w, source_rot_w = combine_frame_transforms(
                 source_frames[:, :3],
                 source_frames[:, 3:],
@@ -304,12 +303,12 @@ class FrameTransformer(SensorBase):
             source_pos_w = source_frames[:, :3]
             source_rot_w = source_frames[:, 3:]
 
+        # Process target frame transforms
+        target_frames = transforms[self._target_frame_idxs]
         duplicated_target_frame_pos_w = target_frames[self._duplicate_frame_indices, :3]
         duplicated_target_frame_rot_w = target_frames[self._duplicate_frame_indices, 3:]
-
         # Only apply offset if the offsets will result in a coordinate frame transform
         if self._apply_target_frame_offset:
-            # Apply offsets for target frame
             target_pos_w, target_rot_w = combine_frame_transforms(
                 duplicated_target_frame_pos_w,
                 duplicated_target_frame_rot_w,
@@ -320,8 +319,8 @@ class FrameTransformer(SensorBase):
             target_pos_w = duplicated_target_frame_pos_w
             target_rot_w = duplicated_target_frame_rot_w
 
+        # Compute the transform of the target frame with respect to the source frame
         total_num_frames = len(self._target_frame_names)
-
         target_pos_source, target_rot_source = subtract_frame_transforms(
             source_pos_w.unsqueeze(1).expand(-1, total_num_frames, -1).reshape(-1, 3),
             source_rot_w.unsqueeze(1).expand(-1, total_num_frames, -1).reshape(-1, 4),
@@ -330,7 +329,7 @@ class FrameTransformer(SensorBase):
         )
 
         # Update buffers
-        # NOTE: The frame names / orderring don't change so no need to update them after initialization
+        # note: The frame names / ordering don't change so no need to update them after initialization
         self._data.source_pos_w[:] = source_pos_w.view(-1, 3)
         self._data.source_rot_w[:] = source_rot_w.view(-1, 4)
         self._data.target_pos_w[:] = target_pos_w.view(-1, total_num_frames, 3)

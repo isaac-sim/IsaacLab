@@ -33,7 +33,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
 
         # Set actions for the specific robot type (franka)
         self.actions.body_joint_pos = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["panda_joint.*"], scale=1.0, use_default_offset=True
+            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
         )
         self.actions.finger_joint_pos = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",

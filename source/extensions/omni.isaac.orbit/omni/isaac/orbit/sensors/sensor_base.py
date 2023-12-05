@@ -17,10 +17,10 @@ import weakref
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Sequence
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.app
 import omni.timeline
-from omni.isaac.core.simulation_context import SimulationContext
+
+import omni.isaac.orbit.sim as sim_utils
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
@@ -90,6 +90,14 @@ class SensorBase(ABC):
     """
     Properties
     """
+
+    @property
+    def num_instances(self) -> int:
+        """Number of instances of the sensor.
+
+        This is equal to the number of sensors per environment multiplied by the number of environments.
+        """
+        return self._num_envs
 
     @property
     def device(self) -> str:
@@ -193,15 +201,17 @@ class SensorBase(ABC):
     def _initialize_impl(self):
         """Initializes the sensor-related handles and internal buffers."""
         # Obtain Simulation Context
-        sim = SimulationContext.instance()
-        if sim is not None:
-            self._device = sim.device
-            self._sim_physics_dt = sim.get_physics_dt()
-        else:
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
             raise RuntimeError("Simulation Context is not initialized!")
+        # Obtain device and backend
+        self._device = sim.device
+        self._backend = sim.backend
+        self._sim_physics_dt = sim.get_physics_dt()
         # Count number of environments
         env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        self._num_envs = len(prim_utils.find_matching_prim_paths(env_prim_path_expr))
+        self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
+        self._num_envs = len(self._parent_prims)
         # Boolean tensor indicating whether the sensor data has to be refreshed
         self._is_outdated = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
         # Current timestamp (in seconds)

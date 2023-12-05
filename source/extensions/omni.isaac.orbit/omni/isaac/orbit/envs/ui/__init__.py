@@ -10,12 +10,5 @@ This includes functionalities such as tracking a robot in the simulation,
 toggling different debug visualization tools, and other user-defined functionalities.
 """
 
-# enable the extension for UI elements
-# this only needs to be done once
-from omni.isaac.core.utils.extensions import enable_extension
-
-enable_extension("omni.isaac.ui")
-
-# import all UI elements here
 from .base_env_window import BaseEnvWindow
 from .rl_task_env_window import RLTaskEnvWindow
