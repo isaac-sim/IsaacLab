@@ -112,6 +112,9 @@ class Camera(SensorBase):
                 annotator.detach([render_product_path])
                 annotator = None
 
+        for render_product in self._render_products:
+            render_product.destroy()
+
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         # message for class
@@ -346,6 +349,7 @@ class Camera(SensorBase):
         # Attach the sensor data types to render node
         self._render_product_paths: list[str] = list()
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
+        self._render_products: list = list()
         # Resolve device name
         if "cuda" in self._device:
             device_name = self._device.split(":")[0]
@@ -363,9 +367,12 @@ class Camera(SensorBase):
             self._sensor_prims.append(sensor_prim)
             # Get render product
             # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
-            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
+            render_prod = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
+            self._render_products.append(render_prod)
+            if not isinstance(render_prod, str):
+                render_prod_path = render_prod.path
+            else:
+                render_prod_path = render_prod
             self._render_product_paths.append(render_prod_path)
             # Iterate over each data type and create annotator
             # TODO: This will move out of the loop once Replicator supports multiple render products within a single
