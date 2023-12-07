@@ -42,7 +42,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
             close_command_expr={"panda_finger_.*": 0.0},
         )
         # Set the body name for the end effector
-        self.commands.body_name = "panda_hand"
+        self.commands.object_pose.body_name = "panda_hand"
 
         # Set Cube as object
         self.scene.object = RigidObjectCfg(

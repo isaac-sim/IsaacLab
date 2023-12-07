@@ -12,18 +12,17 @@ from typing import TYPE_CHECKING, Sequence
 
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.managers import CommandTerm
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-
-from .command_generator_base import CommandGeneratorBase
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
 
-    from .command_generator_cfg import NormalVelocityCommandGeneratorCfg, UniformVelocityCommandGeneratorCfg
+    from .commands_cfg import NormalVelocityCommandCfg, UniformVelocityCommandCfg
 
 
-class UniformVelocityCommandGenerator(CommandGeneratorBase):
+class UniformVelocityCommand(CommandTerm):
     r"""Command generator that generates a velocity command in SE(2) from uniform distribution.
 
     The command comprises of a linear velocity in x and y direction and an angular velocity around
@@ -41,10 +40,10 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
 
     """
 
-    cfg: UniformVelocityCommandGeneratorCfg
+    cfg: UniformVelocityCommandCfg
     """The configuration of the command generator."""
 
-    def __init__(self, cfg: UniformVelocityCommandGeneratorCfg, env: BaseEnv):
+    def __init__(self, cfg: UniformVelocityCommandCfg, env: BaseEnv):
         """Initialize the command generator.
 
         Args:
@@ -70,7 +69,7 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
-        msg = "UniformVelocityCommandGenerator:\n"
+        msg = "UniformVelocityCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tHeading command: {self.cfg.heading_command}\n"
@@ -199,7 +198,7 @@ class UniformVelocityCommandGenerator(CommandGeneratorBase):
         return arrow_scale, arrow_quat
 
 
-class NormalVelocityCommandGenerator(UniformVelocityCommandGenerator):
+class NormalVelocityCommand(UniformVelocityCommand):
     """Command generator that generates a velocity command in SE(2) from a normal distribution.
 
     The command comprises of a linear velocity in x and y direction and an angular velocity around
@@ -209,10 +208,10 @@ class NormalVelocityCommandGenerator(UniformVelocityCommandGenerator):
     the configuration. With equal probability, the sign of the individual components is flipped.
     """
 
-    cfg: NormalVelocityCommandGeneratorCfg
+    cfg: NormalVelocityCommandCfg
     """The command generator configuration."""
 
-    def __init__(self, cfg: NormalVelocityCommandGeneratorCfg, env: object):
+    def __init__(self, cfg: NormalVelocityCommandCfg, env: object):
         """Initializes the command generator.
 
         Args:
@@ -227,7 +226,7 @@ class NormalVelocityCommandGenerator(UniformVelocityCommandGenerator):
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
-        msg = "NormalVelocityCommandGenerator:\n"
+        msg = "NormalVelocityCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"

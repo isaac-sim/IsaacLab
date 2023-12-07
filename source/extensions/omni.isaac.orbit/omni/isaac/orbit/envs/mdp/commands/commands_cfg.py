@@ -8,34 +8,13 @@ from __future__ import annotations
 import math
 from dataclasses import MISSING
 
+from omni.isaac.orbit.managers import CommandTermCfg
 from omni.isaac.orbit.utils import configclass
 
-from .command_generator_base import CommandGeneratorBase
-from .null_command_generator import NullCommandGenerator
-from .pose_command_generator import UniformPoseCommandGenerator
-from .position_command_generator import TerrainBasedPositionCommandGenerator
-from .velocity_command_generator import NormalVelocityCommandGenerator, UniformVelocityCommandGenerator
-
-"""
-Base command generator.
-"""
-
-
-@configclass
-class CommandGeneratorBaseCfg:
-    """Configuration for the base command generator."""
-
-    class_type: type[CommandGeneratorBase] = MISSING
-    """The associated command generator class to use.
-
-    The class should inherit from :class:`omni.isaac.orbit.command_generators.command_generator_base.CommandGeneratorBase`.
-    """
-
-    resampling_time_range: tuple[float, float] = MISSING
-    """Time before commands are changed [s]."""
-    debug_vis: bool = False
-    """Whether to visualize debug information. Defaults to False."""
-
+from .null_command import NullCommand
+from .pose_command import UniformPoseCommand
+from .position_command import TerrainBasedPositionCommand
+from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
 """
 Null-command generator.
@@ -43,10 +22,10 @@ Null-command generator.
 
 
 @configclass
-class NullCommandGeneratorCfg(CommandGeneratorBaseCfg):
+class NullCommandCfg(CommandTermCfg):
     """Configuration for the null command generator."""
 
-    class_type: type = NullCommandGenerator
+    class_type: type = NullCommand
 
     def __post_init__(self):
         """Post initialization."""
@@ -60,10 +39,10 @@ Locomotion-specific command generators.
 
 
 @configclass
-class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
+class UniformVelocityCommandCfg(CommandTermCfg):
     """Configuration for the uniform velocity command generator."""
 
-    class_type: type = UniformVelocityCommandGenerator
+    class_type: type = UniformVelocityCommand
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -94,10 +73,10 @@ class UniformVelocityCommandGeneratorCfg(CommandGeneratorBaseCfg):
 
 
 @configclass
-class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
+class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Configuration for the normal velocity command generator."""
 
-    class_type: type = NormalVelocityCommandGenerator
+    class_type: type = NormalVelocityCommand
     heading_command: bool = False  # --> we don't use heading command for normal velocity command.
 
     @configclass
@@ -125,10 +104,10 @@ class NormalVelocityCommandGeneratorCfg(UniformVelocityCommandGeneratorCfg):
 
 
 @configclass
-class UniformPoseCommandGeneratorCfg(CommandGeneratorBaseCfg):
+class UniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type = UniformPoseCommandGenerator
+    class_type: type = UniformPoseCommand
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -151,10 +130,10 @@ class UniformPoseCommandGeneratorCfg(CommandGeneratorBaseCfg):
 
 
 @configclass
-class TerrainBasedPositionCommandGeneratorCfg(CommandGeneratorBaseCfg):
+class TerrainBasedPositionCommandCfg(CommandTermCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_type: type = TerrainBasedPositionCommandGenerator
+    class_type: type = TerrainBasedPositionCommand
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""

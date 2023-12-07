@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.1 (2023-12-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added command manager class with terms defined by :class:`omni.isaac.orbit.managers.CommandTerm`. This
+  allow for multiple types of command generators to be used in the same environment.
+
+
 0.10.0 (2023-12-04)
 ~~~~~~~~~~~~~~~~~~~
 

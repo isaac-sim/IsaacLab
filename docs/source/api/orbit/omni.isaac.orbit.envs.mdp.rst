@@ -25,6 +25,16 @@ Randomization
 .. automodule:: omni.isaac.orbit.envs.mdp.randomizations
     :members:
 
+Commands
+--------
+
+.. automodule:: omni.isaac.orbit.envs.mdp.commands
+
+.. automodule:: omni.isaac.orbit.envs.mdp.commands.commands_cfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
 Rewards
 -------
 

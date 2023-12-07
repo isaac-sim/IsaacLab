@@ -9,24 +9,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
 
-from omni.isaac.orbit.command_generators.command_generator_base import CommandGeneratorBase
+from omni.isaac.orbit.managers import CommandTerm
 
 if TYPE_CHECKING:
-    from .command_generator_cfg import NullCommandGeneratorCfg
+    from .commands_cfg import NullCommandCfg
 
 
-class NullCommandGenerator(CommandGeneratorBase):
+class NullCommand(CommandTerm):
     """Command generator that does nothing.
 
     This command generator does not generate any commands. It is used for environments that do not
     require any commands.
     """
 
-    cfg: NullCommandGeneratorCfg
+    cfg: NullCommandCfg
     """Configuration for the command generator."""
 
     def __str__(self) -> str:
-        msg = "NullCommandGenerator:\n"
+        msg = "NullCommand:\n"
         msg += "\tCommand dimension: N/A\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}"
         return msg
@@ -42,7 +42,7 @@ class NullCommandGenerator(CommandGeneratorBase):
         Raises:
             RuntimeError: No command is generated. Always raises this error.
         """
-        raise RuntimeError("NullCommandGenerator does not generate any commands.")
+        raise RuntimeError("NullCommandTerm does not generate any commands.")
 
     """
     Operations.

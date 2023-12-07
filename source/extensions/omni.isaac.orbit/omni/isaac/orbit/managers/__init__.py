@@ -11,10 +11,12 @@ designed to be modular and can be easily extended to support new functionality.
 """
 
 from .action_manager import ActionManager, ActionTerm
+from .command_manager import CommandManager, CommandTerm
 from .curriculum_manager import CurriculumManager
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import (
     ActionTermCfg,
+    CommandTermCfg,
     CurriculumTermCfg,
     ManagerTermBaseCfg,
     ObservationGroupCfg,

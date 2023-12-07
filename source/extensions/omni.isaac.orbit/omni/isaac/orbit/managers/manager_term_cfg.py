@@ -18,6 +18,7 @@ from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
     from .action_manager import ActionTerm
+    from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
 
 
@@ -69,6 +70,27 @@ class ActionTermCfg:
     This is the name defined in the scene configuration file. See the :class:`InteractiveSceneCfg`
     class for more details.
     """
+
+
+##
+# Command manager.
+##
+
+
+@configclass
+class CommandTermCfg:
+    """Configuration for a command generator term."""
+
+    class_type: type[CommandTerm] = MISSING
+    """The associated command term class to use.
+
+    The class should inherit from :class:`omni.isaac.orbit.managers.command_manager.CommandTerm`.
+    """
+
+    resampling_time_range: tuple[float, float] = MISSING
+    """Time before commands are changed [s]."""
+    debug_vis: bool = False
+    """Whether to visualize debug information. Defaults to False."""
 
 
 ##

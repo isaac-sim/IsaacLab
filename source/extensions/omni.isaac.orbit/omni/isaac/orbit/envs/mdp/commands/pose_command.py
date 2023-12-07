@@ -11,19 +11,18 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.managers import CommandTerm
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz
 
-from .command_generator_base import CommandGeneratorBase
-
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
 
-    from .command_generator_cfg import UniformPoseCommandGeneratorCfg
+    from .commands_cfg import UniformPoseCommandCfg
 
 
-class UniformPoseCommandGenerator(CommandGeneratorBase):
+class UniformPoseCommand(CommandTerm):
     """Command generator for generating pose commands uniformly.
 
     The command generator generates poses by sampling positions uniformly within specified
@@ -42,10 +41,10 @@ class UniformPoseCommandGenerator(CommandGeneratorBase):
 
     """
 
-    cfg: UniformPoseCommandGeneratorCfg
+    cfg: UniformPoseCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: UniformPoseCommandGeneratorCfg, env: BaseEnv):
+    def __init__(self, cfg: UniformPoseCommandCfg, env: BaseEnv):
         """Initialize the command generator class.
 
         Args:
@@ -69,7 +68,7 @@ class UniformPoseCommandGenerator(CommandGeneratorBase):
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
 
     def __str__(self) -> str:
-        msg = "PoseCommandGenerator:\n"
+        msg = "UniformPoseCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         return msg

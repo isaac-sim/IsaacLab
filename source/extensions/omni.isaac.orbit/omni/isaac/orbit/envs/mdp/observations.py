@@ -123,6 +123,6 @@ Commands.
 """
 
 
-def generated_commands(env: RLTaskEnv) -> torch.Tensor:
-    """The generated command from the command generator."""
-    return env.command_manager.command
+def generated_commands(env: RLTaskEnv, command_name: str) -> torch.Tensor:
+    """The generated command from command term in the command manager with the given name."""
+    return env.command_manager.get_command(command_name)

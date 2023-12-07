@@ -13,8 +13,7 @@ from typing import Any, ClassVar, Dict, Sequence, Tuple
 
 from omni.isaac.version import get_version
 
-from omni.isaac.orbit.command_generators import CommandGeneratorBase
-from omni.isaac.orbit.managers import CurriculumManager, RewardManager, TerminationManager
+from omni.isaac.orbit.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 
 from .base_env import BaseEnv, VecEnvObs
 from .rl_task_env_cfg import RLTaskEnvCfg
@@ -121,7 +120,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # -- command manager
-        self.command_manager: CommandGeneratorBase = self.cfg.commands.class_type(self.cfg.commands, self)
+        self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
         # call the parent class to load the managers for observations and actions.
         super().load_managers()

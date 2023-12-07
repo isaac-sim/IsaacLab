@@ -10,7 +10,6 @@ from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.command_generators.command_generator_cfg import NullCommandGeneratorCfg
 from omni.isaac.orbit.envs import RLTaskEnvCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
@@ -88,6 +87,14 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 ##
 # MDP settings
 ##
+
+
+@configclass
+class CommandsCfg:
+    """Command terms for the MDP."""
+
+    # no commands for this MDP
+    null = mdp.NullCommandCfg()
 
 
 @configclass
@@ -211,7 +218,7 @@ class CartpoleEnvCfg(RLTaskEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     # No command generator
-    commands: NullCommandGeneratorCfg = NullCommandGeneratorCfg()
+    commands: CommandsCfg = CommandsCfg()
 
     def __post_init__(self) -> None:
         """Post initialization."""

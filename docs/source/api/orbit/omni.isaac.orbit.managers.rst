@@ -19,6 +19,9 @@
     ActionTermCfg
     RandomizationManager
     RandomizationTermCfg
+    CommandManager
+    CommandTerm
+    CommandTermCfg
     RewardManager
     RewardTermCfg
     TerminationManager
@@ -90,6 +93,21 @@ Randomization Manager
 .. autoclass:: RandomizationTermCfg
     :members:
     :exclude-members: __init__
+
+Command Manager
+---------------
+
+.. autoclass:: CommandManager
+    :members:
+
+.. autoclass:: CommandTerm
+    :members:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: CommandTermCfg
+    :members:
+    :exclude-members: __init__, class_type
+
 
 Reward Manager
 --------------

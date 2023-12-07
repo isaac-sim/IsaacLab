@@ -16,7 +16,6 @@ The following modules are available in the ``omni.isaac.orbit`` extension:
    app
    actuators
    assets
-   command_generators
    controllers
    devices
    envs

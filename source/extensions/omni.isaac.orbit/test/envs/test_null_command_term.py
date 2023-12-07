@@ -18,10 +18,10 @@ simulation_app = SimulationApp(config)
 import unittest
 from collections import namedtuple
 
-from omni.isaac.orbit.command_generators import NullCommandGeneratorCfg
+from omni.isaac.orbit.envs.mdp import NullCommandCfg
 
 
-class TestNullCommandGeneratorCfg(unittest.TestCase):
+class TestNullCommandTerm(unittest.TestCase):
     """Test cases for null command generator."""
 
     def setUp(self) -> None:
@@ -29,24 +29,24 @@ class TestNullCommandGeneratorCfg(unittest.TestCase):
 
     def test_str(self):
         """Test the string representation of the command manager."""
-        cfg = NullCommandGeneratorCfg()
-        command_manager = cfg.class_type(cfg, self.env)
+        cfg = NullCommandCfg()
+        command_term = cfg.class_type(cfg, self.env)
         # print the expected string
         print()
-        print(command_manager)
+        print(command_term)
 
     def test_compute(self):
         """Test the compute function. For null command generator, it does nothing."""
-        cfg = NullCommandGeneratorCfg()
-        command_manager = cfg.class_type(cfg, self.env)
+        cfg = NullCommandCfg()
+        command_term = cfg.class_type(cfg, self.env)
 
         # test the reset function
-        command_manager.reset()
+        command_term.reset()
         # test the compute function
-        command_manager.compute(dt=self.env.dt)
+        command_term.compute(dt=self.env.dt)
         # expect error
         with self.assertRaises(RuntimeError):
-            command_manager.command
+            command_term.command
 
 
 if __name__ == "__main__":

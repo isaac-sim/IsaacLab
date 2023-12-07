@@ -43,8 +43,8 @@ class UR10ReachEnvCfg(ReachEnvCfg):
         )
         # override command generator body
         # end-effector is along x-direction
-        self.commands.body_name = "ee_link"
-        self.commands.ranges.pitch = (math.pi / 2, math.pi / 2)
+        self.commands.ee_pose.body_name = "ee_link"
+        self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
 
 
 @configclass

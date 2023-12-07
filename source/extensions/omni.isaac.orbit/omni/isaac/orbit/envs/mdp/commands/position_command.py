@@ -11,30 +11,29 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 from omni.isaac.orbit.assets import Articulation
+from omni.isaac.orbit.managers import CommandTerm
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import CUBOID_MARKER_CFG
 from omni.isaac.orbit.terrains import TerrainImporter
 from omni.isaac.orbit.utils.math import quat_rotate_inverse, wrap_to_pi, yaw_quat
 
-from .command_generator_base import CommandGeneratorBase
-
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
 
-    from .command_generator_cfg import TerrainBasedPositionCommandGeneratorCfg
+    from .commands_cfg import TerrainBasedPositionCommandCfg
 
 
-class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
+class TerrainBasedPositionCommand(CommandTerm):
     """Command generator that generates position commands based on the terrain.
 
     The position commands are sampled from the terrain mesh and the heading commands are either set
     to point towards the target or are sampled uniformly.
     """
 
-    cfg: TerrainBasedPositionCommandGeneratorCfg
+    cfg: TerrainBasedPositionCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: TerrainBasedPositionCommandGeneratorCfg, env: BaseEnv):
+    def __init__(self, cfg: TerrainBasedPositionCommandCfg, env: BaseEnv):
         """Initialize the command generator class.
 
         Args:
@@ -61,7 +60,7 @@ class TerrainBasedPositionCommandGenerator(CommandGeneratorBase):
         self.metrics["error_heading"] = torch.zeros(self.num_envs, device=self.device)
 
     def __str__(self) -> str:
-        msg = "TerrainBasedPositionCommandGenerator:\n"
+        msg = "TerrainBasedPositionCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"

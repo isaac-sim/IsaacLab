@@ -16,6 +16,7 @@ are used to define the environment through their managers.
 """
 
 from .actions import *  # noqa: F401, F403
+from .commands import *  # noqa: F401, F403
 from .curriculums import *  # noqa: F401, F403
 from .observations import *  # noqa: F401, F403
 from .randomizations import *  # noqa: F401, F403

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from omni.isaac.orbit.command_generators import CommandGeneratorBaseCfg
 from omni.isaac.orbit.utils import configclass
 
 from .base_env_cfg import BaseEnvCfg
@@ -32,5 +31,5 @@ class RLTaskEnvCfg(BaseEnvCfg):
     """Termination settings."""
     curriculum: object = MISSING
     """Curriculum settings."""
-    commands: CommandGeneratorBaseCfg = MISSING
-    """Command generator settings."""
+    commands: object = MISSING
+    """Command settings."""
