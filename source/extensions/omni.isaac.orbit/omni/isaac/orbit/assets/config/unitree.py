@@ -60,6 +60,7 @@ UNITREE_A1_CFG = ArticulationCfg(
             velocity_limit=21.0,
             stiffness=25.0,
             damping=0.5,
+            friction=0.0,
         ),
     },
 )
