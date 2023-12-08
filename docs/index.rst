@@ -39,21 +39,31 @@ For more information about the framework, please refer to the `paper <https://ar
 
 .. toctree::
    :maxdepth: 1
+   :caption: How-to Guides
+
+
+   source/how_to_guides/index
+
+.. toctree::
+   :maxdepth: 1
    :caption: Tutorials (Core)
 
-   source/tutorials/00_empty
-   source/tutorials/01_arms
-   source/tutorials/02_cloner
-   source/tutorials/03_ik_controller
+   source/tutorials/00_sim/empty
+   source/tutorials/00_sim/prims
+   source/tutorials/01_assets/articulation
+   source/tutorials/01_assets/rigid_object
+   source/tutorials/02_scene/scene
 
 .. toctree::
    :hidden:
    :maxdepth: 1
    :caption: Tutorials (Environments)
 
-   source/tutorials_envs/00_gym_env
-   source/tutorials_envs/01_create_env
-   source/tutorials_envs/02_wrappers
+   source/tutorials/03_envs/00_gym_env
+   source/tutorials/03_envs/01_create_base_env
+   source/tutorials/03_envs/02_create_rl_env
+   source/tutorials/03_envs/03_wrappers
+
 
 .. toctree::
    :maxdepth: 2

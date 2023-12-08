@@ -274,9 +274,9 @@ top of the repository:
 
    # Option 1: Using the orbit.sh executable
    # note: this works for both the bundled python and the virtual environment
-   ./orbit.sh -p source/standalone/demo/play_empty.py
+   ./orbit.sh -p source/standalone/demo/00_sim/empty.py
    # Option 2: Using python in your virtual environment
-   python source/standalone/demo/play_empty.py
+   python source/standalone/demo/00_sim/empty.py
 
 The above command should launch the simulator and display a window with a black
 ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal or

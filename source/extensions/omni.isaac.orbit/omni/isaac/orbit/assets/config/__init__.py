@@ -11,6 +11,7 @@ their corresponding asset classes during construction.
 """
 
 from .anymal import *
+from .cartpole import *
 from .franka import *
 from .ridgeback_franka import *
 from .unitree import *

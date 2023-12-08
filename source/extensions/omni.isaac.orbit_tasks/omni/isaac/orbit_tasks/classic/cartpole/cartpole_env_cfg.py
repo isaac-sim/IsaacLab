@@ -5,11 +5,6 @@
 
 import math
 
-from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
-
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.actuators import ImplicitActuatorCfg
-from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.orbit.envs import RLTaskEnvCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
@@ -17,78 +12,18 @@ from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import RewardTermCfg as RewTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.managers import TerminationTermCfg as DoneTerm
-from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.utils import configclass
 
 import omni.isaac.orbit_tasks.classic.cartpole.mdp as mdp
 
-##
-# Scene definition
-##
-
-
-@configclass
-class CartpoleSceneCfg(InteractiveSceneCfg):
-    """Configuration for the cartpole scene."""
-
-    # ground plane
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
-    )
-
-    # robots
-    robot = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                max_linear_velocity=1000.0,
-                max_angular_velocity=1000.0,
-                max_depenetration_velocity=100.0,
-                enable_gyroscopic_forces=True,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
-                solver_position_iteration_count=4,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.001,
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 2.0), joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0}
-        ),
-        actuators={
-            "cart_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["slider_to_cart"],
-                effort_limit=400.0,
-                velocity_limit=100.0,
-                stiffness=0.0,
-                damping=10.0,
-            ),
-            "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
-            ),
-        },
-    )
-    # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
-    )
-    distant_light = AssetBaseCfg(
-        prim_path="/World/DistantLight",
-        spawn=sim_utils.DistantLightCfg(color=(0.9, 0.9, 0.9), intensity=2500.0),
-        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.738, 0.477, 0.477, 0.0)),
-    )
-
+from .cartpole_scene import CartpoleSceneCfg
 
 ##
 # MDP settings
 ##
 
 
+# Actions configuration
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
@@ -104,6 +39,7 @@ class ActionsCfg:
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
+# Observations configuration
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -124,6 +60,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
+# Randomization configuration
 @configclass
 class RandomizationCfg:
     """Configuration for randomization."""
@@ -150,6 +87,7 @@ class RandomizationCfg:
     )
 
 
+# Rewards configuration
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
@@ -178,6 +116,7 @@ class RewardsCfg:
     )
 
 
+# Terminations configuration
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -191,6 +130,7 @@ class TerminationsCfg:
     )
 
 
+# Curriculum configuration
 @configclass
 class CurriculumCfg:
     """Configuration for the curriculum."""
@@ -220,6 +160,7 @@ class CartpoleEnvCfg(RLTaskEnvCfg):
     # No command generator
     commands: CommandsCfg = CommandsCfg()
 
+    # Post initialization
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings

@@ -57,8 +57,8 @@ class AssetBaseCfg:
         Example: ``{ENV_REGEX_NS}/Robot`` will be replaced with ``/World/envs/env_.*/Robot``.
     """
 
-    spawn: SpawnerCfg | None = MISSING
-    """Spawn configuration for the asset.
+    spawn: SpawnerCfg | None = None
+    """Spawn configuration for the asset. Defaults to None.
 
     If None, then no prims are spawned by the asset class. Instead, it is assumed that the
     asset is already present in the scene.

@@ -11,6 +11,7 @@ import gymnasium as gym
 
 from . import agents
 from .cartpole_env_cfg import CartpoleEnvCfg
+from .cartpole_scene import CartpoleSceneCfg
 
 ##
 # Register Gym environments.
