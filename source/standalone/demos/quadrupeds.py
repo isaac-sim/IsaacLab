@@ -44,7 +44,7 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG
+from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
 from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG
 
 
@@ -86,18 +86,18 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     anymal_c = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot"))
 
-    # Origin 3 with Unitree A1
+    # Origin 3 with Anymal D
     prim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
     # -- Robot
-    unitree_a = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin3/Robot"))
+    anymal_d = Articulation(ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot"))
 
-    # Origin 4 with Unitree Go1
-    prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[2])
+    # Origin 4 with Unitree A1
+    prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_go1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    unitree_a = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
     # return the scene information
-    scene_entities = {"anymal_b": anymal_b, "anymal_c": anymal_c, "unitree_a": unitree_a, "unitree_go1": unitree_go1}
+    scene_entities = {"anymal_b": anymal_b, "anymal_c": anymal_c, "anymal_d": anymal_d, "unitree_a": unitree_a}
     return scene_entities, origins
 
 

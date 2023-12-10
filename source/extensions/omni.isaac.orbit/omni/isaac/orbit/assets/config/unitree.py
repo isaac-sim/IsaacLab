@@ -25,7 +25,7 @@ from ..articulation import ArticulationCfg
 
 UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/Unitree/A1/a1_instanceable.usd",
+        usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

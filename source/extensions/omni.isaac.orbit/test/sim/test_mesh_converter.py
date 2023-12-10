@@ -6,15 +6,15 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
-config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
 import os
+import tempfile
 import traceback
 import unittest
 
@@ -23,11 +23,11 @@ import omni
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
 from pxr import UsdGeom, UsdPhysics
 
 from omni.isaac.orbit.sim.converters import MeshConverter, MeshConverterCfg
 from omni.isaac.orbit.sim.schemas import schemas_cfg
+from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR, retrieve_file_path
 
 
 class TestMeshConverter(unittest.TestCase):
@@ -36,10 +36,19 @@ class TestMeshConverter(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Load assets for tests."""
-        # TODO: Clean this up: https://github.com/isaac-orbit/orbit/issues/166
-        assets_dir = os.path.join(ORBIT_ASSETS_DATA_DIR, "Samples/Tests/MeshConverter/duck")
+        assets_dir = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Tests/MeshConverter/duck"
         # Create mapping of file endings to file paths that can be used by tests
-        cls.assets = {asset.split(".")[1]: os.path.join(assets_dir, asset) for asset in os.listdir(assets_dir)}
+        cls.assets = {
+            "obj": f"{assets_dir}/duck.obj",
+            "stl": f"{assets_dir}/duck.stl",
+            "fbx": f"{assets_dir}/duck.fbx",
+            "mtl": f"{assets_dir}/duck.mtl",
+            "png": f"{assets_dir}/duckCM.png",
+        }
+        # Download all these locally
+        download_dir = tempfile.mkdtemp(suffix="_mesh_converter_test_assets")
+        for key, value in cls.assets.items():
+            cls.assets[key] = retrieve_file_path(value, download_dir=download_dir)
 
     def setUp(self):
         """Create a blank new stage for each test."""

@@ -652,11 +652,11 @@ class AppLauncher:
         if int(isaacsim_version[2]) == 2023:
             carb_settings_iface.set_string(
                 "/persistent/isaac/asset_root/default",
-                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.0",
+                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
             )
             carb_settings_iface.set_string(
                 "/persistent/isaac/asset_root/nvidia",
-                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets",
+                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
             )
 
     def _hide_stop_button(self):

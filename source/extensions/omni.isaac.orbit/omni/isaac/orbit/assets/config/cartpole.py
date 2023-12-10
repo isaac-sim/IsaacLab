@@ -8,18 +8,17 @@
 
 from __future__ import annotations
 
-from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
-
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.assets import ArticulationCfg
+from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
 
 # Cartpole articulation configuration
 CARTPOLE_CFG = ArticulationCfg(
     # USD file configuration
     spawn=sim_utils.UsdFileCfg(
         # Location of USD file
-        usd_path=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Classic/Cartpole/cartpole.usd",
+        usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
         # Rigid body properties
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
