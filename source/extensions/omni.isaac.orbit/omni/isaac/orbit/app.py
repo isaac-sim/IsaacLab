@@ -305,14 +305,14 @@ class AppLauncher:
             "--livestream",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
-            choices={-1, 0, 1, 2, 3},
+            choices={0, 1, 2, 3},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
         )
         arg_group.add_argument(
             "--ros",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1],
-            choices={-1, 0, 1, 2},
+            choices={0, 1, 2},
             help="Enable ROS middleware. Mapping corresponds to that for the `ROS_ENABLED` environment variable",
         )
         arg_group.add_argument(
