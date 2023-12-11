@@ -55,7 +55,6 @@ from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
-import omni.isaac.orbit.utils.math as math_utils
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
@@ -134,11 +133,9 @@ def main():
     imu.update(dt=1e-6, force_recompute=True)
     ball_initial_positions = imu.data.pos_w.clone()
     ball_initial_orientations = imu.data.quat_w.clone()
-    
+
     # init pose buffer (used to reset imu position and orientation)
-    _pose_buf = sim._backend_utils.create_zeros_tensor(
-        shape=[imu.num_instances, 7], dtype="float32", device=sim.device
-    )
+    _pose_buf = sim._backend_utils.create_zeros_tensor(shape=[imu.num_instances, 7], dtype="float32", device=sim.device)
     # Print the sensor information
     print(imu)
 

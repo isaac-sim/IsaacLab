@@ -10,9 +10,9 @@
 
 from __future__ import annotations
 
-from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.markers import VisualizationMarkersCfg
 from omni.isaac.orbit.markers.config import RED_ARROW_X_MARKER_CFG
+from omni.isaac.orbit.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .imu import IMU

@@ -14,19 +14,17 @@ import torch
 from typing import TYPE_CHECKING, Sequence
 
 import carb
-
-import omni.isaac.orbit.sim as sim_utils
 import omni.physics.tensors.impl.api as physx
-from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.prims import RigidPrimView, XFormPrimView
+from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdPhysics
 
-from omni.isaac.orbit.markers import VisualizationMarkers
+import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.math as math_utils
+from omni.isaac.orbit.markers import VisualizationMarkers
 
+from ..camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
 from ..sensor_base import SensorBase
 from .imu_data import IMUData
-from ..camera.utils import create_rotation_matrix_from_view, convert_orientation_convention
 
 if TYPE_CHECKING:
     from .imu_cfg import IMUCfg
@@ -72,7 +70,7 @@ class IMU(SensorBase):
     @property
     def num_instances(self) -> int:
         return self._view.count
-    
+
     """
     Operations
     """
@@ -93,7 +91,7 @@ class IMU(SensorBase):
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
         self._dt = dt
-        # execute updating 
+        # execute updating
         super().update(dt, force_recompute)
 
     """
@@ -143,7 +141,9 @@ class IMU(SensorBase):
         """Fills the buffers of the sensor data."""
         # check if self._dt is set (this is set in the update function)
         if not hasattr(self, "_dt"):
-            raise RuntimeError("The update function must be called before the data buffers are accessed the first time.")
+            raise RuntimeError(
+                "The update function must be called before the data buffers are accessed the first time."
+            )
         # obtain the poses of the sensors
         if isinstance(self._view, XFormPrimView):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
@@ -217,9 +217,15 @@ class IMU(SensorBase):
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_w.shape[0], 1)
         # arrow-direction
-        # -- the function is meant for camera where the image is in -z direction, as here the "look" should be in +z 
+        # -- the function is meant for camera where the image is in -z direction, as here the "look" should be in +z
         #    direction, we have to switch the sign in front of z target location
-        quat_opengl = math_utils.quat_from_matrix(create_rotation_matrix_from_view(self._data.pos_w, self._data.pos_w + self._data.lin_acc_w * torch.tensor([[1, 1, -1]], device=self._device), device=self._device))
+        quat_opengl = math_utils.quat_from_matrix(
+            create_rotation_matrix_from_view(
+                self._data.pos_w,
+                self._data.pos_w + self._data.lin_acc_w * torch.tensor([[1, 1, -1]], device=self._device),
+                device=self._device,
+            )
+        )
         arrow_quat = convert_orientation_convention(quat_opengl, "ros", "world")
         # display markers
         self.acceleration_visualizer.visualize(base_pos_w, arrow_quat, arrow_scale)
