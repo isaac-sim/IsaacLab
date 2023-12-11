@@ -27,6 +27,7 @@ parser.add_argument("--video_interval", type=int, default=2000, help="Interval b
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--run_name", type=str, default=None, help="Name of the run.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -81,7 +82,7 @@ def main():
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
-    # specify directory for logging runs
+    # specify directory for logging runs: {time-stamp}_{run_name}
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if agent_cfg.run_name:
         log_dir += f"_{agent_cfg.run_name}"
@@ -105,6 +106,8 @@ def main():
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    # write git state to logs
+    runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir
     if agent_cfg.resume:
         # get path to previous checkpoint

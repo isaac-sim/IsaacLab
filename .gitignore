@@ -32,6 +32,8 @@
 **/output/*
 **/outputs/*
 **/videos/*
+**/wandb/*
+**/.neptune/*
 docker/artifacts/
 *.tmp
 

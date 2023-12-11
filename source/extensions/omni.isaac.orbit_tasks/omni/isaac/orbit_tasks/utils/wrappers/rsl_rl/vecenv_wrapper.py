@@ -88,6 +88,11 @@ class RslRlVecEnvWrapper(VecEnv):
     """
 
     @property
+    def cfg(self) -> object:
+        """Returns the configuration class instance of the environment."""
+        return self.unwrapped.cfg
+
+    @property
     def render_mode(self) -> str | None:
         """Returns the :attr:`Env` :attr:`render_mode`."""
         return self.env.render_mode
