@@ -27,6 +27,7 @@ For more information about the framework, please refer to the `paper <https://ar
    source/setup/installation
    source/setup/developer
    source/setup/docker
+   source/setup/cluster
    source/setup/sample
 
 .. toctree::

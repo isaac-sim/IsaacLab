@@ -21,6 +21,10 @@
 **/*.pyc
 **/*.pb
 
+# Docker/Singularity
+**/*.sif
+docker/exports/
+
 # IDE
 **/.idea/
 **/.vscode/

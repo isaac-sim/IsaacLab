@@ -8,6 +8,7 @@ services:
       args:
         - ISAACSIM_VERSION=${ISAACSIM_VERSION}
         - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+        - DOCKER_USER_HOME=${DOCKER_USER_HOME}
     image: orbit
     container_name: orbit
     env_file:
