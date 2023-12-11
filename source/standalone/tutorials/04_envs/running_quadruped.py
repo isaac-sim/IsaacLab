@@ -39,7 +39,6 @@ import torch
 import traceback
 
 import carb
-from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
 
 import omni.isaac.orbit.envs.mdp as mdp
 import omni.isaac.orbit.sim as sim_utils
@@ -54,7 +53,7 @@ from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sensors import RayCasterCfg, patterns
 from omni.isaac.orbit.terrains import TerrainImporterCfg
 from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.utils.assets import check_file_path
+from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR, check_file_path
 from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 ##
@@ -217,7 +216,7 @@ def main():
     obs, _ = env.reset()
 
     # load level policy
-    policy_path = os.path.join(ORBIT_ASSETS_DATA_DIR, "Policies", "ANYmal-C", "policy.pt")
+    policy_path = os.path.join(ISAAC_ORBIT_NUCLEUS_DIR, "Policies", "ANYmal-C", "policy.pt")
     # check if policy file exists
     if not check_file_path(policy_path):
         raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")
