@@ -88,10 +88,10 @@ Running the Container
 .. note::
 
     The docker container copies all the files from the repository into the container at the
-    location ``/workspace/orbit``. This means that any changes made to the files in the container will not
-    be reflected in the repository.
+    location ``/workspace/orbit`` at build time. This means that any changes made to the files in the container would not
+    normally be reflected in the repository after the image has been built, i.e. after ``./container.sh start`` is run.
 
-    To deal with this, we mount the following directories in the Orbit repository into the container
+    For a faster development cycle, we mount the following directories in the Orbit repository into the container
     so that you can edit their files from the host machine:
 
     * ``source``: This is the directory that contains the Orbit source code.
@@ -109,7 +109,7 @@ The script ``container.sh`` wraps around three basic ``docker-compose`` commands
    container instances.
 4. ``stop``: This brings down the container and removes it.
 
-Following shows how to launch the container in a detached state and enter it:
+The following shows how to launch the container in a detached state and enter it:
 
 .. code:: bash
 
@@ -130,7 +130,7 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
 
 .. code:: bash
 
-    # Copy the logs and docs/_build directories to the docker/artifacts directory
+    # Copy the logs, data_storage and docs/_build directories to the docker/artifacts directory
     ./docker/container.sh copy
 
 To stop the container, you can use the following command:

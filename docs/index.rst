@@ -50,6 +50,7 @@ For more information about the framework, please refer to the `paper <https://ar
 
    source/tutorials/00_sim/empty
    source/tutorials/00_sim/prims
+   source/tutorials/00_sim/docker
    source/tutorials/01_assets/articulation
    source/tutorials/01_assets/rigid_object
    source/tutorials/02_scene/scene
