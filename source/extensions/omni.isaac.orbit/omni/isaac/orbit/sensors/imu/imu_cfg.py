@@ -29,4 +29,4 @@ class IMUCfg(SensorBaseCfg):
 
     Note:
         This attribute is only used when debug visualization is enabled.
-    """ 
+    """
