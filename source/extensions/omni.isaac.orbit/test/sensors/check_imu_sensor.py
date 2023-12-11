@@ -1,0 +1,190 @@
+# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""
+This script shows how to use the ray caster from the Orbit framework.
+
+.. code-block:: bash
+
+    # Usage
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_ray_caster.py --headless
+"""
+
+from __future__ import annotations
+
+"""Launch Isaac Sim Simulator first."""
+
+import argparse
+
+from omni.isaac.kit import SimulationApp
+
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Ray Caster Test Script")
+parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
+parser.add_argument(
+    "--terrain_type",
+    type=str,
+    default="generator",
+    help="Type of terrain to import. Can be 'generator' or 'usd' or 'plane'.",
+)
+args_cli = parser.parse_args()
+
+# launch omniverse app
+config = {"headless": args_cli.headless}
+simulation_app = SimulationApp(config)
+
+
+"""Rest everything follows."""
+
+import torch
+import traceback
+
+import carb
+import omni.isaac.core.utils.prims as prim_utils
+from omni.isaac.cloner import GridCloner
+from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.core.utils.viewports import set_camera_view
+
+import omni.isaac.orbit.sim as sim_utils
+import omni.isaac.orbit.terrains as terrain_gen
+from omni.isaac.orbit.sensors.imu import IMU, IMUCfg
+from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
+from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.orbit.utils.timer import Timer
+import omni.isaac.orbit.utils.math as math_utils
+
+
+def design_scene(sim: SimulationContext, num_envs: int = 2048):
+    """Design the scene."""
+    # Create interface to clone the scene
+    cloner = GridCloner(spacing=2.0)
+    cloner.define_base_env("/World/envs")
+    # Everything under the namespace "/World/envs/env_0" will be cloned
+    prim_utils.define_prim("/World/envs/env_0")
+    # Define the scene
+    # -- Light
+    cfg = sim_utils.DistantLightCfg(intensity=2000)
+    cfg.func("/World/light", cfg)
+    # -- Balls
+    cfg = sim_utils.SphereCfg(
+        radius=0.25,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+    )
+    cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
+    # Clone the scene
+    cloner.define_base_env("/World/envs")
+    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
+    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
+    physics_scene_path = sim.get_physics_context().prim_path
+    cloner.filter_collisions(
+        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+    )
+
+
+def main():
+    """Main function."""
+
+    # Load kit helper
+    sim_params = {
+        "use_gpu": True,
+        "use_gpu_pipeline": True,
+        "use_flatcache": True,  # deprecated from Isaac Sim 2023.1 onwards
+        "use_fabric": True,  # used from Isaac Sim 2023.1 onwards
+        "enable_scene_query_support": True,
+    }
+    sim = SimulationContext(
+        physics_dt=1.0 / 60.0, rendering_dt=1.0 / 60.0, sim_params=sim_params, backend="torch", device="cuda:0"
+    )
+    # Set main camera
+    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+
+    # Parameters
+    num_envs = args_cli.num_envs
+    # Design the scene
+    design_scene(sim=sim, num_envs=num_envs)
+    # Handler for terrains importing
+    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type=args_cli.terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+        max_init_terrain_level=None,
+        num_envs=1,
+    )
+    _ = TerrainImporter(terrain_importer_cfg)
+
+    # Create a ray-caster sensor
+    imu_cfg = IMUCfg(
+        prim_path="/World/envs/env_.*/ball",
+        debug_vis=not args_cli.headless,
+    )
+    imu = IMU(cfg=imu_cfg)
+
+    # Play simulator
+    sim.reset()
+
+    # Get the ball initial positions
+    imu.update(dt=1e-6, force_recompute=True)
+    ball_initial_positions = imu.data.pos_w.clone()
+    ball_initial_orientations = imu.data.quat_w.clone()
+    
+    # init pose buffer (used to reset imu position and orientation)
+    _pose_buf = sim._backend_utils.create_zeros_tensor(
+        shape=[imu.num_instances, 7], dtype="float32", device=sim.device
+    )
+    # Print the sensor information
+    print(imu)
+
+    # Create a counter for resetting the scene
+    step_count = 0
+    # Simulate physics
+    while simulation_app.is_running():
+        # If simulation is stopped, then exit.
+        if sim.is_stopped():
+            break
+        # If simulation is paused, then skip.
+        if not sim.is_playing():
+            sim.step(render=not args_cli.headless)
+            continue
+        # Reset the scene
+        if step_count % 500 == 0:
+            # reset the balls (here we have a physx.RigidBodyView, for other view classes this command might change)
+            indices = sim._backend_utils.resolve_indices(torch.arange(num_envs), imu.num_instances, sim.device)
+            current_positions, current_orientations = imu.data.pos_w, imu.data.quat_w
+            positions = sim._backend_utils.move_data(ball_initial_positions, sim.device)
+            orientations = sim._backend_utils.move_data(ball_initial_orientations, sim.device)
+            pose = sim._backend_utils.assign_pose(
+                current_positions, current_orientations, positions, orientations, indices, sim.device, _pose_buf
+            )
+            imu._view.set_transforms(pose, indices=indices)
+            # reset the sensor
+            imu.reset()
+            # reset the counter
+            step_count = 0
+        # Step simulation
+        sim.step()
+        # Update the imu sensor
+        with Timer(f"IMU sensor update with {num_envs}"):
+            imu.update(dt=sim.get_physics_dt(), force_recompute=True)
+        # Update counter
+        step_count += 1
+
+
+if __name__ == "__main__":
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

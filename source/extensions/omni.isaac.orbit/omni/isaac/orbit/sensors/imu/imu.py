@@ -89,8 +89,6 @@ class IMU(SensorBase):
         self._data.lin_acc_w[env_ids] = 0.0
         # Set all reset sensors to not outdated since their value won't be updated till next sim step.
         self._is_outdated[env_ids] = False
-        # resample the drift
-        self.drift[env_ids].uniform_(*self.cfg.drift_range)
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
@@ -143,6 +141,9 @@ class IMU(SensorBase):
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
+        # check if self._dt is set (this is set in the update function)
+        if not hasattr(self, "_dt"):
+            raise RuntimeError("The update function must be called before the data buffers are accessed the first time.")
         # obtain the poses of the sensors
         if isinstance(self._view, XFormPrimView):
             pos_w, quat_w = self._view.get_world_poses(env_ids)
@@ -157,17 +158,26 @@ class IMU(SensorBase):
         # note: we clone here because we are read-only operations
         pos_w = pos_w.clone()
         quat_w = quat_w.clone()
-        # apply drift
-        pos_w += self.drift[env_ids]
         # store the poses
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 
-        # get velocities
-        vel = self.body_physx_view.get_velocities()
-        self._data.ang_vel_w[env_ids] = vel[env_ids, 3:]
-        self._data.lin_acc_w[env_ids] = (vel[env_ids, :3] - self._last_lin_vel_w[env_ids]) / self._dt
-        self._last_lin_vel_w[env_ids] = vel[env_ids, :3]
+        # obtain the velocities of the sensors
+        if isinstance(self._view, XFormPrimView):
+            raise RuntimeError(f"Unsupported view type to get velocities: {type(self._view)}")
+        elif isinstance(self._view, physx.ArticulationView):
+            pos_w, quat_w = self._view.get_root_velocities()[env_ids, 3:].split([3, 3], dim=-1)
+        elif isinstance(self._view, physx.RigidBodyView):
+            lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
+        else:
+            raise RuntimeError(f"Unsupported view type: {type(self._view)}")
+        # note: we clone here because we are read-only operations
+        lin_vel_w = lin_vel_w.clone()
+        ang_vel_w = ang_vel_w.clone()
+        # store the velocities
+        self._data.ang_vel_w[env_ids] = ang_vel_w
+        self._data.lin_acc_w[env_ids] = (lin_vel_w - self._last_lin_vel_w[env_ids]) / self._dt
+        self._last_lin_vel_w[env_ids] = lin_vel_w
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
@@ -179,8 +189,6 @@ class IMU(SensorBase):
         self._data.ang_vel_w = torch.zeros(self._view.count, 3, device=self._device)
         # internal buffers
         self._last_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
-        # prepare drift
-        self.drift = torch.zeros(self._view.count, 3, device=self.device)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
