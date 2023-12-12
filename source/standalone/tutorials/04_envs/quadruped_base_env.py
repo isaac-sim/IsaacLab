@@ -4,11 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates the environment concept that combines a scene with an action,
-observation and randomization manager for a quadruped robot.
+This script demonstrates the environment for a quadruped robot with height-scan sensor.
 
-A locomotion policy is loaded and used to control the robot. This shows how to use the
-environment with a policy.
+In this example, we use a locomotion policy to control the robot. The robot is commanded to
+move forward at a constant velocity. The height-scan sensor is used to detect the height of
+the terrain.
+
+.. code-block:: bash
+
+    # Run the script
+    ./orbit.sh -p source/standalone/tutorials/04_envs/quadruped_base_env.py --num_envs 32
+
 """
 
 from __future__ import annotations
@@ -21,7 +27,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to use the concept of an Environment.")
+parser = argparse.ArgumentParser(description="This script demonstrates a quadrupedal locomotion environment.")
 parser.add_argument("--num_envs", type=int, default=64, help="Number of environments to spawn.")
 
 # append AppLauncher cli args
@@ -34,6 +40,7 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import os
 import torch
 import traceback
@@ -60,6 +67,16 @@ from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
 # Pre-defined configs
 ##
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+
+
+##
+# Custom observation terms
+##
+
+
+def constant_commands(env: BaseEnv) -> torch.Tensor:
+    """The generated command from the command generator."""
+    return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
 
 
 ##
@@ -112,11 +129,6 @@ class MySceneCfg(InteractiveSceneCfg):
 ##
 
 
-def constant_commands(env: BaseEnv) -> torch.Tensor:
-    """The generated command from the command generator."""
-    return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
-
-
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
@@ -162,21 +174,7 @@ class ObservationsCfg:
 class RandomizationCfg:
     """Configuration for randomization."""
 
-    reset_base = RandTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "z": (-0.5, 0.5),
-                "roll": (-0.5, 0.5),
-                "pitch": (-0.5, 0.5),
-                "yaw": (-0.5, 0.5),
-            },
-        },
-    )
+    reset_scene = RandTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
 ##
@@ -198,22 +196,21 @@ class QuadrupedEnvCfg(BaseEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 4
-        self.episode_length_s = 20.0
+        self.decimation = 4  # env decimation -> 50 Hz control
         # simulation settings
-        self.sim.dt = 0.005
+        self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
+        self.sim.physics_material = self.scene.terrain.physics_material
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:
-            self.scene.height_scanner.update_period = self.decimation * self.sim.dt
+            self.scene.height_scanner.update_period = self.decimation * self.sim.dt  # 50 Hz
 
 
 def main():
     """Main function."""
-
     # setup base environment
-    env = BaseEnv(cfg=QuadrupedEnvCfg())
-    obs, _ = env.reset()
+    env_cfg = QuadrupedEnvCfg()
+    env = BaseEnv(cfg=env_cfg)
 
     # load level policy
     policy_path = os.path.join(ISAAC_ORBIT_NUCLEUS_DIR, "Policies", "ANYmal-C", "policy.pt")
@@ -221,26 +218,28 @@ def main():
     if not check_file_path(policy_path):
         raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")
     # jit load the policy
-    locomotion_policy = torch.jit.load(policy_path)
-    locomotion_policy.to(env.device)
-    locomotion_policy.eval()
+    policy = torch.jit.load(policy_path).to(env.device).eval()
 
     # simulate physics
     count = 0
+    obs, _ = env.reset()
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
             if count % 1000 == 0:
                 obs, _ = env.reset()
                 count = 0
-                print("[INFO]: Resetting robots state...")
-
+                print("-" * 80)
+                print("[INFO]: Resetting environment...")
             # infer action
-            action = locomotion_policy(obs["policy"])
+            action = policy(obs["policy"])
             # step env
             obs, _ = env.step(action)
             # update counter
             count += 1
+
+    # close the environment
+    env.close()
 
 
 if __name__ == "__main__":

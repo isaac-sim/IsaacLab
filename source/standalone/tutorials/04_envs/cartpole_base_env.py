@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to use the environment concept that combines a scene with an action, observation and randomization manager.
+This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of
+scene, action, observation and randomization managers to create an environment.
 """
 
 from __future__ import annotations
@@ -17,8 +18,8 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to use the concept of an Environment.")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
+parser = argparse.ArgumentParser(description="This script demonstrates a simple cartpole environment.")
+parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -37,94 +38,26 @@ import traceback
 import carb
 
 import omni.isaac.orbit.envs.mdp as mdp
-from omni.isaac.orbit.assets import RigidObject
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
 
-from omni.isaac.orbit_tasks.classic.cartpole import CartpoleSceneCfg
-
-# Cartpole Action Configuration
-
-
-class CartpoleActionTerm(ActionTerm):
-    _asset: RigidObject
-    """The articulation asset on which the action term is applied."""
-
-    def __init__(self, cfg, env: BaseEnv):
-        super().__init__(cfg, env)
-        self._raw_actions = torch.zeros(env.num_envs, 1, device=self.device)
-        self._processed_actions = torch.zeros(env.num_envs, 1, device=self.device)
-
-        # gains of controller
-        self.p_gain = 1500.0
-        self.d_gain = 10.0
-
-        # extract the joint id of the slider_to_cart joint
-        joint_ids, _ = self._asset.find_joints(["slider_to_cart", "cart_to_pole"])
-        self.slider_to_cart_joint_id = joint_ids[0]
-        self.cart_to_pole_joint_id = joint_ids[1]
-
-    """
-    Properties.
-    """
-
-    @property
-    def action_dim(self) -> int:
-        return self._raw_actions.shape[1]
-
-    @property
-    def raw_actions(self) -> torch.Tensor:
-        return self._raw_actions
-
-    @property
-    def processed_actions(self) -> torch.Tensor:
-        return self._processed_actions
-
-    """
-    Operations
-    """
-
-    def process_actions(self, actions: torch.Tensor):
-        # store the raw actions
-        self._raw_actions[:] = actions
-
-        joint_pos = (
-            self._asset.data.joint_pos[:, self.cart_to_pole_joint_id]
-            - self._asset.data.default_joint_pos[:, self.cart_to_pole_joint_id]
-        )
-        joint_vel = (
-            self._asset.data.joint_vel[:, self.cart_to_pole_joint_id]
-            - self._asset.data.default_joint_vel[:, self.cart_to_pole_joint_id]
-        )
-
-        self._processed_actions[:] = self.p_gain * (actions - joint_pos) - self.d_gain * joint_vel
-
-    def apply_actions(self):
-        # set slider joint target
-        self._asset.set_joint_effort_target(self.processed_actions, joint_ids=[self.slider_to_cart_joint_id])
-
-
-@configclass
-class CartpoleActionTermCfg(ActionTermCfg):
-    class_type: CartpoleActionTerm = CartpoleActionTerm
+from omni.isaac.orbit_tasks.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
 
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
+    """Action specifications for the environment."""
 
-    joint_pos = CartpoleActionTermCfg(asset_name="robot")
+    joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
 
 
-# Cartpole Observation Configuration
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
+    """Observation specifications for the environment."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -142,14 +75,21 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-# Cartpole Randomization Configuration
-
-
 @configclass
 class RandomizationCfg:
     """Configuration for randomization."""
 
-    # reset
+    # on startup
+    add_pole_mass = RandTerm(
+        func=mdp.add_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
+            "mass_range": (0.1, 0.5),
+        },
+    )
+
+    # on reset
     reset_cart_position = RandTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
@@ -171,57 +111,57 @@ class RandomizationCfg:
     )
 
 
-# Cartpole Environment Configuration
-
-
 @configclass
 class CartpoleEnvCfg(BaseEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the cartpole environment."""
 
     # Scene settings
-    scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+    scene = CartpoleSceneCfg(num_envs=1024, env_spacing=2.5)
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    randomization: RandomizationCfg = RandomizationCfg()
+    observations = ObservationsCfg()
+    actions = ActionsCfg()
+    randomization = RandomizationCfg()
 
     def __post_init__(self):
         """Post initialization."""
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 20.0
+        # viewer settings
+        self.viewer.eye = [4.5, 0.0, 6.0]
+        self.viewer.lookat = [0.0, 0.0, 2.0]
+        # step settings
+        self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
-        self.sim.dt = 0.005
-        self.sim.disable_contact_processing = True
-
-
-# Main
+        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
 def main():
     """Main function."""
-
+    # parse the arguments
+    env_cfg = CartpoleEnvCfg()
+    env_cfg.scene.num_envs = args_cli.num_envs
     # setup base environment
-    env = BaseEnv(cfg=CartpoleEnvCfg())
-    obs = env.reset()
-
-    target_position = torch.zeros(env.num_envs, 1, device=env.device)
+    env = BaseEnv(cfg=env_cfg)
 
     # simulate physics
     count = 0
     while simulation_app.is_running():
-        # reset
-        if count % 300 == 0:
-            env.reset()
-            count = 0
+        with torch.inference_mode():
+            # reset
+            if count % 300 == 0:
+                count = 0
+                env.reset()
+                print("-" * 80)
+                print("[INFO]: Resetting environment...")
+            # sample random actions
+            joint_efforts = torch.randn_like(env.action_manager.action)
+            # step the environment
+            obs, _ = env.step(joint_efforts)
+            # print current orientation of pole
+            print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
+            # update counter
+            count += 1
 
-        # step env
-        obs, _ = env.step(target_position)
-
-        # print current orientation of pole
-        print(obs["policy"][0][1].item())
-        # update counter
-        count += 1
+    # close the environment
+    env.close()
 
 
 if __name__ == "__main__":

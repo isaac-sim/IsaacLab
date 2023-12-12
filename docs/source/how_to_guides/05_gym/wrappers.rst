@@ -1,3 +1,5 @@
+.. _how-to-env-wrappers:
+
 Using environment wrappers
 ==========================
 

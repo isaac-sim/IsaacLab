@@ -4,8 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates the base environment concept that combines a scene with an action,
-observation and randomization manager for a floating cube.
+This script creates a simple environment with a floating cube. The cube is controlled by a PD
+controller to track an arbitrary target position.
+
+While going through this tutorial, we recommend you to pay attention to how a custom action term
+is defined. The action term is responsible for processing the raw actions and applying them to the
+scene entities. The rest of the environment is similar to the previous tutorials.
+
+.. code-block:: bash
+
+    # Run the script
+    ./orbit.sh -p source/standalone/tutorials/04_envs/floating_cube.py --num_envs 32
 """
 
 from __future__ import annotations
@@ -18,7 +27,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to use the concept of an Environment.")
+parser = argparse.ArgumentParser(description="This script demonstrates base environment with a floating cube.")
 parser.add_argument("--num_envs", type=int, default=64, help="Number of environments to spawn.")
 
 # append AppLauncher cli args
@@ -31,6 +40,7 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import torch
 import traceback
 
@@ -40,59 +50,41 @@ import omni.isaac.orbit.envs.mdp as mdp
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.orbit.managers import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
 from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.terrains import TerrainImporterCfg
 from omni.isaac.orbit.utils import configclass
 
 ##
-# Scene definition
-##
-
-
-@configclass
-class MySceneCfg(InteractiveSceneCfg):
-    """Example scene configuration."""
-
-    # add terrain
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
-
-    # add cube
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
-    )
-
-    # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
-
-
-##
-# Action Term
+# Custom action term
 ##
 
 
 class CubeActionTerm(ActionTerm):
-    """Simple action term that implements a PD controller to track a target position."""
+    """Simple action term that implements a PD controller to track a target position.
+
+    The action term is applied to the cube asset. It involves two steps:
+
+    1. **Process the raw actions**: Typically, this includes any transformations of the raw actions
+       that are required to map them to the desired space. This is called once per environment step.
+    2. **Apply the processed actions**: This step applies the processed actions to the asset.
+       It is called once per simulation step.
+
+    In this case, the action term simply applies the raw actions to the cube asset. The raw actions
+    are the desired target positions of the cube in the environment frame. The pre-processing step
+    simply copies the raw actions to the processed actions as no additional processing is required.
+    The processed actions are then applied to the cube asset by implementing a PD controller to
+    track the target position.
+    """
 
     _asset: RigidObject
     """The articulation asset on which the action term is applied."""
 
-    def __init__(self, cfg: ActionTermCfg, env: BaseEnv):
+    def __init__(self, cfg: CubeActionTermCfg, env: BaseEnv):
         # call super constructor
         super().__init__(cfg, env)
         # create buffers
@@ -100,8 +92,8 @@ class CubeActionTerm(ActionTerm):
         self._processed_actions = torch.zeros(env.num_envs, 3, device=self.device)
         self._vel_command = torch.zeros(self.num_envs, 6, device=self.device)
         # gains of controller
-        self.p_gain = 5.0
-        self.d_gain = 0.5
+        self.p_gain = cfg.p_gain
+        self.d_gain = cfg.d_gain
 
     """
     Properties.
@@ -113,7 +105,6 @@ class CubeActionTerm(ActionTerm):
 
     @property
     def raw_actions(self) -> torch.Tensor:
-        # desired: (x, y, z)
         return self._raw_actions
 
     @property
@@ -144,10 +135,16 @@ class CubeActionTermCfg(ActionTermCfg):
     """Configuration for the cube action term."""
 
     class_type: type = CubeActionTerm
+    """The class corresponding to the action term."""
+
+    p_gain: float = 5.0
+    """Proportional gain of the PD controller."""
+    d_gain: float = 0.5
+    """Derivative gain of the PD controller."""
 
 
 ##
-# Observation Term
+# Custom observation term
 ##
 
 
@@ -156,6 +153,41 @@ def base_position(env: BaseEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w - env.scene.env_origins
+
+
+##
+# Scene definition
+##
+
+
+@configclass
+class MySceneCfg(InteractiveSceneCfg):
+    """Example scene configuration.
+
+    The scene comprises of a ground plane, light source and floating cubes (gravity disabled).
+    """
+
+    # add terrain
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+
+    # add cube
+    cube: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
+    )
+
+    # lights
+    light = AssetBaseCfg(
+        prim_path="/World/light",
+        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
 
 
 ##
@@ -218,7 +250,7 @@ class CubeEnvCfg(BaseEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=True)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -247,13 +279,15 @@ def main():
 
     # simulate physics
     count = 0
+    obs, _ = env.reset()
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
             if count % 300 == 0:
-                env.reset()
                 count = 0
-
+                obs, _ = env.reset()
+                print("-" * 80)
+                print("[INFO]: Resetting environment...")
             # step env
             obs, _ = env.step(target_position)
             # print mean squared position error between target and current position
@@ -261,6 +295,9 @@ def main():
             print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
             # update counter
             count += 1
+
+    # close the environment
+    env.close()
 
 
 if __name__ == "__main__":

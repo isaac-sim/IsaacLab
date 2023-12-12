@@ -74,10 +74,10 @@ class SimulationContext(_SimulationContext):
         events) are updated. There are three main components that can be updated when the simulation is rendered:
 
         1. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
-            extensions that are running in the background that need to be updated when the simulation is running.
+           extensions that are running in the background that need to be updated when the simulation is running.
         2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
            viewpoints. They can be attached to a viewport or be used independently to render the scene.
-        3. **`Viewports`_**: These are windows where you can see the rendered scene.
+        3. **`Viewports`**: These are windows where you can see the rendered scene.
 
         Updating each of the above components has a different overhead. For example, updating the viewports is
         computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to

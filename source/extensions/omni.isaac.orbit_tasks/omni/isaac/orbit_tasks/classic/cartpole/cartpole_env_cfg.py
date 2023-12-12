@@ -60,7 +60,6 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 ##
 
 
-# Actions configuration
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
@@ -76,7 +75,6 @@ class ActionsCfg:
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
-# Observations configuration
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -97,7 +95,6 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-# Randomization configuration
 @configclass
 class RandomizationCfg:
     """Configuration for randomization."""
@@ -124,7 +121,6 @@ class RandomizationCfg:
     )
 
 
-# Rewards configuration
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
@@ -153,7 +149,6 @@ class RewardsCfg:
     )
 
 
-# Terminations configuration
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -167,7 +162,6 @@ class TerminationsCfg:
     )
 
 
-# Curriculum configuration
 @configclass
 class CurriculumCfg:
     """Configuration for the curriculum."""

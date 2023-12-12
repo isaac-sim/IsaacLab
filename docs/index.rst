@@ -62,10 +62,10 @@ For more information about the framework, please refer to the `paper <https://ar
    :maxdepth: 1
    :caption: Tutorials (Environments)
 
-   source/tutorials/03_envs/00_gym_env
-   source/tutorials/03_envs/01_create_base_env
-   source/tutorials/03_envs/02_create_rl_env
-   source/tutorials/03_envs/03_wrappers
+   source/tutorials/03_envs/base_env
+   source/tutorials/03_envs/rl_env
+   source/tutorials/03_envs/gym_registry
+   source/tutorials/03_envs/rl_training
 
 
 .. toctree::

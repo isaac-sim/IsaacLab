@@ -1,5 +1,5 @@
 Launching Isaac Sim from AppLauncher
-==============================
+====================================
 
 .. currentmodule:: omni.isaac.orbit
 

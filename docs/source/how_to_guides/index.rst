@@ -48,3 +48,12 @@ The `control` section focuses on how to implement controllers within Orbit.
     Markers <04_controllers/ik_controller>
 
 Please refer to the individual guides in each section for detailed instructions and examples.
+
+
+Gym
+---
+
+.. toctree::
+    :maxdepth: 1
+
+    Gym Wrappers <05_gym/wrappers>

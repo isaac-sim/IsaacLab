@@ -45,6 +45,7 @@ else:
 # launch omniverse app
 app_launcher = AppLauncher(args_cli, experience=app_experience)
 simulation_app = app_launcher.app
+
 """Rest everything follows."""
 
 
@@ -93,7 +94,7 @@ def main():
     n_timesteps = agent_cfg.pop("n_timesteps")
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {

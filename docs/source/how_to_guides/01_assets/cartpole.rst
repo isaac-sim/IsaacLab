@@ -23,7 +23,7 @@ the rail. The attached pole has 1 DOF that allows it to rotate freely.
 
 .. TODO: Add isaac sim screenshot and replace GIF with a webdb
 
-In :ref:`creating-base-env` participants will learn to control the
+In :ref:`tutorial-create-base-env` participants will learn to control the
 pole to stabilize the cart, but this tutorial focuses on merely constructing
 the :class:`ArticulationCfg` that defines the cartpole.
 
