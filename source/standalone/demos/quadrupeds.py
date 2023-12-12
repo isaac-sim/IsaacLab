@@ -94,7 +94,17 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 4 with Unitree A1
     prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_a = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+
+    # Origin 5 with Unitree Go1
+    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
+    # -- Robot
+    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+
+    # Origin 6 with Unitree Go2
+    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # -- Robot
+    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # Origin 5 with Unitree Go1
     prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
@@ -111,7 +121,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         "anymal_b": anymal_b,
         "anymal_c": anymal_c,
         "anymal_d": anymal_d,
-        "unitree_a": unitree_a,
+        "unitree_a1": unitree_a1,
         "unitree_go1": unitree_go1,
         "unitree_go2": unitree_go2,
     }
