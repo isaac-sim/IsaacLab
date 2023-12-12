@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.10.3 (2023-12-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the attribute :attr:`omni.isaac.orbit.actuators.ActuatorNetMLPCfg.input_order`
+  to specify the order of the input tensors to the MLP network.
+
+Fixed
+^^^^^
+
+* Fixed computation of metrics for the velocity command term. Earlier, the norm was being computed
+  over the entire batch instead of the last dimension.
+* Fixed the clipping inside the :class:`omni.isaac.orbit.actuators.DCMotor` class. Earlier, it was
+  not able to handle the case when configured saturation limit was set to None.
+
+
 0.10.2 (2023-12-12)
 ~~~~~~~~~~~~~~~~~~~
 

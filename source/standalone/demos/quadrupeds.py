@@ -45,7 +45,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG
+from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -74,7 +74,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a mount and a robot on top of it
-    origins = define_origins(num_origins=4, spacing=1.25)
+    origins = define_origins(num_origins=6, spacing=1.25)
 
     # Origin 1 with Anymal B
     prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
@@ -96,8 +96,25 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     unitree_a = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
 
+    # Origin 5 with Unitree Go1
+    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
+    # -- Robot
+    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+
+    # Origin 6 with Unitree Go2
+    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # -- Robot
+    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
+
     # return the scene information
-    scene_entities = {"anymal_b": anymal_b, "anymal_c": anymal_c, "anymal_d": anymal_d, "unitree_a": unitree_a}
+    scene_entities = {
+        "anymal_b": anymal_b,
+        "anymal_c": anymal_c,
+        "anymal_d": anymal_d,
+        "unitree_a": unitree_a,
+        "unitree_go1": unitree_go1,
+        "unitree_go2": unitree_go2,
+    }
     return scene_entities, origins
 
 

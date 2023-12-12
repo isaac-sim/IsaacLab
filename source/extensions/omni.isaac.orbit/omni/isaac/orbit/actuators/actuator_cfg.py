@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 from typing import Iterable
+from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -137,6 +138,16 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     """Scaling of the joint velocities input to the network."""
     torque_scale: float = MISSING
     """Scaling of the joint efforts output from the network."""
+
+    input_order: Literal["pos_vel", "vel_pos"] = MISSING
+    """Order of the inputs to the network.
+
+    The order can be one of the following:
+
+    * ``"pos_vel"``: joint position errors followed by joint velocities
+    * ``"vel_pos"``: joint velocities followed by joint position errors
+    """
+
     input_idx: Iterable[int] = MISSING
     """
     Indices of the actuator history buffer passed as inputs to the network.
