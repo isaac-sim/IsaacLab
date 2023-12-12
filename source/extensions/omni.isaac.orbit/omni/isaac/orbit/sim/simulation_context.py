@@ -8,6 +8,7 @@ from __future__ import annotations
 import builtins
 import enum
 import numpy as np
+import sys
 import weakref
 from typing import Any
 
@@ -559,7 +560,7 @@ class SimulationContext(_SimulationContext):
         # check if the simulation is stopped
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
-            if self._has_gui:
+            if self._has_gui and sys.exc_info()[0] is None:
                 self.app.print_and_log(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."

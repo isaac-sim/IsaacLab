@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.2 (2023-12-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added a check in the simulation stop callback in the :class:`omni.isaac.orbit.sim.SimulationContext` class
+  to not render when an exception is raised. The while loop in the callback was preventing the application
+  from closing when an exception was raised.
+
+
 0.10.1 (2023-12-06)
 ~~~~~~~~~~~~~~~~~~~
 

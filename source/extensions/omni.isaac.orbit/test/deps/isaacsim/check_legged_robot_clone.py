@@ -102,9 +102,11 @@ def main():
     # -- Robot
     # resolve asset
     if args_cli.asset == "orbit":
-        usd_path = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmalC/anymal_c_minimal_instanceable.usd"
+        usd_path = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+        root_prim_path = "/World/envs/env_.*/Robot/base"
     elif args_cli.asset == "oige":
         usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_instanceable.usd"
+        root_prim_path = "/World/envs/env_.*/Robot"
     elif os.path.exists(args_cli.asset):
         usd_path = args_cli.asset
     else:
@@ -132,8 +134,18 @@ def main():
         physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
     )
 
+    # Resolve robot prim paths
+    if args_cli.asset == "orbit":
+        root_prim_path = "/World/envs/env_.*/Robot/base"
+    elif args_cli.asset == "oige":
+        root_prim_path = "/World/envs/env_.*/Robot"
+    elif os.path.exists(args_cli.asset):
+        usd_path = args_cli.asset
+        root_prim_path = "/World/envs/env_.*/Robot"
+    else:
+        raise ValueError(f"Invalid asset: {args_cli.asset}. Must be one of: orbit, oige.")
     # Setup robot
-    robot_view = ArticulationView("/World/envs/env_.*/Robot", name="ANYMAL")
+    robot_view = ArticulationView(root_prim_path, name="ANYMAL")
     world.scene.add(robot_view)
     # Play the simulator
     world.reset()
