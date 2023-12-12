@@ -1,89 +1,137 @@
-.. _interactive-scene:
+.. _tutorial-interactive-scene:
 
-Using InteractiveScene
-======================
 
-In previous tutorials, we've used :meth:`spawn` to manually spawn assets,
-but in this tutorial we introduce :class:`InteractiveScene` and its
-associated configuration class :class:`InteractiveSceneCfg`.
+Using the Interactive Scene
+===========================
 
-:class:`InteractiveScene` provides a few benefits over using assets'
-:meth:`spawn` methods directly:
+.. currentmodule:: omni.isaac.orbit
 
-* collects all of the assets in a single configuration object which makes them easier
-  to manage
-* enables user-friendly cloning of scene elements for multiple environments
-* user doesn't need to call :meth:`spawn` for each asset - this is handled implicitly
+So far in the tutorials, we manually spawned assets into the simulation and created
+object instances to interact with them. However, as the complexity of the scene
+increases, it becomes tedious to perform these tasks manually. In this tutorial,
+we will introduce the :class:`scene.InteractiveScene` class, which provides a convenient
+interface for spawning prims and managing them in the simulation.
 
-We will implement an :class:`InteractiveSceneCfg` to design a simple scene
-for the Cartpole, which consists of a ground
-plane, light, and the cartpole :class:`Articulation`.
+At a high-level, the interactive scene is a collection of scene entities. Each entity
+can be either a non-interactive prim (e.g. ground plane, light source), an interactive
+prim (e.g. articulation, rigid object), or a sensor (e.g. camera, lidar). The interactive
+scene provides a convenient interface for spawning these entities and managing them
+in the simulation.
+
+Compared the manual approach, it provides the following benefits:
+
+* Alleviates the user needing to spawn each asset separately as this is handled implicitly.
+* Enables user-friendly cloning of scene prims for multiple environments.
+* Collects all the scene entities into a single object, which makes them easier to manage.
+
+In this tutorial, we take the cartpole example from the :ref:`tutorial-interact-articulation`
+tutorial and replace the ``design_scene`` function with an :class:`scene.InteractiveScene` object.
+While it may seem like overkill to use the interactive scene for this simple example, it will
+become more useful in the future as more assets and sensors are added to the scene.
+
 
 The Code
 ~~~~~~~~
-This tutorial corresponds to the ``scene_creation.py`` script within
-``orbit/source/standalone/tutorials``.
 
-.. dropdown:: :fa:`eye,mr-1` Code for ``scene_creation.py``
+This tutorial corresponds to the ``scene_creation.py`` script within
+``orbit/source/standalone/tutorials/03_scene``.
+
+.. dropdown:: Code for scene_creation.py
+   :icon: code
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_scene/scene_creation.py
       :language: python
+      :emphasize-lines: 51-64, 69-71, 92-93, 100-101, 106-107, 117-119
       :linenos:
+
 
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-We compose our scene configuration by sub-classing :class:`InteractiveSceneCfg`. We
-then add the elements we want as attributes of the class, which is a common pattern
-for configuration classes in Orbit. In this case, we add a
-ground plane, light, and cartpole. The names of the attributes (``ground``,
-``robot``, ``dome_light``, ``distant_light``) are used as keys to access the
-corresponding assets in the :class:`InteractiveScene` object.
+While the code is similar to the previous tutorial, there are a few key differences
+that we will go over in detail.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_scene.py
-   :language: python
-   :linenos:
+Scene configuration
+-------------------
 
-Within the config elements of :class:`CartpoleSceneCfg`, notice that we pass
-in a few arguments. We will describe these briefly as they are fundamental to
-how the scene interface works - refer to in-code documentation for more depth.
+The scene is composed of a collection of entities, each with their own configuration.
+These are specified in a configuration class that inherits from :class:`scene.InteractiveSceneCfg`.
+The configuration class is then passed to the :class:`scene.InteractiveScene` constructor
+to create the scene.
 
-* **prim_path**: The USD layer to associate the asset with
-* **spawn**: The configuration object for spawning
-* **init_state**: The desired initial pose of the asset. Defaults to identity if unspecified
-
-You can find more about additional arguments by looking directly at the docstrings for
-:class:`AssetBaseCfg`, :class:`RigidObjectCfg` and :class:`ArticulationCfg`.
-
-:class:`InteractiveSceneCfg` is simply a collection of
-asset configurations, so add new elements as you see fit
-(including sensors, markers, terrain, etc.) you've learned to utilize in previous tutorials.
-
-Setup Simulator and Spawn Scene
--------------------------------
+For the cartpole example, we specify the same scene as in the previous tutorial, but list
+them now in the configuration class :class:`CartpoleSceneCfg` instead of manually spawning them.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/03_scene/scene_creation.py
    :language: python
-   :start-after: # Main
-   :end-before: # Extract cartpole from InteractiveScene
+   :lines: 51-64
+   :linenos:
+   :lineno-start: 51
 
-Accessing Scene Elements
+The variable names in the configuration class are used as keys to access the corresponding
+entity from the :class:`scene.InteractiveScene` object. For example, the cartpole can
+be accessed via ``scene["cartpole"]``. However, we will get to that later. First, let's
+look at how individual scene entities are configured.
+
+Similar to how a rigid object and articulation were configured in the previous tutorials,
+the configurations are specified using a configuration class. However, there is a key
+difference between the configurations for the ground plane and light source and the
+configuration for the cartpole. The ground plane and light source are non-interactive
+prims, while the cartpole is an interactive prim. This distinction is reflected in the
+configuration classes used to specify them. The configurations for the ground plane and
+light source are specified using an instance of the :class:`assets.AssetBaseCfg` class
+while the cartpole is configured using an instance of the :class:`assets.ArticulationCfg`.
+Anything that is not an interactive prim (i.e., neither an asset nor a sensor) is not
+*handled* by the scene during simulation steps.
+
+Another key difference to note is in the specification of the prim paths for the
+different prims:
+
+* Ground plane: ``/World/defaultGroundPlane``
+* Light source: ``/World/Light``
+* Cartpole: ``{ENV_REGEX_NS}/Robot``
+
+As we learned earlier, Omniverse creates a graph of prims in the USD stage. The prim
+paths are used to specify the location of the prim in the graph. The ground plane and
+light source are specified using absolute paths, while the cartpole is specified using
+a relative path. The relative path is specified using the ``ENV_REGEX_NS`` variable,
+which is a special variable that is replaced with the environment name during scene creation.
+Any entity that has the ``ENV_REGEX_NS`` variable in its prim path will be  cloned for each
+environment. This path is replaced by the scene object with ``/World/envs/env_{i}`` where
+``i`` is the environment index.
+
+Scene instantiation
+-------------------
+
+Unlike before where we called the ``design_scene`` function to create the scene, we now
+create an instance of the :class:`scene.InteractiveScene` class and pass in the configuration
+object to its constructor. While creating the configuration instance of ``CartpoleSceneCfg``
+we specify how many environment copies we want to create using the ``num_envs`` argument.
+This will be used to clone the scene for each environment.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/03_scene/scene_creation.py
+   :language: python
+   :lines: 117-119
+   :linenos:
+   :lineno-start: 117
+
+Accessing scene elements
 ------------------------
 
-Individual scene elements can then be accessed from the :class:`InteractiveScene` via
-the different asset groups: ``articulations``, ``rigid_objects``, ``sensors``,
-``extras`` (where lights are found for instance). Each of these is a dictionary with the keys being assigned based
-on the object instance name.
-
-In the example script we access our cartpole :class:`Articulation` here using the ``"robot"`` key:
+Similar to how entities were accessed from a dictionary in the previous tutorials, the
+scene elements can be accessed from the :class:`InteractiveScene` object using the
+``[]`` operator. The operator takes in a string key and returns the corresponding
+entity. The key is specified through the configuration class for each entity. For example,
+the cartpole is specified using the key ``"cartpole"`` in the configuration class.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/03_scene/scene_creation.py
    :language: python
-   :start-after: # Extract cartpole from InteractiveScene
-   :end-before: # Simulation loop
+   :lines: 69-71
+   :linenos:
+   :lineno-start: 69
 
-Simulation Loop
----------------
+Running the simulation loop
+---------------------------
 
 .. literalinclude:: ../../../../source/standalone/tutorials/03_scene/scene_creation.py
    :language: python
@@ -91,46 +139,34 @@ Simulation Loop
    :start-after: # Simulation loop
    :end-before: # End simulation loop
 
-The rest of the script should look familiar to previous scripts that interfaced with :class:`Articulation`,
-with a few small differences:
+The rest of the script looks similar to previous scripts that interfaced with :class:`assets.Articulation`,
+with a few small differences in the methods called:
 
-*  :meth:`Articulation.set_joint_position_target` and  :meth:`Articulation.set_joint_velocity_target`
-   in combination with :meth:`InteractiveScene.write_data_to_sim`
-   are used instead of :meth:`Articulation.write_joint_data_to_sim` to set the desired position and velocity targets
-   without writing them to the simulation.
-*  :meth:`InteractiveScene.update` is used in place of :meth:`Articulation.update`
+* :meth:`assets.Articulation.reset` ⟶ :meth:`scene.InteractiveScene.reset`
+* :meth:`assets.Articulation.write_data_to_sim` ⟶ :meth:`scene.InteractiveScene.write_data_to_sim`
+* :meth:`assets.Articulation.update` ⟶ :meth:`scene.InteractiveScene.update`
 
-Under the hood, ``InteractiveScene`` calls the ``update`` and ``write_data_to_sim`` for each asset in the scene,
-so you only need to call these once per simulation step.
+Under the hood, the methods of :class:`scene.InteractiveScene` call the corresponding
+methods of the entities in the scene.
 
-Cloning
--------
-
-As mentioned previously, one of the key benefits of using :class:`InteractiveScene`
-is its ability to handle cloning of assets seamlessly with the only user input
-being the ``num_envs`` (The number of desired environments to spawn). The spacing between
-environments is also configurable via ``env_spacing``.
-
-We will exercise this below by passing in ``--num_envs 32`` to the tutorial script to spawn 32 cartpoles.
 
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code, let's run the script and see the result:
+Let's run the script to simulate 32 cartpoles in the scene. We can do this by passing
+the ``--num_envs`` argument to the script.
 
 .. code-block:: bash
 
    ./orbit.sh -p source/standalone/tutorials/03_scene/scene_creation.py --num_envs 32
 
+This should open a stage with 32 cartpoles swinging around randomly. You can use the
+mouse to rotate the camera and the arrow keys to move around the scene.
 
-This should open a stage with 32 cartpoles. The simulation should be
-playing with the poles of each cartpole balancing vertically.
-
-In this tutorial we saw how to use :class:`InteractiveScene` to create a
+In this tutorial, we saw how to use :class:`scene.InteractiveScene` to create a
 scene with multiple assets. We also saw how to use the ``num_envs`` argument
 to clone the scene for multiple environments.
 
-.. note::
-  There are many more examples of other ``InteractiveSceneCfg`` in the tasks found in
-  ``source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks`` for
-  reference.
+There are many more example usages of the :class:`scene.InteractiveSceneCfg` in the tasks found
+under the ``omni.isaac.orbit_tasks`` extension. Please check out the source code to see
+how they are used for more complex scenes.

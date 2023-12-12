@@ -76,7 +76,7 @@ implementing a :class:`InteractiveSceneCfg`. This will then be used to construct
 a :class:`InteractiveScene` which handles spawning of the objects in the scene.
 
 In this tutorial, we will be using the configuration from ``cartpole_scene.py``.
-See :ref:`interactive-scene` for a tutorial on how to create it.
+See :ref:`tutorial-interactive-scene` for a tutorial on how to create it.
 
 The scene used here consists of a ground plane, the cartpole and some lights.
 

@@ -78,7 +78,7 @@ The first step in creating a new environment is to design the scene in which the
 The scene used in this tutorial is the same one used in the tutorial :ref:`creating-base-env`, so we won't
 go over it in detail again here.
 
-Also see :ref:`interactive-scene` for even more details on scene creation.
+Also see :ref:`tutorial-interactive-scene` for even more details on scene creation.
 
 Designing the Action and Observation Spaces
 -------------------------------------------
