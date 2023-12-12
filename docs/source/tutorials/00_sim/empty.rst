@@ -1,5 +1,5 @@
-Create an empty scene
-=====================
+Creating an empty scene
+=======================
 
 .. currentmodule:: omni.isaac.orbit
 

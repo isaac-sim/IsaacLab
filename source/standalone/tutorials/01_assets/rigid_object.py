@@ -39,12 +39,12 @@ import torch
 import traceback
 
 import carb
+import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
+import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
 from omni.isaac.orbit.sim import SimulationContext
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import quat_mul, random_yaw_orientation, sample_cylinder
 
 
 def design_scene():
@@ -53,35 +53,41 @@ def design_scene():
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
     # Lights
-    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
     cfg.func("/World/Light", cfg)
-    # add rigid objects and return them
-    return add_rigid_objects()
+
+    # Create separate groups called "Origin1", "Origin2", "Origin3"
+    # Each group will have a robot in it
+    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
+    for i, origin in enumerate(origins):
+        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+
+    # Rigid Object
+    cone_cfg = RigidObjectCfg(
+        prim_path="/World/Origin.*/Cone",
+        spawn=sim_utils.ConeCfg(
+            radius=0.1,
+            height=0.2,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+    cone_object = RigidObject(cfg=cone_cfg)
+
+    # return the scene information
+    scene_entities = {"cone": cone_object}
+    return scene_entities, origins
 
 
-def add_rigid_objects():
-    """Adds rigid objects to the scene."""
-    # add YCB objects
-    ycb_usd_paths = {
-        "crackerBox": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
-        "sugarBox": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
-        "tomatoSoupCan": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
-        "mustardBottle": f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
-    }
-    for key, usd_path in ycb_usd_paths.items():
-        translation = torch.rand(3).tolist()
-        cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-        cfg.func(f"/World/Objects/{key}", cfg, translation=translation)
-
-    # Setup rigid object
-    cfg = RigidObjectCfg(prim_path="/World/Objects/.*")
-    # Create rigid object handler
-    rigid_object = RigidObject(cfg)
-
-    return rigid_object
-
-
-def run_simulator(sim: sim_utils.SimulationContext, rigid_object: RigidObject):
+def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObject], origins: torch.Tensor):
+    """Runs the simulation loop."""
+    # Extract scene entities
+    # note: we only do this here for readability. In general, it is better to access the entities directly from
+    #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
+    cone_object = entities["cone"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -94,45 +100,48 @@ def run_simulator(sim: sim_utils.SimulationContext, rigid_object: RigidObject):
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = rigid_object.data.default_root_state.clone()
-            # -- position
-            root_state[:, :3] = sample_cylinder(
-                radius=0.5, h_range=(0.15, 0.25), size=rigid_object.num_instances, device=rigid_object.device
+            root_state = cone_object.data.default_root_state.clone()
+            # sample a random position on a cylinder around the origins
+            root_state[:, :3] += origins
+            root_state[:, :3] += math_utils.sample_cylinder(
+                radius=0.1, h_range=(0.25, 0.5), size=cone_object.num_instances, device=cone_object.device
             )
-            # -- orientation: apply yaw rotation
-            root_state[:, 3:7] = quat_mul(
-                random_yaw_orientation(rigid_object.num_instances, rigid_object.device), root_state[:, 3:7]
-            )
-            # -- set root state
-            rigid_object.write_root_state_to_sim(root_state)
+            # write root state to simulation
+            cone_object.write_root_state_to_sim(root_state)
             # reset buffers
-            rigid_object.reset()
-            print(">>>>>>>> Reset!")
+            cone_object.reset()
+            print("----------------------------------------")
+            print("[INFO]: Resetting object state...")
         # apply sim data
-        rigid_object.write_data_to_sim()
+        cone_object.write_data_to_sim()
         # perform step
         sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update buffers
-        rigid_object.update(sim_dt)
+        cone_object.update(sim_dt)
+        # print the root position
+        if count % 50 == 0:
+            print(f"Root position (in world): {cone_object.data.root_state_w[:, :3]}")
 
 
 def main():
     """Main function."""
     # Load kit helper
-    sim = SimulationContext(sim_utils.SimulationCfg())
+    sim_cfg = sim_utils.SimulationCfg()
+    sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[1.5, 1.5, 1.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    rigid_object = design_scene()
+    sim.set_camera_view(eye=[1.5, 0.0, 1.0], target=[0.0, 0.0, 0.0])
+    # Design scene
+    scene_entities, scene_origins = design_scene()
+    scene_origins = torch.tensor(scene_origins, device=sim.device)
     # Play the simulator
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")
     # Run the simulator
-    run_simulator(sim, rigid_object)
+    run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":

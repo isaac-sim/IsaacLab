@@ -93,8 +93,7 @@ def spawn_markers():
 
 
 def main():
-    """Spawns lights in the stage and sets the camera view."""
-
+    """Main function."""
     # Load kit helper
     sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01, substeps=1))
     # Set main camera

@@ -1,133 +1,146 @@
-.. _how_to_articulation_label:
+.. _tutorial-interact-articulation:
+
 
 Interacting with an articulation
 ================================
 
-In the previous tutorial, we explained the essential workings of the standalone script and how to
-play the simulator. This tutorial shows how to add a robotic arm to the stage and control the
-arm by providing random joint commands.
+.. currentmodule:: omni.isaac.orbit
 
-The tutorial will cover how to use the robot classes provided in Orbit. This includes spawning,
-initializing, resetting, and controlling the robot.
+
+This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
+:ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
+On top of setting the root state, we will see how to set the joint state and apply commands to the articulated
+robot.
 
 
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``arms.py`` script in the ``orbit/source/standalone/demos`` directory.
+The tutorial corresponds to the ``articulation.py`` script in the ``orbit/source/standalone/tutorials/01_assets``
+directory.
 
-.. dropdown:: :fa:`eye,mr-1` Code for `arms.py`
+.. dropdown:: Code for articulation.py
+   :icon: code
 
-   .. literalinclude:: ../../../../source/standalone/demos/arms.py
+   .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/articulation.py
       :language: python
-      :emphasize-lines: 74-85,92-95,105-120,121-125,126-135,146-147
+      :emphasize-lines: 58-69, 92-103, 103-105, 111, 125-127, 133
       :linenos:
 
 
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-The scene is designed similarly to the previous tutorial.
+Designing the scene
+-------------------
 
-Here, we add two articulated robots to the scene and apply some actions to them. You can choose from franka_panda or ur10 robots.
+Similar to the previous tutorial, we populate the scene with a ground plane and a distant light. Instead of
+spawning rigid objects, we now spawn a cart-pole articulation from its USD file. The cart-pole is a simple robot
+consisting of a cart and a pole attached to it. The cart is free to move along the x-axis, and the pole is free to
+rotate about the cart. The USD file for the cart-pole contains the robot's geometry, joints, and other physical
+properties.
 
-In the following, we will detail the ``add_robots`` function, which is responsible for adding the robots to the scene, and the ``run_simulator`` function, which steps the simulator, applies some actions to the robot, and handles their reset.
+For the cart-pole, we use its pre-defined configuration object, which is an instance of the
+:class:`assets.ArticulationCfg` class. This class contains information about the articulation's spawning strategy,
+default initial state, actuator models for different joints, and other meta-information. A deeper-dive into how to
+create this configuration object is provided in the :ref:`how-to-create-articulation-config` tutorial.
 
-Adding the robots
------------------
+As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
+an instance of the :class:`assets.Articulation` class by passing the configuration object to its constructor.
 
-We create an instance of the single-arm robot class using a pre-defined configuration object in `Orbit`. This object contains information on the associated USD file, default initial state, actuator models for different joints, and other meta information about the robot's kinematics.
-All pre-defined config files can be found in `orbit/source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config`.
-
-Single arm manipulators refer to robotic arms with a fixed base. These robots are at the ground height, i.e., `z=0`. Similar to previous objects, a spawn function is defined in each configuration, which is used to place the robot in the scene. Again, we provide the prim path, the spawn configuration, and the translation to the spawn function.
-
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/articulation.py
    :language: python
-   :lines: 74-83
+   :lines: 58-69
    :linenos:
-   :lineno-start: 74
-
-As we want to articulate the robot and enable it to move, we need to model it as a combination of fixed and articulated joints. While the articulated joints are defined in the configuration, we want to initialize their physics handles. In `Orbit`, we provide this behavior in the form of an :class:`Articulation` class that allows us to set actions to the articulated joints and retrieve the robot's current state.
-Here, multiple prims can be grouped by specifying their paths as regex patterns.
-
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
-   :language: python
-   :lines: 84-85
-   :linenos:
-   :lineno-start: 84
-
-Please note that the physics handles are initialized when the simulation is played. Thus, we must call ``sim.reset()`` before accessing the physics handles.
-
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
-   :language: python
-   :lines: 146-147
-   :linenos:
-   :lineno-start: 146
+   :lineno-start: 58
 
 
 Running the simulation loop
 ---------------------------
 
-In this tutorial, we step the simulation, apply some actions to the robot, and reset the robot at regular intervals.
+Continuing from the previous tutorial, we reset the simulation at regular intervals, set commands to the articulation,
+step the simulation, and update the articulation's internal buffers.
 
-At first, we generate a joint position target that should be achieved. Every articulation class contains a :class:`ArticulationData` object that contains the current state of the robot. This object can be used to retrieve the current state of the robot as well as some default values. Here, we use it to get the default joint positions and add a slight random random offset to get a target position.
+Resetting the simulation
+""""""""""""""""""""""""
 
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
+Similar to a rigid object, an articulation also has a root state. This state corresponds to the root body in the
+articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
+joint positions and velocities.
+
+To reset the articulation, we first set the root state by calling the :meth:`Articulation.write_root_state_to_sim`
+method. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_state_to_sim` method.
+Finally, we call the :meth:`Articulation.reset` method to reset any internal buffers and caches.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/articulation.py
    :language: python
-   :lines: 92-95
+   :lines: 92-103
    :linenos:
    :lineno-start: 92
 
-As long as the simulation runs, we reset the robot regularly.
-We first acquire the default joint position and velocity from the data buffer to perform the reset. By calling the :meth:`Articulation.write_joint_state_to_sim` method, we directly write these values into the PhysX buffer. Then, we call :meth:`Articulation.reset` to reset the robot to its default state.
-Following the reset, a new target position of the robot and, if present, the gripper is generated.
+Stepping the simulation
+"""""""""""""""""""""""
+
+Applying commands to the articulation involves two steps:
+
+1. *Setting the joint targets*: This sets the desired joint position, velocity, or effort targets for the articulation.
+2. *Writing the data to the simulation*: Based on the articulation's configuration, this step handles any
+   :ref:`actuation conversions <feature-actuators>` and writes the converted values to the PhysX buffer.
+
+In this tutorial, we control the articulation using joint effort commands. For this to work, we need to set the
+articulation's stiffness and damping parameters to zero. This is done a-priori inside the cart-pole's pre-defined
+configuration object.
+
+At every step, we randomly sample joint efforts and set them to the articulation by calling the
+:meth:`Articulation.set_joint_effort_target` method. After setting the targets, we call the
+:meth:`Articulation.write_data_to_sim` method to write the data to the PhysX buffer. Finally, we step
+the simulation.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/articulation.py
+   :language: python
+   :lines: 108-112
+   :linenos:
+   :lineno-start: 108
+
+
+Updating the state
+""""""""""""""""""
+
+Every articulation class contains a :class:`assets.ArticulationData` object. This stores the state of the
+articulation. To update the state inside the buffer, we call the :meth:`assets.Articulation.update` method.
 
 .. literalinclude:: ../../../../source/standalone/demos/arms.py
    :language: python
-   :lines: 105-120
+   :lines: 116-117
    :linenos:
-   :lineno-start: 105
-
-
-If a gripper is present, we toggle the command regularly to simulate a grasp and release action.
-
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
-   :language: python
-   :lines: 121-125
-   :linenos:
-   :lineno-start: 121
-
-The joint position target is set to the Articulation object by calling the :meth:`Articulation.set_joint_target` method. Similar methods exist to set velocity and effort targets depending on the use case. Afterward, the values are again written into the PhysX buffer before the simulation is stepped. Finally, we update the articulation object's internal buffers to reflect the robot's new state.
-
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
-   :language: python
-   :lines: 126-135
-   :linenos:
-   :lineno-start: 126
+   :lineno-start: 116
 
 
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code let's run the script and see the result:
+To run the code and see the results, let's run the script from the terminal:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/demos/arms.py --robot franka_panda
+   ./orbit.sh -p source/standalone/tutorials/01_assets/articulation.py
 
 
-This command should open a stage with a ground plane, lights, and robots.
-The simulation should play with the robot arms going to random joint configurations. The
-gripper, if present, should be opening or closing at regular intervals. To stop the simulation,
-you can either close the window, press the ``STOP`` button in the UI, or press ``Ctrl+C``
-in the terminal
+This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
+To stop the simulation, you can either close the window, press the ``STOP`` button in the UI, or press ``Ctrl+C``
+in the terminal.
 
-In addition to the demo script for playing single-arm manipulators, we also provide a script
-for spawning a few quadrupeds:
+In this tutorial, we learned how to create and interact with a simple articulation. We saw how to set the state
+of an articulation (its root and joint state) and how to apply commands to it. We also saw how to update its
+buffers to read the latest state from the simulation.
+
+In addition to this tutorial, we also provide a few other scripts that spawn different robots.These are included
+in the ``orbit/source/standalone/demos`` directory. You can run these scripts as:
 
 .. code-block:: bash
 
-    # Quadruped -- Spawns ANYmal C, ANYmal B, Unitree A1 on one stage
+   # Spawn many different single-arm manipulators
+   ./orbit.sh -p source/standalone/demos/arms.py
+
+   # Spawn many different quadrupeds
    ./orbit.sh -p source/standalone/demos/quadrupeds.py
-
-In this tutorial, we saw how to spawn a robot multiple times and wrap it in an Articulation class to initialize all physics handles, and that lets us control the robot. We also saw how to reset the robot and set joint targets.

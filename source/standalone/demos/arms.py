@@ -86,7 +86,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
-    """Runs the simulator by applying actions to the robot at every time-step"""
+    """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0

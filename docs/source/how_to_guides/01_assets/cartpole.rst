@@ -1,3 +1,5 @@
+.. _how-to-create-articulation-config:
+
 Creating an Articulation
 ========================
 
@@ -127,7 +129,7 @@ Defining the Cartpole's Actuators
 
 The cartpole articulation has two actuators, one corresponding to each joint
 ``cart_to_pole`` and ``slider_to_cart``. for more details on actuators, see
-:ref:`actuators-guide`.
+:ref:`feature-actuators`.
 
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
    :language: python

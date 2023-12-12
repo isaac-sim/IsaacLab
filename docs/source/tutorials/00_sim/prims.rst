@@ -1,7 +1,8 @@
-.. _how_to_spawn_objects_label:
+.. _tutorial-spawn-prims:
 
-Spawn prims into the scene
-==========================
+
+Spawning prims into the scene
+=============================
 
 .. currentmodule:: omni.isaac.orbit
 
@@ -16,11 +17,12 @@ The Code
 The tutorial corresponds to the ``prims.py`` script in the ``orbit/source/standalone/tutorials/00_sim`` directory.
 Let's take a look at the Python script:
 
-.. dropdown:: :fa:`eye,mr-1` Code for `prims.py`
+.. dropdown:: Code for prims.py
+   :icon: code
 
    .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/prims.py
       :language: python
-      :emphasize-lines: 43-79
+      :emphasize-lines: 43-82, 95
       :linenos:
 
 
@@ -135,7 +137,7 @@ default to the default values set by USD Physics.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/prims.py
    :language: python
-   :lines: 67-76
+   :lines: 67-78
    :linenos:
    :lineno-start: 67
 
@@ -149,9 +151,9 @@ All of this information is stored in its USD file.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/prims.py
    :language: python
-   :lines: 78-80
+   :lines: 80-82
    :linenos:
-   :lineno-start: 78
+   :lineno-start: 80
 
 The table above is added as a reference to the scene. In layman terms, this means that the table is not actually added
 to the scene, but a `pointer` to the table asset is added. This allows us to modify the table asset and have the changes
