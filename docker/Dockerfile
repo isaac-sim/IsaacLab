@@ -69,7 +69,8 @@ RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
     echo "alias python3=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \
     echo "alias pip='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACSIM_PATH}/python.sh ${ISAACSIM_PATH}/tensorboard'" >> ${HOME}/.bashrc
+    echo "alias tensorboard='${ISAACSIM_PATH}/python.sh ${ISAACSIM_PATH}/tensorboard'" >> ${HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
 # make working directory as the orbit directory
 # this is the default directory when the container is run
