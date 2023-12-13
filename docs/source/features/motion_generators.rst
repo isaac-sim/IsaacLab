@@ -50,7 +50,7 @@ joint torque commands, i.e. at every time-step,
     \tau = \tau_{des}
 
 Thus, this control mode is achievable by setting the command type for the actuator group, via
-the :class:`ActuatorControlCfg` class, to `"t_abs"`.
+the :class:`ActuatorControlCfg` class, to ``"t_abs"``.
 
 
 Velocity control
@@ -68,7 +68,7 @@ current and desired joint velocities. Based on input actions, the joint torques 
 where :math:`k_d` are the gains parsed from configuration.
 
 This control mode is achievable by setting the command type for the actuator group, via
-the :class:`ActuatorControlCfg` class, to `"v_abs"` or `"v_rel"`.
+the :class:`ActuatorControlCfg` class, to ``"v_abs"`` or ``"v_rel"``.
 
 .. attention::
 
@@ -92,7 +92,7 @@ are zero). Based on the input actions, the joint torque commands are computed as
 where :math:`k_p` and :math:`k_d` are the gains parsed from configuration.
 
 In its simplest above form,  the control mode is achievable by setting the command type for the actuator group,
-via the :class:`ActuatorControlCfg` class, to `"p_abs"` or `"p_rel"`.
+via the :class:`ActuatorControlCfg` class, to ``"p_abs"`` or ``"p_rel"``.
 
 However, a more complete formulation which considers the dynamics of the articulation would be:
 

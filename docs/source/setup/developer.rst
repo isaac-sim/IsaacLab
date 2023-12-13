@@ -96,8 +96,9 @@ The ``orbit`` repository is structured as follows:
    │   │   └── omni.isaac.orbit_tasks
    │   │   └── omni.isaac.contrib_tasks
    │   ├── standalone
-   │   │   ├── demo
+   │   │   ├── demos
    │   │   ├── environments
+   │   │   ├── tutorials
    │   │   └── workflows
    │   └── tools
    └── VERSION

@@ -1,47 +1,36 @@
 Running existing scripts
 ========================
 
-API Demos
----------
+Showroom
+--------
 
 The main core interface extension in Orbit ``omni.isaac.orbit`` provides
 the main modules for actuators, objects, robots and sensors. We provide
-a list of demo scripts. These showcase how to use the provided interfaces
-within a code in a minimal way.
+a list of demo scripts and tutorials. These showcase how to use the provided
+interfaces within a code in a minimal way.
 
-A few quick demo scripts to run and checkout:
+A few quick showroom scripts to run and checkout:
 
--  Spawn different quadrupeds, visualize feet markers, and make
-   robots stand using position commands:
-
-   .. code:: bash
-
-      ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
-
--  Spawn multiple Franka arms and apply random joint position commands:
+-  Spawn different quadrupeds and make robots stand using position commands:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demo/play_arms.py --robot franka_panda
+      ./orbit.sh -p source/standalone/demos/quadrupeds.py
 
--  Spawn multiple robots and control them using inverse kinematics
-   controller:
-
-   .. code:: bash
-
-      ./orbit.sh -p source/standalone/demo/play_ik_control.py --robot franka_panda --num_envs 128
-
--  Spawn a camera and visualize the obtained pointcloud:
+-  Spawn different arms and apply random joint position commands:
 
    .. code:: bash
 
-      # CPU
-      ./orbit.sh -p source/standalone/demo/play_camera.py
-      # GPU
-      ./orbit.sh -p source/standalone/demo/play_camera.py --gpu
+      ./orbit.sh -p source/standalone/demos/arms.py
 
-Environments
-------------
+-  Spawn multiple markers that are useful for visualizations:
+
+   .. code:: bash
+
+      ./orbit.sh -p source/standalone/demos/markers.py
+
+Workflows
+---------
 
 With Orbit, we also provide a suite of benchmark environments included
 in the ``omni.isaac.orbit_tasks`` extension. We use the OpenAI Gym registry
