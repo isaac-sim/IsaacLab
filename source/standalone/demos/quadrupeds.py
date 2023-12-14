@@ -106,16 +106,6 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
-    # Origin 5 with Unitree Go1
-    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
-    # -- Robot
-    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
-
-    # Origin 6 with Unitree Go2
-    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
-    # -- Robot
-    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
-
     # return the scene information
     scene_entities = {
         "anymal_b": anymal_b,
@@ -156,7 +146,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # apply default actions to the quadrupedal robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.01
+            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim
