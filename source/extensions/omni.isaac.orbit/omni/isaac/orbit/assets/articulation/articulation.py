@@ -679,10 +679,13 @@ class Articulation(RigidObject):
                 self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
             # update state of the actuator model
             if isinstance(actuator, ImplicitActuator):
-                # TODO read torque from simulation (#127)
-                pass
-                # self._data.computed_torques[:, actuator.joint_indices] = ???
-                # self._data.applied_torques[:, actuator.joint_indices] = ???
+                # read torque from simulation
+                self._data.computed_torque[:, actuator.joint_indices] = self._root_view.get_measured_joint_efforts(
+                    joint_indices=actuator.joint_indices
+                )
+                self._data.applied_torque[:, actuator.joint_indices] = self._root_view.get_applied_joint_efforts(
+                    joint_indices=actuator.joint_indices
+                )
             else:
                 # -- torques
                 self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort

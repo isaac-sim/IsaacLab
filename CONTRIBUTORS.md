@@ -41,6 +41,7 @@ Guidelines for modifications:
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Chao Ni
 
 ## Acknowledgements
 
