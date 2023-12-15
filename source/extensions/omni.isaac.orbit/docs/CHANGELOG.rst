@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.4 (2023-12-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potentially breaking import of omni.kit.widget.toolbar by ensuring that
+  if live-stream is enabled, then the :mod:`omni.kit.widget.toolbar`
+  extension is loaded.
+
 0.10.3 (2023-12-12)
 ~~~~~~~~~~~~~~~~~~~
 
