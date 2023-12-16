@@ -116,7 +116,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_body_pose()
         # set command into controller
-        self._ik_controller.set_command(self._processed_actions, ee_pos_curr, ee_quat_curr)
+        self._controller.set_command(self._processed_actions, ee_pos_curr, ee_quat_curr)
 
     def apply_actions(self):
         # obtain quantities from simulation
@@ -124,7 +124,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         ee_pos_curr, ee_quat_curr = self._compute_body_pose()
         joint_pos = self._asset.data.joint_pos[:, self._joint_ids]
         # compute the delta in joint-space
-        joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        joint_pos_des = self._controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
         # set the joint position command
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
 

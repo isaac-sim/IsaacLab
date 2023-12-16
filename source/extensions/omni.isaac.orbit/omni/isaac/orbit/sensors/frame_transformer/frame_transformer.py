@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
-
+import re
 import torch
 from typing import TYPE_CHECKING, Sequence
 
@@ -233,6 +233,7 @@ class FrameTransformer(SensorBase):
         first_env_body_names = [first_env_prim_path.split("/")[-1] for first_env_prim_path in first_env_prim_paths]
 
         target_frame_body_names = first_env_body_names[1:]
+        target_frame_body_names = [x for x in first_env_body_names  if not re.match(self._tracked_body_names[0], x)]
 
         # The position and rotation components of target frame offsets
         target_frame_offset_pos = []
