@@ -38,7 +38,7 @@ import torch
 import traceback
 
 import carb
-from omni.isaac.core.utils.viewports import set_camera_view
+import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
@@ -47,45 +47,13 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
 
 
-def design_scene():
-    """Design the scene."""
-    # Populate scene
-    # -- Rough terrain
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
-    cfg.func("/World/ground", cfg)
-    # -- Light
-    cfg = sim_utils.DistantLightCfg(intensity=2000)
-    cfg.func("/World/light", cfg)
-    # -- Balls
-    cfg = sim_utils.SphereCfg(
-        radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-    )
-    cfg.func("/World/envs/env_0/ball", cfg)
-    cfg.func("/World/envs/env_1/ball", cfg)
-    cfg.func("/World/envs/env_2/ball", cfg)
-    cfg.func("/World/envs/env_3/ball", cfg)
-
-    # Setup rigid object
-    cfg = RigidObjectCfg(prim_path="/World/envs/env_.*/ball")
-    # Create rigid object handler
-    balls = RigidObject(cfg)
-
-    # Create a ray-caster sensor
-    ray_caster = add_sensor()
-
-    return ray_caster, balls
-
-
-def add_sensor():
+def define_sensor() -> RayCaster:
+    """Defines the ray-caster sensor to add to the scene."""
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="/World/Origin.*/ball",
         mesh_prim_paths=["/World/ground"],
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
         attach_yaw_only=True,
         debug_vis=not args_cli.headless,
     )
@@ -94,8 +62,46 @@ def add_sensor():
     return ray_caster
 
 
-def run_simulator(sim: sim_utils.SimulationContext, ray_caster: RayCaster, balls: RigidObject):
+def design_scene() -> dict:
+    """Design the scene."""
+    # Populate scene
+    # -- Rough terrain
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
+    cfg.func("/World/ground", cfg)
+    # -- Light
+    cfg = sim_utils.DistantLightCfg(intensity=2000)
+    cfg.func("/World/light", cfg)
+
+    # Create separate groups called "Origin1", "Origin2", "Origin3"
+    # Each group will have a robot in it
+    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
+    for i, origin in enumerate(origins):
+        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+    # -- Balls
+    cfg = RigidObjectCfg(
+        prim_path="/World/Origin.*/ball",
+        spawn=sim_utils.SphereCfg(
+            radius=0.25,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
+    )
+    balls = RigidObject(cfg)
+    # -- Sensors
+    ray_caster = define_sensor()
+
+    # return the scene information
+    scene_entities = {"balls": balls, "ray_caster": ray_caster}
+    return scene_entities
+
+
+def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     """Run the simulator."""
+    # Extract scene_entities for simplified notation
+    ray_caster: RayCaster = scene_entities["ray_caster"]
+    balls: RigidObject = scene_entities["balls"]
 
     # define an initial position of the sensor
     ball_default_state = balls.data.default_root_state.clone()
@@ -131,15 +137,15 @@ def main():
     sim_cfg = sim_utils.SimulationCfg()
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
+    sim.set_camera_view([0.0, 15.0, 15.0], [0.0, 0.0, -2.5])
     # Design the scene
-    ray_caster, balls = design_scene()
+    scene_entities = design_scene()
     # Play simulator
     sim.reset()
-    # Print the sensor information
-    print(ray_caster)
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
     # Run simulator
-    run_simulator(sim=sim, ray_caster=ray_caster, balls=balls)
+    run_simulator(sim=sim, scene_entities=scene_entities)
 
 
 if __name__ == "__main__":

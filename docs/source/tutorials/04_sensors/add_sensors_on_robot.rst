@@ -1,13 +1,31 @@
-Adding Sensors on a Robot
+.. _tutorial-add-sensors-on-robot:
+
+
+Adding sensors on a robot
 =========================
 
-This tutorial demonstrates how to simulate various sensors onboard the quadruped robot ANYmal-C (ANYbotics) using the ORBIT framework. The included sensors are:
+.. currentmodule:: omni.isaac.orbit
 
-- USD-Camera
-- Height Scanner
-- Contact Sensor
 
-Please review their how-to guides before proceeding with this guide.
+While the asset classes allow us to create and simulate the physical embodiment of the robot,
+sensors help in obtaining information about the environment. They typically update at a lower
+frequency than the simulation and are useful for obtaining different proprioceptive and
+exteroceptive information. For example, a camera sensor can be used to obtain the visual
+information of the environment, and a contact sensor can be used to obtain the contact
+information of the robot with the environment.
+
+In this tutorial, we will see how to add different sensors to a robot. We will use the
+ANYmal-C robot for this tutorial. The ANYmal-C robot is a quadrupedal robot with 12 degrees
+of freedom. It has 4 legs, each with 3 degrees of freedom. The robot has the following
+sensors:
+
+- A camera sensor on the head of the robot which provides RGB-D images
+- A height scanner sensor that provides terrain height information
+- Contact sensors on the feet of the robot that provide contact information
+
+We continue this tutorial from the previous tutorial on :ref:`tutorial-interactive-scene`,
+where we learned about the :class:`scene.InteractiveScene` class.
+
 
 The Code
 ~~~~~~~~
@@ -20,84 +38,173 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 72-90, 116-123, 125-139, 150-151
+      :emphasize-lines: 73-96, 145-154, 172-173
       :linenos:
 
 
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-The script designs a scene with a ground plane, lights, and two instances of the ANYmal-C robot.
-This guide will not explain the individual sensors; please refer to their corresponding how-to guides for more details (see :ref:`Height-Scanner How-to-Guide <how_to_ray_caster_label>` and :ref:`Camera How-to-Guide <how_to_camera_label>`).
-Furthermore, how to spawn such an articulated robot in the scene is explained in the :ref:`Articulation How-to-Guide <how_to_articulation_label>`.
+Similar to the previous tutorials, where we added assets to the scene, the sensors are also added
+to the scene using the scene configuration. All sensors inherit from the :class:`sensors.SensorBase` class
+and are configured through their respective config classes. Each sensor instance can define its own
+update period, which is the frequency at which the sensor is updated. The update period is specified
+in seconds through the :attr:`sensors.SensorBaseCfg.update_period` attribute.
 
-In the following, we will detail the ``add_sensor`` function, which is responsible for adding the sensors on the robot.
-The ``run_simulator`` function updates the sensors and provides some information on them.
+Depending on the specified path and the sensor type, the sensors are attached to the prims in the scene.
+They may have an associated prim that is created in the scene or they may be attached to an existing prim.
+For instance, the camera sensor has a corresponding prim that is created in the scene, whereas for the
+contact sensor, the activating the contact reporting is a property on a rigid body prim.
 
-Adding the sensors
-------------------
+In the following, we introduce the different sensors we use in this tutorial and how they are configured.
+For more description about them, please check the :mod:`sensors` module.
 
-For each sensor, the corresponding config class has to be created, and the corresponding parameters have to be set.
-To add the sensors to the robot, the prim paths must be set as a child prim of the robot.
-In this case, the sensor will move with the robot. The offsets have to be provided w.r.t. the parent frame on the robot.
-The resulting configurations and initialization calls are shown below.
+Camera sensor
+-------------
 
-Camera sensor:
+A camera is defined using the :class:`sensors.CameraCfg`. It is based on the USD Camera sensor and
+the different data types are captured using Omniverse Replicator API. Since it has a corresponding prim
+in the scene, the prims are created in the scene at the specified prim path.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
-   :language: python
-   :lines: 88-102
-   :linenos:
-   :lineno-start: 88
+The configuration of the camera sensor includes the following parameters:
 
-Height scanner sensor:
+* :attr:`~sensors.CameraCfg.spawn`: The type of USD camera to create. This can be either
+  :class:`~sim.spawners.sensors.PinholeCameraCfg` or :class:`~sim.spawners.sensors.FisheyeCameraCfg`.
+* :attr:`~sensors.CameraCfg.offset`: The offset of the camera sensor from the parent prim.
+* :attr:`~sensors.CameraCfg.data_types`: The data types to capture. This can be ``rgb``,
+  ``distance_to_image_plane``, ``normals``, or other types supported by the USD Camera sensor.
 
-.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
-   :language: python
-   :lines: 103-114
-   :linenos:
-   :lineno-start: 103
+To attach an RGB-D camera sensor to the head of the robot, we specify an offset relative to the base
+frame of the robot. The offset is specified as a translation and rotation relative to the base frame,
+and the :attr:`~sensors.CameraCfg.OffsetCfg.convention` in which the offset is specified.
 
-Contact sensor:
-
-.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
-   :language: python
-   :lines: 115-120
-   :linenos:
-   :lineno-start: 115
-
-Please note that the buffers, physics handles for the camera and robot, and other aspects are initialized when the simulation is played. Thus, we must call ``sim.reset()``.
+In the following, we show the configuration of the camera sensor used in this tutorial. We set the
+update period to 0s to update the sensor at simulation frequency. The prim path is set to
+``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is the namespace of the environment,
+``"Robot"`` is the name of the robot, ``"base"`` is the name of the prim to which the camera is attached,
+and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 181-182
+   :lines: 74-84
    :linenos:
-   :lineno-start: 181
+   :lineno-start: 74
 
+Height scanner sensor
+---------------------
+
+The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
+Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
+meshes against which to cast the rays. Since they are virtual sensors, there is no corresponding
+prim created in the scene for them. Instead they are attached to a prim in the scene, which is
+used to specify the location of the sensor.
+
+For this tutorial, the ray-cast based height scanner is attached to the base frame of the robot.
+The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For
+a uniform grid pattern, we specify the pattern using :class:`~sensors.patterns.GridPatternCfg`.
+Since we only care about the height information, we do not need to consider the roll and pitch
+of the robot. Hence, we set the :attr:`~sensors.RayCasterCfg.attach_yaw_only` to true.
+
+For the height-scanner, you can visualize the points where the rays hit the mesh. This is done
+by setting the :attr:`~sensors.SensorBaseCfg.debug_vis` attribute to true.
+
+The entire configuration of the height-scanner is as follows:
+
+.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+   :language: python
+   :lines: 85-93
+   :linenos:
+   :lineno-start: 85
+
+Contact sensor
+--------------
+
+Contact sensors wrap around the PhysX contact reporting API to obtain the contact information of the robot
+with the environment. Since it relies of PhysX, the contact sensor expects the contact reporting API
+to be enabled on the rigid bodies of the robot. This can be done by setting the
+:attr:`~sim.spawners.RigidObjectSpawnerCfg.activate_contact_sensors` to true in the asset configuration.
+
+Through the :class:`sensors.ContactSensorCfg`, it is possible to specify the prims for which we want to
+obtain the contact information. Additional flags can be set to obtain more information about
+the contact, such as the contact air time, contact forces between filtered prims, etc.
+
+In this tutorial, we attach the contact sensor to the feet of the robot. The feet of the robot are
+named ``"LF_FOOT"``, ``"RF_FOOT"``, ``"LH_FOOT"``, and ``"RF_FOOT"``. We pass a Regex expression
+``".*_FOOT"`` to simplify the prim path specification. This Regex expression matches all prims that
+end with ``"_FOOT"``.
+
+We set the update period to 0 to update the sensor at the same frequency as the simulation. Additionally,
+for contact sensors, we can specify the history length of the contact information to store. For this
+tutorial, we set the history length to 6, which means that the contact information for the last 6
+simulation steps is stored.
+
+The entire configuration of the contact sensor is as follows:
+
+.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+   :language: python
+   :lines: 94-96
+   :linenos:
+   :lineno-start: 94
 
 Running the simulation loop
 ---------------------------
 
-For every simulation step, the sensors are updated and we print some information.
+Similar to when using assets, the buffers and physics handles for the sensors are initialized only
+when the simulation is played, i.e., it is important to call ``sim.reset()`` after creating the scene.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 150-168
+   :lines: 172-173
    :linenos:
-   :lineno-start: 150
+   :lineno-start: 173
+
+Besides that, the simulation loop is similar to the previous tutorials. The sensors are updated as part
+of the scene update and they internally handle the updating of their buffers based on their update
+periods.
+
+The data from the sensors can be accessed through their ``data`` attribute. As an example, we show how
+to access the data for the different sensors created in this tutorial:
+
+.. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+   :language: python
+   :lines: 148-158
+   :linenos:
+   :lineno-start: 148
 
 
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-Now that we have gone through the code let's run the script and see the result:
+Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2
 
 
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
-To stop the simulation, you can either close the window, press the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal.
+Around the robots, you should see red spheres that indicate the points where the rays hit the mesh.
+Additionally, you can switch the viewport to the camera view to see the RGB image captured by the
+camera sensor. Please check `here <https://youtu.be/htPbcKkNMPs?feature=shared>`_ for more information
+on how to switch the viewport to the camera view.
 
-In this guide, we saw how to add sensors to a robot and how to update them in the simulation loop.
+To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
+
+While in this tutorial, we went over creating and using different sensors, there are many more sensors
+available in the :mod:`sensors` module. We include minimal examples of using these sensors in the
+``source/standalone/tutorials/04_sensors`` directory. For completion, these scripts can be run using the
+following commands:
+
+.. code-block:: bash
+
+   # Frame Transformer
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_frame_transformer.py
+
+   # Ray Caster
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
+
+   # Ray Caster Camera
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
+
+   # USD Camera
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py

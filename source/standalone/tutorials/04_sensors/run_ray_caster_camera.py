@@ -19,14 +19,13 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 import argparse
 
-# omni-isaac-orbit
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the ray-cast camera sensor.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to generate.")
-parser.add_argument("--save", type=int, default=16, help="Number of environments to generate.")
+parser.add_argument("--save", action="store_true", default=False, help="Save the obtained data to disk.")
 args_cli = parser.parse_args()
 
 # launch omniverse app
@@ -51,29 +50,19 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.math import project_points, unproject_depth
 
 
-def design_scene():
-    # Populate scene
-    # -- Rough terrain
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
-    cfg.func("/World/ground", cfg)
-    # Lights
-    cfg = sim_utils.DistantLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-
-    # add and return sensor and terrain
-    return add_sensor()
-
-
-def add_sensor():
+def define_sensor() -> RayCasterCamera:
+    """Defines the ray-cast camera sensor to add to the scene."""
     # Camera base frames
-    prim_utils.create_prim("/World/CameraSensor_00", "Xform")
-    prim_utils.create_prim("/World/CameraSensor_01", "Xform")
+    # In contras to the USD camera, we associate the sensor to the prims at these locations.
+    # This means that parent prim of the sensor is the prim at this location.
+    prim_utils.create_prim("/World/Origin_00/CameraSensor", "Xform")
+    prim_utils.create_prim("/World/Origin_01/CameraSensor", "Xform")
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(
-        prim_path="/World/CameraSensor_.*",
+        prim_path="/World/Origin_.*/CameraSensor",
         mesh_prim_paths=["/World/ground"],
-        update_period=0,
+        update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
         data_types=["distance_to_image_plane", "normals", "distance_to_camera"],
         debug_vis=True,
@@ -90,13 +79,30 @@ def add_sensor():
     return camera
 
 
-def run_simulator(sim: sim_utils.SimulationContext, camera: RayCasterCamera):
+def design_scene():
+    # Populate scene
+    # -- Rough terrain
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd")
+    cfg.func("/World/ground", cfg)
+    # -- Lights
+    cfg = sim_utils.DistantLightCfg(intensity=600.0, color=(0.75, 0.75, 0.75))
+    cfg.func("/World/Light", cfg)
+    # -- Sensors
+    camera = define_sensor()
+
+    # return the scene information
+    scene_entities = {"camera": camera}
+    return scene_entities
+
+
+def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
+    """Run the simulator."""
+    # extract entities for simplified notation
+    camera: RayCasterCamera = scene_entities["camera"]
+
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
     rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
-
-    # Play simulator
-    sim.reset()
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -106,7 +112,7 @@ def run_simulator(sim: sim_utils.SimulationContext, camera: RayCasterCamera):
     # -- Option-2: Set pose using ROS
     # position = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device)
     # orientation = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=sim.device)
-    # camera.set_world_pose_ros(position, orientation, indices=[0])
+    # camera.set_world_poses(position, orientation, indices=[0], convention="ros")
 
     # Simulate physics
     while simulation_app.is_running():
@@ -168,13 +174,13 @@ def main():
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 3.5], [0.0, 0.0, 0.0])
     # design the scene
-    camera = design_scene()
+    scene_entities = design_scene()
     # Play simulator
-    sim.play()
-    # Print the sensor information
-    print(camera)
+    sim.reset()
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
     # Run simulator
-    run_simulator(sim=sim, camera=camera)
+    run_simulator(sim=sim, scene_entities=scene_entities)
 
 
 if __name__ == "__main__":

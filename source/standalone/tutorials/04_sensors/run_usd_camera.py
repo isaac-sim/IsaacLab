@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 
-# omni-isaac-orbit
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
@@ -64,6 +63,29 @@ from omni.isaac.orbit.utils.math import project_points, transform_points, unproj
 draw_interface = omni_debug_draw.acquire_debug_draw_interface()
 
 
+def define_sensor() -> Camera:
+    """Defines the camera sensor to add to the scene."""
+    # Setup camera sensor
+    # In contras to the ray-cast camera, we spawn the prim at these locations.
+    # This means the camera sensor will be attached to these prims.
+    prim_utils.create_prim("/World/Origin_00", "Xform")
+    prim_utils.create_prim("/World/Origin_01", "Xform")
+    camera_cfg = CameraCfg(
+        prim_path="/World/Origin_.*/CameraSensor",
+        update_period=0,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
+    )
+    # Create camera
+    camera = Camera(cfg=camera_cfg)
+
+    return camera
+
+
 def design_scene():
     """Design the scene."""
     # Populate scene
@@ -99,32 +121,19 @@ def design_scene():
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
 
-    # add and return sensor
-    return add_sensor()
+    # Sensors
+    camera = define_sensor()
+
+    # return the scene information
+    scene_entities = {"camera": camera}
+    return scene_entities
 
 
-def add_sensor():
-    # Setup camera sensor
-    prim_utils.create_prim("/World/CameraSensor_00", "Xform")
-    prim_utils.create_prim("/World/CameraSensor_01", "Xform")
-    camera_cfg = CameraCfg(
-        prim_path="/World/CameraSensor_.*/Cam",
-        update_period=0,
-        height=480,
-        width=640,
-        data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-        ),
-    )
-    # Create camera
-    camera = Camera(cfg=camera_cfg)
+def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
+    """Run the simulator."""
+    # extract entities for simplified notation
+    camera: Camera = scene_entities["camera"]
 
-    return camera
-
-
-def run_simulator(sim: sim_utils.SimulationContext, camera: Camera):
-    """Run simulator."""
     # Create replicator writer
     output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "camera")
     rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
@@ -137,7 +146,7 @@ def run_simulator(sim: sim_utils.SimulationContext, camera: Camera):
     # -- Option-2: Set pose using ROS
     # position = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device)
     # orientation = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=sim.device)
-    # camera.set_world_pose_ros(position, orientation, indices=[0])
+    # camera.set_world_poses(position, orientation, env_ids=[0], convention="ros")
 
     # Simulate for a few steps
     # note: This is a workaround to ensure that the textures are loaded.
@@ -150,7 +159,7 @@ def run_simulator(sim: sim_utils.SimulationContext, camera: Camera):
         # Step simulation
         sim.step()
         # Update camera data
-        camera.update(dt=0.0)
+        camera.update(dt=sim.get_physics_dt())
 
         # Print camera info
         print(camera)
@@ -182,6 +191,7 @@ def run_simulator(sim: sim_utils.SimulationContext, camera: Camera):
                 else:
                     rep_output[key] = data
             # Save images
+            # Note: We need to provide On-time data for Replicator to save the images.
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
             rep_writer.write(rep_output)
 
@@ -230,11 +240,13 @@ def main():
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
     # design the scene
-    camera = design_scene()
+    scene_entities = design_scene()
     # Play simulator
-    sim.play()
+    sim.reset()
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
     # Run simulator
-    run_simulator(sim, camera)
+    run_simulator(sim, scene_entities)
 
 
 if __name__ == "__main__":
