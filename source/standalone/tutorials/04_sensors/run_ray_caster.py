@@ -19,17 +19,17 @@ from __future__ import annotations
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
-
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
