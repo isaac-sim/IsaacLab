@@ -60,7 +60,7 @@ from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sensors import RayCasterCfg, patterns
 from omni.isaac.orbit.terrains import TerrainImporterCfg
 from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR, check_file_path
+from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR, check_file_path, read_file
 from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 ##
@@ -217,8 +217,9 @@ def main():
     # check if policy file exists
     if not check_file_path(policy_path):
         raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")
+    file_bytes = read_file(policy_path)
     # jit load the policy
-    policy = torch.jit.load(policy_path).to(env.device).eval()
+    policy = torch.jit.load(file_bytes).to(env.device).eval()
 
     # simulate physics
     count = 0

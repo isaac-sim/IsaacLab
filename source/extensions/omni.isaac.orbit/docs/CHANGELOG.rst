@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.10.5 (2023-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed test ``check_base_env_anymal_locomotion.py``, which
+  previously called :func:`torch.jit.load` with the path to a policy (which would work
+  for a local file), rather than calling
+  :func:`omni.isaac.orbit.utils.assets.read_file` on the path to get the file itself.
+
+
 0.10.4 (2023-12-14)
 ~~~~~~~~~~~~~~~~~~~
 
