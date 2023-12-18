@@ -108,7 +108,7 @@ def add_sensor():
     prim_utils.create_prim("/World/CameraSensor_00", "Xform")
     prim_utils.create_prim("/World/CameraSensor_01", "Xform")
     camera_cfg = CameraCfg(
-        prim_path="/World/CameraSensor_*/Cam",
+        prim_path="/World/CameraSensor_.*/Cam",
         update_period=0,
         height=480,
         width=640,
