@@ -146,7 +146,9 @@ class IMU(SensorBase):
         ang_vel_w = ang_vel_w.clone()
         # store the velocities
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(quat_w, ang_vel_w)
-        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse((lin_vel_w - self._last_lin_vel_w[env_ids]) / self._dt)
+        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
+            (lin_vel_w - self._last_lin_vel_w[env_ids]) / self._dt
+        )
         self._last_lin_vel_w[env_ids] = lin_vel_w
 
     def _initialize_buffers_impl(self):
