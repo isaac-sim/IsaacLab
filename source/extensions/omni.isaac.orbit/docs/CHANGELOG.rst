@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.7 (2023-12-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added a check to ray-cast and camera sensor classes to ensure that the sensor prim path does not
+  have a regex expression at its leaf. For instance, ``/World/Robot/camera_.*`` is not supported
+  for these sensor types. This behavior needs to be fixed in the future.
+
+
 0.10.6 (2023-12-19)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -578,6 +589,7 @@ Added
 
 
 0.9.18 (2023-10-23)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
