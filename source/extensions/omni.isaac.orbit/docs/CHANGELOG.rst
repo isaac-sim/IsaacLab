@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.10.6 (2023-12-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for using articulations as visualization markers. This disables all physics APIs from
+  the articulation and allows the user to use it as a visualization marker. It is useful for creating
+  visualization markers for the end-effectors or base of the robot.
+
+Fixed
+^^^^^
+
+* Fixed hiding of debug markers from secondary images when using the
+  :class:`omni.isaac.orbit.markers.VisualizationMarkers` class. Earlier, the properties were applied on
+  the XForm prim instead of the Mesh prim.
+
+
 0.10.5 (2023-12-18)
 ~~~~~~~~~~~~~~~~~~~
 
