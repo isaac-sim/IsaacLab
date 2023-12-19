@@ -83,8 +83,6 @@ class IMU(SensorBase):
         self._data.quat_w[env_ids] = 0.0
         self._data.ang_vel_b[env_ids] = 0.0
         self._data.lin_acc_b[env_ids] = 0.0
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
