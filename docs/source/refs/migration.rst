@@ -55,10 +55,11 @@ been deprecated in favor of the new ``UsdLuxLightAPI`` API. In the new API the a
 are prefixed with ``inputs:``. For example, the ``intensity`` attribute is now available as
 ``inputs:intensity``.
 
-The following example shows how to create a `SphereLight` using the old API and
+The following example shows how to create a sphere light using the old API and
 the new API.
 
-.. dropdown:: :fa:`eye,mr-1` Code for Isaac Sim 2022.2.1 and below
+.. dropdown:: Code for Isaac Sim 2022.2.1 and below
+  :icon: code
 
   .. code-block:: python
 
@@ -71,7 +72,8 @@ the new API.
         attributes={"radius": 2.5, "intensity": 600.0, "color": (0.75, 0.75, 0.75)},
       )
 
-.. dropdown:: :fa:`eye,mr-1` Code for Isaac Sim 2023.1.0 and above
+.. dropdown:: Code for Isaac Sim 2023.1.0 and above
+  :icon: code
 
   .. code-block:: python
 

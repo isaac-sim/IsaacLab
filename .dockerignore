@@ -12,7 +12,7 @@ docs/
 **/videos/*
 *.tmp
 # ignore docker
-docker/
+docker/exports/
 # ignore __pycache__
 **/__pycache__/
 **/*.egg-info/

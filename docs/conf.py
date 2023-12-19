@@ -71,6 +71,10 @@ source_suffix = {
     ".md": "markdown",
 }
 
+# make sure we don't have any unknown references
+# TODO: Enable this by default once we have fixed all the warnings
+# nitpicky = True
+
 # put type hints inside the signature instead of the description (easier to maintain)
 autodoc_typehints = "signature"
 # autodoc_typehints_format = "fully-qualified"

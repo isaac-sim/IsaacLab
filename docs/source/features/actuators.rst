@@ -1,4 +1,6 @@
-.. _actuators-guide:
+.. _feature-actuators:
+
+
 Actuators
 =========
 

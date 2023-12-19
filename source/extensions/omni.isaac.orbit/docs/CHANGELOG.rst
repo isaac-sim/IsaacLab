@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.10.2 (2023-12-11)
+0.10.6 (2023-12-19)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -10,6 +10,56 @@ Added
 * Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
   sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
   :class:`omni.isaac.orbit.sensors.IMUData`.
+
+0.10.5 (2023-12-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed test ``check_base_env_anymal_locomotion.py``, which
+  previously called :func:`torch.jit.load` with the path to a policy (which would work
+  for a local file), rather than calling
+  :func:`omni.isaac.orbit.utils.assets.read_file` on the path to get the file itself.
+
+
+0.10.4 (2023-12-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed potentially breaking import of omni.kit.widget.toolbar by ensuring that
+  if live-stream is enabled, then the :mod:`omni.kit.widget.toolbar`
+  extension is loaded.
+
+0.10.3 (2023-12-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the attribute :attr:`omni.isaac.orbit.actuators.ActuatorNetMLPCfg.input_order`
+  to specify the order of the input tensors to the MLP network.
+
+Fixed
+^^^^^
+
+* Fixed computation of metrics for the velocity command term. Earlier, the norm was being computed
+  over the entire batch instead of the last dimension.
+* Fixed the clipping inside the :class:`omni.isaac.orbit.actuators.DCMotor` class. Earlier, it was
+  not able to handle the case when configured saturation limit was set to None.
+
+
+0.10.2 (2023-12-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added a check in the simulation stop callback in the :class:`omni.isaac.orbit.sim.SimulationContext` class
+  to not render when an exception is raised. The while loop in the callback was preventing the application
+  from closing when an exception was raised.
 
 
 0.10.1 (2023-12-06)
@@ -270,8 +320,8 @@ Changed
 Fixed
 ^^^^^
 
-* Changed the reference of private `_body_view` variable inside the :class:`RigidObject` class
-  to the public `body_view` property. For a rigid object, the private variable is not defined.
+* Changed the reference of private ``_body_view`` variable inside the :class:`RigidObject` class
+  to the public ``body_view`` property. For a rigid object, the private variable is not defined.
 
 
 0.9.38 (2023-11-07)
@@ -528,14 +578,14 @@ Added
   class for all asset converters.
 * Added :class:`omni.issac.orbit.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
   of mesh files (OBJ, STL and FBX) into USD format.
-* Added script `convert_mesh.py` to ``source/tools`` to allow users to convert a mesh to USD via command line arguments.
+* Added script ``convert_mesh.py`` to ``source/tools`` to allow users to convert a mesh to USD via command line arguments.
 
 Changed
 ^^^^^^^
 
 * Renamed the submodule :mod:`omni.isaac.orbit.sim.loaders` to :mod:`omni.isaac.orbit.sim.converters` to be more
   general with the functionality of the module.
-* Updated `check_instanceable.py` script to convert relative paths to absolute paths.
+* Updated ``check_instanceable.py`` script to convert relative paths to absolute paths.
 
 
 0.9.17 (2023-10-22)
@@ -642,14 +692,14 @@ Added
 Added
 ^^^^^
 
-* Added `livestream` and `ros` CLI args to :class:`omni.isaac.orbit.app.AppLauncher` class.
+* Added ``--livestream`` and ``--ros`` CLI args to :class:`omni.isaac.orbit.app.AppLauncher` class.
 * Added a static function :meth:`omni.isaac.orbit.app.AppLauncher.add_app_launcher_args`, which
   appends the arguments needed for :class:`omni.isaac.orbit.app.AppLauncher` to the argument parser.
 
 Changed
 ^^^^^^^
 
-* Within :class:`omni.isaac.orbit.app.AppLauncher`, removed `REMOTE_DEPLOYMENT` env-var processing
+* Within :class:`omni.isaac.orbit.app.AppLauncher`, removed ``REMOTE_DEPLOYMENT`` env-var processing
   in the favor of ``HEADLESS`` and ``LIVESTREAM`` env-vars. These have clearer uses and better parity
   with the CLI args.
 

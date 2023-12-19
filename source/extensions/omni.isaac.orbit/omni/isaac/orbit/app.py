@@ -305,14 +305,14 @@ class AppLauncher:
             "--livestream",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
-            choices={-1, 0, 1, 2, 3},
+            choices={0, 1, 2, 3},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
         )
         arg_group.add_argument(
             "--ros",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1],
-            choices={-1, 0, 1, 2},
+            choices={0, 1, 2},
             help="Enable ROS middleware. Mapping corresponds to that for the `ROS_ENABLED` environment variable",
         )
         arg_group.add_argument(
@@ -625,12 +625,14 @@ class AppLauncher:
         carb_settings_iface.set_bool("/orbit/offscreen_render/enabled", self._offscreen_render)
 
         # enable extensions for off-screen rendering
-        # note: depending on the app file, some extensions might not be available in it.
-        #   Thus, we manually enable these extensions to make sure they are available.
-        if self._offscreen_render or not self._headless:
-            # note: enabling extensions is order-sensitive. please do not change the order!
+        # Depending on the app file, some extensions might not be available in it.
+        # Thus, we manually enable these extensions to make sure they are available.
+        # note: enabling extensions is order-sensitive. please do not change the order!
+        if self._offscreen_render or not self._headless or self._livestream >= 1:
             # extension to enable UI buttons (otherwise we get attribute errors)
             enable_extension("omni.kit.window.toolbar")
+
+        if self._offscreen_render or not self._headless:
             # extension to make RTX realtime and path-traced renderers
             enable_extension("omni.kit.viewport.rtx")
             # extension to make HydraDelegate renderers

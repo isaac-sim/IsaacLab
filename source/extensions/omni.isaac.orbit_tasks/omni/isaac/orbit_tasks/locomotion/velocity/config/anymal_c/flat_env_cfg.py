@@ -5,22 +5,15 @@
 
 from omni.isaac.orbit.utils import configclass
 
-from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-
-##
-# Pre-defined configs
-##
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG  # isort: skip
+from .rough_env_cfg import AnymalCRoughEnvCfg
 
 
 @configclass
-class AnymalCFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
+class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
-        # switch robot to anymal-c
-        self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # override rewards
         self.rewards.flat_orientation_l2.weight = -5.0
         self.rewards.dof_torques_l2.weight = -2.5e-5

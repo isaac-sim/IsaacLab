@@ -5,6 +5,8 @@
 
 import math
 
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.orbit.envs import RLTaskEnvCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
@@ -12,18 +14,52 @@ from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import RewardTermCfg as RewTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.managers import TerminationTermCfg as DoneTerm
+from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.utils import configclass
 
 import omni.isaac.orbit_tasks.classic.cartpole.mdp as mdp
 
-from .cartpole_scene import CartpoleSceneCfg
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit.assets.config.cartpole import CARTPOLE_CFG  # isort:skip
+
+
+##
+# Scene definition
+##
+
+
+@configclass
+class CartpoleSceneCfg(InteractiveSceneCfg):
+    """Configuration for a cart-pole scene."""
+
+    # ground plane
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    )
+
+    # cartpole
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # lights
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    )
+    distant_light = AssetBaseCfg(
+        prim_path="/World/DistantLight",
+        spawn=sim_utils.DistantLightCfg(color=(0.9, 0.9, 0.9), intensity=2500.0),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.738, 0.477, 0.477, 0.0)),
+    )
+
 
 ##
 # MDP settings
 ##
 
 
-# Actions configuration
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
@@ -39,7 +75,6 @@ class ActionsCfg:
     joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
 
 
-# Observations configuration
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -60,7 +95,6 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-# Randomization configuration
 @configclass
 class RandomizationCfg:
     """Configuration for randomization."""
@@ -87,7 +121,6 @@ class RandomizationCfg:
     )
 
 
-# Rewards configuration
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
@@ -116,7 +149,6 @@ class RewardsCfg:
     )
 
 
-# Terminations configuration
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
@@ -130,7 +162,6 @@ class TerminationsCfg:
     )
 
 
-# Curriculum configuration
 @configclass
 class CurriculumCfg:
     """Configuration for the curriculum."""

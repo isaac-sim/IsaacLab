@@ -45,7 +45,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG
+from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -74,7 +74,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a mount and a robot on top of it
-    origins = define_origins(num_origins=4, spacing=1.25)
+    origins = define_origins(num_origins=6, spacing=1.25)
 
     # Origin 1 with Anymal B
     prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
@@ -94,15 +94,32 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Origin 4 with Unitree A1
     prim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
     # -- Robot
-    unitree_a = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+    unitree_a1 = Articulation(UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot"))
+
+    # Origin 5 with Unitree Go1
+    prim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
+    # -- Robot
+    unitree_go1 = Articulation(UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot"))
+
+    # Origin 6 with Unitree Go2
+    prim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
+    # -- Robot
+    unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # return the scene information
-    scene_entities = {"anymal_b": anymal_b, "anymal_c": anymal_c, "anymal_d": anymal_d, "unitree_a": unitree_a}
+    scene_entities = {
+        "anymal_b": anymal_b,
+        "anymal_c": anymal_c,
+        "anymal_d": anymal_d,
+        "unitree_a1": unitree_a1,
+        "unitree_go1": unitree_go1,
+        "unitree_go2": unitree_go2,
+    }
     return scene_entities, origins
 
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
-    """Runs the simulator by applying actions to the robot at every time-step"""
+    """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -129,7 +146,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # apply default actions to the quadrupedal robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.01
+            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim

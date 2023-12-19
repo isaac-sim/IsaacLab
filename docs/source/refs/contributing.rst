@@ -116,7 +116,7 @@ following command in the terminal:
 
 .. code:: bash
 
-   ./orbit.sh --format  # or `./orbit.sh -f`
+   ./orbit.sh --format  # or "./orbit.sh -f"
 
 Contributing Documentation
 --------------------------
@@ -143,7 +143,7 @@ builds the documentation using the ``docs/Makefile``:
 
 .. code:: bash
 
-   ./orbit.sh --docs  # or `./orbit.sh -d`
+   ./orbit.sh --docs  # or "./orbit.sh -d"
 
 The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
 the ``index.html`` file in the ``html`` directory. This can be done by running the following command

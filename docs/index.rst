@@ -3,7 +3,7 @@ Overview
 
 **Orbit** is a unified and modular framework for robot learning that aims to simplify common workflows
 in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
-`NVIDIA Isaac Sim` to leverage the latest simulation capabilities for photo-realistic scenes, and fast
+`NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
 and efficient simulation. The core objectives of the framework are:
 
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
@@ -26,7 +26,6 @@ For more information about the framework, please refer to the `paper <https://ar
 
    source/setup/installation
    source/setup/developer
-   source/setup/docker
    source/setup/sample
 
 .. toctree::
@@ -39,34 +38,15 @@ For more information about the framework, please refer to the `paper <https://ar
 
 .. toctree::
    :maxdepth: 1
-   :caption: How-to Guides
+   :caption: Resources
+   :titlesonly:
 
-
-   source/how_to_guides/index
+   source/tutorials/index
+   source/how-to/index
+   source/deployment/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: Tutorials (Core)
-
-   source/tutorials/00_sim/empty
-   source/tutorials/00_sim/prims
-   source/tutorials/01_assets/articulation
-   source/tutorials/01_assets/rigid_object
-   source/tutorials/02_scene/scene
-
-.. toctree::
-   :hidden:
-   :maxdepth: 1
-   :caption: Tutorials (Environments)
-
-   source/tutorials/03_envs/00_gym_env
-   source/tutorials/03_envs/01_create_base_env
-   source/tutorials/03_envs/02_create_rl_env
-   source/tutorials/03_envs/03_wrappers
-
-
-.. toctree::
-   :maxdepth: 2
    :caption: Source API
 
    source/api/index

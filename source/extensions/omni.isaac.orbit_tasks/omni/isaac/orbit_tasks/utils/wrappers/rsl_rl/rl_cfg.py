@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing_extensions import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -93,6 +94,16 @@ class RslRlOnPolicyRunnerCfg:
     empirical_normalization: bool = MISSING
     """Whether to use empirical normalization."""
 
+    policy: RslRlPpoActorCriticCfg = MISSING
+    """The policy configuration."""
+
+    algorithm: RslRlPpoAlgorithmCfg = MISSING
+    """The algorithm configuration."""
+
+    ##
+    # Checkpointing parameters
+    ##
+
     save_interval: int = MISSING
     """The number of iterations between saves."""
 
@@ -100,7 +111,29 @@ class RslRlOnPolicyRunnerCfg:
     """The experiment name."""
 
     run_name: str = ""
-    """The run name. Default is empty string."""
+    """The run name. Default is empty string.
+
+    The name of the run directory is typically the time-stamp at execution. If the run name is not empty,
+    then it is appended to the run directory's name, i.e. the logging directory's name will become
+    ``{time-stamp}_{run_name}``.
+    """
+
+    ##
+    # Logging parameters
+    ##
+
+    logger: Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
+    """The logger to use. Default is tensorboard."""
+
+    neptune_project: str = "orbit"
+    """The neptune project name. Default is "orbit"."""
+
+    wandb_project: str = "orbit"
+    """The wandb project name. Default is "orbit"."""
+
+    ##
+    # Loading parameters
+    ##
 
     resume: bool = False
     """Whether to resume. Default is False."""
@@ -116,9 +149,3 @@ class RslRlOnPolicyRunnerCfg:
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """
-
-    policy: RslRlPpoActorCriticCfg = MISSING
-    """The policy configuration."""
-
-    algorithm: RslRlPpoAlgorithmCfg = MISSING
-    """The algorithm configuration."""

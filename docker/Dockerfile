@@ -20,7 +20,8 @@ LABEL description="Dockerfile for building and running the Orbit framework insid
 # Arguments
 # Path to Isaac Sim root folder
 ARG ISAACSIM_PATH
-ARG ISAACSIM_VERSION
+# Path to the Docker User Home
+ARG DOCKER_USER_HOME
 
 # Set environment variables
 ENV LANG=C.UTF-8
@@ -36,20 +37,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# FIXME: Only necessary for streaming until this fix is properly rolled out by NVIDIA after Isaac Sim2023.1 release
-# Ref: https://forums.developer.nvidia.com/t/running-a-standalone-example-with-gui-in-docker-container/248147/3
-RUN if [[ "${ISAACSIM_VERSION}" == "2022.2"* ]]; then \
-        sed -i 's/\("omni.isaac.quadruped"\s=\s{}\)/"omni.isaac.quadruped" = {order = 10}/g' \
-        ${ISAACSIM_PATH}/apps/omni.isaac.sim.python.kit; \
-    fi
-
-# Copy the orbit directory
+# Copy the orbit directory (files to exclude are defined in .dockerignore)
 COPY ../ ${ORBIT_PATH}
-# Delete the logs directory
-RUN rm -rf ${ORBIT_PATH}/logs
 
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the orbit directory
 RUN ln -sf ${ISAACSIM_PATH} ${ORBIT_PATH}/_isaac_sim
+
+# for singularity usage, have to create the directories that will binded
+RUN mkdir -p ${ISAACSIM_PATH}/kit/cache && \
+    mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
+    mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
+    mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache&&  \
+    mkdir -p ${DOCKER_USER_HOME}/.nv/ComputeCache && \
+    mkdir -p ${DOCKER_USER_HOME}/.nvidia-omniverse/logs && \
+    mkdir -p ${DOCKER_USER_HOME}/.local/share/ov/data && \
+    mkdir -p ${DOCKER_USER_HOME}/Documents
+
+# for singularity usage, create NVIDIA binary placeholders
+RUN touch /bin/nvidia-smi && \
+    touch /bin/nvidia-debugdump && \
+    touch /bin/nvidia-persistenced && \
+    touch /bin/nvidia-cuda-mps-control && \
+    touch /bin/nvidia-cuda-mps-server && \
+    touch /etc/localtime
 
 # installing Orbit dependencies
 RUN ${ORBIT_PATH}/orbit.sh --install --extra
@@ -59,7 +69,8 @@ RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
     echo "alias python3=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \
     echo "alias pip='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACSIM_PATH}/python.sh ${ISAACSIM_PATH}/tensorboard'" >> ${HOME}/.bashrc
+    echo "alias tensorboard='${ISAACSIM_PATH}/python.sh ${ISAACSIM_PATH}/tensorboard'" >> ${HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
 # make working directory as the orbit directory
 # this is the default directory when the container is run

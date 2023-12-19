@@ -8,6 +8,7 @@ from __future__ import annotations
 import builtins
 import enum
 import numpy as np
+import sys
 import weakref
 from typing import Any
 
@@ -73,10 +74,10 @@ class SimulationContext(_SimulationContext):
         events) are updated. There are three main components that can be updated when the simulation is rendered:
 
         1. **UI elements and other extensions**: These are UI elements (such as buttons, sliders, etc.) and other
-            extensions that are running in the background that need to be updated when the simulation is running.
+           extensions that are running in the background that need to be updated when the simulation is running.
         2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
            viewpoints. They can be attached to a viewport or be used independently to render the scene.
-        3. **`Viewports`_**: These are windows where you can see the rendered scene.
+        3. **`Viewports`**: These are windows where you can see the rendered scene.
 
         Updating each of the above components has a different overhead. For example, updating the viewports is
         computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to
@@ -559,7 +560,7 @@ class SimulationContext(_SimulationContext):
         # check if the simulation is stopped
         if event.type == int(omni.timeline.TimelineEventType.STOP):
             # keep running the simulator when configured to not shutdown the app
-            if self._has_gui:
+            if self._has_gui and sys.exc_info()[0] is None:
                 self.app.print_and_log(
                     "Simulation is stopped. The app will keep running with physics disabled."
                     " Press Ctrl+C or close the window to exit the app."

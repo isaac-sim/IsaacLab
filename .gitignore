@@ -21,6 +21,10 @@
 **/*.pyc
 **/*.pb
 
+# Docker/Singularity
+**/*.sif
+docker/exports/
+
 # IDE
 **/.idea/
 **/.vscode/
@@ -32,6 +36,8 @@
 **/output/*
 **/outputs/*
 **/videos/*
+**/wandb/*
+**/.neptune/*
 docker/artifacts/
 *.tmp
 
