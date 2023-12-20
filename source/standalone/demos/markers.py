@@ -46,8 +46,8 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS
 from omni.isaac.orbit.utils.math import quat_from_angle_axis
 
 
-def spawn_markers():
-    """Spawns markers with various different shapes."""
+def define_markers() -> VisualizationMarkers:
+    """Define markers with various different shapes."""
     marker_cfg = VisualizationMarkersCfg(
         prim_path="/Visuals/myMarkers",
         markers={
@@ -110,7 +110,7 @@ def main():
     cfg.func("/World/Light", cfg)
 
     # create markers
-    my_visualizer = spawn_markers()
+    my_visualizer = define_markers()
 
     # define a grid of positions where the markers should be placed
     num_markers_per_type = 5
@@ -143,6 +143,9 @@ def main():
         marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
         # visualize
         my_visualizer.visualize(marker_locations, marker_orientations, marker_indices=marker_indices)
+        # roll corresponding indices to show how marker prototype can be changed
+        if yaw[0].item() % (0.5 * torch.pi) < 0.01:
+            marker_indices = torch.roll(marker_indices, 1)
         # perform step
         sim.step()
         # increment yaw
