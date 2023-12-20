@@ -135,7 +135,8 @@ def main():
             # -- actions
             collector_interface.add("actions", actions)
             # perform action on environment
-            obs_dict, rewards, dones, info = env.step(actions)
+            obs_dict, rewards, terminated, truncated, info = env.step(actions)
+            dones = terminated | truncated
             # check that simulation is stopped or not
             if env.unwrapped.sim.is_stopped():
                 break

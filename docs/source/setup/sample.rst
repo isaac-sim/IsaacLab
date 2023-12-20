@@ -73,7 +73,7 @@ allows efficient execution for large number of environments using CUDA kernels.
 
 .. code:: bash
 
-   ./orbit.sh -p source/standalone/environments/state_machine/play_lift.py --num_envs 32
+   ./orbit.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
 
 Teleoperation
@@ -88,7 +88,7 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./orbit.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Franka-v0 --num_envs 1 --cpu --device keyboard
+   ./orbit.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -116,14 +116,14 @@ data in
 format.
 
 1. Collect demonstrations with teleoperation for the environment
-   ``Isaac-Lift-Franka-v0``:
+   ``Isaac-Lift-Cube-Franka-IK-Rel-v0``:
 
    .. code:: bash
 
       # step a: collect data with keyboard
-      ./orbit.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Franka-v0 --num_envs 1 --num_demos 10 --device keyboard
+      ./orbit.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
       # step b: inspect the collected dataset
-      ./orbit.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Franka-v0/hdf_dataset.hdf5
+      ./orbit.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
 2. Split the dataset into train and validation set:
 
@@ -132,20 +132,20 @@ format.
       # install python module (for robomimic)
       ./orbit.sh -e robomimic
       # split data
-      ./orbit.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Franka-v0/hdf_dataset.hdf5 --ratio 0.2
+      ./orbit.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
 
-3. Train a BC agent for ``Isaac-Lift-Franka-v0`` with
+3. Train a BC agent for ``Isaac-Lift-Cube-Franka-IK-Rel-v0`` with
    `Robomimic <https://robomimic.github.io/>`__:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/workflows/robomimic/train.py --task Isaac-Lift-Franka-v0 --algo bc --dataset logs/robomimic/Isaac-Lift-Franka-v0/hdf_dataset.hdf5
+      ./orbit.sh -p source/standalone/workflows/robomimic/train.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --algo bc --dataset logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
 4. Play the learned model to visualize results:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Franka-v0 --checkpoint /PATH/TO/model.pth
+      ./orbit.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
 
 Reinforcement Learning
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -66,9 +66,8 @@ def main():
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
     # modify configuration
-    env_cfg.control.control_type = "inverse_kinematics"
-    env_cfg.control.inverse_kinematics.command_type = "pose_rel"
-    env_cfg.terminations.episode_timeout = False
+    env_cfg.terminations.time_out = None
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
     # check environment name (for reach , we don't allow the gripper)
@@ -107,12 +106,13 @@ def main():
         with torch.inference_mode():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
+            delta_pose = delta_pose.astype("float32")
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
-            _, _, _, _ = env.step(actions)
+            env.step(actions)
 
     # close the simulator
     env.close()

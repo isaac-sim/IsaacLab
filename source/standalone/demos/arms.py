@@ -41,7 +41,7 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
+from omni.isaac.orbit.assets.config import FRANKA_PANDA_CFG, UR10_CFG
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -64,7 +64,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
-    franka_arm_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     robot_franka = Articulation(cfg=franka_arm_cfg)
 

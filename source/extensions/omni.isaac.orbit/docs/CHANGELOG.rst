@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.8 (2023-12-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :class:`omni.isaac.orbit.envs.mdp.actions.DifferentialInverseKinematicsAction` class
+  to account for the offset pose of the end-effector.
+
+
 0.10.7 (2023-12-19)
 ~~~~~~~~~~~~~~~~~~~
 

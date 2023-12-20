@@ -18,7 +18,7 @@ from omni.isaac.orbit_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
 # Pre-defined configs
 ##
 # isort: off
-from omni.isaac.orbit.assets.config.franka import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG
+from omni.isaac.orbit.assets.config.franka import FRANKA_PANDA_CFG
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 
 
@@ -29,7 +29,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         super().__post_init__()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (franka)
         self.actions.body_joint_pos = mdp.JointPositionActionCfg(
@@ -38,7 +38,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         self.actions.finger_joint_pos = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_finger.*"],
-            open_command_expr={"panda_finger_.*": 0.3},
+            open_command_expr={"panda_finger_.*": 0.04},
             close_command_expr={"panda_finger_.*": 0.0},
         )
         # Set the body name for the end effector

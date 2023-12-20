@@ -9,13 +9,13 @@ Script to run an environment with a pick and lift state machine.
 The state machine is implemented in the kernel function `infer_state_machine`.
 It uses the `warp` library to run the state machine in parallel on the GPU.
 
-Usage:
-    python play_lift.py --num_envs 128
+.. code-block:: bash
+
+    ./orbit.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
+
 """
 
-from __future__ import annotations
-
-"""Launch Isaac Sim Simulator first."""
+"""Launch Omniverse Toolkit first."""
 
 import argparse
 
@@ -34,34 +34,34 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
+"""Rest everything else."""
 
 import gymnasium as gym
 import torch
 import traceback
-from enum import Enum
 from typing import Sequence
 
 import carb
 import warp as wp
 
-from omni.isaac.orbit.utils.timer import Timer
+from omni.isaac.orbit.assets.rigid_object.rigid_object_data import RigidObjectData
 
 import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
 wp.init()
 
 
-class GripperState(Enum):
+class GripperState:
     """States for the gripper."""
 
     OPEN = wp.constant(1.0)
     CLOSE = wp.constant(-1.0)
 
 
-class PickSmState(Enum):
+class PickSmState:
     """States for the pick state machine."""
 
     REST = wp.constant(0)
@@ -69,30 +69,28 @@ class PickSmState(Enum):
     APPROACH_OBJECT = wp.constant(2)
     GRASP_OBJECT = wp.constant(3)
     LIFT_OBJECT = wp.constant(4)
-    DROP_OBJECT = wp.constant(5)
 
 
-class PickSmWaitTime(Enum):
+class PickSmWaitTime:
     """Additional wait times (in s) for states for before switching."""
 
-    REST = wp.constant(1.0)
+    REST = wp.constant(0.2)
     APPROACH_ABOVE_OBJECT = wp.constant(0.5)
-    APPROACH_OBJECT = wp.constant(0.3)
+    APPROACH_OBJECT = wp.constant(0.6)
     GRASP_OBJECT = wp.constant(0.3)
-    LIFT_OBJECT = wp.constant(2.0)
-    DROP_OBJECT = wp.constant(0.2)
+    LIFT_OBJECT = wp.constant(1.0)
 
 
 @wp.kernel
 def infer_state_machine(
-    dt: wp.array(dtype=wp.float32),
-    sm_state: wp.array(dtype=wp.int32),
-    sm_wait_time: wp.array(dtype=wp.float32),
+    dt: wp.array(dtype=float),
+    sm_state: wp.array(dtype=int),
+    sm_wait_time: wp.array(dtype=float),
     ee_pose: wp.array(dtype=wp.transform),
     object_pose: wp.array(dtype=wp.transform),
     des_object_pose: wp.array(dtype=wp.transform),
     des_ee_pose: wp.array(dtype=wp.transform),
-    gripper_state: wp.array(dtype=wp.float32),
+    gripper_state: wp.array(dtype=float),
     offset: wp.array(dtype=wp.transform),
 ):
     # retrieve thread id
@@ -100,58 +98,50 @@ def infer_state_machine(
     # retrieve state machine state
     state = sm_state[tid]
     # decide next state
-    if state == PickSmState.REST.value:
+    if state == PickSmState.REST:
         des_ee_pose[tid] = ee_pose[tid]
-        gripper_state[tid] = GripperState.OPEN.value
+        gripper_state[tid] = GripperState.OPEN
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.REST.value:
+        if sm_wait_time[tid] >= PickSmWaitTime.REST:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_ABOVE_OBJECT.value
+            sm_state[tid] = PickSmState.APPROACH_ABOVE_OBJECT
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_ABOVE_OBJECT.value:
+    elif state == PickSmState.APPROACH_ABOVE_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
         # TODO: This is causing issues.
         # des_ee_pose[tid] = wp.transform_multiply(des_ee_pose[tid], offset[tid])
-        gripper_state[tid] = GripperState.OPEN.value
+        gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT.value:
+        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_OBJECT.value
+            sm_state[tid] = PickSmState.APPROACH_OBJECT
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_OBJECT.value:
+    elif state == PickSmState.APPROACH_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
-        gripper_state[tid] = GripperState.OPEN.value
+        gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT.value:
+        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.GRASP_OBJECT.value
+            sm_state[tid] = PickSmState.GRASP_OBJECT
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.GRASP_OBJECT.value:
+    elif state == PickSmState.GRASP_OBJECT:
         des_ee_pose[tid] = object_pose[tid]
-        gripper_state[tid] = GripperState.CLOSE.value
+        gripper_state[tid] = GripperState.CLOSE
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT.value:
+        if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT.value
+            sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.LIFT_OBJECT.value:
+    elif state == PickSmState.LIFT_OBJECT:
         des_ee_pose[tid] = des_object_pose[tid]
-        gripper_state[tid] = GripperState.CLOSE.value
+        gripper_state[tid] = GripperState.CLOSE
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT.value:
+        if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.DROP_OBJECT.value
-            sm_wait_time[tid] = 0.0
-    elif state == PickSmState.DROP_OBJECT.value:
-        des_ee_pose[tid] = des_object_pose[tid]
-        gripper_state[tid] = GripperState.OPEN.value
-        # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.DROP_OBJECT.value:
-            # move to next state and reset wait time
-            sm_state[tid] = PickSmState.REST.value
+            sm_state[tid] = PickSmState.LIFT_OBJECT
             sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
@@ -169,8 +159,7 @@ class PickAndLiftSm:
     2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
     3. APPROACH_OBJECT: The robot moves to the object.
     4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object.
-    6. DROP_OBJECT: The robot drops the object.
+    5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
@@ -182,18 +171,18 @@ class PickAndLiftSm:
             device: The device to run the state machine on.
         """
         # save parameters
-        self.dt = dt
+        self.dt = float(dt)
         self.num_envs = num_envs
         self.device = device
         # initialize state machine
-        self.sm_dt = torch.full((self.num_envs,), self.dt, dtype=torch.float32, device=self.device)
+        self.sm_dt = torch.full((self.num_envs,), self.dt, device=self.device)
         self.sm_state = torch.full((self.num_envs,), 0, dtype=torch.int32, device=self.device)
-        self.sm_wait_time = torch.zeros((self.num_envs,), dtype=torch.float32, device=self.device)
+        self.sm_wait_time = torch.zeros((self.num_envs,), device=self.device)
         # desired state
-        self.des_ee_pose = torch.zeros((self.num_envs, 7), dtype=torch.float32, device=self.device)
-        self.des_gripper_state = torch.full((self.num_envs,), 0, dtype=torch.float32, device=self.device)
+        self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
+        self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
         # approach above object offset
-        self.offset = torch.zeros((self.num_envs, 7), dtype=torch.float32, device=self.device)
+        self.offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.offset[:, 2] = 0.1
         # convert to warp
         self.sm_dt_wp = wp.from_torch(self.sm_dt, wp.float32)
@@ -217,6 +206,7 @@ class PickAndLiftSm:
         object_pose_wp = wp.from_torch(object_pose.contiguous(), wp.transform)
         des_object_pose_wp = wp.from_torch(des_object_pose.contiguous(), wp.transform)
         # run state machine
+
         wp.launch(
             kernel=infer_state_machine,
             dim=self.num_envs,
@@ -232,60 +222,60 @@ class PickAndLiftSm:
                 self.offset_wp,
             ],
         )
-        wp.synchronize()
+
         # convert to torch
         return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
 def main():
     # parse configuration
-    env_cfg = parse_env_cfg("Isaac-Lift-Franka-v0", use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
-    # -- control configuration
-    env_cfg.control.control_type = "inverse_kinematics"
-    env_cfg.control.inverse_kinematics.command_type = "position_abs"
-    # -- randomization configuration
-    env_cfg.randomization.object_initial_pose.position_cat = "uniform"
-    env_cfg.randomization.object_desired_pose.position_cat = "uniform"
-    # -- termination configuration
-    env_cfg.terminations.episode_timeout = False
-    # -- robot configuration
-    env_cfg.robot.robot_type = "franka"
+    env_cfg: LiftEnvCfg = parse_env_cfg(
+        "Isaac-Lift-Cube-Franka-IK-Abs-v0", use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs
+    )
     # create environment
-    env = gym.make("Isaac-Lift-Franka-v0", cfg=env_cfg)
-
-    # create action buffers
-    actions = torch.zeros((env.num_envs, env.action_space.shape[0]), device=env.device)
-    # create state machine
-    pick_sm = PickAndLiftSm(env.dt, env.num_envs, env.device)
-
-    # reset environment
+    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    # reset environment at start
     env.reset()
 
-    # run state machine
-    for _ in range(10000):
+    # create action buffers (position + quaternion)
+    actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
+    actions[:, 3] = 1.0
+    # desired object orientation (we only do position control of object)
+    desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+    desired_orientation[:, 1] = 1.0
+    # create state machine
+    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+
+    while simulation_app.is_running():
         # run everything in inference mode
         with torch.inference_mode():
             # step environment
             dones = env.step(actions)[-2]
 
             # observations
-            ee_pose = env.robot.data.ee_state_w[:, :7].clone()
-            object_pose = env.object.data.root_state_w[:, :7].clone()
-            des_object_pose = env.object_des_pose_w.clone()
-            # transform from world to base frames
-            ee_pose[:, :3] -= env.robot.data.root_pos_w
-            object_pose[:, :3] -= env.robot.data.root_pos_w
-            des_object_pose[:, :3] -= env.robot.data.root_pos_w
-            # advance state machine
-            with Timer("state machine"):
-                sm_actions = pick_sm.compute(ee_pose, object_pose, des_object_pose)
+            # -- end-effector frame
+            ee_frame_sensor = env.unwrapped.scene["ee_frame"]
+            tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_orientation = ee_frame_sensor.data.target_rot_w[..., 0, :].clone()
+            # -- object frame
+            object_data: RigidObjectData = env.unwrapped.scene["object"].data
+            object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
+            # -- target object frame
+            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
 
-            # set actions for IK with positions
-            actions[:, :3] = sm_actions[:, :3]
-            actions[:, -1] = sm_actions[:, -1]
+            # advance state machine
+            actions = pick_sm.compute(
+                torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
+                torch.cat([object_position, desired_orientation], dim=-1),
+                torch.cat([desired_position, desired_orientation], dim=-1),
+            )
+
             # reset state machine
             if dones.any():
                 pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+
+    # close the environment
+    env.close()
 
 
 if __name__ == "__main__":

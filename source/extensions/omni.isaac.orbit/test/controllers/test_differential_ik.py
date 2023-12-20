@@ -25,7 +25,7 @@ from omni.isaac.cloner import GridCloner
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
+from omni.isaac.orbit.assets.config import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG
 from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from omni.isaac.orbit.utils.math import compute_pose_error, subtract_frame_transforms
 
@@ -42,6 +42,8 @@ class TestDifferentialIKController(unittest.TestCase):
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.01)
         self.sim = sim_utils.SimulationContext(sim_cfg)
+        # TODO: Remove this once we have a better way to handle this.
+        self.sim._app_control_on_stop_handle = None
 
         # Create a ground plane
         cfg = sim_utils.GroundPlaneCfg()
@@ -83,8 +85,7 @@ class TestDifferentialIKController(unittest.TestCase):
     def test_franka_ik_pose_abs(self):
         """Test IK controller for Franka arm with Franka hand."""
         # Create robot instance
-        robot_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-        robot_cfg.spawn.rigid_props.disable_gravity = True
+        robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
         robot = Articulation(cfg=robot_cfg)
 
         # Create IK controller
