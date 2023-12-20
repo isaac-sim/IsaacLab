@@ -320,8 +320,6 @@ class Camera(SensorBase):
         # note: this recomputation is useful if one performs randomization on the camera poses.
         self._update_poses(env_ids)
         self._update_intrinsic_matrices(env_ids)
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
         # Reset the frame count
         self._frame[env_ids] = 0
 

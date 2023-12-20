@@ -134,8 +134,6 @@ class ContactSensor(SensorBase):
         if self.cfg.track_air_time:
             self._data.current_air_time[env_ids] = 0.0
             self._data.last_air_time[env_ids] = 0.0
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
 
     def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.

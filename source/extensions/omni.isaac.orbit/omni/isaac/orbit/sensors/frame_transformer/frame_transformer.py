@@ -102,8 +102,6 @@ class FrameTransformer(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = ...
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
 
     """
     Implementation.

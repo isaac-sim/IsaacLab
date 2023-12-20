@@ -79,8 +79,8 @@ frame of the robot. The offset is specified as a translation and rotation relati
 and the :attr:`~sensors.CameraCfg.OffsetCfg.convention` in which the offset is specified.
 
 In the following, we show the configuration of the camera sensor used in this tutorial. We set the
-update period to 0s to update the sensor at simulation frequency. The prim path is set to
-``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is the namespace of the environment,
+update period to 0.1s, which means that the camera sensor is updated at 10Hz. The prim path expression is
+set to ``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is the environment namespace,
 ``"Robot"`` is the name of the robot, ``"base"`` is the name of the prim to which the camera is attached,
 and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 

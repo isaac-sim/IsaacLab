@@ -73,7 +73,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     # sensors
     camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-        update_period=0.0,
+        update_period=0.1,
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane"],
