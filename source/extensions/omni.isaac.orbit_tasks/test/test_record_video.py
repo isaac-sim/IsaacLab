@@ -54,7 +54,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
 
     def setUp(self) -> None:
         # common parameters
-        self.num_envs = 64
+        self.num_envs = 16
         self.use_gpu = True
         # video parameters
         self.step_trigger = lambda step: step % 225 == 0
