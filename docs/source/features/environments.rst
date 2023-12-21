@@ -1,301 +1,138 @@
 Environments
 ============
 
-.. note::
+The following lists comprises of all the RL tasks implementations that are available in Orbit.
+While we try to keep this list up-to-date, you can always get the latest list of environments by
+running the following command:
 
-    The environments are currently under development. We will update the documentation as soon as
-    they are ready. Please check the GitHub repository for the latest updates.
+.. code-block:: bash
 
-Rigid-body manipulation
------------------------
+    ./orbit.sh -p source/standalone/environments/list_envs.py
 
-Each task poses different challenges for object reasoning, skill-learning and control. We use advanced
-physics capabilities (such as SDF-based collision) to simulate contact rich interactions.
+We are actively working on adding more environments to the list. If you have any environments that
+you would like to add to Orbit, please feel free to open a pull request!
+
+Classic
+-------
+
+Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-style environments.
 
 
 .. table::
-    :widths: 25 17 30 28
+    :widths: 33 37 30
 
-    +-----------+-------------------+-----------------------+--------------+
-    | World     | Task/Env.         | Description           | Metric       |
-    +===========+===================+=======================+==============+
-    | |reach|   | Reach             | Move the end-effector | Distance     |
-    |           |                   | to sampled target     | between the  |
-    |           |                   | pose                  | end-effector |
-    |           |                   |                       | of the       |
-    |           |                   |                       | robot and    |
-    |           |                   |                       | the target   |
-    |           |                   |                       | pose         |
-    +-----------+-------------------+-----------------------+--------------+
-    | |lift|    | Lift              | Lift a rigid cube     | Distance     |
-    |           |                   | from the table to     | between the  |
-    |           |                   | sampled target pose   | rigid        |
-    |           |                   |                       | cube's       |
-    |           |                   |                       | current and  |
-    |           |                   |                       | target       |
-    |           |                   |                       | poses        |
-    +-----------+-------------------+-----------------------+--------------+
-    | |peg|     | Peg in Hole       | Place blocks of       | Sum of       |
-    |           |                   | different shapes into | distances    |
-    |           |                   | their respective      | between      |
-    |           |                   | holes                 | each block   |
-    |           |                   |                       | and its      |
-    |           |                   |                       | hole         |
-    +-----------+-------------------+-----------------------+--------------+
-    | |beat|    | Beat the Buzz     | Move the key from one | Total        |
-    |           |                   | end to the other      | distance     |
-    |           |                   | without touching the  | traveled     |
-    |           |                   | pole                  | by the key   |
-    |           |                   |                       | with a       |
-    |           |                   |                       | penalty for  |
-    |           |                   |                       | touching     |
-    |           |                   |                       | the pole     |
-    +-----------+-------------------+-----------------------+--------------+
-    | |nut|     | Nut-Bolt          | Lift the nut from the | Distance     |
-    |           | Tightening        | table and screw it    | between the  |
-    |           |                   | onto a bolt           | nut's        |
-    |           |                   |                       | current and  |
-    |           |                   |                       | target       |
-    |           |                   |                       | position on  |
-    |           |                   |                       | the bolt     |
-    +-----------+-------------------+-----------------------+--------------+
-    | |cabinet| | Cabinet Opening   | Open cabinet's drawer | Distance     |
-    |           |                   | to a certain desired  | between      |
-    |           |                   | joint position        | cabinet's    |
-    |           |                   |                       | current and  |
-    |           |                   |                       | desired      |
-    |           |                   |                       | joint state  |
-    +-----------+-------------------+-----------------------+--------------+
-    | |stack|   | Stack Pyramid     | Stack two pyramids    | Sum of       |
-    |           |                   | from blocks of        | distances    |
-    |           |                   | different colors      | between      |
-    |           |                   |                       | each         |
-    |           |                   |                       | block's      |
-    |           |                   |                       | current and  |
-    |           |                   |                       | desired      |
-    |           |                   |                       | target       |
-    |           |                   |                       | position in  |
-    |           |                   |                       | the pyramid  |
-    +-----------+-------------------+-----------------------+--------------+
-    | |hockey|  | Hockey Playing    | Hit hockey puck with  | Shortest     |
-    |           |                   | the stick into the    | distance     |
-    |           |                   | net                   | between the  |
-    |           |                   |                       | puck and     |
-    |           |                   |                       | the inner    |
-    |           |                   |                       | area of the  |
-    |           |                   |                       | net          |
-    +-----------+-------------------+-----------------------+--------------+
-    | |jenga|   | Jenga Playing     | Remove given block    | Distance     |
-    |           |                   | and place it on top   | between the  |
-    |           |                   | without toppling the  | given        |
-    |           |                   | tower                 | block's      |
-    |           |                   |                       | current and  |
-    |           |                   |                       | target       |
-    |           |                   |                       | position     |
-    |           |                   |                       | with         |
-    |           |                   |                       | penalization |
-    |           |                   |                       | if tower     |
-    |           |                   |                       | topples      |
-    +-----------+-------------------+-----------------------+--------------+
-    | |inhand|  | In-Hand Reposing  | Repose an object to a | Difference   |
-    |           |                   | target pose using     | between the  |
-    |           |                   | dexterous hands       | pose of the  |
-    |           |                   |                       | object and   |
-    |           |                   |                       | the target   |
-    |           |                   |                       | pose         |
-    +-----------+-------------------+-----------------------+--------------+
+    +------------------+-----------------------------+-------------------------------------------------------------------------+
+    | World            | Environment ID              | Description                                                             |
+    +==================+=============================+=========================================================================+
+    | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+
+    | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+
+    | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+
 
-Deformable-body manipulation
-----------------------------
+.. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
+.. |ant| image:: ../_static/tasks/classic/ant.jpg
+.. |cartpole| image:: ../_static/tasks/classic/cartpole.jpg
 
-Using the PhysX SDK, we simulate deformable objects such as cloth and soft bodies. We provide
-interfaces to procedurally generate meshes of specified shapes and sizes, and to deform them by
-applying deformable body schemas on it.
+.. |humanoid-link| replace:: `Isaac-Humanoid-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/humanoid/humanoid_env_cfg.py>`__
+.. |ant-link| replace:: `Isaac-Ant-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/ant/ant_env_cfg.py>`__
+.. |cartpole-link| replace:: `Isaac-Cartpole-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py>`__
+
+
+Manipulation
+------------
+
+Environments based on fixed-arm manipulation tasks.
+
 
 .. table::
-    :widths: 25 17 30 28
+    :widths: 33 37 30
 
-    +-----------+-------------------+-----------------------+-------------+
-    | World     | Task/Env.         | Description           | Metric      |
-    +===========+===================+=======================+=============+
-    | |clift|   | Cloth Lifting     | Lift the cloth to the | Distance    |
-    |           |                   | target position       | between a   |
-    |           |                   |                       | key point   |
-    |           |                   |                       | on the      |
-    |           |                   |                       | cloth and   |
-    |           |                   |                       | the target  |
-    |           |                   |                       | position    |
-    +-----------+-------------------+-----------------------+-------------+
-    | |cfold|   | Cloth Folding     | Fold Cloth into a     | Sum of      |
-    |           |                   | desired shape         | distances   |
-    |           |                   |                       | between all |
-    |           |                   |                       | pair of key |
-    |           |                   |                       | points on   |
-    |           |                   |                       | the cloth   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |cspread| | Cloth Spreading   | Spread out the cloth  | Area        |
-    |           |                   | and maximize the area | covered by  |
-    |           |                   | that the cloth covers | the cloth   |
-    |           |                   | from a top down view  | from a top  |
-    |           |                   |                       | down view   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |cdrop|   | Cloth Dropping    | Drop the cloth into a | Distance    |
-    |           |                   | container             | between the |
-    |           |                   |                       | key point   |
-    |           |                   |                       | on the      |
-    |           |                   |                       | cloth and   |
-    |           |                   |                       | the center  |
-    |           |                   |                       | of the      |
-    |           |                   |                       | container   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |flag|    | Flag Hoisting     | Hoist and spread the  | Distance    |
-    |           |                   | flag                  | between the |
-    |           |                   |                       | corner of   |
-    |           |                   |                       | the flag    |
-    |           |                   |                       | and a       |
-    |           |                   |                       | desired     |
-    |           |                   |                       | position    |
-    +-----------+-------------------+-----------------------+-------------+
-    | |slift|   | Soft Lifting      | Lift the soft object  | Distance    |
-    |           |                   | to a target position  | between the |
-    |           |                   |                       | pose of the |
-    |           |                   |                       | soft object |
-    |           |                   |                       | and the     |
-    |           |                   |                       | goal pose   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |sstack|  | Soft Stacking     | Stack one soft object | Distance    |
-    |           |                   | on another soft       | between the |
-    |           |                   | object                | two soft    |
-    |           |                   |                       | objects     |
-    |           |                   |                       | from a top  |
-    |           |                   |                       | down view   |
-    |           |                   |                       | with        |
-    |           |                   |                       | penalty for |
-    |           |                   |                       | wrong       |
-    |           |                   |                       | orientation |
-    +-----------+-------------------+-----------------------+-------------+
-    | |splace|  | Soft Placing      | Place the soft object | Distance    |
-    |           |                   | on a goal object at a | between the |
-    |           |                   | target pose           | pose the    |
-    |           |                   |                       | soft object |
-    |           |                   |                       | and the     |
-    |           |                   |                       | goal pose   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |sdrop|   | Soft Dropping     | Drop the soft object  | Distance    |
-    |           |                   | into the target       | between the |
-    |           |                   | container             | soft object |
-    |           |                   |                       | and the     |
-    |           |                   |                       | center of   |
-    |           |                   |                       | the         |
-    |           |                   |                       | container   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |shanoi|  | Tower of Hanoi    | Stack all soft torus  | Sum of      |
-    |           |                   | around the target rod | distances   |
-    |           |                   | in a decreasing-size  | between the |
-    |           |                   | order so that the     | rod and the |
-    |           |                   | smaller torus is      | center of   |
-    |           |                   | always on the top     | torus from  |
-    |           |                   |                       | a top down  |
-    |           |                   |                       | view, and   |
-    |           |                   |                       | relative    |
-    |           |                   |                       | positions   |
-    |           |                   |                       | between the |
-    |           |                   |                       | torus based |
-    |           |                   |                       | on their    |
-    |           |                   |                       | sizes       |
-    +-----------+-------------------+-----------------------+-------------+
-    | |rope|    | Rope Reshaping    | Reshape the rope into | Sum of      |
-    |           |                   | a desired shape       | distances   |
-    |           |                   |                       | between the |
-    |           |                   |                       | key points  |
-    |           |                   |                       | on the rope |
-    |           |                   |                       | and the key |
-    |           |                   |                       | points on   |
-    |           |                   |                       | the target  |
-    |           |                   |                       | shape       |
-    +-----------+-------------------+-----------------------+-------------+
-    | |ftrans|  | Transport fluid   | Transport the         | Distance    |
-    |           |                   | container filled with | between the |
-    |           |                   | fluid to a target     | container   |
-    |           |                   | position without      | and the     |
-    |           |                   | spilling out the      | target      |
-    |           |                   | fluid                 | position,   |
-    |           |                   |                       | and the     |
-    |           |                   |                       | amount of   |
-    |           |                   |                       | fluid that  |
-    |           |                   |                       | remained in |
-    |           |                   |                       | the         |
-    |           |                   |                       | container   |
-    +-----------+-------------------+-----------------------+-------------+
-    | |fpour|   | Pour fluid        | Pour the fluid in one | The amount  |
-    |           |                   | container into a      | of fluid in |
-    |           |                   | target container      | the target  |
-    |           |                   |                       | container   |
-    +-----------+-------------------+-----------------------+-------------+
+    +----------------+---------------------+-----------------------------------------------------------------------------+
+    | World          | Environment ID      | Description                                                                 |
+    +================+=====================+=============================================================================+
+    | |reach-franka| | |reach-franka-link| | Move the end-effector to a sampled target pose with the Franka robot        |
+    +----------------+---------------------+-----------------------------------------------------------------------------+
+    | |reach-ur10|   | |reach-ur10-link|   | Move the end-effector to a sampled target pose with the UR10 robot          |
+    +----------------+---------------------+-----------------------------------------------------------------------------+
+    | |lift-cube|    | |lift-cube-link|    | Pick a cube and bring it to a sampled target position with the Franka robot |
+    +----------------+---------------------+-----------------------------------------------------------------------------+
+
+.. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
+.. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
+.. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
 
 
-Floating-base systems
----------------------
+.. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/franka/env_cfg.py>`__
+.. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/ur_10/env_cfg.py>`__
+.. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
 
-With rising interest in legged robots and mobile manipulators, we also include
-a set of tasks that involve floating-base systems.
+
+Locomotion
+----------
+
+Environments based on legged locomotion tasks.
 
 .. table::
-    :widths: 25 17 30 28
+    :widths: 33 37 30
 
-    +-----------+-------------------+-----------------------+-------------+
-    | World     | Task/Env.         | Description           | Metric      |
-    +===========+===================+=======================+=============+
-    | |mreach|  | Mobile Reach      | Move end-effector to  | Distance    |
-    |           |                   | sampled target pose   | between the |
-    |           |                   | while avoiding        | e           |
-    |           |                   | obstacles             | nd-effector |
-    |           |                   |                       | of the      |
-    |           |                   |                       | robot and   |
-    |           |                   |                       | the target  |
-    |           |                   |                       | pose        |
-    +-----------+-------------------+-----------------------+-------------+
-    | |mcabint| | Mobile Cabinet    | Open cabinet's drawer | Distance    |
-    |           |                   | to a certain desired  | between     |
-    |           |                   | joint position with   | cabinet's   |
-    |           |                   | whole-body control    | current and |
-    |           |                   |                       | desired     |
-    |           |                   |                       | joint state |
-    +-----------+-------------------+-----------------------+-------------+
-    | |velo|    | Legged Locomotion | Walk a legged robot   | Difference  |
-    |           |                   | with a desired        | between the |
-    |           |                   | velocity              | velocity of |
-    |           |                   |                       | the legged  |
-    |           |                   |                       | robot and   |
-    |           |                   |                       | the desired |
-    |           |                   |                       | velocity    |
-    +-----------+-------------------+-----------------------+-------------+
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | World                        | Environment ID                               | Description                                                             |
+    +==============================+==============================================+=========================================================================+
+    | |velocity-flat-anymal-b|     | |velocity-flat-anymal-b-link|                | Track a velocity command on flat terrain with the Anymal B robot        |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot       |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot        |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot       |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot        |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot       |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot      |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot     |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot     |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot    |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot     |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot    |
+    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
 
-.. |reach| image:: ../_static/tasks/rigid/reach.jpg
-.. |lift| image:: ../_static/tasks/rigid/lift.jpg
-.. |peg| image:: ../_static/tasks/rigid/peg-in-hole.jpg
-.. |beat| image:: ../_static/tasks/rigid/beat-the-buzz.jpg
-.. |nut| image:: ../_static/tasks/rigid/nut-bolt.jpg
-.. |cabinet| image:: ../_static/tasks/rigid/cabinet.jpg
-.. |stack| image:: ../_static/tasks/rigid/pyramid.jpg
-.. |hockey| image:: ../_static/tasks/rigid/hockey.jpg
-.. |jenga| image:: ../_static/tasks/rigid/jenga.jpg
-.. |inhand| image:: ../_static/tasks/rigid/shadow.jpg
+.. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
 
-.. |clift| image:: ../_static/tasks/deformable/vest.jpg
-.. |cfold| image:: ../_static/tasks/deformable/sweater.jpg
-.. |cspread| image:: ../_static/tasks/deformable/shirt.jpg
-.. |cdrop| image:: ../_static/tasks/deformable/shirt-basket.jpg
-.. |flag| image:: ../_static/tasks/deformable/flag.jpg
-.. |slift| image:: ../_static/tasks/deformable/pick.jpg
-.. |sstack| image:: ../_static/tasks/deformable/stacking.jpg
-.. |splace| image:: ../_static/tasks/deformable/place.jpg
-.. |sdrop| image:: ../_static/tasks/deformable/drop.jpg
-.. |shanoi| image:: ../_static/tasks/deformable/tower_of_hanoi.jpg
-.. |rope| image:: ../_static/tasks/deformable/rope.jpg
-.. |ftrans| image:: ../_static/tasks/deformable/fluid_transport.jpg
-.. |fpour| image:: ../_static/tasks/deformable/fluid_pour.jpg
+.. |velocity-flat-anymal-c-link| replace:: `Isaac-Velocity-Flat-Anymal-C-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_c/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-c-link| replace:: `Isaac-Velocity-Rough-Anymal-C-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_c/rough_env_cfg.py>`__
 
-.. |mreach| image:: ../_static/tasks/rigid/mobile_reach.jpg
-.. |mcabint| image:: ../_static/tasks/rigid/mobile_cabinet.jpg
-.. |velo| image:: ../_static/tasks/rigid/locomotion.jpg
+.. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-Anymal-D-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_d/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-Anymal-D-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/anymal_d/rough_env_cfg.py>`__
+
+.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-Unitree-A1-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_a1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-Unitree-A1-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_a1/rough_env_cfg.py>`__
+
+.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-Unitree-Go1-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_go1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-Unitree-Go1-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_go1/rough_env_cfg.py>`__
+
+.. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-Unitree-Go2-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_go2/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-Unitree-Go2-v0 <https://github.com/isaac-orbit/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/locomotion/velocity/config/unitree_go2/rough_env_cfg.py>`__
+
+
+.. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
+.. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
+.. |velocity-flat-anymal-c| image:: ../_static/tasks/locomotion/anymal_c_flat.jpg
+.. |velocity-rough-anymal-c| image:: ../_static/tasks/locomotion/anymal_c_rough.jpg
+.. |velocity-flat-anymal-d| image:: ../_static/tasks/locomotion/anymal_d_flat.jpg
+.. |velocity-rough-anymal-d| image:: ../_static/tasks/locomotion/anymal_d_rough.jpg
+.. |velocity-flat-unitree-a1| image:: ../_static/tasks/locomotion/a1_flat.jpg
+.. |velocity-rough-unitree-a1| image:: ../_static/tasks/locomotion/a1_rough.jpg
+.. |velocity-flat-unitree-go1| image:: ../_static/tasks/locomotion/go1_flat.jpg
+.. |velocity-rough-unitree-go1| image:: ../_static/tasks/locomotion/go1_rough.jpg
+.. |velocity-flat-unitree-go2| image:: ../_static/tasks/locomotion/go2_flat.jpg
+.. |velocity-rough-unitree-go2| image:: ../_static/tasks/locomotion/go2_rough.jpg

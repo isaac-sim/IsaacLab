@@ -34,7 +34,7 @@ For more information about the framework, please refer to the `paper <https://ar
 
    source/features/environments
    source/features/actuators
-   source/features/motion_generators
+   .. source/features/motion_generators
 
 .. toctree::
    :maxdepth: 1
