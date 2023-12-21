@@ -64,6 +64,7 @@ class CurriculumManager(ManagerBase):
             table.add_row([index, name])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 

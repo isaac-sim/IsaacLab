@@ -137,6 +137,7 @@ class ActionManager(ManagerBase):
             table.add_row([index, name, term.action_dim])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 

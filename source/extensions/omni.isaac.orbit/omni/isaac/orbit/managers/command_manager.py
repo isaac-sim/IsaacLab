@@ -263,6 +263,7 @@ class CommandManager(ManagerBase):
             table.add_row([index, name, term.__class__.__name__])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 
