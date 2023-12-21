@@ -13,6 +13,7 @@ use Orbit. If you are new to Orbit, we recommend you start with the tutorials.
 .. toctree::
     :maxdepth: 1
 
+    import_new_asset
     write_articulation_cfg
     save_camera_output
     draw_markers
