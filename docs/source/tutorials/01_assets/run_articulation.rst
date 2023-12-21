@@ -1,6 +1,5 @@
 .. _tutorial-interact-articulation:
 
-
 Interacting with an articulation
 ================================
 
@@ -24,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 58-69, 92-103, 103-105, 111, 125-127, 133
+      :emphasize-lines: 62-73, 95-108, 112-115, 120-121
       :linenos:
 
 
@@ -50,9 +49,9 @@ an instance of the :class:`assets.Articulation` class by passing the configurati
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 58-69
+   :lines: 62-73
    :linenos:
-   :lineno-start: 58
+   :lineno-start: 62
 
 
 Running the simulation loop
@@ -74,9 +73,9 @@ Finally, we call the :meth:`Articulation.reset` method to reset any internal buf
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 92-103
+   :lines: 95-108
    :linenos:
-   :lineno-start: 92
+   :lineno-start: 95
 
 Stepping the simulation
 """""""""""""""""""""""
@@ -98,9 +97,9 @@ the simulation.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 108-112
+   :lines: 112-115
    :linenos:
-   :lineno-start: 108
+   :lineno-start: 112
 
 
 Updating the state
@@ -109,11 +108,11 @@ Updating the state
 Every articulation class contains a :class:`assets.ArticulationData` object. This stores the state of the
 articulation. To update the state inside the buffer, we call the :meth:`assets.Articulation.update` method.
 
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 116-117
+   :lines: 120-121
    :linenos:
-   :lineno-start: 116
+   :lineno-start: 120
 
 
 The Code Execution

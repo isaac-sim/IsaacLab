@@ -1,6 +1,5 @@
 .. _tutorial-add-sensors-on-robot:
 
-
 Adding sensors on a robot
 =========================
 
@@ -38,7 +37,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 73-96, 145-154, 172-173
+      :emphasize-lines: 77-100, 152-162, 176-177
       :linenos:
 
 
@@ -86,12 +85,9 @@ and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 74-84
+   :lines: 78-88
    :linenos:
-   :lineno-start: 74
-
-Height scanner sensor
----------------------
+   :lineno-start: 78
 
 The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
 Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
@@ -112,9 +108,9 @@ The entire configuration of the height-scanner is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 85-93
+   :lines: 89-97
    :linenos:
-   :lineno-start: 85
+   :lineno-start: 89
 
 Contact sensor
 --------------
@@ -142,9 +138,9 @@ The entire configuration of the contact sensor is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 94-96
+   :lines: 98-100
    :linenos:
-   :lineno-start: 94
+   :lineno-start: 98
 
 Running the simulation loop
 ---------------------------
@@ -154,9 +150,9 @@ when the simulation is played, i.e., it is important to call ``sim.reset()`` aft
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 172-173
+   :lines: 176-177
    :linenos:
-   :lineno-start: 173
+   :lineno-start: 177
 
 Besides that, the simulation loop is similar to the previous tutorials. The sensors are updated as part
 of the scene update and they internally handle the updating of their buffers based on their update
@@ -167,9 +163,9 @@ to access the data for the different sensors created in this tutorial:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 148-158
+   :lines: 152-162
    :linenos:
-   :lineno-start: 148
+   :lineno-start: 152
 
 
 The Code Execution

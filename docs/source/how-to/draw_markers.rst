@@ -17,7 +17,7 @@ This guide is accompanied by a sample script ``markers.py`` in the ``orbit/sourc
 
    .. literalinclude:: ../../../source/standalone/demos/markers.py
       :language: python
-      :emphasize-lines: 49-97, 113, 114-145
+      :emphasize-lines: 49-97, 112-113, 142-148
       :linenos:
 
 

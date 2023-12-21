@@ -1,6 +1,5 @@
 .. _tutorial-interactive-scene:
 
-
 Using the Interactive Scene
 ===========================
 
@@ -41,7 +40,7 @@ This tutorial corresponds to the ``create_scene.py`` script within
 
    .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
       :language: python
-      :emphasize-lines: 51-64, 69-71, 92-93, 100-101, 106-107, 117-119
+      :emphasize-lines: 55-68, 73-75, 96-97, 104-105, 110-111, 121-123
       :linenos:
 
 
@@ -64,9 +63,9 @@ them now in the configuration class :class:`CartpoleSceneCfg` instead of manuall
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 51-64
+   :lines: 55-68
    :linenos:
-   :lineno-start: 51
+   :lineno-start: 55
 
 The variable names in the configuration class are used as keys to access the corresponding
 entity from the :class:`scene.InteractiveScene` object. For example, the cartpole can
@@ -111,9 +110,9 @@ This will be used to clone the scene for each environment.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 117-119
+   :lines: 121-123
    :linenos:
-   :lineno-start: 117
+   :lineno-start: 121
 
 Accessing scene elements
 ------------------------
@@ -126,9 +125,9 @@ the cartpole is specified using the key ``"cartpole"`` in the configuration clas
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 69-71
+   :lines: 73-75
    :linenos:
-   :lineno-start: 69
+   :lineno-start: 73
 
 Running the simulation loop
 ---------------------------

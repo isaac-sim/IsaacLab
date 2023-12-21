@@ -24,7 +24,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the ``orbit/source/
 
    .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 99-101, 122-137, 156-158, 162-172
+      :emphasize-lines: 103-105, 126-141, 160-162, 166-176
       :linenos:
 
 
@@ -66,9 +66,9 @@ will use the absolute pose command mode.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 99-101
+   :lines: 103-105
    :linenos:
-   :lineno-start: 99
+   :lineno-start: 103
 
 Obtaining the robot's joint and body indices
 --------------------------------------------
@@ -96,9 +96,9 @@ this class.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 122-137
+   :lines: 126-141
    :linenos:
-   :lineno-start: 122
+   :lineno-start: 126
 
 
 Computing robot command
@@ -114,9 +114,9 @@ the robot's base frame.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 156-158
+   :lines: 160-162
    :linenos:
-   :lineno-start: 156
+   :lineno-start: 160
 
 We can then compute the desired joint positions using the
 :meth:`~controllers.DifferentialIKController.compute` method.
@@ -127,18 +127,18 @@ its value computed from the physics engine.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 162-172
+   :lines: 166-176
    :linenos:
-   :lineno-start: 162
+   :lineno-start: 166
 
 The computed joint position targets can then be applied on the robot, as done in the
 previous tutorials.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 174-176
+   :lines: 178-180
    :linenos:
-   :lineno-start: 174
+   :lineno-start: 178
 
 
 The Code Execution
