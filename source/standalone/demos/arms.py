@@ -41,8 +41,12 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_CFG, UR10_CFG
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import FRANKA_PANDA_CFG, UR10_CFG  # isort:skip
 
 
 def design_scene() -> tuple[dict, list[list[float]]]:

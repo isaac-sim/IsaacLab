@@ -22,7 +22,7 @@ import omni.isaac.orbit_tasks.classic.cartpole.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.cartpole import CARTPOLE_CFG  # isort:skip
+from omni.isaac.orbit_assets.cartpole import CARTPOLE_CFG  # isort:skip
 
 
 ##

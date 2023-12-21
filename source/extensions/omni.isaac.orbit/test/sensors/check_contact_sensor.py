@@ -46,8 +46,13 @@ from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensor, ContactSensorCfg
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
+
 
 """
 Helpers

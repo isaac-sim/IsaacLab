@@ -42,8 +42,12 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import CARTPOLE_CFG
 from omni.isaac.orbit.sim import SimulationContext
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import CARTPOLE_CFG  # isort:skip
 
 
 def design_scene() -> tuple[dict, list[list[float]]]:

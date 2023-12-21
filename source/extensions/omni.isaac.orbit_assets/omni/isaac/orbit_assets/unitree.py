@@ -16,9 +16,8 @@ Reference: https://github.com/unitreerobotics/unitree_ros
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ActuatorNetMLPCfg, DCMotorCfg
+from omni.isaac.orbit.assets.articulation import ArticulationCfg
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
-
-from ..articulation import ArticulationCfg
 
 ##
 # Configuration - Actuators.

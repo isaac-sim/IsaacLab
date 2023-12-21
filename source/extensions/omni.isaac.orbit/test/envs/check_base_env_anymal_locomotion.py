@@ -43,7 +43,6 @@ import carb
 import omni.isaac.orbit.envs.mdp as mdp
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
@@ -60,6 +59,7 @@ from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
 # Pre-defined configs
 ##
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 ##

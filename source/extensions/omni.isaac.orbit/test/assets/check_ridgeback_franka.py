@@ -45,7 +45,11 @@ import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG  # isort:skip
 
 
 def design_scene():

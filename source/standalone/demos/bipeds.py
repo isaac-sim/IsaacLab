@@ -36,8 +36,12 @@ import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.cassie import CASSIE_CFG
 from omni.isaac.orbit.sim import SimulationContext
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort:skip
 
 
 def main():

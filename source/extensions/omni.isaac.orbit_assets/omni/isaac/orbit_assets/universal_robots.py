@@ -14,9 +14,8 @@ Reference: https://github.com/ros-industrial/universal_robot
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
+from omni.isaac.orbit.assets.articulation import ArticulationCfg
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
-
-from ..articulation import ArticulationCfg
 
 ##
 # Configuration

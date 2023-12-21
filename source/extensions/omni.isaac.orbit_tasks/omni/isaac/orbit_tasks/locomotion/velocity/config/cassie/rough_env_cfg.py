@@ -13,7 +13,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.cassie import CASSIE_CFG  # isort: skip
+from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort: skip
 
 
 @configclass

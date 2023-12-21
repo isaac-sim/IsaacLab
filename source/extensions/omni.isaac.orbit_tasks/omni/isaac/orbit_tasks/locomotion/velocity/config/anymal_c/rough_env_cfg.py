@@ -10,7 +10,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG  # isort: skip
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

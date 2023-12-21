@@ -46,7 +46,6 @@ import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import AssetBaseCfg
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG
 from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.markers import VisualizationMarkers
@@ -55,6 +54,11 @@ from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.math import subtract_frame_transforms
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 
 @configclass

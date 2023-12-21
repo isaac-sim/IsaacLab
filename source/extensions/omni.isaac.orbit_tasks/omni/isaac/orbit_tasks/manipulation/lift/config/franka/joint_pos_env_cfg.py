@@ -17,9 +17,8 @@ from omni.isaac.orbit_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
 ##
 # Pre-defined configs
 ##
-# isort: off
-from omni.isaac.orbit.assets.config.franka import FRANKA_PANDA_CFG
-from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
+from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG  # isort: skip
+from omni.isaac.orbit_assets.franka import FRANKA_PANDA_CFG  # isort: skip
 
 
 @configclass

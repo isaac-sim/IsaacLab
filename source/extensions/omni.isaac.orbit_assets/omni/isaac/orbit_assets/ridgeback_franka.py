@@ -14,9 +14,8 @@ Reference: https://github.com/ridgeback/ridgeback_manipulation
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
+from omni.isaac.orbit.assets.articulation import ArticulationCfg
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-
-from ..articulation import ArticulationCfg
 
 RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(

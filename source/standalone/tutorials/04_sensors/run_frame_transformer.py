@@ -41,11 +41,15 @@ import torch
 import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
 from omni.isaac.orbit.sim import SimulationContext
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def define_sensor() -> FrameTransformer:

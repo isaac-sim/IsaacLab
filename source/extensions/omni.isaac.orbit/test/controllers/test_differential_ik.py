@@ -25,9 +25,13 @@ from omni.isaac.cloner import GridCloner
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG
 from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from omni.isaac.orbit.utils.math import compute_pose_error, subtract_frame_transforms
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 
 class TestDifferentialIKController(unittest.TestCase):

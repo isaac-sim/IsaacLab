@@ -15,8 +15,7 @@ from omni.isaac.orbit_tasks.manipulation.reach.reach_env_cfg import ReachEnvCfg
 ##
 # Pre-defined configs
 ##
-# isort: off
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_CFG
+from omni.isaac.orbit_assets import FRANKA_PANDA_CFG  # isort: skip
 
 
 ##

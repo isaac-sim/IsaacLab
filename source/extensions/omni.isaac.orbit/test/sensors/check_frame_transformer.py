@@ -47,9 +47,9 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import AssetBaseCfg
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
@@ -58,6 +58,11 @@ from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.terrains import TerrainImporterCfg
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.timer import Timer
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):

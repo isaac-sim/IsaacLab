@@ -13,6 +13,7 @@ keywords = ["robotics", "rl", "il", "learning"]
 
 [dependencies]
 "omni.isaac.orbit" = {}
+"omni.isaac.orbit_assets" = {}
 "omni.isaac.core" = {}
 "omni.isaac.gym" = {}
 "omni.replicator.isaac" = {}

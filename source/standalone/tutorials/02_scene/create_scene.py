@@ -42,10 +42,14 @@ import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.assets.config import CARTPOLE_CFG
 from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils import configclass
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import CARTPOLE_CFG  # isort:skip
 
 
 @configclass

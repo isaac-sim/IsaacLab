@@ -49,10 +49,14 @@ import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.orbit.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
 from omni.isaac.orbit.utils import configclass
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

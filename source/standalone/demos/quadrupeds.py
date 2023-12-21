@@ -44,8 +44,12 @@ import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+from omni.isaac.orbit_assets.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

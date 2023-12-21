@@ -30,8 +30,12 @@ import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.string as string_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.assets import Articulation, ArticulationCfg
-from omni.isaac.orbit.assets.config import ANYMAL_C_CFG, FRANKA_PANDA_CFG
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
 
 
 class TestArticulation(unittest.TestCase):
