@@ -201,7 +201,7 @@ class SimulationContext(_SimulationContext):
             self._app_control_on_stop_handle = timeline_event_stream.create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.STOP),
                 lambda *args, obj=weakref.proxy(self): obj._app_control_on_stop_callback(*args),
-                order=10,
+                order=15,
             )
         else:
             self._app_control_on_stop_handle = None

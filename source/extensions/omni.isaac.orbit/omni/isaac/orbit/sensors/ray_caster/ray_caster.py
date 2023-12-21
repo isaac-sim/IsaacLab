@@ -279,3 +279,15 @@ class RayCaster(SensorBase):
     def _debug_vis_callback(self, event):
         # show ray hit positions
         self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._view = None

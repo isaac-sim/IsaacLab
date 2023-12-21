@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.9 (2023-12-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed invalidation of physics views inside the asset and sensor classes. Earlier, they were left initialized
+  even when the simulation was stopped. This caused issues when closing the application.
+
+
 0.10.8 (2023-12-20)
 ~~~~~~~~~~~~~~~~~~~
 

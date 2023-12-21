@@ -291,3 +291,16 @@ class ContactSensor(SensorBase):
             frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._body_physx_view = None
+        self._contact_physx_view = None

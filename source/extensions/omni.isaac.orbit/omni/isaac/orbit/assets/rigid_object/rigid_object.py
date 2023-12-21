@@ -383,3 +383,16 @@ class RigidObject(AssetBase):
         # -- heading direction of root
         forward_w = math_utils.quat_apply(self._data.root_quat_w, self.FORWARD_VEC_B)
         self._data.heading_w[:] = torch.atan2(forward_w[:, 1], forward_w[:, 0])
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None
+        self._body_physx_view = None

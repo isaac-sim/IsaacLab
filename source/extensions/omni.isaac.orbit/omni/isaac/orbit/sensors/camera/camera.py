@@ -554,3 +554,14 @@ class Camera(SensorBase):
         data = convert_to_torch(data, device=self.device)
         # return the data and info
         return data, info
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._view = None
