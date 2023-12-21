@@ -41,6 +41,9 @@ services:
         source: isaac-logs
         target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
       - type: volume
+        source: isaac-carb-logs
+        target: ${DOCKER_ISAACSIM_PATH}/kit/logs/Kit/Isaac-Sim
+      - type: volume
         source: isaac-data
         target: ${DOCKER_USER_HOME}/.local/share/ov/data
       - type: volume
@@ -96,6 +99,7 @@ volumes:
   isaac-cache-gl:
   isaac-cache-compute:
   isaac-logs:
+  isaac-carb-logs:
   isaac-data:
   isaac-docs:
   # orbit

@@ -70,6 +70,7 @@ class RewardManager(ManagerBase):
             table.add_row([index, name, term_cfg.weight])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 

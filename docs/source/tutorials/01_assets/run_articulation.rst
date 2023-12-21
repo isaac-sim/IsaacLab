@@ -43,7 +43,7 @@ properties.
 For the cart-pole, we use its pre-defined configuration object, which is an instance of the
 :class:`assets.ArticulationCfg` class. This class contains information about the articulation's spawning strategy,
 default initial state, actuator models for different joints, and other meta-information. A deeper-dive into how to
-create this configuration object is provided in the :ref:`how-to-create-articulation-config` tutorial.
+create this configuration object is provided in the :ref:`how-to-write-articulation-config` tutorial.
 
 As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
 an instance of the :class:`assets.Articulation` class by passing the configuration object to its constructor.

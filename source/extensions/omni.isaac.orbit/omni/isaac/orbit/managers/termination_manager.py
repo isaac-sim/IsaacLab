@@ -76,6 +76,7 @@ class TerminationManager(ManagerBase):
             table.add_row([index, name, term_cfg.time_out])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 

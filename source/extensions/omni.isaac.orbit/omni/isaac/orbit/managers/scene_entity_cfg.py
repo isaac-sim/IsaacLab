@@ -35,13 +35,13 @@ class SceneEntityCfg:
     The names can be either joint names or a regular expression matching the joint names.
 
     These are converted to joint indices on initialization of the manager and passed to the term
-    function as a list of joint indices under :attr:`dof_ids`.
+    function as a list of joint indices under :attr:`joint_ids`.
     """
 
     joint_ids: list[int] | None = None
     """The indices of the joints from the asset required by the term. Defaults to None.
 
-    If ``joint_names`` is specified, this is filled in automatically on initialization of the
+    If :attr:`joint_names` is specified, this is filled in automatically on initialization of the
     manager.
     """
 
@@ -57,7 +57,7 @@ class SceneEntityCfg:
     body_ids: list[int] | None = None
     """The indices of the bodies from the asset required by the term. Defaults to None.
 
-    If ``body_names`` is specified, this is filled in automatically on initialization of the
+    If :attr:`body_names` is specified, this is filled in automatically on initialization of the
     manager.
     """
 

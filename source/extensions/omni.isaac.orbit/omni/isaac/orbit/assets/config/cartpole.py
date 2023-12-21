@@ -13,13 +13,9 @@ from omni.isaac.orbit.actuators import ImplicitActuatorCfg
 from omni.isaac.orbit.assets import ArticulationCfg
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
 
-# Cartpole articulation configuration
 CARTPOLE_CFG = ArticulationCfg(
-    # USD file configuration
     spawn=sim_utils.UsdFileCfg(
-        # Location of USD file
         usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-        # Rigid body properties
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,
@@ -27,7 +23,6 @@ CARTPOLE_CFG = ArticulationCfg(
             max_depenetration_velocity=100.0,
             enable_gyroscopic_forces=True,
         ),
-        # Articulation root properties
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=4,
@@ -36,11 +31,9 @@ CARTPOLE_CFG = ArticulationCfg(
             stabilization_threshold=0.001,
         ),
     ),
-    # Initial state definition
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 2.0), joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0}
     ),
-    # Actuators definition
     actuators={
         "cart_actuator": ImplicitActuatorCfg(
             joint_names_expr=["slider_to_cart"],
@@ -53,5 +46,4 @@ CARTPOLE_CFG = ArticulationCfg(
             joint_names_expr=["cart_to_pole"], effort_limit=400.0, velocity_limit=100.0, stiffness=0.0, damping=0.0
         ),
     },
-    # End cartpole articulation configuration
 )

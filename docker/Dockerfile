@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
+    libglib2.0-0 \
     ncurses-term && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*

@@ -98,9 +98,9 @@ The ``orbit`` repository is structured as follows:
    │   ├── standalone
    │   │   ├── demos
    │   │   ├── environments
+   │   │   ├── tools
    │   │   ├── tutorials
    │   │   └── workflows
-   │   └── tools
    └── VERSION
 
 The ``source`` directory contains the source code for all ``orbit`` *extensions*

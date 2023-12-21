@@ -588,6 +588,13 @@ class Articulation(RigidObject):
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+        # cache the values coming from the usd
+        usd_stiffness = self.root_physx_view.get_dof_stiffnesses().clone()
+        usd_damping = self.root_physx_view.get_dof_dampings().clone()
+        usd_armature = self.root_physx_view.get_dof_armatures().clone()
+        usd_friction = self.root_physx_view.get_dof_friction_coefficients().clone()
+        usd_effort_limit = self.root_physx_view.get_dof_max_forces().clone()
+        usd_velocity_limit = self.root_physx_view.get_dof_max_velocities().clone()
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers
@@ -608,12 +615,12 @@ class Articulation(RigidObject):
                 joint_ids=slice(None) if len(joint_names) == self.num_joints else joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=self.root_physx_view.get_dof_stiffnesses()[:, joint_ids],
-                damping=self.root_physx_view.get_dof_dampings()[:, joint_ids],
-                armature=self.root_physx_view.get_dof_armatures()[:, joint_ids],
-                friction=self.root_physx_view.get_dof_friction_coefficients()[:, joint_ids],
-                effort_limit=self.root_physx_view.get_dof_max_forces()[:, joint_ids],
-                velocity_limit=self.root_physx_view.get_dof_max_velocities()[:, joint_ids],
+                stiffness=usd_stiffness[:, joint_ids],
+                damping=usd_damping[:, joint_ids],
+                armature=usd_armature[:, joint_ids],
+                friction=usd_friction[:, joint_ids],
+                effort_limit=usd_effort_limit[:, joint_ids],
+                velocity_limit=usd_velocity_limit[:, joint_ids],
             )
             # log information on actuator groups
             carb.log_info(

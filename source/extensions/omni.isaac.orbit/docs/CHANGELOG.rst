@@ -1,15 +1,64 @@
 Changelog
 ---------
 
+0.10.10 (2023-12-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
+  sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
+  :class:`omni.isaac.orbit.sensors.IMUData`.
+
+
+0.10.9 (2023-12-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed invalidation of physics views inside the asset and sensor classes. Earlier, they were left initialized
+  even when the simulation was stopped. This caused issues when closing the application.
+
+
+0.10.8 (2023-12-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :class:`omni.isaac.orbit.envs.mdp.actions.DifferentialInverseKinematicsAction` class
+  to account for the offset pose of the end-effector.
+
+
+0.10.7 (2023-12-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added a check to ray-cast and camera sensor classes to ensure that the sensor prim path does not
+  have a regex expression at its leaf. For instance, ``/World/Robot/camera_.*`` is not supported
+  for these sensor types. This behavior needs to be fixed in the future.
+
+
 0.10.6 (2023-12-19)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
-  sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
-  :class:`omni.isaac.orbit.sensors.IMUData`.
+* Added support for using articulations as visualization markers. This disables all physics APIs from
+  the articulation and allows the user to use it as a visualization marker. It is useful for creating
+  visualization markers for the end-effectors or base of the robot.
+
+Fixed
+^^^^^
+
+* Fixed hiding of debug markers from secondary images when using the
+  :class:`omni.isaac.orbit.markers.VisualizationMarkers` class. Earlier, the properties were applied on
+  the XForm prim instead of the Mesh prim.
+
 
 0.10.5 (2023-12-18)
 ~~~~~~~~~~~~~~~~~~~
@@ -570,6 +619,7 @@ Added
 
 
 0.9.18 (2023-10-23)
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

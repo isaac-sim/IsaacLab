@@ -75,7 +75,7 @@ def define_sensor() -> Camera:
         update_period=0,
         height=480,
         width=640,
-        data_types=["rgb", "distance_to_image_plane", "normals", "motion_vectors"],
+        data_types=["rgb", "distance_to_image_plane", "normals"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),

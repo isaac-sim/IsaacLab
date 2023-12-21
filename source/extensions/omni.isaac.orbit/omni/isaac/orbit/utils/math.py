@@ -659,6 +659,37 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     return torch.norm(axis_angle_from_quat(quat_diff), dim=1)
 
 
+@torch.jit.script
+def skew_symmetric_matrix(vec: torch.Tensor) -> torch.Tensor:
+    """Computes the skew-symmetric matrix of a vector.
+
+    Args:
+        vec: The input vector. Shape is (3,) or (N, 3).
+
+    Returns:
+        The skew-symmetric matrix. Shape is (1, 3, 3) or (N, 3, 3).
+
+    Raises:
+        ValueError: If input tensor is not of shape (..., 3).
+    """
+    # check input is correct
+    if vec.shape[-1] != 3:
+        raise ValueError(f"Expected input vector shape mismatch: {vec.shape} != (..., 3).")
+    # unsqueeze the last dimension
+    if vec.ndim == 1:
+        vec = vec.unsqueeze(0)
+    # create a skew-symmetric matrix
+    skew_sym_mat = torch.zeros(vec.shape[0], 3, 3, device=vec.device, dtype=vec.dtype)
+    skew_sym_mat[:, 0, 1] = -vec[:, 2]
+    skew_sym_mat[:, 0, 2] = vec[:, 1]
+    skew_sym_mat[:, 1, 2] = -vec[:, 0]
+    skew_sym_mat[:, 1, 0] = vec[:, 2]
+    skew_sym_mat[:, 2, 0] = -vec[:, 1]
+    skew_sym_mat[:, 2, 1] = vec[:, 0]
+
+    return skew_sym_mat
+
+
 """
 Transformations
 """

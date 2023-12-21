@@ -54,7 +54,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
 
     def setUp(self) -> None:
         # common parameters
-        self.num_envs = 512
+        self.num_envs = 64
         self.use_gpu = True
 
     def test_random_actions(self):

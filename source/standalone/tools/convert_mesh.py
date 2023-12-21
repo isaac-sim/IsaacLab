@@ -30,9 +30,8 @@ positional arguments:
 optional arguments:
   -h, --help                    Show this help message and exit
   --headless                    Force display off at all times. (default: False)
-  --make_instanceable,          Make the asset instanceable for efficient cloning. (default: False)
-  --force_usd_conversion        Convert the input file to USD even if the output file already exists. (default: False)
-  --collision_approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
+  --make-instanceable,          Make the asset instanceable for efficient cloning. (default: False)
+  --collision-approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
                                 Set to \"none\" to not add a collision mesh to the converted mesh. (default: convexDecomposition)
   --mass                        The mass (in kg) to assign to the converted asset. (default: None)
 
@@ -52,19 +51,13 @@ parser.add_argument("input", type=str, help="The path to the input mesh file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument(
-    "--make_instanceable",
+    "--make-instanceable",
     action="store_true",
     default=False,
     help="Make the asset instanceable for efficient cloning.",
 )
 parser.add_argument(
-    "--force_usd_conversion",
-    action="store_true",
-    default=False,
-    help="Convert the input file to USD even if the output file already exists.",
-)
-parser.add_argument(
-    "--collision_approximation",
+    "--collision-approximation",
     type=str,
     default="convexDecomposition",
     choices=["convexDecomposition", "convexHull", "none"],
@@ -132,7 +125,7 @@ def main():
         rigid_props=rigid_props,
         collision_props=collision_props,
         asset_path=mesh_path,
-        force_usd_conversion=args_cli.force_usd_conversion,
+        force_usd_conversion=True,
         usd_dir=os.path.dirname(dest_path),
         usd_file_name=os.path.basename(dest_path),
         make_instanceable=args_cli.make_instanceable,

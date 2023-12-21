@@ -42,12 +42,12 @@ import carb
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers import VisualizationMarkers, VisualizationMarkersCfg
 from omni.isaac.orbit.sim import SimulationContext
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
 from omni.isaac.orbit.utils.math import quat_from_angle_axis
 
 
-def spawn_markers():
-    """Spawns markers with various different shapes."""
+def define_markers() -> VisualizationMarkers:
+    """Define markers with various different shapes."""
     marker_cfg = VisualizationMarkersCfg(
         prim_path="/Visuals/myMarkers",
         markers={
@@ -87,6 +87,11 @@ def spawn_markers():
                 scale=(10.0, 10.0, 10.0),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
+            "robot_mesh": sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+                scale=(2.0, 2.0, 2.0),
+                visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
+            ),
         },
     )
     return VisualizationMarkers(marker_cfg)
@@ -97,15 +102,15 @@ def main():
     # Load kit helper
     sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01, substeps=1))
     # Set main camera
-    sim.set_camera_view([0.0, 17.0, 12.0], [0.0, 2.0, 0.0])
+    sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
 
     # Spawn things into stage
     # Lights
-    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
 
     # create markers
-    my_visualizer = spawn_markers()
+    my_visualizer = define_markers()
 
     # define a grid of positions where the markers should be placed
     num_markers_per_type = 5
@@ -138,6 +143,9 @@ def main():
         marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
         # visualize
         my_visualizer.visualize(marker_locations, marker_orientations, marker_indices=marker_indices)
+        # roll corresponding indices to show how marker prototype can be changed
+        if yaw[0].item() % (0.5 * torch.pi) < 0.01:
+            marker_indices = torch.roll(marker_indices, 1)
         # perform step
         sim.step()
         # increment yaw

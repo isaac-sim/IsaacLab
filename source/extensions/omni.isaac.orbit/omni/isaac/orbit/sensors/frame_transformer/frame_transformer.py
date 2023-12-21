@@ -102,8 +102,6 @@ class FrameTransformer(SensorBase):
         # resolve None
         if env_ids is None:
             env_ids = ...
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
 
     """
     Implementation.
@@ -353,3 +351,15 @@ class FrameTransformer(SensorBase):
         # Update the visualized markers
         if self.frame_visualizer is not None:
             self.frame_visualizer.visualize(self._data.target_pos_w.view(-1, 3), self._data.target_rot_w.view(-1, 4))
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._frame_physx_view = None

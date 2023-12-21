@@ -1,40 +1,25 @@
-.. _how-to-create-articulation-config:
-
-Creating an Articulation
-========================
-
-In this tutorial, we move beyond the use of pre-built Articulations such as
-Anymal and Franka, focusing instead on the steps required to integrate
-custom robots into Orbit. The tutorial provides a
-step-by-step guide on importing a robot design in either USD format and
-spawning it in Orbit as an :class:`Articulation`.
-
-.. TODO: Talk about how to import via URDF
+.. _how-to-write-articulation-config:
 
 
-What is a Cartpole?
-~~~~~~~~~~~~~~~~~~~
+Writing an Asset Configuration
+==============================
 
-Cartpole, a variation of the inverted pendulum problem
-(https://en.wikipedia.org/wiki/Inverted_pendulum), serves as a practical
-example for learning traditional control and RL. The cartpole has a single
-controllable degree of freedom (DOF) at the joint between the cart and
-the rail. The attached pole has 1 DOF that allows it to rotate freely.
+.. currentmodule:: omni.isaac.orbit
 
-.. TODO: Add isaac sim screenshot and replace GIF with a webdb
+This guide walks through the process of creating an :class:`~assets.ArticulationCfg`.
+The :class:`~assets.ArticulationCfg` is a configuration object that defines the
+properties of an :class:`~assets.Articulation` in Orbit.
 
-In :ref:`tutorial-create-base-env` participants will learn to control the
-pole to stabilize the cart, but this tutorial focuses on merely constructing
-the :class:`ArticulationCfg` that defines the cartpole.
+.. note::
 
-The Code
-~~~~~~~~
+   While we only cover the creation of an :class:`~assets.ArticulationCfg` in this guide,
+   the process is similar for creating any other asset configuration object.
 
-In Orbit, we define an :class:`Articulation` by constructing its
-configuration :class:`ArticulationCfg`. In the following sections we will break
-down each part of the configuration.
+We will use the Cartpole example to demonstrate how to create an :class:`~assets.ArticulationCfg`.
+The Cartpole is a simple robot that consists of a cart with a pole attached to it. The cart
+is free to move along a rail, and the pole is free to rotate about the cart.
 
-.. dropdown:: Code for USD import configuration
+.. dropdown:: Code for Cartpole configuration
    :icon: code
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
@@ -42,88 +27,90 @@ down each part of the configuration.
       :linenos:
 
 
-The Code Explained
-~~~~~~~~~~~~~~~~~~
+Defining the spawn configuration
+--------------------------------
 
-Importing Cartpole's USD
-^^^^^^^^^^^^^^^^^^^^^^^^
+As explained in :ref:`tutorial-spawn-prims` tutorials, the spawn configuration defines
+the properties of the assets to be spawned. This spawning may happen procedurally, or
+through an existing asset file (e.g. USD or URDF). In this example, we will spawn the
+Cartpole from a USD file.
 
-The next chunk of code handles the USD import of the Cartpole:
+When spawning an asset from a USD file, we define its :class:`~sim.spawners.from_files.UsdFileCfg`.
+This configuration object takes in the following parameters:
 
-* Defining the USD file path from which to spawn the Cartpole
-* Defining the rigid body properties of the Cartpole
-* Defining properties of the root of the Cartpole
+* :class:`~sim.spawners.from_files.UsdFileCfg.usd_path`: The USD file path to spawn from
+* :class:`~sim.spawners.from_files.UsdFileCfg.rigid_props`: The properties of the articulation's root
+* :class:`~sim.spawners.from_files.UsdFileCfg.articulation_props`: The properties of all the articulation's links
 
-.. dropdown:: Code for USD import configuration
+The last two parameters are optional. If not specified, they are kept at their default values in the USD file.
+
+.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
+      :language: python
+      :lines: 17-33
+      :dedent:
+
+To import articulation from a URDF file instead of a USD file, you can replace the
+:class:`~sim.spawners.from_files.UsdFileCfg` with a :class:`~sim.spawners.from_files.UrdfFileCfg`.
+For more details, please check the API documentation.
+
+
+Defining the initial state
+--------------------------
+
+Every asset requires defining their initial or *default* state in the simulation through its configuration.
+This configuration is stored into the asset's default state buffers that can be accessed when the asset's
+state needs to be reset.
+
+.. note::
+   The initial state of an asset is defined w.r.t. its local environment frame. This then needs to
+   be transformed into the global simulation frame when resetting the asset's state. For more
+   details, please check the :ref:`tutorial-interact-articulation` tutorial.
+
+
+For an articulation, the :class:`~assets.ArticulationCfg.InitialStateCfg` object defines the
+initial state of the root of the articulation and the initial state of all its joints. In this
+example, we will spawn the Cartpole at the origin of the XY plane at a Z height of 2.0 meters.
+Meanwhile, the joint positions and velocities are set to 0.0.
+
+.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
+   :language: python
+   :lines: 34-36
+   :dedent:
+
+Defining the actuator configuration
+-----------------------------------
+
+Actuators are a crucial component of an articulation. Through this configuration, it is possible
+to define the type of actuator model to use. We can use the internal actuator model provided by
+the physics engine (i.e. the implicit actuator model), or use a custom actuator model which is
+governed by a user-defined system of equations (i.e. the explicit actuator model).
+For more details on actuators, see :ref:`feature-actuators`.
+
+The cartpole's articulation has two actuators, one corresponding to its each joint:
+``cart_to_pole`` and ``slider_to_cart``. We use two different actuator models for these actuators as
+an example. However, since they are both using the same actuator model, it is possible
+to combine them into a single actuator model.
+
+.. dropdown:: Actuator model configuration with separate actuator models
    :icon: code
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
       :language: python
-      :start-after: # USD file configuration
-      :end-before: # Initial state definition
-
-.. note::
-   To import articulation from a URDF file instead of a USD file, use ``UrdfFileCfg`` found in
-   ``source/extensions/omni.isaac.orbit/omni/isaac/orbit/sim/spawners/from_files/from_file_cfg``
-   and replace ``usd_path`` argument with ``urdf_path``. For more details, see the API documentation.
-
-.. TODO: Either add an example of this here or make a separate tutorial
-
-Defining Cartpole's USD File Path
-"""""""""""""""""""""""""""""""""
-
-First we define the path the Cartpole USD file will be loaded from. In this
-case ``cartpole.usd`` is included in the Nucleus server.
-
-.. TODO: Document Nucleus server somewhere or link it if docs exist
-
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
-   :language: python
-   :start-after: # Location of USD file
-   :end-before: # Rigid body properties
-
-Defining Cartpole's Rigid Body Properties
-"""""""""""""""""""""""""""""""""""""""""
-
-The rigid body properties define how the cartpole will interact with its
-environment. The settings we want to modify in this example are:
-
-* The rigid body to be enabled
-* | the maximum values for linear and angular velocity and depenetration
-  | velocity which defines the speed at which objects in collision with one
-  | another move away from one another
-* The Gyroscopic forces on our cartpole to be enabled
-
-.. TODO: Either go into more detail here, or add tutorial on rigid body properties
-
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
-   :language: python
-   :start-after: # Rigid body properties
-   :end-before: # Articulation root properties
+      :lines: 37-47
+      :dedent:
 
 
-Defining the Initial State of Cartpole
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. dropdown:: Actuator model configuration with a single actuator model
+   :icon: code
 
-The :class:`InitialStateCfg` object defines the initial state of the root of
-an articulation in addition to the initial state of any joints. In this
-example, we will spawn the Cartpole at the origin of the XY plane at a Z height
-of 2.0 meters. The cart's joints will default to 0.0 as defined by the ``joint_pos``
-parameter.
+   .. code-block:: python
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
-   :language: python
-   :start-after: # Initial state definition
-   :end-before: # Actuators definition
-
-Defining the Cartpole's Actuators
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The cartpole articulation has two actuators, one corresponding to each joint
-``cart_to_pole`` and ``slider_to_cart``. for more details on actuators, see
-:ref:`feature-actuators`.
-
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/assets/config/cartpole.py
-   :language: python
-   :start-after: # Actuators definition
-   :end-before: # End cartpole articulation configuration
+      actuators={
+         "all_joints": ImplicitActuatorCfg(
+            joint_names_expr=[".*"],
+            effort_limit=400.0,
+            velocity_limit=100.0,
+            stiffness={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
+            damping={"slider_to_cart": 10.0, "cart_to_pole": 0.0},
+         ),
+      },

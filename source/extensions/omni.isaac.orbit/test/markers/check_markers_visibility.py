@@ -4,18 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to add and simulate on-board sensors for a robot.
+This script checks if the debug markers are visible from the camera.
 
-We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
-
-* USD-Camera: This is a camera sensor that is attached to the robot's base.
-* Height Scanner: This is a height scanner sensor that is attached to the robot's base.
-* Contact Sensor: This is a contact sensor that is attached to the robot's feet.
+To check if the markers are visible on different rendering modalities, you can switch them by going
+through the synthetic data generation tool in the Isaac Sim UI. For more information,
+please check: https://www.youtube.com/watch?v=vLk-f9LWj48&ab_channel=NVIDIAOmniverse
 
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/markers/check_markers_visibility.py
 
 """
 
@@ -29,7 +27,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Tutorial on adding sensors on a robot.")
+parser = argparse.ArgumentParser(description="Check if the debug markers are visible from the camera.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -42,7 +40,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 import traceback
 
 import carb
@@ -51,7 +48,7 @@ import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
 from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.orbit.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from omni.isaac.orbit.sensors import RayCasterCfg, patterns
 from omni.isaac.orbit.utils import configclass
 
 
@@ -71,17 +68,6 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
-    camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-        update_period=0.1,
-        height=480,
-        width=640,
-        data_types=["rgb", "distance_to_image_plane"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
-        ),
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-    )
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=0.02,
@@ -90,9 +76,6 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
         debug_vis=True,
         mesh_prim_paths=["/World/defaultGroundPlane"],
-    )
-    contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*_FOOT", update_period=0.0, history_length=6, debug_vis=True
     )
 
 
@@ -115,8 +98,6 @@ def run_simulator(
             count = 0
             # reset the scene entities
             # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
             root_state = scene["robot"].data.default_root_state.clone()
             root_state[:, :3] += scene.env_origins
             scene["robot"].write_root_state_to_sim(root_state)
@@ -125,7 +106,6 @@ def run_simulator(
                 scene["robot"].data.default_joint_pos.clone(),
                 scene["robot"].data.default_joint_vel.clone(),
             )
-            joint_pos += torch.rand_like(joint_pos) * 0.1
             scene["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
             # clear internal buffers
             scene.reset()
@@ -144,18 +124,6 @@ def run_simulator(
         count += 1
         # update buffers
         scene.update(sim_dt)
-
-        # print information from the sensors
-        print("-------------------------------")
-        print(scene["camera"])
-        print("Received shape of rgb   image: ", scene["camera"].data.output["rgb"].shape)
-        print("Received shape of depth image: ", scene["camera"].data.output["distance_to_image_plane"].shape)
-        print("-------------------------------")
-        print(scene["height_scanner"])
-        print("Received max height value: ", torch.max(scene["height_scanner"].data.ray_hits_w[..., -1]).item())
-        print("-------------------------------")
-        print(scene["contact_forces"])
-        print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
 
 
 def main():

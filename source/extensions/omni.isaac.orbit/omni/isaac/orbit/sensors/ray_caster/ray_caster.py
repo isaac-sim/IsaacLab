@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import numpy as np
+import re
 import torch
 from typing import TYPE_CHECKING, ClassVar, Sequence
 
@@ -61,6 +62,16 @@ class RayCaster(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
+        # check if sensor path is valid
+        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
+        #   For example, if the prim path is "/World/Sensor_[1,2]".
+        sensor_path = cfg.prim_path.split("/")[-1]
+        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
+        if sensor_path_is_regex:
+            raise RuntimeError(
+                f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
+                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
+            )
         # Initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
@@ -268,3 +279,15 @@ class RayCaster(SensorBase):
     def _debug_vis_callback(self, event):
         # show ray hit positions
         self.ray_visualizer.visualize(self._data.ray_hits_w.view(-1, 3))
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._view = None

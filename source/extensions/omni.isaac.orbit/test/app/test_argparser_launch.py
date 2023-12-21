@@ -23,7 +23,7 @@ class TestAppLauncher(unittest.TestCase):
         # add app launcher arguments
         AppLauncher.add_app_launcher_args(parser)
         # check that argparser has the mandatory arguments
-        for name in AppLauncher._APPLAUNCHER_CONFIG_TYPES:
+        for name in AppLauncher._APPLAUNCHER_CFG_INFO:
             self.assertTrue(parser._option_string_actions[f"--{name}"])
         # parse args
         mock_args = parser.parse_args()

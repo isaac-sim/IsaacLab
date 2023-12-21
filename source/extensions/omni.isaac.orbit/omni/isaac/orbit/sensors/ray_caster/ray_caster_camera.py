@@ -146,8 +146,6 @@ class RayCasterCamera(RayCaster):
         pos_w, quat_w = self._compute_camera_world_poses(env_ids)
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
         # Reset the frame count
         self._frame[env_ids] = 0
 

@@ -141,9 +141,9 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32
+   ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
 
-By default, the above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
+The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
