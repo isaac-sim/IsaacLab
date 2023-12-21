@@ -585,6 +585,9 @@ class AppLauncher:
         carb_settings_iface = carb.settings.get_settings()
 
         if self._livestream >= 1:
+            # Ensure that a viewport exists in case an experience has been
+            # loaded which does not load it by default
+            enable_extension("omni.kit.viewport.window")
             # Set carb settings to allow for livestreaming
             carb_settings_iface.set_bool("/app/livestream/enabled", True)
             carb_settings_iface.set_bool("/app/window/drawMouse", True)
