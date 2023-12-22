@@ -20,6 +20,14 @@ simulation capabilities for photo-realistic scenes, and fast and accurate simula
 
 Please refer our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features and tutorials.
 
+## 🎉 Announcement (22.12.2023)
+
+We're excited to announce the merging of our latest development branch into the main branch! This update introduces
+several improvements and fixes to enhance the modularity and user-friendliness of the framework. We have added
+several new environments, especially for legged locomotion, and are in the process of adding new environments.
+
+Feel free to explore the latest changes and updates. We appreciate your ongoing support and contributions!
+
 ## Contributing to Orbit
 
 We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone. These may happen in
