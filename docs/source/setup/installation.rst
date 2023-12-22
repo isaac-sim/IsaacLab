@@ -20,8 +20,8 @@ Installing Isaac Sim
 
 .. caution::
 
-   While the framework contains backwards compatibility for Isaac Sim 2022.2.1, we recommend using
-   the latest Isaac Sim 2023.1.0-hotfix.1 release. This release contains various improvements on the
+   While the framework contains some backwards compatibility for Isaac Sim 2022.2.1, we recommend using
+   the latest Isaac Sim 2023.1 release. This release contains various improvements on the
    simulation side, and is the recommended version to use with Orbit.
 
    For more information, please refer to the
@@ -38,7 +38,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-	We have tested Orbit with Isaac Sim 2023.1.0 release on Ubuntu
+	We have tested Orbit with Isaac Sim 2023.1.0-hotfix.1 release on Ubuntu
 	20.04LTS with NVIDIA driver 525.147.
 
 Configuring the environment variables
