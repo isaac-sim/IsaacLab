@@ -16,30 +16,34 @@
 **Orbit** is a unified and modular framework for robot learning that aims to simplify common workflows
 in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
 [NVIDIA Isaac Sim](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html) to leverage the latest
-simulation capabilities for photo-realistic scenes, and fast and accurate simulation.
+simulation capabilities for photo-realistic scenes and fast and accurate simulation.
 
-Please refer our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the installation steps, features and tutorials.
+Please refer to our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the
+installation steps, features, and tutorials.
 
 ## 🎉 Announcement (22.12.2023)
 
-We're excited to announce the merging of our latest development branch into the main branch! This update introduces
+We're excited to announce merging of our latest development branch into the main branch! This update introduces
 several improvements and fixes to enhance the modularity and user-friendliness of the framework. We have added
 several new environments, especially for legged locomotion, and are in the process of adding new environments.
 
 Feel free to explore the latest changes and updates. We appreciate your ongoing support and contributions!
 
-For more details, please check the post here: #106
+For more details, please check the post here: [#106](https://github.com/NVIDIA-Omniverse/Orbit/discussions/106)
 
 ## Contributing to Orbit
 
-We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone. These may happen in
-form of bug reports, feature requests, or code contributions. For details, please check our [contribution guidelines](https://isaac-orbit.github.io/orbit/source/refs/contributing.html).
+We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone.
+These may happen as bug reports, feature requests, or code contributions. For details, please check our
+[contribution guidelines](https://isaac-orbit.github.io/orbit/source/refs/contributing.html).
 
 ## Troubleshooting
 
-Please see the [troubleshooting](https://isaac-orbit.github.io/orbit/source/refs/troubleshooting.html) section for common fixes or [submit an issue](https://github.com/NVIDIA-Omniverse/orbit/issues).
+Please see the [troubleshooting](https://isaac-orbit.github.io/orbit/source/refs/troubleshooting.html) section for
+common fixes or [submit an issue](https://github.com/NVIDIA-Omniverse/orbit/issues).
 
-For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html), or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
+For issues related to Isaac Sim, we recommend checking its [documentation](https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html)
+or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-autonomous-machines/isaac/67).
 
 ## Support
 
