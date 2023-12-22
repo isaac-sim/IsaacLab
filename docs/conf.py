@@ -201,6 +201,7 @@ html_css_files = ["custom.css"]
 html_theme_options = {
     "collapse_navigation": True,
     "repository_url": "https://github.com/NVIDIA-Omniverse/Orbit",
+    "announcement": "We have now released v0.2.0! Please use the latest version for the best experience.",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,

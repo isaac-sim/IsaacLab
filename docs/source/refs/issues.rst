@@ -1,21 +1,6 @@
 Known issues
 ============
 
-Regression in Isaac Sim 2022.2.1
---------------------------------
-
-In Isaac Sim 2022.2.1, we have noticed the following regression and issues that should be fixed in the
-next release:
-
-* The RTX-Lidar sensor does not work properly and returns empty data.
-* The :class:`ArticulationView` class leads to issues when using GPU-physics pipeline.
-* The :class:`UrdfImporter` does not load the off-diagonal elements of the inertia matrix properly. This
-  leads to incorrect physics simulation of the robot.
-
-Due to this regression, we recommend using Isaac Sim 2022.2.0 for now. We will update this section once
-the issues are fixed in a future release.
-
-
 Blank initial frames from the camera
 ------------------------------------
 
