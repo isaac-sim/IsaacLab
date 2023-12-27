@@ -140,10 +140,6 @@ case $mode in
             echo "[INFO] Syncing orbit code..."
             source $SCRIPT_DIR/.env
             rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
-            # Explicitly also sync orbit_assets as long as it is still used
-            if [ -f /$SCRIPT_DIR/../source/extensions/omni.isaac.orbit_assets ]; then
-                rsync -rh  --exclude="*.git*" /$SCRIPT_DIR/../source/extensions/omni.isaac.orbit_assets $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR/source/extensions
-            fi
             # execute job script
             echo "[INFO] Executing job script..."
             ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "${@:2}"

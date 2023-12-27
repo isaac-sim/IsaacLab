@@ -48,7 +48,7 @@ RUN ln -sf ${ISAACSIM_PATH} ${ORBIT_PATH}/_isaac_sim
 RUN mkdir -p ${ISAACSIM_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
-    mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache&&  \
+    mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \
     mkdir -p ${DOCKER_USER_HOME}/.nv/ComputeCache && \
     mkdir -p ${DOCKER_USER_HOME}/.nvidia-omniverse/logs && \
     mkdir -p ${DOCKER_USER_HOME}/.local/share/ov/data && \
@@ -60,7 +60,9 @@ RUN touch /bin/nvidia-smi && \
     touch /bin/nvidia-persistenced && \
     touch /bin/nvidia-cuda-mps-control && \
     touch /bin/nvidia-cuda-mps-server && \
-    touch /etc/localtime
+    touch /etc/localtime && \
+    mkdir -p /var/run/nvidia-persistenced && \
+    touch /var/run/nvidia-persistenced/socket
 
 # installing Orbit dependencies
 RUN ${ORBIT_PATH}/orbit.sh --install --extra
