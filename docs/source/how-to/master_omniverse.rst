@@ -70,27 +70,27 @@ Importing assets
 -  `Omniverse Asset Importer <https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-importer.html>`__
 -  `Isaac Sim URDF impoter <https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_urdf.html>`__
 
-The above mainly introduces how to use the USD Composer and its
-functionalities to do operations using the UI. However, many developers,
-who want to do scripting, need to also understand the APIs of Omniverse.
-This requires understanding how developments happen within the Omniverse
-team since many applications provide their own set of tooling around
-Omniverse, often specialized for their particular use cases.
 
 Part 2: Scripting in Omniverse
 ------------------------------
 
-As learned from the videos earlier, USD is the main file format
-Omniverse operates with. So naturally, the APIs (from OpenUSD) for
-modifying USD are at the core of Omniverse. Most of the time, we will
-work with Python scripting and use the Python bindings to different
-APIs.
+The above links mainly introduced how to use the USD Composer and its
+functionalities through UI operations. However, often developers
+need to write scripts to perform operations. This is especially true
+when you want to automate certain tasks or create custom applications
+that use Omniverse as a backend. This section will introduce you to
+scripting in Omniverse.
+
+USD is the main file format Omniverse operates with. So naturally, the
+APIs (from OpenUSD) for modifying USD are at the core of Omniverse.
+Most of the APIs are in C++ and Python bindings are provided for them.
+Thus, to script in Omniverse, you need to understand the USD APIs.
 
 .. note::
 
    While Isaac Sim and Orbit try to "relieve" users from understanding
    the core USD concepts and APIs, understanding these basics still
-   helps a lot once you start diving inside the codebase and modifying
+   help a lot once you start diving inside the codebase and modifying
    it for your own application.
 
 Before diving into USD scripting, it is good to get acquainted with the
@@ -119,6 +119,6 @@ Part 3: More Resources
 
 - `Omniverse Glossary of Terms <https://docs.omniverse.nvidia.com/isaacsim/latest/common/glossary-of-terms.html>`__
 - `Omniverse Code Samples <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref.html>`__
-- `PhysX Collider compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
-- `PhysX limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/features/physics/physX_limitations.html>`__
-- To learn more about PhysX, please always check their `official documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.
+- `PhysX Collider Compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
+- `PhysX Limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/features/physics/physX_limitations.html>`__
+- `PhysX Documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.
