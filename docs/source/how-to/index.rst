@@ -18,3 +18,4 @@ use Orbit. If you are new to Orbit, we recommend you start with the tutorials.
     save_camera_output
     draw_markers
     wrap_rl_env
+    master_omniverse

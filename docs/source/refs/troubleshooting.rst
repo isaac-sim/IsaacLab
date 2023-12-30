@@ -1,6 +1,14 @@
 Tricks and Troubleshooting
 ==========================
 
+.. note::
+
+    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
+    Please also check the `troubleshooting page on Omniverse
+    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
+    assistance.
+
+
 Using CPU Scaling Governor for performance
 ------------------------------------------
 
