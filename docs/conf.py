@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks/
 # -- Project information -----------------------------------------------------
 
 project = "orbit"
-copyright = "2022-2023, The ORBIT Project Developers."
+copyright = "2022-2024, The ORBIT Project Developers."
 author = "The ORBIT Project Developers."
 
 version = "0.2.0"
