@@ -343,3 +343,11 @@ class TerrainImporter:
         env_origins[:, 1] = env_spacing * yy.flatten()[:num_envs] - env_spacing * (num_cols - 1) / 2
         env_origins[:, 2] = 0.0
         return env_origins
+
+    """
+    Dummy Functions.
+    """
+
+    def sample_new_targets(self, env_ids: torch.Tensor) -> torch.Tensor:
+        """Returns the environment origins as target locations."""
+        return self.env_origins[env_ids]
