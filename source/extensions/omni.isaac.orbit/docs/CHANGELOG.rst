@@ -1,5 +1,13 @@
 Changelog
 ---------
+0.10.11 (2024-01-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed AttributeError in :class:`omni.isaac.orbit.env.TerrainBasedPositionCommand.` and added dummy function that returns
+  env_origins as terrain based targets in :class:`omni.isaac.orbit.terrain.TerrainImporter`.
 
 0.10.10 (2023-12-21)
 ~~~~~~~~~~~~~~~~~~~~
