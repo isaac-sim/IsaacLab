@@ -106,12 +106,12 @@ class TerrainBasedPositionCommand(CommandTerm):
         """Re-target the position command to the current root position and heading."""
         target_vec = self.pos_command_w - self.robot.data.root_pos_w[:, :3]
         self.pos_command_b[:] = quat_rotate_inverse(yaw_quat(self.robot.data.root_quat_w), target_vec)
-        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - self.robot.heading_w)
+        self.heading_command_b[:] = wrap_to_pi(self.heading_command_w - self.robot.data.heading_w)
 
     def _update_metrics(self):
         # logs data
         self.metrics["error_pos"] = torch.norm(self.pos_command_w - self.robot.data.root_pos_w[:, :3], dim=1)
-        self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.heading_w))
+        self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w))
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome
