@@ -7,10 +7,11 @@ Fixed
 ^^^^^
 
 * Fixed attribute error raised when calling the :class:`omni.isaac.orbit.envs.mdp.TerrainBasedPositionCommand` 
-   command term.
+  command term.
 * Added a dummy function in :class:`omni.isaac.orbit.terrain.TerrainImporter` that returns environment
-   origins as terrain-aware sampled targets. This function should be implemented by child classes based on
-   the terrain type.
+  origins as terrain-aware sampled targets. This function should be implemented by child classes based on
+  the terrain type.
+
 
 0.10.10 (2023-12-21)
 ~~~~~~~~~~~~~~~~~~~~
