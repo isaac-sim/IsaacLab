@@ -196,6 +196,7 @@ print_help () {
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
+    echo -e "\t-t, --test           Run all python unittest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
@@ -307,6 +308,14 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
             ${isaacsim_exe} --ext-folder ${ORBIT_PATH}/source/extensions $@
+            # exit neatly
+            break
+            ;;
+        -t|--test)
+            # run the python provided by isaacsim
+            python_exe=$(extract_python_exe)
+            shift # past argument
+            ${python_exe} tools/run_all_tests.py $@
             # exit neatly
             break
             ;;

@@ -2,6 +2,7 @@
 **/cmake-build*/
 **/build*/
 **/*.so
+**/*.log*
 
 # Omniverse
 **/*.dmp
