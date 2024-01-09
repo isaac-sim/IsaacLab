@@ -311,8 +311,9 @@ class TerrainImporter:
     def sample_new_targets(self, env_ids: Sequence[int]) -> torch.Tensor:
         """Samples terrain-aware locations of flat patches to set spawn or target locations.
 
-        Note: This is a dummy function that returns the environment origins as target locations.
-        Please inherit the class and reimplement the function for specific terrain types
+        Note:
+            This is a dummy function that returns the environment origins as target locations.
+            Please inherit the class and reimplement the function for specific terrain types
 
         Args:
             env_ids: The environment indices to sample targets locations for.
