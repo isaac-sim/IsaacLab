@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 import trimesh
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import warp
 from pxr import UsdGeom
@@ -303,6 +303,26 @@ class TerrainImporter:
         )
         # update the env origins
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+
+    """
+    Operations - Sampling
+    """
+
+    def sample_new_targets(self, env_ids: Sequence[int]) -> torch.Tensor:
+        """Samples terrain-aware locations of flat patches to set spawn or target locations.
+
+        Note:
+            This is a dummy function that returns the environment origins as target locations.
+            Please inherit the class and reimplement the function for specific terrain types
+
+        Args:
+            env_ids: The environment indices to sample targets locations for.
+
+        Returns:
+            The sampled target locations as (x, y, z). Shape is (N, 3).
+        """
+
+        return self.env_origins[env_ids]
 
     """
     Internal helpers.
