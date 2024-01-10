@@ -208,7 +208,7 @@ class ContactSensor(SensorBase):
         if self.cfg.track_air_time:
             self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
             self._data.current_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
-        # force matrix: (num_sensors, num_bodies, num_filter_shapes, 3)
+        # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
         if len(self.cfg.filter_prim_paths_expr) != 0:
             num_filters = self.contact_physx_view.filter_count
             self._data.force_matrix_w = torch.zeros(
@@ -233,7 +233,7 @@ class ContactSensor(SensorBase):
 
         # obtain the contact force matrix
         if len(self.cfg.filter_prim_paths_expr) != 0:
-            # shape of the filtering matrix: (num_sensors, num_bodies, num_filter_shapes, 3)
+            # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
             num_filters = self.contact_physx_view.filter_count
             # acquire and shape the force matrix
             force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
