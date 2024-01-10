@@ -245,7 +245,7 @@ class SimulationCfg:
     """
 
     device: str = "cuda:0"
-    """The device for running the simulation/environment. Default is "cuda:0"."""
+    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
 
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""
