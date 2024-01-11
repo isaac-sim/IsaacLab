@@ -190,8 +190,9 @@ If you see the following error when building the container:
     Error response from daemon: invalid mount config for type "bind": bind source path does not exist: ${HOME}/.Xauthority
 
 This means that the ``.Xauthority`` file is not present in the home directory of the host machine.
-This file is required for X11 forwarding to work. To fix this, you can create an empty ``.Xauthority``
-file in your home directory.
+The portion of the docker-compose.yaml that enables this is commented out by default, so this shouldn't
+happen unless it has been altered. This file is required for X11 forwarding to work. To fix this, you can
+create an empty ``.Xauthority`` file in your home directory.
 
 .. code:: bash
 
@@ -204,8 +205,10 @@ A similar error but requires a different fix:
     ⠋ Container orbit  Creating                                                                                                                                                                         0.0s
     Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /tmp/.X11-unix
 
-This means that the folder/files are either not present or not accessible on the host machine. This usually happens
-when you have multiple docker versions installed on your machine. To fix this, you can try the following:
+This means that the folder/files are either not present or not accessible on the host machine.
+The portion of the docker-compose.yaml that enables this is commented out by default, so this
+shouldn't happen unless it has been altered. This usually happens when you have multiple docker
+versions installed on your machine. To fix this, you can try the following:
 
 * Remove all docker versions from your machine.
 
@@ -225,6 +228,11 @@ When streaming the GUI from Isaac Sim, there are `several streaming clients`_ av
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
 To avoid this problem, we suggest using either the Native Streaming Client or WebSocket options, or using the
 Mozilla Firefox browser on which WebRTC works.
+
+Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client
+is freely available from the Omniverse app, and is easy to use. The other streaming methods similarly require only a web browser.
+If users want to use X11 forwarding in order to have the apps behave as local GUI windows, they can uncomment the relevant portions
+in docker-compose.yaml.
 
 
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
