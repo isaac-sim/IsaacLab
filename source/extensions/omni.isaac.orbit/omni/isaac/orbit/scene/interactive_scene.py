@@ -142,7 +142,7 @@ class InteractiveScene:
         self._add_entities_from_cfg()
         # replicate physics if we have more than one environment
         # this is done to make scene initialization faster at play time
-        if self.cfg.replicate_physics:
+        if self.cfg.replicate_physics and self.cfg.num_envs > 1:
             # in isaac sim 2022.2, this function is private
             if isaac_major_version == 2022:
                 self.cloner._replicate_physics(  # pyright: ignore [reportPrivateUsage]
