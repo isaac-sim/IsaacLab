@@ -1,13 +1,15 @@
 Changelog
 ---------
-0.10.12 (2024-01-10)
-~~~~~~~~~~~~~~~~~~~~
+
+0.10.14 (2024-01-22)
+~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed mismatch in tensor size between :attr:`omni.isaac.orbit.sensors.contact_sensor.ContactSensor._data.force_matrix_w`
-  and :func:`omni.physics.tensors.impl.api.RigidContactView.get_contact_force_matrix()`.
+* Fixed the tensor shape of :attr:`omni.isaac.orbit.sensors.ContactSensorData.force_matrix_w`. Earlier, the reshaping
+  led to a mismatch with the data obtained from PhysX.
+
 
 0.10.13 (2024-01-15)
 ~~~~~~~~~~~~~~~~~~~~
