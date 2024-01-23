@@ -199,6 +199,12 @@ class RandomizationTermCfg(ManagerTermBaseCfg):
 # Reward manager.
 ##
 
+@configclass
+class RewardGroupCfg:
+    # Reserved for future use.
+    # No parameters, yet.
+    pass
+
 
 @configclass
 class RewardTermCfg(ManagerTermBaseCfg):
