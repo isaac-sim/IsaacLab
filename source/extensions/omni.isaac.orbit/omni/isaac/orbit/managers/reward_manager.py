@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
 
 
-DEFAULT_GROUP_NAME = "rewards"
+DEFAULT_GROUP_NAME = "reward"
 
 
 class RewardManager(ManagerBase):
