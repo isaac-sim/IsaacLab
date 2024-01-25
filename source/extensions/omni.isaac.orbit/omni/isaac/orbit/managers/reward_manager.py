@@ -43,7 +43,6 @@ class RewardManager(ManagerBase):
 
     """
 
-
     _env: RLTaskEnv
     """The environment instance."""
 
@@ -65,15 +64,19 @@ class RewardManager(ManagerBase):
         self._term_names_flat = []  # flat list of all term names
         for group_name, group_term_names in self._group_term_names.items():
             for term_name in group_term_names:
-                sum_term_name = term_name if self.no_group else f"{group_name}/{term_name}"
-                self._episode_sums[sum_term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+                sum_term_name = (
+                    term_name if self.no_group else f"{group_name}/{term_name}"
+                )
+                self._episode_sums[sum_term_name] = torch.zeros(
+                    self.num_envs, dtype=torch.float, device=self.device
+                )
 
                 self._term_names_flat.append(sum_term_name)
 
             # create buffer for managing reward per environment
-            self._reward_buf[group_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-
-
+            self._reward_buf[group_name] = torch.zeros(
+                self.num_envs, dtype=torch.float, device=self.device
+            )
 
     def __str__(self) -> str:
         """Returns: A string representation for reward manager."""
@@ -89,8 +92,12 @@ class RewardManager(ManagerBase):
             table.align["Name"] = "l"
             table.align["Weight"] = "r"
             # add info on each term
-            for index, (name, term_cfg) in enumerate(zip(self._group_term_names[group_name],
-                                                         self._group_term_cfgs[group_name])):
+            for index, (name, term_cfg) in enumerate(
+                zip(
+                    self._group_term_names[group_name],
+                    self._group_term_cfgs[group_name],
+                )
+            ):
                 table.add_row([index, name, term_cfg.weight])
             # convert table to string
             msg += table.get_string()
@@ -130,7 +137,9 @@ class RewardManager(ManagerBase):
             # store information
             # r_1 + r_2 + ... + r_n
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
+            extras["Episode Reward/" + key] = (
+                episodic_sum_avg / self._env.max_episode_length_s
+            )
             # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
         # reset all the reward terms
@@ -158,18 +167,22 @@ class RewardManager(ManagerBase):
         # iterate over all reward terms of all groups
         for group_name in self._group_term_names.keys():
             # iterate over all the reward terms
-            for term_name, term_cfg in zip(self._group_term_names[group_name], self._group_term_cfgs[group_name]):
+            for term_name, term_cfg in zip(
+                self._group_term_names[group_name], self._group_term_cfgs[group_name]
+            ):
                 # skip if weight is zero (kind of a micro-optimization)
                 if term_cfg.weight == 0.0:
                     continue
                 # compute term's value
-                value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
+                value = (
+                    term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
+                )
                 # update total reward
                 self._reward_buf[group_name] += value
                 # update episodic sum
                 name = term_name if self.no_group else f"{group_name}/{term_name}"
                 self._episode_sums[name] += value
-        
+
         # Return only Tensor if config has no groups.
         if self.no_group:
             return self._reward_buf[DEFAULT_GROUP_NAME]
@@ -201,8 +214,9 @@ class RewardManager(ManagerBase):
         if term_name not in self._group_term_names[group_name]:
             raise ValueError(f"Reward term '{term_name}' not found.")
         # set the configuration
-        self._group_term_cfgs[group_name][self._group_term_names[group_name].index(term_name)] = cfg
-
+        self._group_term_cfgs[group_name][
+            self._group_term_names[group_name].index(term_name)
+        ] = cfg
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.
@@ -227,8 +241,9 @@ class RewardManager(ManagerBase):
         if term_name not in self._group_term_names[group_name]:
             raise ValueError(f"Reward term '{term_name}' not found.")
         # return the configuration
-        return self._group_term_cfgs[group_name][self._group_term_names[group_name].index(term_name)]
-
+        return self._group_term_cfgs[group_name][
+            self._group_term_names[group_name].index(term_name)
+        ]
 
     """
     Helper functions.
@@ -252,21 +267,16 @@ class RewardManager(ManagerBase):
             # check for non config
             if cfg is None:
                 continue
-            if isinstance(cfg, RewardGroupCfg):
-                if self.no_group is None:
-                    self.no_group = False
-                elif self.no_group is True:
-                    raise ValueError("Cannot mix reward groups with reward terms.")
-            elif isinstance(cfg, RewardTermCfg):
+            if isinstance(cfg, RewardTermCfg):
                 if self.no_group is None:
                     self.no_group = True
                 elif self.no_group is False:
                     raise ValueError("Cannot mix reward groups with reward terms.")
             else:
-                raise TypeError(
-                    f"Configuration for the group or term'{cfg}' is not of type RewardGroupCfg or RewardTermCfg."
-                    f" Received: '{type(cfg)}'."
-                )
+                if self.no_group is None:
+                    self.no_group = False
+                elif self.no_group is True:
+                    raise ValueError("Cannot mix reward groups with reward terms.")
 
         # Make a group if we do not have one.
         if self.no_group:
@@ -278,8 +288,14 @@ class RewardManager(ManagerBase):
             self._group_term_cfgs[group_name] = list()
             self._group_class_term_cfgs[group_name] = list()
 
+            # Make group config a list if it is not.
+            if isinstance(group_cfg, dict):
+                group_cfg_items = group_cfg.items()
+            else:
+                group_cfg_items = group_cfg.__dict__.items()
+
             # Iterate over all the terms in the group
-            for term_name, term_cfg in group_cfg.items():
+            for term_name, term_cfg in group_cfg_items:
                 # check for non config
                 if term_cfg is None:
                     continue
@@ -296,7 +312,9 @@ class RewardManager(ManagerBase):
                         f" Received: '{type(term_cfg.weight)}'."
                     )
                 # resolve common terms in the config
-                self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1) 
+                self._resolve_common_term_cfg(
+                    f"{group_name}/{term_name}", term_cfg, min_argc=1
+                )
                 # add term config to list
                 self._group_term_names[group_name].append(term_name)
                 self._group_term_cfgs[group_name].append(term_cfg)
