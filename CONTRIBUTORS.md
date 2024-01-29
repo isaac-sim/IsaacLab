@@ -37,6 +37,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Jia Lin Yuan
 * Jingzhou Liu
+* Lorenz Wellhausen
 * Kourosh Darvish
 * Qinxi Yu
 * René Zurbrügg

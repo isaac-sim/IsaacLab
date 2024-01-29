@@ -12,7 +12,7 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING, Sequence
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import RewardTermCfg, RewardGroupCfg
+from .manager_term_cfg import RewardGroupCfg, RewardTermCfg
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -64,19 +64,13 @@ class RewardManager(ManagerBase):
         self._term_names_flat = []  # flat list of all term names
         for group_name, group_term_names in self._group_term_names.items():
             for term_name in group_term_names:
-                sum_term_name = (
-                    term_name if self.no_group else f"{group_name}/{term_name}"
-                )
-                self._episode_sums[sum_term_name] = torch.zeros(
-                    self.num_envs, dtype=torch.float, device=self.device
-                )
+                sum_term_name = term_name if self.no_group else f"{group_name}/{term_name}"
+                self._episode_sums[sum_term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
                 self._term_names_flat.append(sum_term_name)
 
             # create buffer for managing reward per environment
-            self._reward_buf[group_name] = torch.zeros(
-                self.num_envs, dtype=torch.float, device=self.device
-            )
+            self._reward_buf[group_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
     def __str__(self) -> str:
         """Returns: A string representation for reward manager."""
@@ -137,9 +131,7 @@ class RewardManager(ManagerBase):
             # store information
             # r_1 + r_2 + ... + r_n
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode Reward/" + key] = (
-                episodic_sum_avg / self._env.max_episode_length_s
-            )
+            extras["Episode Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
             # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
         # reset all the reward terms
@@ -167,16 +159,12 @@ class RewardManager(ManagerBase):
         # iterate over all reward terms of all groups
         for group_name in self._group_term_names.keys():
             # iterate over all the reward terms
-            for term_name, term_cfg in zip(
-                self._group_term_names[group_name], self._group_term_cfgs[group_name]
-            ):
+            for term_name, term_cfg in zip(self._group_term_names[group_name], self._group_term_cfgs[group_name]):
                 # skip if weight is zero (kind of a micro-optimization)
                 if term_cfg.weight == 0.0:
                     continue
                 # compute term's value
-                value = (
-                    term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
-                )
+                value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * dt
                 # update total reward
                 self._reward_buf[group_name] += value
                 # update episodic sum
@@ -214,9 +202,7 @@ class RewardManager(ManagerBase):
         if term_name not in self._group_term_names[group_name]:
             raise ValueError(f"Reward term '{term_name}' not found.")
         # set the configuration
-        self._group_term_cfgs[group_name][
-            self._group_term_names[group_name].index(term_name)
-        ] = cfg
+        self._group_term_cfgs[group_name][self._group_term_names[group_name].index(term_name)] = cfg
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.
@@ -241,9 +227,7 @@ class RewardManager(ManagerBase):
         if term_name not in self._group_term_names[group_name]:
             raise ValueError(f"Reward term '{term_name}' not found.")
         # return the configuration
-        return self._group_term_cfgs[group_name][
-            self._group_term_names[group_name].index(term_name)
-        ]
+        return self._group_term_cfgs[group_name][self._group_term_names[group_name].index(term_name)]
 
     """
     Helper functions.
@@ -312,9 +296,7 @@ class RewardManager(ManagerBase):
                         f" Received: '{type(term_cfg.weight)}'."
                     )
                 # resolve common terms in the config
-                self._resolve_common_term_cfg(
-                    f"{group_name}/{term_name}", term_cfg, min_argc=1
-                )
+                self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
                 # add term config to list
                 self._group_term_names[group_name].append(term_name)
                 self._group_term_cfgs[group_name].append(term_cfg)
