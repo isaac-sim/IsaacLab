@@ -49,8 +49,8 @@ class ContactSensorData:
     force_matrix_w: torch.Tensor | None = None
     """The contact forces filtered between the sensor bodies and filtered bodies in world frame.
 
-    Shape is (N, B, S, M, 3), where N is the number of sensors, B is number of bodies in each sensor,
-    ``S`` is number of shapes per body and ``M`` is the number of filtered bodies.
+    Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
+    and ``M`` is the number of filtered bodies.
 
     Note:
         If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.

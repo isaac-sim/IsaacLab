@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.10.14 (2024-01-22)
+~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the tensor shape of :attr:`omni.isaac.orbit.sensors.ContactSensorData.force_matrix_w`. Earlier, the reshaping
+  led to a mismatch with the data obtained from PhysX.
+
+
+0.10.13 (2024-01-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed running of environments with a single instance even if the :attr:`replicate_physics`` flag is set to True.
+
+
 0.10.12 (2024-01-10)
 ~~~~~~~~~~~~~~~~~~~~
 

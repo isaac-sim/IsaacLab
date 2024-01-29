@@ -134,7 +134,8 @@ We will now run the example script:
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to if we had passed the ``--headless`` flag because headlessness is implied by our ``LIVESTREAM``
-envar. If a visualization is desired, we could get one via Isaac's `Native Livestreaming`_. The
+envar. If a visualization is desired, we could get one via Isaac's `Native Livestreaming`_. Streaming
+is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
 
