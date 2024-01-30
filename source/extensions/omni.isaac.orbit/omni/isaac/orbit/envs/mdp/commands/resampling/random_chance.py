@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.managers import ResamplingTerm
 
@@ -20,9 +20,8 @@ class RandomChance(ResamplingTerm):
     Commands are resampled with a fixed probability at every time step.
     """
 
-    def __init__(self, cfg: FixedFrequencyCfg, env):
+    def __init__(self, cfg: RandomChanceCfg, env):
         super().__init__(cfg, env)
-
 
     def __str__(self) -> str:
         msg = f"\t\tResampling probability: {self.cfg.resampling_probability}"
@@ -35,6 +34,8 @@ class RandomChance(ResamplingTerm):
             dt: The time step.
         """
         # Note: uniform_(0, 1) is inclusive on 0 and exclusive on 1. So we need to use < instead of <=.
-        resample_prob_buf = torch.empty(self.num_envs, device=self.device).uniform_(0, 1) < self.cfg.resampling_probability
+        resample_prob_buf = (
+            torch.empty(self.num_envs, device=self.device).uniform_(0, 1) < self.cfg.resampling_probability
+        )
         resample_env_ids = resample_prob_buf.nonzero(as_tuple=False).flatten()
         return resample_env_ids
