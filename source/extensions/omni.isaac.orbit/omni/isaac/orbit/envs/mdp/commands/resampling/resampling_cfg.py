@@ -11,6 +11,7 @@ from omni.isaac.orbit.managers import ResamplingTermCfg
 from omni.isaac.orbit.utils import configclass
 
 from .fixed_frequency import FixedFrequency
+from .random_chance import RandomChance
 
 """
 Fixed frequency resampling term.
@@ -24,3 +25,17 @@ class FixedFrequencyCfg(ResamplingTermCfg):
     class_type: type = FixedFrequency
 
     resampling_time_range: tuple[float, float] = MISSING
+
+
+"""
+Random chance resampling term.
+"""
+
+
+@configclass
+class RandomChanceCfg(ResamplingTermCfg):
+    """Configuration for the fixed frequency resampling term."""
+
+    class_type: type = RandomChance
+
+    resample_probability: float = MISSING
