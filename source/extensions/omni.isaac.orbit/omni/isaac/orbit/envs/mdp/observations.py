@@ -88,12 +88,14 @@ Sensors.
 """
 
 
-def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Height scan from the given sensor w.r.t. the sensor's frame."""
+def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+    """Height scan from the given sensor w.r.t. the sensor's frame.
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    """
     # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
-    # height scan: height = sensor_height - hit_point_z - 0.5
-    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - 0.5
+    # height scan: height = sensor_height - hit_point_z - offset
+    return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
 
 
 def body_incoming_wrench(env: BaseEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
