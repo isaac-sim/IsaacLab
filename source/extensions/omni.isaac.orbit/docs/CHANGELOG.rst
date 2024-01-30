@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.15 (2024-01-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed joint torque computation for implicit actuators. Earlier, the torque was always zero for implicit
+  actuators. Now, it is computed approximately by applying the PD law.
+
+
 0.10.14 (2024-01-22)
 ~~~~~~~~~~~~~~~~~
 

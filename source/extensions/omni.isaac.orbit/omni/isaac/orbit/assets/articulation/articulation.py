@@ -685,20 +685,14 @@ class Articulation(RigidObject):
             if control_action.joint_efforts is not None:
                 self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
             # update state of the actuator model
-            if isinstance(actuator, ImplicitActuator):
-                # TODO read torque from simulation (#127)
-                pass
-                # self._data.computed_torques[:, actuator.joint_indices] = ???
-                # self._data.applied_torques[:, actuator.joint_indices] = ???
-            else:
-                # -- torques
-                self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
-                self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
-                # -- actuator data
-                self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
-                # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
-                if hasattr(actuator, "gear_ratio"):
-                    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+            # -- torques
+            self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
+            self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
+            # -- actuator data
+            self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
+            # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
+            if hasattr(actuator, "gear_ratio"):
+                self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
 
     """
     Internal helpers -- Debugging.

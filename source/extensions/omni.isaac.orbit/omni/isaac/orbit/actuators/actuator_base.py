@@ -234,3 +234,14 @@ class ActuatorBase(ABC):
             raise ValueError("The parameter value is None and no default value is provided.")
 
         return param
+
+    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+        """Clip the desired torques based on the motor limits.
+
+        Args:
+            desired_torques: The desired torques to clip.
+
+        Returns:
+            The clipped torques.
+        """
+        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
