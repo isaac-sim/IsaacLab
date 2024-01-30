@@ -36,5 +36,5 @@ class RandomChance(ResamplingTerm):
         """
         # Note: uniform_(0, 1) is inclusive on 0 and exclusive on 1. So we need to use < instead of <=.
         resample_prob_buf = torch.empty(self.num_envs, device=self.device).uniform_(0, 1) < self.cfg.resampling_probability
-        resample_prob_ids = resample_prob_buf.nonzero(as_tuple=False).flatten()
+        resample_env_ids = resample_prob_buf.nonzero(as_tuple=False).flatten()
         return resample_env_ids
