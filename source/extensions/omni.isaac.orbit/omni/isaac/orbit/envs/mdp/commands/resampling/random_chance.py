@@ -25,7 +25,7 @@ class RandomChance(ResamplingTerm):
 
 
     def __str__(self) -> str:
-        msg = f"\t\tResampe probability: {self.cfg.resample_probability}"
+        msg = f"\t\tResampling probability: {self.cfg.resampling_probability}"
         return msg
 
     def compute(self, dt: float):
@@ -35,6 +35,6 @@ class RandomChance(ResamplingTerm):
             dt: The time step.
         """
         # Note: uniform_(0, 1) is inclusive on 0 and exclusive on 1. So we need to use < instead of <=.
-        resample_prob_buf = torch.empty(self.num_envs, device=self.device).uniform_(0, 1) < self.cfg.resample_probability
+        resample_prob_buf = torch.empty(self.num_envs, device=self.device).uniform_(0, 1) < self.cfg.resampling_probability
         resample_prob_ids = resample_prob_buf.nonzero(as_tuple=False).flatten()
         return resample_env_ids

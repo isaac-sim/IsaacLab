@@ -38,4 +38,4 @@ class RandomChanceCfg(ResamplingTermCfg):
 
     class_type: type = RandomChance
 
-    resample_probability: float = MISSING
+    resampling_probability: float = MISSING
