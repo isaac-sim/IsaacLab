@@ -22,11 +22,13 @@ from .manager_term_cfg import (
     ObservationGroupCfg,
     ObservationTermCfg,
     RandomizationTermCfg,
+    ResamplingTermCfg,
     RewardTermCfg,
     TerminationTermCfg,
 )
 from .observation_manager import ObservationManager
 from .randomization_manager import RandomizationManager
+from .resampling_manager import ResamplingManager, ResamplingTerm
 from .reward_manager import RewardManager
 from .scene_entity_cfg import SceneEntityCfg
 from .termination_manager import TerminationManager

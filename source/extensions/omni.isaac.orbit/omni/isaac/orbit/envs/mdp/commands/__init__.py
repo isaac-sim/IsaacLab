@@ -5,6 +5,7 @@
 
 """Various command terms that can be used in the environment."""
 
+from . import resampling
 from .commands_cfg import (
     NormalVelocityCommandCfg,
     NullCommandCfg,

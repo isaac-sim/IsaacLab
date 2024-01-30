@@ -196,6 +196,22 @@ class RandomizationTermCfg(ManagerTermBaseCfg):
 
 
 ##
+# Resampling manager.
+##
+
+
+@configclass
+class ResamplingTermCfg:
+    """Configuration for a resampling term."""
+
+    class_type: type[CommandTerm] = MISSING
+    """The associated command term class to use.
+
+    The class should inherit from :class:`omni.isaac.orbit.managers.resampling_manager.ResamplingTerm`.
+    """
+
+
+##
 # Reward manager.
 ##
 
