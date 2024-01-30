@@ -11,6 +11,7 @@ import torch
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Sequence
 
+import carb
 import omni.kit.app
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -37,6 +38,10 @@ class ResamplingTerm(ManagerTermBase):
         """
         # initialize the base class
         super().__init__(cfg, env)
+
+    def __str__(self) -> str:
+        """Returns: A string representation of the resampling term config."""
+        return ""
 
     @abstractmethod
     def compute(self, dt: float):
@@ -95,6 +100,14 @@ class ResamplingManager(ManagerBase):
         # initialize the base class
         super().__init__(cfg, env)
 
+    def __str__(self) -> str:
+        """Returns: A string representation of the resampling manager."""
+        msg = "ResamplingManager:\n"
+        msg += f"\tNumber of terms: {len(self._terms)}\n"
+        for index, (name, term) in enumerate(self._terms.items()):
+            msg += f"\t{index}\t{name}: {term.__class__.__name__}\n{term}\n"
+        return msg
+
     def compute(self, dt: float):
         """Compute the environment ids to be resampled.
 
@@ -128,6 +141,10 @@ class ResamplingManager(ManagerBase):
         # parse command terms from the config
         self._terms: dict[str, ResamplingTerm] = dict()
 
+        if self.cfg is None:
+            carb.log_warn("Got no resampling terms. Some commands might not be resampled.")
+            return
+
         # check if config is dict already
         if isinstance(self.cfg, dict):
             cfg_items = self.cfg.items()
@@ -148,3 +165,8 @@ class ResamplingManager(ManagerBase):
             term = term_cfg.class_type(term_cfg, self._env)
             # add class to dict
             self._terms[term_name] = term
+
+    @property
+    def active_terms(self) -> list[str]:
+        """Name of active command terms."""
+        return list(self._terms.keys())

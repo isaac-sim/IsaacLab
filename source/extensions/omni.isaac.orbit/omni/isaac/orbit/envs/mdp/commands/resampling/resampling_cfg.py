@@ -10,6 +10,8 @@ from dataclasses import MISSING
 from omni.isaac.orbit.managers import ResamplingTermCfg
 from omni.isaac.orbit.utils import configclass
 
+from .fixed_frequency import FixedFrequency
+
 """
 Fixed frequency resampling term.
 """
@@ -18,5 +20,7 @@ Fixed frequency resampling term.
 @configclass
 class FixedFrequencyCfg(ResamplingTermCfg):
     """Configuration for the fixed frequency resampling term."""
+
+    class_type: type = FixedFrequency
 
     resampling_time_range: tuple[float, float] = MISSING

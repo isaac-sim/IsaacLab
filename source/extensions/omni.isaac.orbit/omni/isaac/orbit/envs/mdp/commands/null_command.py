@@ -28,7 +28,7 @@ class NullCommand(CommandTerm):
     def __str__(self) -> str:
         msg = "NullCommand:\n"
         msg += "\tCommand dimension: N/A\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}"
+        msg += f"{self.cfg.resampling}"
         return msg
 
     """

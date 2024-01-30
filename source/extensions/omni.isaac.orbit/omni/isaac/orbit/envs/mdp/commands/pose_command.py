@@ -70,7 +70,7 @@ class UniformPoseCommand(CommandTerm):
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
+        msg += f"{self.cfg.resampling}"
         return msg
 
     """

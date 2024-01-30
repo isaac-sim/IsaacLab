@@ -4,3 +4,4 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from .fixed_frequency import FixedFrequency
+from .resampling_cfg import FixedFrequencyCfg

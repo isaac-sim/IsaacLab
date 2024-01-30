@@ -71,11 +71,11 @@ class UniformVelocityCommand(CommandTerm):
         """Return a string representation of the command generator."""
         msg = "UniformVelocityCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tHeading command: {self.cfg.heading_command}\n"
         if self.cfg.heading_command:
             msg += f"\tHeading probability: {self.cfg.rel_heading_envs}\n"
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
+        msg += f"{self.cfg.resampling}"
         return msg
 
     """
@@ -130,15 +130,15 @@ class UniformVelocityCommand(CommandTerm):
         self.vel_command_b[standing_env_ids, :] = 0.0
 
     def _update_metrics(self):
-        # time for which the command was executed
-        max_command_time = self.cfg.resampling_time_range[1]
-        max_command_step = max_command_time / self._env.step_dt
         # logs data
-        self.metrics["error_vel_xy"] += (
-            torch.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b[:, :2], dim=-1) / max_command_step
+        command_age_after_step = self.command_age + self._env.step_dt
+        weight_old_value = self.command_age / command_age_after_step
+        weight_new_value = self._env.step_dt / command_age_after_step
+        self.metrics["error_vel_xy"] = weight_old_value * self.metrics["error_vel_xy"] + weight_new_value * torch.norm(
+            self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b[:, :2], dim=-1
         )
-        self.metrics["error_vel_yaw"] += (
-            torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]) / max_command_step
+        self.metrics["error_vel_yaw"] = weight_old_value * self.metrics["error_vel_yaw"] + weight_new_value * torch.abs(
+            self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -229,8 +229,8 @@ class NormalVelocityCommand(UniformVelocityCommand):
         """Return a string representation of the command generator."""
         msg = "NormalVelocityCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
+        msg += f"{self.cfg.resampling}"
         return msg
 
     def _resample_command(self, env_ids):

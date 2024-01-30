@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import MISSING
 
 from omni.isaac.orbit.managers import CommandTermCfg
@@ -26,11 +25,6 @@ class NullCommandCfg(CommandTermCfg):
     """Configuration for the null command generator."""
 
     class_type: type = NullCommand
-
-    def __post_init__(self):
-        """Post initialization."""
-        # set the resampling time range to infinity to avoid resampling
-        self.resampling_time_range = (math.inf, math.inf)
 
 
 """

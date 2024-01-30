@@ -18,6 +18,7 @@ import omni.kit.app
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
+from .resampling_manager import ResamplingManager
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
@@ -30,8 +31,8 @@ class CommandTerm(ManagerTermBase):
     in the case of a goal-conditioned navigation task, the command term can be used to
     generate a target position for the robot to navigate to.
 
-    It implements a resampling mechanism that allows the command to be resampled at a fixed
-    frequency. The resampling frequency can be specified in the configuration object.
+    The resampling mechanism is defined by resampling terms which are called at every
+    command update to determine which envs should be reset.
     Additionally, it is possible to assign a visualization function to the command term
     that can be used to visualize the command in the simulator.
     """
@@ -48,10 +49,12 @@ class CommandTerm(ManagerTermBase):
         # create buffers to store the command
         # -- metrics that can be used for logging
         self.metrics = dict()
-        # -- time left before resampling
-        self.time_left = torch.zeros(self.num_envs, device=self.device)
+        # -- resampling manager
+        self.resampling_manager: ResamplingManager = ResamplingManager(cfg.resampling, env)
         # -- counter for the number of times the command has been resampled within the current episode
         self.command_counter = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
+        # -- timer for tracking the time since last resampling the command.
+        self.command_age = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
@@ -152,10 +155,10 @@ class CommandTerm(ManagerTermBase):
         """
         # update the metrics based on current state
         self._update_metrics()
-        # reduce the time left before resampling
-        self.time_left -= dt
+        # increase command age
+        self.command_age += dt
         # resample the command if necessary
-        resample_env_ids = (self.time_left <= 0.0).nonzero().flatten()
+        resample_env_ids = self.resampling_manager.compute(dt)
         if len(resample_env_ids) > 0:
             self._resample(resample_env_ids)
         # update the command
@@ -168,14 +171,16 @@ class CommandTerm(ManagerTermBase):
     def _resample(self, env_ids: Sequence[int]):
         """Resample the command.
 
-        This function resamples the command and time for which the command is applied for the
-        specified environment indices.
+        This function resamples the command and notifies all sampling terms
+        that the commands have been resampled.
 
         Args:
             env_ids: The list of environment IDs to resample.
         """
-        # resample the time left before resampling
-        self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
+        # notify resampling manager of env ids which are resampled.
+        self.resampling_manager.reset(env_ids)
+        # set the command age to zero
+        self.command_age[env_ids] = 0.0
         # increment the command counter
         self.command_counter[env_ids] += 1
         # resample the command

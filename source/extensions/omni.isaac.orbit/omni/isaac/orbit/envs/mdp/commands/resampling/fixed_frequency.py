@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from omni.isaac.orbit.managers import ResamplingTerm
 
-from .resampling_cfg import FixedFrequencyCfg
+if TYPE_CHECKING:
+    from .resampling_cfg import FixedFrequencyCfg
 
 
 class FixedFrequency(ResamplingTerm):
@@ -24,6 +27,10 @@ class FixedFrequency(ResamplingTerm):
 
         # -- time left before resampling
         self.time_left = torch.zeros(self.num_envs, device=self.device)
+
+    def __str__(self) -> str:
+        msg = f"\t\tResampling time range: {self.cfg.resampling_time_range}"
+        return msg
 
     def compute(self, dt: float):
         """Compute the environment ids to be resampled.

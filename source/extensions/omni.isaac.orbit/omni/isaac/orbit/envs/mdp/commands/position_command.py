@@ -62,8 +62,8 @@ class TerrainBasedPositionCommand(CommandTerm):
     def __str__(self) -> str:
         msg = "TerrainBasedPositionCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
+        msg += f"{self.cfg.resampling}"
         return msg
 
     """

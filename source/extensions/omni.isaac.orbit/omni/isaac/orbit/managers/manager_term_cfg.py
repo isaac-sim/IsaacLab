@@ -87,8 +87,8 @@ class CommandTermCfg:
     The class should inherit from :class:`omni.isaac.orbit.managers.command_manager.CommandTerm`.
     """
 
-    resampling_time_range: tuple[float, float] = MISSING
-    """Time before commands are changed [s]."""
+    resampling: dict[str, ResamplingTermCfg] | None = None
+    """Terms used for resampling the command."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
