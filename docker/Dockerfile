@@ -8,7 +8,8 @@
 
 # Base image
 ARG ISAACSIM_VERSION
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION}
+FROM nvcr.io/nvidia/isaac-sim:2023.1.1
+# ${ISAACSIM_VERSION} recognise itself as 2023.1.0-hotfix.1
 
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
