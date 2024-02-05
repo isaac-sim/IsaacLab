@@ -31,8 +31,10 @@ __version__ = ORBIT_ASSETS_METADATA["package"]["version"]
 # Configuration for different assets.
 ##
 
+from .android import *
 from .anymal import *
 from .cartpole import *
+from .cassie import *
 from .franka import *
 from .ridgeback_franka import *
 from .unitree import *

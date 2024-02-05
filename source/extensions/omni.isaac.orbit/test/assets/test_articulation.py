@@ -13,7 +13,7 @@ from __future__ import annotations
 from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True)
+app_launcher = AppLauncher(headless=False)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
