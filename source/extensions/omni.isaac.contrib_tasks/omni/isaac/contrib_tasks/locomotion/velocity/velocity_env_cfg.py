@@ -34,14 +34,14 @@ from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: 
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
-    """Configuration for the terrain scene with a humanoid robot."""
+    """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="generator",
         terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=3,
+        max_init_terrain_level=5,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             static_friction=1.0, 
@@ -311,96 +311,98 @@ class TerminationsCfg:
 class CurriculumCfg:
     """Curriculum configuration for the MDP."""
 
-    # (1) Curriculum for the velocity command
-    velocity_command = CurrTerm(
-        func=mdp.curriculum_velocity_command,
-        params={
-            "command_name": "base_velocity",
-            "resampling_time_range": (10.0, 10.0),
-            "rel_standing_envs": 0.02,
-            "rel_heading_envs": 1.0,
-            "heading_command": True,
-            "ranges": {
-                "lin_vel_x": (-1.0, 1.0),
-                "lin_vel_y": (-1.0, 1.0),
-                "ang_vel_z": (-1.0, 1.0),
-                "heading": (-math.pi, math.pi),
-            },
-        },
-    )
-    # (2) Curriculum for the terrain
-    terrain = CurrTerm(
-        func=mdp.curriculum_terrain,
-        params={
-            "terrain_type": "generator",
-            "terrain_generator": ROUGH_TERRAINS_CFG,
-            "max_init_terrain_level": 3,
-            "collision_group": -1,
-            "physics_material": sim_utils.RigidBodyMaterialCfg(
-                static_friction=1.0, dynamic_friction=1.0, restitution=0.0,
-                friction_combine_mode="multiply", restitution_combine_mode="multiply",
-            ),
-            "visual_material": sim_utils.MdlFileCfg(
-                mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
-                project_uvw=True,
-            ),
-        },
-    )
-    # (3) Curriculum for the robot
-    robot = CurrTerm(
-        func=mdp.curriculum_robot,
-        params={
-            "articulation_enabled": True,
-            "enabled_self_collisions": True,
-            "solver_position_iteration_count": 8,
-            "solver_velocity_iteration_count": 1,
-            "sleep_threshold": 0.005,
-            "stabilization_threshold": 0.005,
-        },
-    )
-    # (4) Curriculum for the robot's initial state
-    robot_init_state = CurrTerm(
-        func=mdp.curriculum_robot_init_state,
-        params={
-            "pos": (0.0, 0.0, 0.935),
-            "rot": (1.0, 0.0, 0.0,),
-            "joint_pos": {
-                "l_hip_roll": 0.0,
-                "l_hip_yaw": 0.0,
-                "l_hip_pitch": -0.5236,
-                "l_knee_pitch": 1.0472,
-                "l_ankle_pitch": -0.5236,
-                "l_ankle_roll": 0.0,
-                "r_hip_roll": -0.0,
-                "r_hip_yaw": 0.0,
-                "r_hip_pitch": -0.5236,
-                "r_knee_pitch": 1.0472,
-                "r_ankle_pitch": -0.5236,
-                "r_ankle_roll": 0.0,
-                "waist_yaw": 0.0,
-                "waist_pitch": 0.1,
-                "waist_roll": 0.0,
-                "head_yaw": 0.0,
-                "head_pitch": 0.0,
-                "head_roll": 0.0,
-                "l_shoulder_pitch": 0.0,
-                "l_shoulder_roll": 0.3,
-                "l_shoulder_yaw": 0.3,
-                "l_elbow_pitch": -0.1,
-                "l_wrist_yaw": 0.0,
-                "l_wrist_roll": 0.0,
-                "l_wrist_pitch": 0.0,
-                "r_shoulder_pitch": 0.0,
-                "r_shoulder_roll": -0.3,
-                "r_shoulder_yaw": 0.3,
-                "r_elbow_pitch": -0.1,
-                "r_wrist_yaw": 0.0,
-                "r_wrist_roll": 0.0,
-                "r_wrist_pitch": 0.0,
-            },
-            "joint_vel": {".*": 0.0},
-        },
-    )
+    pass
+
+    # # (1) Curriculum for the velocity command
+    # velocity_command = CurrTerm(
+    #     func=mdp.curriculum_velocity_command,
+    #     params={
+    #         "command_name": "base_velocity",
+    #         "resampling_time_range": (10.0, 10.0),
+    #         "rel_standing_envs": 0.02,
+    #         "rel_heading_envs": 1.0,
+    #         "heading_command": True,
+    #         "ranges": {
+    #             "lin_vel_x": (-1.0, 1.0),
+    #             "lin_vel_y": (-1.0, 1.0),
+    #             "ang_vel_z": (-1.0, 1.0),
+    #             "heading": (-math.pi, math.pi),
+    #         },
+    #     },
+    # )
+    # # (2) Curriculum for the terrain
+    # terrain = CurrTerm(
+    #     func=mdp.curriculum_terrain,
+    #     params={
+    #         "terrain_type": "generator",
+    #         "terrain_generator": ROUGH_TERRAINS_CFG,
+    #         "max_init_terrain_level": 3,
+    #         "collision_group": -1,
+    #         "physics_material": sim_utils.RigidBodyMaterialCfg(
+    #             static_friction=1.0, dynamic_friction=1.0, restitution=0.0,
+    #             friction_combine_mode="multiply", restitution_combine_mode="multiply",
+    #         ),
+    #         "visual_material": sim_utils.MdlFileCfg(
+    #             mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+    #             project_uvw=True,
+    #         ),
+    #     },
+    # )
+    # # (3) Curriculum for the robot
+    # robot = CurrTerm(
+    #     func=mdp.curriculum_robot,
+    #     params={
+    #         "articulation_enabled": True,
+    #         "enabled_self_collisions": True,
+    #         "solver_position_iteration_count": 8,
+    #         "solver_velocity_iteration_count": 1,
+    #         "sleep_threshold": 0.005,
+    #         "stabilization_threshold": 0.005,
+    #     },
+    # )
+    # # (4) Curriculum for the robot's initial state
+    # robot_init_state = CurrTerm(
+    #     func=mdp.curriculum_robot_init_state,
+    #     params={
+    #         "pos": (0.0, 0.0, 0.935),
+    #         "rot": (1.0, 0.0, 0.0,),
+    #         "joint_pos": {
+    #             "l_hip_roll": 0.0,
+    #             "l_hip_yaw": 0.0,
+    #             "l_hip_pitch": -0.5236,
+    #             "l_knee_pitch": 1.0472,
+    #             "l_ankle_pitch": -0.5236,
+    #             "l_ankle_roll": 0.0,
+    #             "r_hip_roll": -0.0,
+    #             "r_hip_yaw": 0.0,
+    #             "r_hip_pitch": -0.5236,
+    #             "r_knee_pitch": 1.0472,
+    #             "r_ankle_pitch": -0.5236,
+    #             "r_ankle_roll": 0.0,
+    #             "waist_yaw": 0.0,
+    #             "waist_pitch": 0.1,
+    #             "waist_roll": 0.0,
+    #             "head_yaw": 0.0,
+    #             "head_pitch": 0.0,
+    #             "head_roll": 0.0,
+    #             "l_shoulder_pitch": 0.0,
+    #             "l_shoulder_roll": 0.3,
+    #             "l_shoulder_yaw": 0.3,
+    #             "l_elbow_pitch": -0.1,
+    #             "l_wrist_yaw": 0.0,
+    #             "l_wrist_roll": 0.0,
+    #             "l_wrist_pitch": 0.0,
+    #             "r_shoulder_pitch": 0.0,
+    #             "r_shoulder_roll": -0.3,
+    #             "r_shoulder_yaw": 0.3,
+    #             "r_elbow_pitch": -0.1,
+    #             "r_wrist_yaw": 0.0,
+    #             "r_wrist_roll": 0.0,
+    #             "r_wrist_pitch": 0.0,
+    #         },
+    #         "joint_vel": {".*": 0.0},
+    #     },
+    # )
 
 
 ##
@@ -411,7 +413,7 @@ class CurriculumCfg:
 @configclass
 class LocomotionVelocityRoughEnvCfg(RLTaskEnvCfg):
     """Configuration for the locomotion task with velocity-tracking commands and rough terrain."""
-
+    # TODO: add VIewerCfg and SimulationCfg
     # Scene
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
@@ -426,6 +428,11 @@ class LocomotionVelocityRoughEnvCfg(RLTaskEnvCfg):
     
     def __post_init__(self):
         """Post initialization."""
+        # viewer settings
+        self.viewer.eye = [4.5, 0.0, 6.0]
+        self.viewer.lookat = [0.0, 0.0, 2.0]
+        # self.viewer.cam_prim_path = "/World/envs/env_0/Robot/base"
+        self.viewer.resolution = [640, 480]
         # general settings
         self.decimation = 10
         self.episode_length_s = 16.0

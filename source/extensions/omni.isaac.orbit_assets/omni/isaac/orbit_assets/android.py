@@ -17,11 +17,17 @@ from omni.isaac.orbit_assets import ORBIT_ASSETS_DATA_DIR
 ##
 
 ANDROID_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Fourier/gr1t1_22dof.usd",
-        activate_contact_sensors=True,
+    spawn=sim_utils.UrdfFileCfg(
+        asset_path=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Fourier/urdf/gr1t1_simple.urdf",
+        usd_dir=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Fourier/usd/",
+        usd_file_name="gr1t1_simple.usd",
+        fix_base=False, # ! keep this line while using urdf asset, Defaults to True.
+    # spawn=sim_utils.UsdFileCfg(
+    #     usd_path=f"{ORBIT_ASSETS_DATA_DIR}/Robots/Fourier/gr1t1_22dof.usd",
+        merge_fixed_joints=True,
+        self_collision=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
+            disable_gravity=True,   # default: False
             retain_accelerations=False,
             linear_damping=0.0,
             angular_damping=0.0,
@@ -37,7 +43,7 @@ ANDROID_CFG = ArticulationCfg(
             sleep_threshold=0.005,
             stabilization_threshold=0.005,
         ),
-        # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+        activate_contact_sensors=False, # Activate contact reporting on all rigid bodies. Defaults to False.
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.935),
@@ -62,30 +68,30 @@ ANDROID_CFG = ArticulationCfg(
             # waist
             'waist_yaw': 0.0,
             'waist_pitch': 0.1,
-            'waist_roll': 0.0,
+            # 'waist_roll': 0.0,
 
             # head
-            'head_yaw': 0.0,
-            'head_pitch': 0.0,
-            'head_roll': 0.0,
+            # 'head_yaw': 0.0,
+            # 'head_pitch': 0.0,
+            # 'head_roll': 0.0,
 
             # left arm
             'l_shoulder_pitch': 0.0,
             'l_shoulder_roll': 0.3,
             'l_shoulder_yaw': 0.3,
             'l_elbow_pitch': -0.1,
-            'l_wrist_yaw': 0.0,
-            'l_wrist_roll': 0.0,
-            'l_wrist_pitch': 0.0,
+            # 'l_wrist_yaw': 0.0,
+            # 'l_wrist_roll': 0.0,
+            # 'l_wrist_pitch': 0.0,
 
             # right arm
             'r_shoulder_pitch': 0.0,
             'r_shoulder_roll': -0.3,
             'r_shoulder_yaw': 0.3,
             'r_elbow_pitch': -0.1,
-            'r_wrist_yaw': 0.0,
-            'r_wrist_roll': 0.0,
-            'r_wrist_pitch': 0.0    
+            # 'r_wrist_yaw': 0.0,
+            # 'r_wrist_roll': 0.0,
+            # 'r_wrist_pitch': 0.0    
         },
         joint_vel={".*": 0.0},
     ),
@@ -123,19 +129,19 @@ ANDROID_CFG = ArticulationCfg(
                 "waist_.*": 50.4164,
             },
         ),
-        "head": ImplicitActuatorCfg(
-            joint_names_expr=["head_.*"],
-            effort_limit=200.0,
-            velocity_limit=10.0,
-            stiffness={
-                "head_.*": 100.0,
-            },
-            damping={
-                "head_.*": 1.0,
-            },
-        ),
+        # "head": ImplicitActuatorCfg(
+        #     joint_names_expr=["head_.*"],
+        #     effort_limit=200.0,
+        #     velocity_limit=10.0,
+        #     stiffness={
+        #         "head_.*": 100.0,
+        #     },
+        #     damping={
+        #         "head_.*": 1.0,
+        #     },
+        # ),
         "arms": ImplicitActuatorCfg(
-            joint_names_expr=[".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*"],
+            joint_names_expr=[".*_shoulder_.*", ".*_elbow_.*"], # ".*_wrist_.*"],
             effort_limit=200.0,
             velocity_limit=10.0,
             stiffness={
@@ -143,14 +149,14 @@ ANDROID_CFG = ArticulationCfg(
                 ".*shoulder_roll": 92.85,
                 ".*shoulder_yaw": 112.06,
                 ".*elbow_pitch": 112.06,
-                "wrist_.*": 10.0,
+                # "wrist_.*": 10.0,
             },
             damping={
                 ".*shoulder_pitch": 2.575,
                 ".*shoulder_roll": 2.575,
                 ".*shoulder_yaw": 3.1,
                 ".*elbow_pitch": 3.1,
-                "wrist_.*": 1.0,
+                # "wrist_.*": 1.0,
             },
         ),
     },
