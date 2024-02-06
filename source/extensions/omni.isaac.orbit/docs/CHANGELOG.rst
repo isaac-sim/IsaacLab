@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.17 (2024-02-02)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^^
+
+* Fixed carb setting ``/app/livestream/enabled`` to be set as False unless live-streaming is specified
+  by :class:`omni.isaac.orbit.app.AppLauncher` settings. This fixes the logic of :meth:`SimulationContext.render`,
+  which depended on the config in previous versions of Isaac defaulting to false for this setting.
+
+
 0.10.16 (2024-01-29)
 ~~~~~~~~~~~~~~~~~~~~
 

@@ -610,6 +610,8 @@ class AppLauncher:
                 enable_extension("omni.services.streamclient.webrtc")
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2, 3 .")
+        else:
+            carb_settings_iface.set_bool("/app/livestream/enabled", False)
 
         # As of IsaacSim 2022.1.1, the ros extension has to be loaded
         # after the streaming extension or it will cause a segfault
