@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.18 (2024-02-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Pinned :mod:`torch` version to 2.0.1 in the setup.py to keep parity version of :mod:`torch` supplied by
+  Isaac 2023.1.1, and prevent version incompatibility between :mod:`torch` ==2.2 and
+  :mod:`typing-extensions` ==3.7.4.3
+
+
 0.10.17 (2024-02-02)
 ~~~~~~~~~~~~~~~~~~~~
 
