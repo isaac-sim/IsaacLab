@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.4 (2024-02-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a check for the flag :attr:`omni.isaac.orbit.envs.RLTaskEnvCfg.is_finite_horizon`
+  in the RSL-RL and RL-Games wrappers to handle the finite horizon tasks properly. Earlier,
+  the wrappers were always assuming the tasks to be infinite horizon tasks and returning a
+  time-out signals when the episode length was reached.
+
+
 0.5.3 (2023-11-16)
 ~~~~~~~~~~~~~~~~~~
 
