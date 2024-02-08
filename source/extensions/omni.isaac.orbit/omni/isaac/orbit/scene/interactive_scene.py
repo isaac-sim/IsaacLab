@@ -173,6 +173,12 @@ class InteractiveScene:
             global_paths=self._global_prim_paths,
         )
 
+    def __del__(self):
+        """Clear instances of registered assets and sensors."""
+        self.articulations.clear()
+        self.rigid_objects.clear()
+        self.sensors.clear()
+
     def __str__(self) -> str:
         """Returns a string representation of the scene."""
         msg = f"<class {self.__class__.__name__}>\n"

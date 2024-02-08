@@ -13,7 +13,6 @@ TESTS_TO_SKIP = [
     "test_differential_ik.py",  # Failing
     # orbit_tasks
     "test_data_collector.py",  # Failing
-    "test_environments.py",  # Failing between 2 environments
     "test_record_video.py",  # Failing
     "test_rsl_rl_wrapper.py",  # Timing out (10 minutes)
     "test_sb3_wrapper.py",  # Timing out (10 minutes)

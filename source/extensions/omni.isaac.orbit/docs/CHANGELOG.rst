@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.19 (2024-02-08)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed environment closing so that articulations, objects, and sensors are cleared properly.
+
+
 0.10.18 (2024-02-05)
 ~~~~~~~~~~~~~~~~~~~~
 
