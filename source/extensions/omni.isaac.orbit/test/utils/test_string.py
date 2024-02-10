@@ -5,8 +5,23 @@
 
 from __future__ import annotations
 
+# NOTE: While we don't actually use the simulation app in this test, we still need to launch it
+#       because warp is only available in the context of a running simulation
+"""Launch Isaac Sim Simulator first."""
+
+from omni.isaac.orbit.app import AppLauncher
+
+# launch omniverse app
+app_launcher = AppLauncher(headless=True)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
 import random
+import traceback
 import unittest
+
+import carb
 
 import omni.isaac.orbit.utils.string as string_utils
 
@@ -118,4 +133,12 @@ class TestStringUtilities(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()
