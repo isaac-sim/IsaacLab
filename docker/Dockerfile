@@ -65,7 +65,10 @@ RUN touch /bin/nvidia-smi && \
     touch /var/run/nvidia-persistenced/socket
 
 # installing Orbit dependencies
-RUN ${ORBIT_PATH}/orbit.sh --install --extra
+# use pip caching to avoid reinstalling large packages
+RUN --mount=type=cache,target=/${DOCKER_USER_HOME}/.cache/pip \
+    ${ORBIT_PATH}/orbit.sh --install --extra
+
 # aliasing orbit.sh and python for convenience
 RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
     echo "alias python=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \
