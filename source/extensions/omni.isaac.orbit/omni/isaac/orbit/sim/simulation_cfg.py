@@ -114,6 +114,14 @@ class PhysxCfg:
     enable_stabilization: bool = True
     """Enable/disable additional stabilization pass in solver. Default is True."""
 
+    enable_enhanced_determinism: bool = False
+    """Enable/disable improved determinism at the expense of performance. Defaults to False.
+
+    For more information on PhysX determinism, please check `here`_.
+
+    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/RigidBodyDynamics.html#enhanced-determinism
+    """
+
     bounce_threshold_velocity: float = 0.5
     """Relative velocity threshold for contacts to bounce (in m/s). Default is 0.5 m/s."""
 

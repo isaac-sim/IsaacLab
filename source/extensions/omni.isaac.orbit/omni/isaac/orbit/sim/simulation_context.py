@@ -484,6 +484,8 @@ class SimulationContext(_SimulationContext):
         self._physics_context.enable_ccd(self.cfg.physx.enable_ccd)
         # -- GPU collision stack size
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
+        # -- Improved determinism by PhysX
+        physx_scene_api.CreateEnableEnhancedDeterminismAttr(self.cfg.physx.enable_enhanced_determinism)
 
         # -- Gravity
         # note: Isaac sim only takes the "up-axis" as the gravity direction. But physics allows any direction so we

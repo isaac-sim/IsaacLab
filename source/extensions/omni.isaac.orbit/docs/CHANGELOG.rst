@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.20 (2024-02-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Adds :attr:`omni.isaac.orbit.sim.PhysxCfg.enable_enhanced_determinism` to enable improved
+  determinism from PhysX. Please note this comes at the expense of performance.
+
+
 0.10.19 (2024-02-08)
 ~~~~~~~~~~~~~~~~~~~~
 
