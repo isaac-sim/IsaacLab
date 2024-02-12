@@ -1,6 +1,41 @@
 Known issues
 ============
 
+.. attention::
+
+    Please also refer to the `Omniverse Isaac Sim documentation`_ for known issues and workarounds.
+
+Stale values after resetting the environment
+--------------------------------------------
+
+When resetting the environment, some of the data fields of assets and sensors are not updated.
+These include the poses of links in a kinematic chain, the camera images, the contact sensor readings,
+and the lidar point clouds. This is a known issue which has to do with the way the PhysX and
+rendering engines work in Omniverse.
+
+Many physics engines do a simulation step as a two-level call: ``forward()`` and ``simulate()``,
+where the kinematic and dynamic states are updated, respectively. Unfortunately, PhysX has only a
+single ``step()`` call where the two operations are combined. Due to computations through GPU
+kernels, it is not so straightforward for them to split these operations. Thus, at the moment,
+it is not possible to set the root and/or joint states and do a forward call to update the
+kinematic states of links. This affects both initialization as well as episodic resets.
+
+Similarly for RTX rendering related sensors (such as cameras), the sensor data is not updated
+immediately after setting the state of the sensor. The rendering engine update is bundled with
+the simulator's ``step()`` call which only gets called when the simulation is stepped forward.
+This means that the sensor data is not updated immediately after a reset and it will hold
+outdated values.
+
+While the above is erroneous, there is currently no direct workaround for it. From our experience in
+using IsaacGym, the reset values affect the agent learning critically depending on how frequently
+the environment terminates. Eventually if the agent is learning successfully, this number drops
+and does not affect the performance that critically.
+
+We have made a feature request to the respective Omniverse teams to have complete control
+over stepping different parts of the simulation app. However, at this point, there is no set
+timeline for this feature request.
+
+
 Blank initial frames from the camera
 ------------------------------------
 
@@ -34,3 +69,4 @@ This is then replicated across other references of the same asset since physics 
 are stored in the instanceable asset's USD file and not in its stage reference's USD file.
 
 .. _instanceable assets: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_instanceable_assets.html
+.. _Omniverse Isaac Sim documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/known_issues.html
