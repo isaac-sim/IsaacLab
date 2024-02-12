@@ -10,7 +10,7 @@ Stale values after resetting the environment
 
 When resetting the environment, some of the data fields of assets and sensors are not updated.
 These include the poses of links in a kinematic chain, the camera images, the contact sensor readings,
-and the lidar point clouds. This is a known issue and which has to do with the way the PhysX and
+and the lidar point clouds. This is a known issue which has to do with the way the PhysX and
 rendering engines work in Omniverse.
 
 Many physics engines do a simulation step as a two-level call: ``forward()`` and ``simulate()``,
@@ -20,10 +20,11 @@ kernels, it is not so straightforward for them to split these operations. Thus, 
 it is not possible to set the root and/or joint states and do a forward call to update the
 kinematic states of links. This affects both initialization as well as episodic resets.
 
-Similarly for RTX rendering related sensors, the sensor data is not updated immediately after
-setting the state of the sensor. The rendering engine update is bundled with the simulator's
-``step()`` call which only gets called when the simulation is stepped forward. This means that
-the sensor data is not updated immediately after a reset and it will hold outdated values.
+Similarly for RTX rendering related sensors (such as cameras), the sensor data is not updated
+immediately after setting the state of the sensor. The rendering engine update is bundled with
+the simulator's ``step()`` call which only gets called when the simulation is stepped forward.
+This means that the sensor data is not updated immediately after a reset and it will hold
+outdated values.
 
 While the above is erroneous, there is currently no direct workaround for it. From our experience in
 using IsaacGym, the reset values affect the agent learning critically depending on how frequently
