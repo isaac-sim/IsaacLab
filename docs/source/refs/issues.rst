@@ -1,6 +1,10 @@
 Known issues
 ============
 
+.. attention::
+
+    Please also refer to the `Omniverse Isaac Sim documentation`_ for known issues and workarounds.
+
 Stale values after resetting the environment
 --------------------------------------------
 
@@ -19,11 +23,12 @@ kinematic states of links. This affects both initialization as well as episodic 
 Similarly for RTX rendering related sensors, the sensor data is not updated immediately after
 setting the state of the sensor. The rendering engine update is bundled with the simulator's
 ``step()`` call which only gets called when the simulation is stepped forward. This means that
-the sensor data is not updated immediately after a reset.
+the sensor data is not updated immediately after a reset and it will hold outdated values.
 
 While the above is erroneous, there is currently no direct workaround for it. From our experience in
-using IsaacGym, the reset values are crucial. However, it does not affect the agent learning
-critically enough.
+using IsaacGym, the reset values affect the agent learning critically depending on how frequently
+the environment terminates. Eventually if the agent is learning successfully, this number drops
+and does not affect the performance that critically.
 
 We have made a feature request to the respective Omniverse teams to have complete control
 over stepping different parts of the simulation app. However, at this point, there is no set
@@ -63,3 +68,4 @@ This is then replicated across other references of the same asset since physics 
 are stored in the instanceable asset's USD file and not in its stage reference's USD file.
 
 .. _instanceable assets: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_instanceable_assets.html
+.. _Omniverse Isaac Sim documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/known_issues.html
