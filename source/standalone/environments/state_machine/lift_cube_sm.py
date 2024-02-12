@@ -39,7 +39,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 import traceback
-from typing import Sequence
+from collections.abc import Sequence
 
 import carb
 import warp as wp

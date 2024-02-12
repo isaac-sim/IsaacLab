@@ -11,8 +11,8 @@ import hid
 import numpy as np
 import threading
 import time
+from collections.abc import Callable
 from scipy.spatial.transform.rotation import Rotation
-from typing import Callable
 
 from ..device_base import DeviceBase
 from .utils import convert_buffer

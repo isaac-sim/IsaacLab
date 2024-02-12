@@ -12,7 +12,7 @@ import json
 import numpy as np
 import os
 import torch
-from typing import Iterable
+from collections.abc import Iterable
 
 import carb
 

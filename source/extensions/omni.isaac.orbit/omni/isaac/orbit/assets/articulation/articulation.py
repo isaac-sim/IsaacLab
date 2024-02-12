@@ -9,8 +9,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -729,18 +730,16 @@ class Articulation(RigidObject):
         table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            table.add_row(
-                [
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ]
-            )
+            table.add_row([
+                index,
+                name,
+                stiffnesses[index],
+                dampings[index],
+                armatures[index],
+                frictions[index],
+                position_limits[index],
+                velocity_limits[index],
+                effort_limits[index],
+            ])
         # convert table to string
         carb.log_info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())

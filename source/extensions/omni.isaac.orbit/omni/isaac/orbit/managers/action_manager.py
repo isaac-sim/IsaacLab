@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import torch
 from abc import abstractmethod
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import AssetBase
 

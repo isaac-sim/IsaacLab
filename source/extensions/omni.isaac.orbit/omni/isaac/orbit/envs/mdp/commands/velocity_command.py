@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation

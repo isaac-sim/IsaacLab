@@ -11,7 +11,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 

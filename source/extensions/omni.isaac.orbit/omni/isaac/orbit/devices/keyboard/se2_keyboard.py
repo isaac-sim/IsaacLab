@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import weakref
-from typing import Callable
+from collections.abc import Callable
 
 import carb
 import omni

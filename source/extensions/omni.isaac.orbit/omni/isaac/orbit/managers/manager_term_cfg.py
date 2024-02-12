@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from omni.isaac.orbit.utils import configclass
 from omni.isaac.orbit.utils.noise import NoiseCfg

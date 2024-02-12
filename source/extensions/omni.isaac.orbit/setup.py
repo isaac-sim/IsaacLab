@@ -28,8 +28,7 @@ INSTALL_REQUIRES = [
     "gymnasium==0.29.0",
     # procedural-generation
     "trimesh",
-    "pyglet==1.5.27; python_version < '3.8'",  # pyglet 2.0 requires python 3.8
-    "pyglet; python_version >= '3.8'",
+    "pyglet",
 ]
 
 # Installation operation
@@ -44,13 +43,14 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     packages=["omni.isaac.orbit"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Isaac Sim :: 2023.1.0-hotfix.1",
+        "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,
 )

@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for a simple Cartpole robot
-"""
+"""Configuration for a simple Cartpole robot."""
 
 from __future__ import annotations
 

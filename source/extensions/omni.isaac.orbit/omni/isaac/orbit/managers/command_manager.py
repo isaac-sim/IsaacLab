@@ -11,8 +11,9 @@ import inspect
 import torch
 import weakref
 from abc import abstractmethod
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import omni.kit.app
 

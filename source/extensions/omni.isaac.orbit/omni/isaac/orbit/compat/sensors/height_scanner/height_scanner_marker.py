@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import Sequence
+from collections.abc import Sequence
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils

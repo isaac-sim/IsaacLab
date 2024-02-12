@@ -19,12 +19,12 @@ simulation_app = app_launcher.app
 
 import copy
 import os
-import sys
 import traceback
 import unittest
+from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
-from typing import Callable, ClassVar
+from typing import ClassVar
 
 import carb
 
@@ -651,10 +651,7 @@ class TestConfigClass(unittest.TestCase):
         cfg = DummyClassCfg()
 
         # since python 3.10, annotations are stored as strings
-        if sys.version_info >= (3, 10):
-            annotations = {k: eval(v) for k, v in cfg.__annotations__.items()}
-        else:
-            annotations = cfg.__annotations__
+        annotations = {k: eval(v) for k, v in cfg.__annotations__.items()}
         # check types
         self.assertEqual(annotations["class_name_1"], type)
         self.assertEqual(annotations["class_name_2"], type[DummyClass])

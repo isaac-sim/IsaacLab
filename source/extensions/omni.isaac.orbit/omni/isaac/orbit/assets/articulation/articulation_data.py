@@ -5,7 +5,6 @@
 
 import torch
 from dataclasses import dataclass
-from typing import List
 
 from ..rigid_object import RigidObjectData
 
@@ -18,7 +17,7 @@ class ArticulationData(RigidObjectData):
     # Properties.
     ##
 
-    joint_names: List[str] = None
+    joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
 
     ##

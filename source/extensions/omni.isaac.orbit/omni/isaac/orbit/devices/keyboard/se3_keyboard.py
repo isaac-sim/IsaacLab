@@ -7,8 +7,8 @@
 
 import numpy as np
 import weakref
+from collections.abc import Callable
 from scipy.spatial.transform.rotation import Rotation
-from typing import Callable, Tuple
 
 import carb
 import omni
@@ -117,7 +117,7 @@ class Se3Keyboard(DeviceBase):
         """
         self._additional_callbacks[key] = func
 
-    def advance(self) -> Tuple[np.ndarray, bool]:
+    def advance(self) -> tuple[np.ndarray, bool]:
         """Provides the result from keyboard event state.
 
         Returns:

@@ -7,12 +7,11 @@
 
 import os
 import yaml
-from typing import Dict, Union
 
 from omni.isaac.orbit.utils import class_to_dict
 
 
-def load_yaml(filename: str) -> Dict:
+def load_yaml(filename: str) -> dict:
     """Loads an input PKL file safely.
 
     Args:
@@ -31,7 +30,7 @@ def load_yaml(filename: str) -> Dict:
     return data
 
 
-def dump_yaml(filename: str, data: Union[Dict, object], sort_keys: bool = False):
+def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
     """Saves data into a YAML file safely.
 
     Note:

@@ -15,7 +15,8 @@ import inspect
 import torch
 import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import omni.kit.app
 import omni.timeline

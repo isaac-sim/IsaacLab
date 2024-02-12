@@ -12,7 +12,8 @@ the curriculum introduced by the function.
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.managers import SceneEntityCfg

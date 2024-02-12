@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 

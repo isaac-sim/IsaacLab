@@ -9,9 +9,9 @@ import math
 import numpy as np
 import re
 import torch
+from collections.abc import Sequence
 from tensordict import TensorDict
-from typing import TYPE_CHECKING, Any, Sequence
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import omni.kit.commands
 import omni.usd

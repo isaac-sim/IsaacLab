@@ -11,7 +11,7 @@ import hid
 import numpy as np
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from ..device_base import DeviceBase
 from .utils import convert_buffer

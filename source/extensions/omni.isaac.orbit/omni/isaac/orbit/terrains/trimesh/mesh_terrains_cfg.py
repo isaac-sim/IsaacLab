@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing_extensions import Literal
+from typing import Literal
 
 import omni.isaac.orbit.terrains.trimesh.mesh_terrains as mesh_terrains
 import omni.isaac.orbit.terrains.trimesh.utils as mesh_utils_terrains

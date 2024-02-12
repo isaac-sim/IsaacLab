@@ -247,12 +247,10 @@ class SkrlSequentialLogTrainer(Trainer):
         for timestep in tqdm.tqdm(range(self.initial_timestep, self.timesteps), disable=self.disable_progressbar):
             # compute actions
             with torch.no_grad():
-                actions = torch.vstack(
-                    [
-                        agent.act(states[scope[0] : scope[1]], timestep=timestep, timesteps=self.timesteps)[0]
-                        for agent, scope in zip(self.agents, self.agents_scope)
-                    ]
-                )
+                actions = torch.vstack([
+                    agent.act(states[scope[0] : scope[1]], timestep=timestep, timesteps=self.timesteps)[0]
+                    for agent, scope in zip(self.agents, self.agents_scope)
+                ])
 
             # step the environments
             next_states, rewards, terminated, truncated, infos = self.env.step(actions)

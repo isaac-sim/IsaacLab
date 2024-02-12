@@ -8,10 +8,10 @@ from __future__ import annotations
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
 import inspect
-import sys
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, Callable, ClassVar
+from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
 
@@ -228,11 +228,8 @@ def _add_annotation_types(cls):
             elif key != value.__name__:
                 # note: we don't want to add type annotations for nested configclass. Thus, we check if
                 #   the name of the type matches the name of the variable.
-                if sys.version_info < (3, 10):
-                    hints[key] = type[value]
-                else:
-                    # since Python 3.10, type hints are stored as strings
-                    hints[key] = f"type[{value.__name__}]"
+                # since Python 3.10, type hints are stored as strings
+                hints[key] = f"type[{value.__name__}]"
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.

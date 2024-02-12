@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Callable
 
 from omni.isaac.orbit.sim import converters, schemas
 from omni.isaac.orbit.sim.spawners import materials

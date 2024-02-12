@@ -9,7 +9,8 @@ import copy
 import functools
 import numpy as np
 import trimesh
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .hf_terrains_cfg import HfTerrainBaseCfg

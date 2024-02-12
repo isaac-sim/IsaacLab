@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import numpy as np
 import scipy.spatial.transform as tf
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import omni
 import omni.isaac.core.utils.prims as prim_utils

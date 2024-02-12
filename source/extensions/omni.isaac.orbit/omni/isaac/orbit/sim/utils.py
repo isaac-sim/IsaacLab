@@ -10,7 +10,8 @@ from __future__ import annotations
 import functools
 import inspect
 import re
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils

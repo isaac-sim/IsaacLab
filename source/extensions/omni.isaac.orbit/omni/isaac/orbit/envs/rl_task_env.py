@@ -9,7 +9,8 @@ import gymnasium as gym
 import math
 import numpy as np
 import torch
-from typing import Any, ClassVar, Dict, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any, ClassVar
 
 from omni.isaac.version import get_version
 
@@ -18,7 +19,7 @@ from omni.isaac.orbit.managers import CommandManager, CurriculumManager, RewardM
 from .base_env import BaseEnv, VecEnvObs
 from .rl_task_env_cfg import RLTaskEnvCfg
 
-VecEnvStepReturn = Tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, Dict]
+VecEnvStepReturn = tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, dict]
 """The environment signals processed at the end of each step.
 
 The tuple contains batched information for each sub-environment. The information is stored in the following order:
@@ -286,12 +287,10 @@ class RLTaskEnv(BaseEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                self.single_observation_space[group_name] = gym.spaces.Dict(
-                    {
-                        term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                        for term_name, term_dim in zip(group_term_names, group_term_dim)
-                    }
-                )
+                self.single_observation_space[group_name] = gym.spaces.Dict({
+                    term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
+                    for term_name, term_dim in zip(group_term_names, group_term_dim)
+                })
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
         self.single_action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(action_dim,))

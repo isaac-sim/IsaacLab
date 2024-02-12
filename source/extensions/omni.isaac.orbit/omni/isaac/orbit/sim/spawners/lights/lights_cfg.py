@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Callable
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.sim.spawners.spawner_cfg import SpawnerCfg
 from omni.isaac.orbit.utils import configclass

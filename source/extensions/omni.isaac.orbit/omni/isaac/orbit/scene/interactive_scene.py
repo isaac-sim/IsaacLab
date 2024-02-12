@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import builtins
 import torch
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import carb
 import omni.usd

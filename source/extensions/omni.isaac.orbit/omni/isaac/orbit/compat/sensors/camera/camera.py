@@ -11,8 +11,9 @@ import builtins
 import math
 import numpy as np
 import scipy.spatial.transform as tf
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils

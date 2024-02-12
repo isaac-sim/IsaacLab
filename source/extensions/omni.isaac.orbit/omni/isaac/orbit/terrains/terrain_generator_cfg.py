@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import numpy as np
 import trimesh
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Callable
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 

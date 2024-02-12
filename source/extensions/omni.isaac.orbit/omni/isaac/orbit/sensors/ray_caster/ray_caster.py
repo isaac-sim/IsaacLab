@@ -8,7 +8,8 @@ from __future__ import annotations
 import numpy as np
 import re
 import torch
-from typing import TYPE_CHECKING, ClassVar, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, ClassVar
 
 import carb
 import omni.physics.tensors.impl.api as physx

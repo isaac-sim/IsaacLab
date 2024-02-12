@@ -6,8 +6,8 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import Sequence
 
 from omni.isaac.orbit.utils import configclass
 

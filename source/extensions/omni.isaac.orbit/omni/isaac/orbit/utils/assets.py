@@ -17,7 +17,7 @@ from __future__ import annotations
 import io
 import os
 import tempfile
-from typing_extensions import Literal
+from typing import Literal
 
 import carb
 import omni.client

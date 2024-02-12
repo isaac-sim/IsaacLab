@@ -5,8 +5,8 @@
 
 from __future__ import annotations
 
-from typing import Callable
-from typing_extensions import Literal
+from collections.abc import Callable
+from typing import Literal
 
 from omni.isaac.orbit.sim.spawners.spawner_cfg import SpawnerCfg
 from omni.isaac.orbit.utils import configclass

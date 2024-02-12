@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 import carb
 import omni.isaac.core.utils.nucleus as nucleus_utils

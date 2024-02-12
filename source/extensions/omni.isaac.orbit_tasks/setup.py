@@ -54,7 +54,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     packages=["omni.isaac.orbit_tasks"],
@@ -62,6 +62,7 @@ setup(
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Isaac Sim :: 2023.1.0-hotfix.1",
+        "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,
 )

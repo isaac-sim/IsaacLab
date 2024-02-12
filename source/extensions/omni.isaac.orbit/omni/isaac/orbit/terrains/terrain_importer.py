@@ -8,7 +8,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 import trimesh
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import warp
 from pxr import UsdGeom

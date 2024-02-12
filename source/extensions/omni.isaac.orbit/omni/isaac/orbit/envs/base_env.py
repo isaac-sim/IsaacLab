@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import builtins
 import torch
-from typing import Any, Dict, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 import omni.isaac.core.utils.torch as torch_utils
 
@@ -18,7 +19,7 @@ from omni.isaac.orbit.utils.timer import Timer
 
 from .base_env_cfg import BaseEnvCfg
 
-VecEnvObs = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
+VecEnvObs = dict[str, torch.Tensor | dict[str, torch.Tensor]]
 """Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.

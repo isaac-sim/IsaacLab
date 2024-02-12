@@ -116,6 +116,7 @@ The following snippet shows how use the :class:`AppLauncher` in different ways:
 .. _`Native Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-kit-remote
 .. _`Websocket Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-webrtc
 .. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket
+
 """
 
 from __future__ import annotations
@@ -125,8 +126,7 @@ import faulthandler
 import os
 import re
 import sys
-from typing import Any
-from typing_extensions import Literal
+from typing import Any, Literal
 
 from omni.isaac.kit import SimulationApp
 

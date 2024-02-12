@@ -6,9 +6,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from tensordict import TensorDict
-from typing import TYPE_CHECKING, ClassVar, Sequence
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
