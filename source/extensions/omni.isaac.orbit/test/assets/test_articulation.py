@@ -147,6 +147,44 @@ class TestArticulation(unittest.TestCase):
             # update robot
             robot.update(self.dt)
 
+    def test_initialization_fixed_base_single_joint(self):
+        """Test initialization for fixed base articulation with a single joint."""
+        # Create articulation
+        robot_cfg = ArticulationCfg(
+            spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Simple/revolute_articulation.usd"),
+            actuators={
+                "joint": ImplicitActuatorCfg(
+                    joint_names_expr=[".*"],
+                    effort_limit=400.0,
+                    velocity_limit=100.0,
+                    stiffness=0.0,
+                    damping=10.0,
+                ),
+            },
+        )
+        robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot"))
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertTrue(robot._is_initialized)
+        # Check that fixed base
+        self.assertTrue(robot.is_fixed_base)
+        # Check buffers that exists and have correct shapes
+        self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
+        self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
+        self.assertTrue(robot.data.joint_pos.shape == (1, 1))
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update robot
+            robot.update(self.dt)
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the robot."""
 

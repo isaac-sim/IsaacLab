@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.21 (2024-02-12)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the printing of articulation joint information when the articulation has only one joint.
+  Earlier, the function was performing a squeeze operation on the tensor, which caused an error when
+  trying to index the tensor of shape (1,).
+
+
 0.10.20 (2024-02-12)
 ~~~~~~~~~~~~~~~~~~~~
 
