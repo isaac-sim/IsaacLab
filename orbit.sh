@@ -107,7 +107,7 @@ setup_conda_env() {
         build_path=${ORBIT_PATH}/_isaac_sim
     fi
     # check if the environment exists
-    if { conda env list | grep ${env_name}; } >/dev/null 2>&1; then
+    if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
