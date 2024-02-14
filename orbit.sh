@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
@@ -127,7 +127,7 @@ setup_conda_env() {
     mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
     # add variables to environment during activation
     local isaacsim_setup_conda_env_script=${ORBIT_PATH}/_isaac_sim/setup_conda_env.sh
-    printf '%s\n' '#!/bin/bash' '' \
+    printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for isaac-sim' \
         'source '${isaacsim_setup_conda_env_script}'' \
         '' \
@@ -141,7 +141,7 @@ setup_conda_env() {
     # needed because deactivate complains about orbit alias since it otherwise doesn't exist
     conda activate ${env_name}
     # remove variables from environment during deactivation
-    printf '%s\n' '#!/bin/bash' '' \
+    printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for orbit' \
         'unalias orbit &>/dev/null' \
         '' \

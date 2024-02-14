@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
