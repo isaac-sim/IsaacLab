@@ -217,6 +217,9 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str, cfg: SpawnerCfg, *args, **kwargs):
+        # check prim path is global
+        if not prim_path.startswith("/"):
+            raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
         # resolve: {SPAWN_NS}/AssetName
         # note: this assumes that the spawn namespace already exists in the stage
         root_path, asset_path = prim_path.rsplit("/", 1)
@@ -424,7 +427,15 @@ def export_prim_to_file(path: str, source_prim_path: str, target_prim_path: str 
             Defaults to None, in which case the source prim path is used.
         stage: The stage where the prim exists. Defaults to None, in which case the
             current stage is used.
+
+    Raises:
+        ValueError: If the prim paths are not global (i.e: do not start with '/').
     """
+    # check prim path is global
+    if not source_prim_path.startswith("/"):
+        raise ValueError(f"Source prim path '{source_prim_path}' is not global. It must start with '/'.")
+    if target_prim_path is not None and not target_prim_path.startswith("/"):
+        raise ValueError(f"Target prim path '{target_prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage: Usd.Stage = omni.usd.get_context().get_stage()
@@ -474,9 +485,14 @@ def make_uninstanceable(prim_path: str, stage: Usd.Stage | None = None):
 
     Args:
         prim_path: The prim path to check.
-        stage: The stage where the prim exists.
-            Defaults to None, in which case the current stage is used.
+        stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # check if prim path is global
+    if not prim_path.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -515,7 +531,13 @@ def get_first_matching_child_prim(
 
     Returns:
         The first prim on the path that passes the predicate. If no prim passes the predicate, it returns None.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # check if prim path is global
+    if not prim_path.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -555,7 +577,13 @@ def get_all_matching_child_prims(
 
     Returns:
         A list containing all the prims matching the predicate.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # check if prim path is global
+    if not prim_path.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -594,7 +622,13 @@ def find_first_matching_prim(prim_path_regex: str, stage: Usd.Stage | None = Non
 
     Returns:
         The first prim that matches input expression. If no prim matches, returns None.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # check prim path is global
+    if not prim_path_regex.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -618,7 +652,13 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
 
     Returns:
         A list of prims that match input expression.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    # check prim path is global
+    if not prim_path_regex.startswith("/"):
+        raise ValueError(f"Prim path '{prim_path_regex}' is not global. It must start with '/'.")
     # get current stage
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -649,6 +689,9 @@ def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = Non
 
     Returns:
         A list of prim paths that match input expression.
+
+    Raises:
+        ValueError: If the prim path is not global (i.e: does not start with '/').
     """
     # obtain matching prims
     output_prims = find_matching_prims(prim_path_regex, stage)

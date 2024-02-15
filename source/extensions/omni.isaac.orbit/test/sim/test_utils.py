@@ -53,6 +53,10 @@ class TestUtilities(unittest.TestCase):
         orbit_result = sim_utils.get_all_matching_child_prims("/World")
         self.assertListEqual(isaac_sim_result, orbit_result)
 
+        # test valid path
+        with self.assertRaises(ValueError):
+            sim_utils.get_all_matching_child_prims("World/Room")
+
     def test_find_matching_prim_paths(self):
         """Test find_matching_prim_paths() function."""
         # create scene
@@ -77,6 +81,10 @@ class TestUtilities(unittest.TestCase):
         isaac_sim_result = prim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere/childSphere.*")
         orbit_result = sim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere/childSphere.*")
         self.assertListEqual(isaac_sim_result, orbit_result)
+
+        # test valid path
+        with self.assertRaises(ValueError):
+            sim_utils.get_all_matching_child_prims("World/Floor_.*")
 
 
 if __name__ == "__main__":
