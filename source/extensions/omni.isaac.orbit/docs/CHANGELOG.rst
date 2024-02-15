@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.10.22 (2024-02-14)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed "divide by zero" bug in :class:`~omni.isaac.orbit.sim.SimulationContext` when setting gravity vector.
+  Now, it is correctly disabled when the gravity vector is set to zero.
+
+
 0.10.21 (2024-02-12)
 ~~~~~~~~~~~~~~~~~~~~
 

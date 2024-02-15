@@ -492,7 +492,13 @@ class SimulationContext(_SimulationContext):
         #  need to convert the gravity vector to a direction and magnitude pair explicitly.
         gravity = np.asarray(self.cfg.gravity)
         gravity_magnitude = np.linalg.norm(gravity)
-        gravity_direction = gravity / gravity_magnitude
+
+        # Avoid division by zero
+        if gravity_magnitude != 0.0:
+            gravity_direction = gravity / gravity_magnitude
+        else:
+            gravity_direction = gravity
+
         physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
         physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
 

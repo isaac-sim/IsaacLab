@@ -125,6 +125,16 @@ class TestSimulationContext(unittest.TestCase):
         sim.clear_instance()
         self.assertEqual(ctypes.c_long.from_address(id(sim)).value, sim_ref_count - 1)
 
+    def test_zero_gravity(self):
+        """Test that gravity can be properly disabled."""
+        cfg = SimulationCfg(gravity=(0.0, 0.0, 0.0))
+
+        sim = SimulationContext(cfg)
+
+        gravity_dir, gravity_mag = sim.get_physics_context().get_gravity()
+        gravity = np.array(gravity_dir) * gravity_mag
+        np.testing.assert_almost_equal(gravity, cfg.gravity)
+
 
 if __name__ == "__main__":
     try:

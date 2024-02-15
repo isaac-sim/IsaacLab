@@ -190,7 +190,10 @@ class SimulationCfg:
     """The number of physics simulation steps per rendering step. Default is 1."""
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
-    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
+    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81).
+
+    If set to (0.0, 0.0, 0.0), gravity is disabled.
+    """
 
     enable_scene_query_support: bool = False
     """Enable/disable scene query support for collision shapes. Default is False.
