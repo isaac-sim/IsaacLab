@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--discover_only", action="store_true", help="Only discover and print tests, don't run them.")
     parser.add_argument("--quiet", action="store_true", help="Don't print to console, only log to file.")
-    parser.add_argument("--timeout", default=600, help="Timeout for each test in seconds.")
+    parser.add_argument("--timeout", type=int, default=600, help="Timeout for each test in seconds.")
     # parse arguments
     args = parser.parse_args()
     return args
