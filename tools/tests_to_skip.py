@@ -9,6 +9,8 @@ TESTS_TO_SKIP = [
     "test_argparser_launch.py",  # app.close issue
     "test_env_var_launch.py",  # app.close issue
     "test_kwarg_launch.py",  # app.close issue
+    "compat/test_kit_utils.py",  # Compat to be deprecated
+    "compat/sensors/test_height_scanner.py",  # Compat to be deprecated
     "compat/sensors/test_camera.py",  # Timing out
     "test_differential_ik.py",  # Failing
     # orbit_tasks
