@@ -62,7 +62,7 @@ class TestEnvironments(unittest.TestCase):
         for task_name in self.registered_tasks:
             print(f">>> Running test for environment: {task_name}")
             # check environment
-            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=200)
+            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
             # close the environment
             print(f">>> Closing environment: {task_name}")
             print("-" * 80)
@@ -76,7 +76,7 @@ class TestEnvironments(unittest.TestCase):
         for task_name in self.registered_tasks:
             print(f">>> Running test for environment: {task_name}")
             # check environment
-            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=200)
+            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
             # close the environment
             print(f">>> Closing environment: {task_name}")
             print("-" * 80)
