@@ -34,7 +34,6 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
-
 """Rest everything follows."""
 
 
@@ -44,9 +43,8 @@ import traceback
 
 import carb
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
-from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
+from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from omni.isaac.orbit_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg

@@ -40,11 +40,9 @@ if args_cli.headless:
     app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
 else:
     app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.kit"
-
 # launch omniverse app
 app_launcher = AppLauncher(args_cli, experience=app_experience)
 simulation_app = app_launcher.app
-
 """Rest everything follows."""
 
 
@@ -56,12 +54,11 @@ import carb
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.memories.torch import RandomMemory
 from skrl.utils import set_seed
-from skrl.utils.model_instantiators import deterministic_model, gaussian_model, shared_model
+from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
 
 from omni.isaac.orbit.utils.dict import print_dict
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.orbit_tasks.utils.wrappers.skrl import SkrlSequentialLogTrainer, SkrlVecEnvWrapper, process_skrl_cfg
@@ -80,7 +77,7 @@ def main():
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
-    # specify directory for logging runs
+    # specify directory for logging runs: {time-stamp}_{run_name}
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if experiment_cfg["agent"]["experiment"]["experiment_name"]:
         log_dir += f'_{experiment_cfg["agent"]["experiment"]["experiment_name"]}'
