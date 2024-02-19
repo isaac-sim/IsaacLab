@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.5.6 (2024-02-19)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Update the workflow integration for the skrl library
+
 0.5.5 (2024-02-05)
 ~~~~~~~~~~~~~~~~~~
 
