@@ -34,7 +34,7 @@ INSTALL_REQUIRES = [
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.0"],
-    "skrl": ["skrl==0.10.0"],
+    "skrl": ["skrl>=1.1.0"],
     "rl_games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
     "rsl_rl": ["rsl_rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": ["robomimic@git+https://github.com/ARISE-Initiative/robomimic.git"],
