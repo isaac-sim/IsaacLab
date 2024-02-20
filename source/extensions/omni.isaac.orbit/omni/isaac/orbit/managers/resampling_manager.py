@@ -120,6 +120,10 @@ class ResamplingManager(ManagerBase):
         for term in self._terms.values():
             env_ids.append(term.compute(dt).view(-1))
 
+        # Catch case where no terms are active.
+        if len(env_ids) == 0:
+            return torch.Tensor([])
+
         return torch.unique(torch.cat(env_ids))
 
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -141,7 +145,7 @@ class ResamplingManager(ManagerBase):
         # parse command terms from the config
         self._terms: dict[str, ResamplingTerm] = dict()
 
-        if self.cfg is None:
+        if self.cfg is None or len(self.cfg) == 0:
             carb.log_warn("Got no resampling terms. Some commands might not be resampled.")
             return
 
