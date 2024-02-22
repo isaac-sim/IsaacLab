@@ -22,7 +22,7 @@ class TestScipyOperations(unittest.TestCase):
     def test_interpolation(self):
         """Test scipy interpolation 2D method."""
         # parameters
-        size = (10.0, 10.0)
+        size = (10.0, 12.0)
         horizontal_scale = 0.1
         vertical_scale = 0.005
         downsampled_scale = 0.2

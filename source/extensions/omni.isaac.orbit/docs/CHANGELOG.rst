@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.23 (2024-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes the order of size arguments in :meth:`omni.isaac.orbit.terrains.height_field.random_uniform_terrain`. Previously, the function would crash if the size along x and y were not the same.
+
+
 0.10.22 (2024-02-14)
 ~~~~~~~~~~~~~~~~~~~~
 
