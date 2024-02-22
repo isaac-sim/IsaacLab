@@ -81,11 +81,13 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Any:
             mod_path = inspect.getfile(cfg_entry_point)
             # load the configuration
             cfg_cls = cfg_entry_point()
-        else:
+        elif isinstance(cfg_entry_point, str):
             # resolve path to the module location
             mod_name, attr_name = cfg_entry_point.split(":")
             mod = importlib.import_module(mod_name)
             cfg_cls = getattr(mod, attr_name)
+        else:
+            cfg_cls = cfg_entry_point
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
         if callable(cfg_cls):

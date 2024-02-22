@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.6 (2024-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the configuration parsing to support a pre-initialized configuration object.
+
+
 0.5.5 (2024-02-05)
 ~~~~~~~~~~~~~~~~~~
 
