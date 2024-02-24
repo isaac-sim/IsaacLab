@@ -165,16 +165,13 @@ def test_all(
             completed_process = subprocess.run(
                 ["bash", orbit_shell_path, "-p", test_path], check=True, capture_output=True, timeout=timeout
             )
-            print(f"Completed Process: {completed_process}")
-            print(f"stdout: {completed_process.stdout}")
-            print(f"stderr: {completed_process.stderr}")
         except subprocess.TimeoutExpired as e:
-            print(f"Timeout occurred: {e}")
+            logging.error(f"Timeout occurred: {e}")
             result = "TIMEDOUT"
             stdout = e.stdout
             stderr = e.stderr
         except Exception as e:
-            print(f"Exception {e}!")
+            logging.error(f"Exception {e}!")
             result = "FAILED"
             stdout = e.stdout
             stderr = e.stderr
