@@ -18,6 +18,7 @@ from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.timer import Timer
 
 from .base_env_cfg import BaseEnvCfg
+from .ui import ViewportCameraController
 
 VecEnvObs = dict[str, torch.Tensor | dict[str, torch.Tensor]]
 """Observation returned by the environment.
@@ -101,10 +102,6 @@ class BaseEnv:
             self.sim = SimulationContext(self.cfg.sim)
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
-        # set camera view for "/OmniverseKit_Persp" camera
-        # viewport is not available in other rendering modes so the function will throw a warning
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
-            self.sim.set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -119,6 +116,15 @@ class BaseEnv:
         with Timer("[INFO]: Time taken for scene creation"):
             self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
+
+        # set up camera viewport controller
+        # viewport is not available in other rendering modes so the function will throw a warning
+        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
+        # non-rendering modes.
+        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+        else:
+            self.viewport_camera_controller = None
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -299,6 +305,7 @@ class BaseEnv:
             del self.observation_manager
             del self.randomization_manager
             del self.scene
+            del self.viewport_camera_controller
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()

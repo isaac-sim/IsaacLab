@@ -1,13 +1,25 @@
 Changelog
 ---------
 
+0.10.26 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a viewport camera controller class to the :class:`omni.isaac.orbit.envs.BaseEnv`. This is useful
+  for applications where the user wants to render the viewport from different perspectives even when the
+  simulation is running in headless mode.
+
+
 0.10.25 (2024-02-26)
 ~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Ensures that all path arguments in :mod:`omni.isaac.orbit.sim.utils` are cast to ``str``. Previously we had handled path types as strings without casting.
+* Ensures that all path arguments in :mod:`omni.isaac.orbit.sim.utils` are cast to ``str``. Previously,
+  we had handled path types as strings without casting.
 
 
 0.10.24 (2024-02-26)
