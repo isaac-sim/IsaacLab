@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.10.24 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tracking of contact time in the :class:`omni.isaac.orbit.sensors.ContactSensor` class. Previously,
+  only the air time was being tracked.
+* Added contact force threshold, :attr:`omni.isaac.orbit.sensors.ContactSensorCfg.force_threshold`, to detect
+  when the contact sensor is in contact. Previously, this was set to hard-coded 1.0 in the sensor class.
+
+
 0.10.23 (2024-02-21)
 ~~~~~~~~~~~~~~~~~~~~
 

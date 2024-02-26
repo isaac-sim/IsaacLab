@@ -15,7 +15,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         super().__post_init__()
         # rewards
         self.rewards.flat_orientation_l2.weight = -2.5
-        self.rewards.feet_air_time.weight = 20.0
+        self.rewards.feet_air_time.weight = 5.0
         self.rewards.joint_deviation_hip.params["asset_cfg"].joint_names = ["hip_rotation_.*"]
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"

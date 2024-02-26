@@ -21,7 +21,7 @@ class CassieRewardsCfg(RewardsCfg):
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
-        weight=10.0,
+        weight=2.5,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
             "command_name": "base_velocity",

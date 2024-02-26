@@ -31,13 +31,13 @@ class ContactSensorData:
         If the :attr:`ContactSensorCfg.track_pose` is False, then this qunatity is None.
     """
 
-    net_forces_w: torch.Tensor = None
+    net_forces_w: torch.Tensor | None = None
     """The net contact forces in world frame.
 
     Shape is (N, B, 3), where N is the number of sensors and B is the number of bodies in each sensor.
     """
 
-    net_forces_w_history: torch.Tensor = None
+    net_forces_w_history: torch.Tensor | None = None
     """The net contact forces in world frame.
 
     Shape is (N, T, B, 3), where N is the number of sensors, T is the configured history length
@@ -59,16 +59,34 @@ class ContactSensorData:
     last_air_time: torch.Tensor | None = None
     """Time spent (in s) in the air before the last contact.
 
-    Shape is (N,), where N is the number of sensors.
+    Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
 
     Note:
         If the :attr:`ContactSensorCfg.track_air_time` is False, then this quantity is None.
     """
 
     current_air_time: torch.Tensor | None = None
-    """Time spent (in s) in the air since the last contact.
+    """Time spent (in s) in the air since the last detach.
 
-    Shape is (N,), where N is the number of sensors.
+    Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
+
+    Note:
+        If the :attr:`ContactSensorCfg.track_air_time` is False, then this quantity is None.
+    """
+
+    last_contact_time: torch.Tensor | None = None
+    """Time spent (in s) in contact before the last detach.
+
+    Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
+
+    Note:
+        If the :attr:`ContactSensorCfg.track_air_time` is False, then this quantity is None.
+    """
+
+    current_contact_time: torch.Tensor | None = None
+    """Time spent (in s) in contact since the last contact.
+
+    Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
 
     Note:
         If the :attr:`ContactSensorCfg.track_air_time` is False, then this quantity is None.
