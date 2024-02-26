@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.10.25 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensures that all path arguments in :mod:`omni.isaac.orbit.sim.utils` are cast to ``str``. Previously we had handled path types as strings without casting.
+
+
 0.10.24 (2024-02-26)
 ~~~~~~~~~~~~~~~~~~~~
 
