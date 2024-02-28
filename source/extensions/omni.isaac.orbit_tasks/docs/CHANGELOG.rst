@@ -1,13 +1,23 @@
 Changelog
 ---------
 
-0.5.6 (2024-02-19)
+0.5.7 (2024-02-28)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Update the workflow integration for the skrl library
+
+
+0.5.6 (2024-02-21)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the configuration parsing to support a pre-initialized configuration object.
+
 
 0.5.5 (2024-02-05)
 ~~~~~~~~~~~~~~~~~~

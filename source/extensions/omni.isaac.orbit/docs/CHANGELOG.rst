@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+0.10.26 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a viewport camera controller class to the :class:`omni.isaac.orbit.envs.BaseEnv`. This is useful
+  for applications where the user wants to render the viewport from different perspectives even when the
+  simulation is running in headless mode.
+
+
+0.10.25 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Ensures that all path arguments in :mod:`omni.isaac.orbit.sim.utils` are cast to ``str``. Previously,
+  we had handled path types as strings without casting.
+
+
+0.10.24 (2024-02-26)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tracking of contact time in the :class:`omni.isaac.orbit.sensors.ContactSensor` class. Previously,
+  only the air time was being tracked.
+* Added contact force threshold, :attr:`omni.isaac.orbit.sensors.ContactSensorCfg.force_threshold`, to detect
+  when the contact sensor is in contact. Previously, this was set to hard-coded 1.0 in the sensor class.
+
+
+0.10.23 (2024-02-21)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixes the order of size arguments in :meth:`omni.isaac.orbit.terrains.height_field.random_uniform_terrain`. Previously, the function would crash if the size along x and y were not the same.
+
+
 0.10.22 (2024-02-14)
 ~~~~~~~~~~~~~~~~~~~~
 

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import asyncio
-import numpy as np
 import weakref
 from typing import TYPE_CHECKING
 
@@ -44,22 +43,14 @@ class BaseEnvWindow:
         """
         # store inputs
         self.env = env
-        # store the viewer related variables
-        # -- locations of the camera
-        self._viewer_eye = np.array(self.env.cfg.viewer.eye)
-        self._viewer_lookat = np.array(self.env.cfg.viewer.lookat)
-        # -- which environment to lookat
-        self._viewer_env_index = 0
-        self._viewer_origin = self.env.scene.env_origins[self._viewer_env_index].detach().cpu().numpy()
-        # -- whether to follow an asset and which one
-        self._viewer_follow_enabled = False
+        # prepare the list of assets that can be followed by the viewport camera
+        # note that the first two options are "World" and "Env" which are special cases
         self._viewer_assets_options = [
+            "World",
+            "Env",
             *self.env.scene.rigid_objects.keys(),
             *self.env.scene.articulations.keys(),
         ]
-        self._viewer_asset_name = self._viewer_assets_options[0]
-        # create a handle to the camera callback
-        self._viewer_follow_cam_handle = None
 
         print("Creating window for environment.")
         # create window for UI
@@ -141,13 +132,14 @@ class BaseEnvWindow:
             self.ui_window_elements["viewer_vstack"] = omni.ui.VStack(spacing=5, height=0)
             with self.ui_window_elements["viewer_vstack"]:
                 # create a number slider to move to environment origin
+                # NOTE: slider is 1-indexed, whereas the env index is 0-indexed
                 viewport_origin_cfg = {
                     "label": "Environment Index",
                     "type": "button",
-                    "default_val": self._viewer_env_index + 1,
+                    "default_val": self.env.cfg.viewer.env_index + 1,
                     "min": 1,
                     "max": self.env.num_envs,
-                    "tooltip": "Move the viewport to the origin of the environment",
+                    "tooltip": "The environment index to follow. Only effective if follow mode is not 'World'.",
                 }
                 self.ui_window_elements["viewer_env_index"] = ui_utils.int_builder(**viewport_origin_cfg)
                 # create a number slider to move to environment origin
@@ -156,25 +148,25 @@ class BaseEnvWindow:
                 # create a tracker for the camera location
                 viewer_follow_cfg = {
                     "label": "Follow Mode",
-                    "type": "checkbox_dropdown",
-                    "default_val": [False, 0],
+                    "type": "dropdown",
+                    "default_val": 0,
                     "items": [name.replace("_", " ").title() for name in self._viewer_assets_options],
-                    "tooltip": "Follow an asset in the scene.",
-                    "on_clicked_fn": [self._toggle_viewer_follow_fn, self._set_viewer_follow_asset_fn],
+                    "tooltip": "Select the viewport camera following mode.",
+                    "on_clicked_fn": self._set_viewer_origin_type_fn,
                 }
-                self.ui_window_elements["viewer_follow"] = ui_utils.combo_cb_dropdown_builder(**viewer_follow_cfg)
+                self.ui_window_elements["viewer_follow"] = ui_utils.dropdown_builder(**viewer_follow_cfg)
 
                 # add viewer default eye and lookat locations
                 self.ui_window_elements["viewer_eye"] = ui_utils.xyz_builder(
                     label="Camera Eye",
-                    tooltip="Modify the XYZ location of the viewer eye",
+                    tooltip="Modify the XYZ location of the viewer eye.",
                     default_val=self.env.cfg.viewer.eye,
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
                 self.ui_window_elements["viewer_lookat"] = ui_utils.xyz_builder(
                     label="Camera Target",
-                    tooltip="Modify the XYZ location of the viewer target",
+                    tooltip="Modify the XYZ location of the viewer target.",
                     default_val=self.env.cfg.viewer.lookat,
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
@@ -223,79 +215,46 @@ class BaseEnvWindow:
     Custom callbacks for UI elements.
     """
 
-    def _toggle_viewer_follow_fn(self, value: bool):
-        """Toggles the viewer follow mode."""
-        # store the desired env index
-        self._viewer_follow_enabled = value
-        # register the camera callback for the follow mode
-        if self._viewer_follow_enabled:
-            # create a subscriber for the post update event if it doesn't exist
-            if self._viewer_follow_cam_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._viewer_follow_cam_handle = (
-                    app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._viewer_follow_asset_callback(event)
-                    )
-                )
-        else:
-            # remove the subscriber if it exists
-            if self._viewer_follow_cam_handle is not None:
-                self._viewer_follow_cam_handle.unsubscribe()
-                self._viewer_follow_cam_handle = None
-        # update the camera view
-        self._update_camera_view()
+    def _set_viewer_origin_type_fn(self, value: str):
+        """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""
+        # Extract the viewport camera controller from environment
+        vcc = self.env.viewport_camera_controller
+        if vcc is None:
+            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
 
-    def _set_viewer_follow_asset_fn(self, value: str):
-        """Sets the asset to follow."""
-        # find which index the asset is
-        fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
-        # store the desired env index
-        self._viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
-        # update the camera view
-        self._update_camera_view()
+        # Based on origin type, update the camera view
+        if value == "World":
+            vcc.update_view_to_world()
+        elif value == "Env":
+            vcc.update_view_to_env()
+        else:
+            # find which index the asset is
+            fancy_names = [name.replace("_", " ").title() for name in self._viewer_assets_options]
+            # store the desired env index
+            viewer_asset_name = self._viewer_assets_options[fancy_names.index(value)]
+            # update the camera view
+            vcc.update_view_to_asset_root(viewer_asset_name)
 
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
-        """Sets the viewer location based on the UI."""
-        # obtain the camera locations
-        for i in range(3):
-            self._viewer_eye[i] = self.ui_window_elements["viewer_eye"][i].get_value_as_float()
-            self._viewer_lookat[i] = self.ui_window_elements["viewer_lookat"][i].get_value_as_float()
+        """Sets the viewport camera location based on the UI."""
+        # access the viewport camera controller (for brevity)
+        vcc = self.env.viewport_camera_controller
+        if vcc is None:
+            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
+        # obtain the camera locations and set them in the viewpoint camera controller
+        eye = [self.ui_window_elements["viewer_eye"][i].get_value_as_float() for i in range(3)]
+        lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
         # update the camera view
-        self._update_camera_view()
+        vcc.update_view_location(eye, lookat)
 
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
-        """Moves the viewport to the origin of the environment."""
-        # store the desired env index
-        self._viewer_env_index = model.as_int - 1
-        # obtain the origin of the environment
-        if self._viewer_follow_enabled:
-            self._viewer_origin = self.env.scene[self._viewer_asset_name].data.root_pos_w[self._viewer_env_index]
-        else:
-            self._viewer_origin = self.env.scene.env_origins[self._viewer_env_index]
-        # origin
-        self._viewer_origin = self._viewer_origin.detach().cpu().numpy()
-        # update the camera view
-        self._update_camera_view()
-
-    def _viewer_follow_asset_callback(self, event):
-        # update the camera origins
-        self._viewer_origin = self.env.scene[self._viewer_asset_name].data.root_pos_w[self._viewer_env_index]
-        # origin
-        self._viewer_origin = self._viewer_origin.detach().cpu().numpy()
-        # update the camera view
-        self._update_camera_view()
-
-    """
-    Helper functions - UI updates.
-    """
-
-    def _update_camera_view(self, event=None):
-        """Updates the camera view based on the current settings."""
-        # set the camera locations
-        cam_eye = self._viewer_origin + self._viewer_eye
-        cam_target = self._viewer_origin + self._viewer_lookat
-        # set the camera view
-        self.env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+        """Sets the environment index and updates the camera if in 'env' origin mode."""
+        # access the viewport camera controller (for brevity)
+        vcc = self.env.viewport_camera_controller
+        if vcc is None:
+            raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
+        # store the desired env index, UI is 1-indexed
+        vcc.set_view_env_index(model.as_int - 1)
 
     """
     Helper functions - UI building.

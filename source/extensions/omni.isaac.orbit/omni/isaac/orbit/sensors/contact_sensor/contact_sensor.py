@@ -135,6 +135,8 @@ class ContactSensor(SensorBase):
         if self.cfg.track_air_time:
             self._data.current_air_time[env_ids] = 0.0
             self._data.last_air_time[env_ids] = 0.0
+            self._data.current_contact_time[env_ids] = 0.0
+            self._data.last_contact_time[env_ids] = 0.0
 
     def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -147,6 +149,77 @@ class ContactSensor(SensorBase):
             A tuple of lists containing the body indices and names.
         """
         return string_utils.resolve_matching_names(name_keys, self.body_names)
+
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+        """Checks if bodies that have established contact within the last :attr:`dt` seconds.
+
+        This function checks if the bodies have established contact within the last :attr:`dt` seconds
+        by comparing the current contact time with the given time period. If the contact time is less
+        than the given time period, then the bodies are considered to be in contact.
+
+        Note:
+            The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
+            words :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true
+            if the sensor is updated by the physics or the environment stepping time-step and the sensor
+            is read by the environment stepping time-step.
+
+        Args:
+            dt: The time period since the contact was established.
+            abs_tol: The absolute tolerance for the comparison.
+
+        Returns:
+            A boolean tensor indicating the bodies that have established contact within the last
+            :attr:`dt` seconds. Shape is (N, B), where N is the number of sensors and B is the
+            number of bodies in each sensor.
+
+        Raises:
+            RuntimeError: If the sensor is not configured to track contact time.
+        """
+        # check if the sensor is configured to track contact time
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track contact time."
+                "Please enable the 'track_air_time' in the sensor configuration."
+            )
+        # check if the bodies are in contact
+        currently_in_contact = self.data.current_contact_time > 0.0
+        less_than_dt_in_contact = self.data.current_contact_time < (dt + abs_tol)
+        return currently_in_contact * less_than_dt_in_contact
+
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
+        """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
+
+        This function checks if the bodies have broken contact within the last :attr:`dt` seconds
+        by comparing the current air time with the given time period. If the air time is less
+        than the given time period, then the bodies are considered to not be in contact.
+
+        Note:
+            It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
+            :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true if
+            the sensor is updated by the physics or the environment stepping time-step and the sensor
+            is read by the environment stepping time-step.
+
+        Args:
+            dt: The time period since the contract is broken.
+            abs_tol: The absolute tolerance for the comparison.
+
+        Returns:
+            A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
+            Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
+
+        Raises:
+            RuntimeError: If the sensor is not configured to track contact time.
+        """
+        # check if the sensor is configured to track contact time
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track contact time."
+                "Please enable the 'track_air_time' in the sensor configuration."
+            )
+        # check if the sensor is configured to track contact time
+        currently_detached = self.data.current_air_time > 0.0
+        less_than_dt_detached = self.data.current_air_time < (dt + abs_tol)
+        return currently_detached * less_than_dt_detached
 
     """
     Implementation.
@@ -205,10 +278,12 @@ class ContactSensor(SensorBase):
         if self.cfg.track_pose:
             self._data.pos_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
             self._data.quat_w = torch.zeros(self._num_envs, self._num_bodies, 4, device=self._device)
-        # -- air time between contacts
+        # -- air/contact time between contacts
         if self.cfg.track_air_time:
             self._data.last_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
             self._data.current_air_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
+            self._data.last_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
+            self._data.current_contact_time = torch.zeros(self._num_envs, self._num_bodies, device=self._device)
         # force matrix: (num_envs, num_bodies, num_filter_shapes, 3)
         if len(self.cfg.filter_prim_paths_expr) != 0:
             num_filters = self.contact_physx_view.filter_count
@@ -251,14 +326,29 @@ class ContactSensor(SensorBase):
             # since this function is called every frame, we can use the difference to get the elapsed time
             elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
             # -- check contact state of bodies
-            is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > 1.0
+            is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > self.cfg.force_threshold
             is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
-            # -- update ongoing timer for bodies air
-            self._data.current_air_time[env_ids] += elapsed_time.unsqueeze(-1)
-            # -- update time for the last time bodies were in contact
-            self._data.last_air_time[env_ids] = self._data.current_air_time[env_ids] * is_first_contact
-            # -- increment timers for bodies that are not in contact
-            self._data.current_air_time[env_ids] *= ~is_contact
+            is_first_detached = (self._data.current_contact_time[env_ids] > 0) * ~is_contact
+            # -- update the last contact time if body has just become in contact
+            self._data.last_air_time[env_ids] = torch.where(
+                is_first_contact,
+                self._data.current_air_time[env_ids] + elapsed_time.unsqueeze(-1),
+                self._data.last_air_time[env_ids],
+            )
+            # -- increment time for bodies that are not in contact
+            self._data.current_air_time[env_ids] = torch.where(
+                ~is_contact, self._data.current_air_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
+            )
+            # -- update the last contact time if body has just detached
+            self._data.last_contact_time[env_ids] = torch.where(
+                is_first_detached,
+                self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1),
+                self._data.last_contact_time[env_ids],
+            )
+            # -- increment time for bodies that are in contact
+            self._data.current_contact_time[env_ids] = torch.where(
+                is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
+            )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -281,7 +371,7 @@ class ContactSensor(SensorBase):
         # marker indices
         # 0: contact, 1: no contact
         net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
-        marker_indices = torch.where(net_contact_force_w > 1.0, 0, 1)
+        marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
         if self.cfg.track_pose:
             frame_origins: torch.Tensor = self._data.pos_w

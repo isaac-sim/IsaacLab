@@ -315,7 +315,7 @@ while [[ $# -gt 0 ]]; do
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             shift # past argument
-            ${python_exe} tools/run_all_tests.py $@
+            ${python_exe} ${ORBIT_PATH}/tools/run_all_tests.py $@
             # exit neatly
             break
             ;;
