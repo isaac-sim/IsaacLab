@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Update the workflow integration for the skrl library
+* Updated the RL wrapper for the skrl library to the latest release (>= 1.1.0)
 
 
 0.5.6 (2024-02-21)
