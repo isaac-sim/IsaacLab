@@ -232,8 +232,11 @@ class.
 The ``source/standalone`` directory contains various standalone applications designed using the extensions
 provided by ``orbit``. These applications are written in python and are structured as follows:
 
-* **demo**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
+* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
 * **environments**: Contains applications for running environments defined in ``omni.isaac.orbit_tasks`` with different agents.
   These include a random policy, zero-action policy, teleoperation or scripted state machines.
+* **tools**: Contains applications for using the tools provided by the framework. These include converting assets, generating
+  datasets, etc.
+* **tutorials**: Contains step-by-step tutorials for using the APIs provided by the framework.
 * **workflows**: Contains applications for using environments with various learning-based frameworks. These include different
   reinforcement learning or imitation learning libraries.

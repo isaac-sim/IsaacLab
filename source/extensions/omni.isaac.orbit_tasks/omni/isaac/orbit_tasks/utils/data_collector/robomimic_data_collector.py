@@ -46,7 +46,7 @@ class RobomimicDataCollector:
         filename: str = "test",
         num_demos: int = 1,
         flush_freq: int = 1,
-        env_config: dict = None,
+        env_config: dict | None = None,
     ):
         """Initializes the data collection wrapper.
 
@@ -183,7 +183,7 @@ class RobomimicDataCollector:
                 # add data to key
                 self._dataset[f"env_{i}"][sub_keys[0]].append(value[i])
 
-    def flush(self, env_ids: Iterable[int] = (0)):
+    def flush(self, env_ids: Iterable[int] = (0,)):
         """Flush the episode data based on environment indices.
 
         Args:
