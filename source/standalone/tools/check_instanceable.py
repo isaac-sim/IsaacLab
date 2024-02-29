@@ -103,7 +103,7 @@ def main():
     prim_utils.create_prim("/World/Light", "DistantLight")
 
     # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.usd_path))
+    prim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
     # Clone the scene
     num_clones = args_cli.num_clones
 
