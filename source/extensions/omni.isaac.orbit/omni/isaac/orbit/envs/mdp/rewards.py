@@ -91,10 +91,13 @@ Joint penalties.
 
 
 def joint_torques_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint torques applied on the articulation using L2-kernel."""
+    """Penalize joint torques applied on the articulation using L2-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint torques contribute to the L2 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.applied_torque), dim=1)
+    return torch.sum(torch.square(asset.data.applied_torque[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_vel_l1(env: RLTaskEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -105,17 +108,23 @@ def joint_vel_l1(env: RLTaskEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 
 
 def joint_vel_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint velocities on the articulation using L2-kernel."""
+    """Penalize joint velocities on the articulation using L1-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint velocities contribute to the L1 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_vel), dim=1)
+    return torch.sum(torch.square(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_acc_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint accelerations on the articulation using L2-kernel."""
+    """Penalize joint accelerations on the articulation using L2-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint accelerations contribute to the L2 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_acc), dim=1)
+    return torch.sum(torch.square(asset.data.joint_acc[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_deviation_l1(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -157,7 +166,10 @@ def joint_vel_limits(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
-    out_of_limits = torch.abs(asset.data.joint_vel) - asset.data.soft_joint_vel_limits * soft_ratio
+    out_of_limits = (
+        torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids])
+        - asset.data.soft_joint_vel_limits[:, asset_cfg.joint_ids] * soft_ratio
+    )
     # clip to max error = 1 rad/s per joint to avoid huge penalties
     out_of_limits = out_of_limits.clip_(min=0.0, max=1.0)
     return torch.sum(out_of_limits, dim=1)
@@ -181,7 +193,9 @@ def applied_torque_limits(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntit
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
-    out_of_limits = torch.abs(asset.data.applied_torque - asset.data.computed_torque)
+    out_of_limits = torch.abs(
+        asset.data.applied_torque[:, asset_cfg.joint_ids] - asset.data.computed_torque[:, asset_cfg.joint_ids]
+    )
     return torch.sum(out_of_limits, dim=1)
 
 

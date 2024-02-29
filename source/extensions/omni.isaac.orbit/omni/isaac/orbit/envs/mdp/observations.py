@@ -61,26 +61,37 @@ Joint state.
 
 
 def joint_pos_rel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """The joint positions of the asset w.r.t. the default joint positions."""
+    """The joint positions of the asset w.r.t. the default joint positions.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos - asset.data.default_joint_pos
+    return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
 
 
 def joint_pos_norm(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """The joint positions of the asset normalized with the asset's joint limits."""
+    """The joint positions of the asset normalized with the asset's joint limits.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their normalized positions returned.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
-        asset.data.joint_pos, asset.data.soft_joint_pos_limits[..., 0], asset.data.soft_joint_pos_limits[..., 1]
+        asset.data.joint_pos[:, asset_cfg.joint_ids],
+        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 0],
+        asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids, 1],
     )
 
 
 def joint_vel_rel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
-    """The joint velocities of the asset w.r.t. the default joint velocities."""
+    """The joint velocities of the asset w.r.t. the default joint velocities.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel - asset.data.default_joint_vel
+    return asset.data.joint_vel[:, asset_cfg.joint_ids] - asset.data.default_joint_vel[:, asset_cfg.joint_ids]
 
 
 """

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.11.1 (2024-02-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Replaced the default values for ``joint_ids`` and ``body_ids`` from ``None`` to ``slice(None)``
+  in the :class:`omni.isaac.orbit.managers.SceneEntityCfg`.
+* Adapted rewards and observations terms so that the users can query a subset of joints and bodies.
+
+
 0.11.0 (2024-02-27)
 ~~~~~~~~~~~~~~~~~~~
 
