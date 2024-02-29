@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
@@ -80,7 +81,7 @@ class JointAction(ActionTerm):
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
-            raise ValueError(f"Unsupported scale type: {type(cfg.scale)}")
+            raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
         # parse offset
         if isinstance(cfg.offset, (float, int)):
             self._offset = float(cfg.offset)
@@ -90,7 +91,7 @@ class JointAction(ActionTerm):
             index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.offset, self._joint_names)
             self._offset[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
-            raise ValueError(f"Unsupported offset type: {type(cfg.offset)}")
+            raise ValueError(f"Unsupported offset type: {type(cfg.offset)}. Supported types are float and dict.")
 
     """
     Properties.
@@ -135,6 +136,111 @@ class JointPositionAction(JointAction):
     def apply_actions(self):
         # set position targets
         self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
+
+
+class RelativeJointPositionAction(JointAction):
+    r"""Joint action term that applies the processed actions to the articulation's joints as relative position commands.
+
+    Unlike :class:`JointPositionAction`, this action term applies the processed actions as relative position commands.
+    This means that the processed actions are added to the current joint positions of the articulation's joints
+    before being sent as position commands.
+
+    This means that the action applied at every step is:
+
+    .. math::
+
+         \text{applied action} = \text{current joint positions} + \text{processed actions}
+
+    where :math:`\text{current joint positions}` are the current joint positions of the articulation's joints.
+    """
+
+    cfg: actions_cfg.RelativeJointPositionActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: actions_cfg.RelativeJointPositionActionCfg, env: BaseEnv):
+        # initialize the action term
+        super().__init__(cfg, env)
+        # use zero offset for relative position
+        if cfg.use_zero_offset:
+            self._offset = 0.0
+
+    def apply_actions(self):
+        # add current joint positions to the processed actions
+        current_actions = self.processed_actions + self._asset.data.joint_pos[:, self._joint_ids]
+        # set position targets
+        self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
+
+
+class ExponentialMovingAverageJointPositionAction(JointPositionAction):
+    r"""Joint action term that applies the processed actions to the articulation's joints as exponential
+    moving average position commands.
+
+    Exponential moving average is a type of moving average that gives more weight to the most recent data points.
+    This action term applies the processed actions as moving average position action commands.
+    The moving average is computed as:
+
+    .. math::
+
+        \text{applied action} = \text{weight} \times \text{processed actions} + (1 - \text{weight}) \times \text{previous applied action}
+
+    where :math:`\text{weight}` is the weight for the moving average, :math:`\text{processed actions}` are the
+    processed actions, and :math:`\text{previous action}` is the previous action that was applied to the articulation's
+    joints.
+
+    In the trivial case where the weight is 1.0, the action term behaves exactly like :class:`JointPositionAction`.
+
+    On reset, the previous action is initialized to the current joint positions of the articulation's joints.
+    """
+
+    cfg: actions_cfg.ExponentialMovingAverageJointPositionActionCfg
+    """The configuration of the action term."""
+
+    def __init__(self, cfg: actions_cfg.ExponentialMovingAverageJointPositionActionCfg, env: BaseEnv):
+        # initialize the action term
+        super().__init__(cfg, env)
+
+        # parse and save the moving average weight
+        if isinstance(cfg.weight, float):
+            # check that the weight is in the valid range
+            if not 0.0 <= cfg.weight <= 1.0:
+                raise ValueError(f"Moving average weight must be in the range [0, 1]. Got {cfg.weight}.")
+            self._weight = cfg.weight
+        elif isinstance(cfg.weight, dict):
+            self._weight = torch.ones((env.num_envs, self.action_dim), device=self.device)
+            # resolve the dictionary config
+            index_list, names_list, value_list = string_utils.resolve_matching_names_values(
+                cfg.weight, self._joint_names
+            )
+            # check that the weights are in the valid range
+            for name, value in zip(names_list, value_list):
+                if not 0.0 <= value <= 1.0:
+                    raise ValueError(
+                        f"Moving average weight must be in the range [0, 1]. Got {value} for joint {name}."
+                    )
+            self._weight[:, index_list] = torch.tensor(value_list, device=self.device)
+        else:
+            raise ValueError(
+                f"Unsupported moving average weight type: {type(cfg.weight)}. Supported types are float and dict."
+            )
+
+        # initialize the previous targets
+        self._prev_applied_actions = torch.zeros_like(self.processed_actions)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        # check if specific environment ids are provided
+        if env_ids is None:
+            env_ids = slice(None)
+        # reset history to current joint positions
+        self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
+
+    def apply_actions(self):
+        # set position targets as moving average
+        current_actions = self._weight * self.processed_actions
+        current_actions += (1.0 - self._weight) * self._prev_applied_actions
+        # set position targets
+        self._asset.set_joint_position_target(current_actions, joint_ids=self._joint_ids)
+        # update previous targets
+        self._prev_applied_actions[:] = current_actions[:]
 
 
 class JointVelocityAction(JointAction):

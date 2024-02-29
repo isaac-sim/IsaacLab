@@ -46,7 +46,40 @@ class JointPositionActionCfg(JointActionCfg):
     """Whether to use default joint positions configured in the articulation asset as offset.
     Defaults to True.
 
-    This overrides the settings from :attr:`offset` if set to True.
+    If True, this flag results in overwriting the values of :attr:`offset` to the default joint positions
+    from the articulation asset.
+    """
+
+
+@configclass
+class RelativeJointPositionActionCfg(JointActionCfg):
+    """Configuration for the relative joint position action term.
+
+    See :class:`RelativeJointPositionAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.RelativeJointPositionAction
+
+    use_zero_offset: bool = True
+    """Whether to ignore the offset defined in articulation asset. Defaults to True.
+
+    If True, this flag results in overwriting the values of :attr:`offset` to zero.
+    """
+
+
+@configclass
+class ExponentialMovingAverageJointPositionActionCfg(JointPositionActionCfg):
+    """Configuration for the exponential moving average joint position action term.
+
+    See :class:`ExponentialMovingAverageJointPositionAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.ExponentialMovingAverageJointPositionAction
+
+    weight: float | dict[str, float] = 1.0
+    """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
+
+    If set to 1.0, the processed action is applied directly without any moving average window.
     """
 
 

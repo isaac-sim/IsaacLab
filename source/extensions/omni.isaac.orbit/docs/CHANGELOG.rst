@@ -1,7 +1,18 @@
 Changelog
 ---------
 
-0.10.27 (2024-02-15)
+0.10.28 (2024-02-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Implemented relative and moving average joint position action terms. These allow the user to specify
+  the target joint positions as relative to the current joint positions or as a moving average of the
+  joint positions over a window of time.
+
+
+0.10.27 (2024-02-28)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
