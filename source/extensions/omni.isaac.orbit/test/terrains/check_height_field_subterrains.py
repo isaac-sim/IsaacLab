@@ -7,26 +7,35 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
+import argparse
 import os
+import traceback
+
+parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
+parser.add_argument(
+    "--headless", action="store_true", default=False, help="Don't create a window to display each output."
+)
+args_cli = parser.parse_args()
 
 from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 # note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
 app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-app_launcher = AppLauncher(headless=True, experience=app_experience)
+app_launcher = AppLauncher(experience=app_experience)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import argparse
 import trimesh
+
+import carb
 
 import omni.isaac.orbit.terrains.height_field as hf_gen
 from omni.isaac.orbit.terrains.utils import color_meshes_by_height
 
 
-def test_random_uniform_terrain(difficulty: float):
+def test_random_uniform_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfRandomUniformTerrainCfg(
         size=(8.0, 8.0),
@@ -56,7 +65,7 @@ def test_random_uniform_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Random Uniform Terrain")
 
 
-def test_pyramid_sloped_terrain(difficulty: float, inverted: bool):
+def test_pyramid_sloped_terrain(difficulty: float, inverted: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfPyramidSlopedTerrainCfg(
         size=(8.0, 8.0),
@@ -93,7 +102,7 @@ def test_pyramid_sloped_terrain(difficulty: float, inverted: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_pyramid_stairs_terrain(difficulty: float, inverted: bool):
+def test_pyramid_stairs_terrain(difficulty: float, inverted: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfPyramidStairsTerrainCfg(
         size=(8.0, 8.0),
@@ -131,7 +140,7 @@ def test_pyramid_stairs_terrain(difficulty: float, inverted: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_discrete_obstacles_terrain(difficulty: float, obstacle_height_mode: str):
+def test_discrete_obstacles_terrain(difficulty: float, obstacle_height_mode: str, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfDiscreteObstaclesTerrainCfg(
         size=(8.0, 8.0),
@@ -172,7 +181,7 @@ def test_discrete_obstacles_terrain(difficulty: float, obstacle_height_mode: str
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_wave_terrain(difficulty: float):
+def test_wave_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfWaveTerrainCfg(
         size=(8.0, 8.0),
@@ -201,7 +210,7 @@ def test_wave_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Wave Terrain")
 
 
-def test_stepping_stones_terrain(difficulty: float):
+def test_stepping_stones_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = hf_gen.HfSteppingStonesTerrainCfg(
         size=(8.0, 8.0),
@@ -233,28 +242,38 @@ def test_stepping_stones_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Stepping Stones Terrain")
 
 
-if __name__ == "__main__":
-    # Create argparse for headless mode
-    parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
-    parser.add_argument("--headless", action="store_true", default=False, help="Run in headless mode")
-    args = parser.parse_args()
-    # Read headless mode
-    headless = args.headless
+def main():
     # Create directory to dump results
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "terrains", "height_field")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
+    # Read headless mode
+    headless = args_cli.headless
     # generate terrains
-    test_random_uniform_terrain(difficulty=0.25)
-    test_pyramid_sloped_terrain(difficulty=0.25, inverted=False)
-    test_pyramid_sloped_terrain(difficulty=0.25, inverted=True)
-    test_pyramid_stairs_terrain(difficulty=0.25, inverted=False)
-    test_pyramid_stairs_terrain(difficulty=0.25, inverted=True)
-    test_discrete_obstacles_terrain(difficulty=0.25, obstacle_height_mode="choice")
-    test_discrete_obstacles_terrain(difficulty=0.25, obstacle_height_mode="fixed")
-    test_wave_terrain(difficulty=0.25)
-    test_stepping_stones_terrain(difficulty=1.0)
+    test_random_uniform_terrain(difficulty=0.25, output_dir=output_dir, headless=headless)
+    test_pyramid_sloped_terrain(difficulty=0.25, inverted=False, output_dir=output_dir, headless=headless)
+    test_pyramid_sloped_terrain(difficulty=0.25, inverted=True, output_dir=output_dir, headless=headless)
+    test_pyramid_stairs_terrain(difficulty=0.25, inverted=False, output_dir=output_dir, headless=headless)
+    test_pyramid_stairs_terrain(difficulty=0.25, inverted=True, output_dir=output_dir, headless=headless)
+    test_discrete_obstacles_terrain(
+        difficulty=0.25, obstacle_height_mode="choice", output_dir=output_dir, headless=headless
+    )
+    test_discrete_obstacles_terrain(
+        difficulty=0.25, obstacle_height_mode="fixed", output_dir=output_dir, headless=headless
+    )
+    test_wave_terrain(difficulty=0.25, output_dir=output_dir, headless=headless)
+    test_stepping_stones_terrain(difficulty=1.0, output_dir=output_dir, headless=headless)
 
-    # close the app
-    simulation_app.close()
+
+if __name__ == "__main__":
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

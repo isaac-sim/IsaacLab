@@ -59,10 +59,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
-
-    .. versionchanged:: 2022.2
-
-        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
     """
 
     max_position_iteration_count: int = 255
@@ -73,10 +69,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
-
-    .. versionchanged:: 2022.2
-
-        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
     """
 
     min_velocity_iteration_count: int = 0
@@ -87,10 +79,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-
-    .. versionadded:: 2023.1
-
-        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`min_position_iteration_count`.
     """
 
     max_velocity_iteration_count: int = 255
@@ -101,10 +89,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-
-    .. versionadded:: 2023.1
-
-        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`max_position_iteration_count`.
     """
 
     enable_ccd: bool = False
@@ -223,18 +207,6 @@ class SimulationCfg:
     Note:
         When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
         updates, please set this flag to :obj:`False`.
-
-    .. versionadded:: 2023.1
-
-        This flag is introduced in 2023.1.0. For older versions, please use :obj:`use_flatcache` instead.
-    """
-
-    use_flatcache: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
-
-    .. deprecated:: 2023.1
-
-        This flag is deprecated and will be removed in the future. Please use :obj:`use_fabric` instead.
     """
 
     disable_contact_processing: bool = False

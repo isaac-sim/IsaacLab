@@ -75,7 +75,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    [INFO] Using python from: /isaac-sim/python.sh
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
    [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
-   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2,3}] [--ros {0,1,2}]
+   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2,3}]
                         [--offscreen_render]
 
    Tutorial on running IsaacSim via the AppLauncher.
@@ -90,7 +90,6 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --headless            Force display off at all times.
    --livestream {0,1,2,3}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
-   --ros {0,1,2}         Enable ROS middleware. Mapping corresponds to that for the "ROS_ENABLED" environment variable
    --offscreen_render    Enable offscreen rendering when running without a GUI.
 
 This readout details the ``--size``, ``--height``, and ``--width`` arguments defined in the script directly,
@@ -106,7 +105,7 @@ for more examples.
 Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--ros``)
+As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--headless``)
 have corresponding environment variables (envar) as well. These are detailed in :mod:`omni.isaac.orbit.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.

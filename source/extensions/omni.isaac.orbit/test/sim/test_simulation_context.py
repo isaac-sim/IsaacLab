@@ -78,7 +78,7 @@ class TestSimulationContext(unittest.TestCase):
         sim = SimulationContext()
         version = sim.get_version()
         self.assertTrue(len(version) > 0)
-        self.assertTrue(version[0] >= 2022)
+        self.assertTrue(version[0] >= 2023)
 
     def test_carb_setting(self):
         """Test setting carb settings."""

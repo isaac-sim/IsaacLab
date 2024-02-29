@@ -1,9 +1,9 @@
 Installation Guide
 ===================
 
-.. image:: https://img.shields.io/badge/IsaacSim-2023.1.0--hotfix.1-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 2023.1.0
+   :alt: IsaacSim 2023.1.1
 
 .. image:: https://img.shields.io/badge/python-3.10-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
@@ -20,9 +20,8 @@ Installing Isaac Sim
 
 .. caution::
 
-   While the framework contains some backwards compatibility for Isaac Sim 2022.2.1, we recommend using
-   the latest Isaac Sim 2023.1 release. This release contains various improvements on the
-   simulation side, and is the recommended version to use with Orbit.
+   We have dropped support for Isaac Sim versions 2022.2 and below. We recommend using the latest Isaac Sim
+   2023.1 releases (``2023.1.0-hotfix.1`` or ``2023.1.1``).
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`__.

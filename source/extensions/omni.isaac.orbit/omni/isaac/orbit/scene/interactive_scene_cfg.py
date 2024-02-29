@@ -88,8 +88,4 @@ class InteractiveSceneCfg:
 
     replicate_physics: bool = True
     """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
-
-    Note:
-        In Isaac Sim 2022.2.0, domain randomization of material properties is not supported when
-        ``replicate_physics`` is set to True.
     """

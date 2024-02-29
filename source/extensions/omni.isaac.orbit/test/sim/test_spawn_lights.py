@@ -156,9 +156,7 @@ class TestSpawningLights(unittest.TestCase):
                     raise ValueError(f"Unknown texture attribute: '{attr_name}'")
             else:
                 # convert attribute name in prim to cfg name
-                prim_prop_name = to_camel_case(attr_name, to="cC")
-                if self.isaac_sim_version > 2022:
-                    prim_prop_name = f"inputs:{prim_prop_name}"
+                prim_prop_name = f"inputs:{to_camel_case(attr_name, to='cC')}"
                 # configured value
                 configured_value = prim.GetAttribute(prim_prop_name).Get()
             # validate the values

@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
-from omni.isaac.version import get_version
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import converters, schemas
@@ -166,13 +165,7 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
-        # obtain isaac sim version
-        isaac_sim_version = int(get_version()[2])
-        # check the property name based on isaac sim version
-        if isaac_sim_version == 2022:
-            prop_path = f"{prim_path}/Looks/theGrid.inputs:diffuse_tint"
-        else:
-            prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
+        prop_path = f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint"
         # change the color
         omni.kit.commands.execute(
             "ChangePropertyCommand",

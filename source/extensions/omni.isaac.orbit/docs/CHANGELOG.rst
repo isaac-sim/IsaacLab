@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.11.0 (2024-02-27)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Dropped support for Isaac Sim<=2022.2. As part of this, removed the components of :class:`omni.isaac.orbit.app.AppLauncher`
+  which handled ROS extension loading. We no longer need them in Isaac Sim>=2023.1 to control the load order to avoid crashes.
+* Upgraded Dockerfile to use ISAACSIM_VERSION=2023.1.1 by default.
+
+
 0.10.28 (2024-02-29)
 ~~~~~~~~~~~~~~~~~~~~
 

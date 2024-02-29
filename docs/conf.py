@@ -222,7 +222,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg",
             "type": "url",
         },
         {

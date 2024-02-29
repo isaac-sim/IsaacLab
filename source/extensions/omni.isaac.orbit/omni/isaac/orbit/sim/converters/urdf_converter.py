@@ -10,7 +10,6 @@ import os
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from omni.isaac.version import get_version
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -106,17 +105,10 @@ class UrdfConverter(AssetConverterBase):
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
-        # check if the urdf importer extension is available
-        # note: the urdf importer's name changed in 2023.1 onwards
-        isaacsim_version = get_version()
-        if int(isaacsim_version[2]) == 2022:
-            enable_extension("omni.isaac.urdf")
+        # Enable urdf extension
+        enable_extension("omni.importer.urdf")
 
-            from omni.isaac.urdf import _urdf as omni_urdf
-        else:
-            enable_extension("omni.importer.urdf")
-
-            from omni.importer.urdf import _urdf as omni_urdf
+        from omni.importer.urdf import _urdf as omni_urdf
 
         import_config = omni_urdf.ImportConfig()
 

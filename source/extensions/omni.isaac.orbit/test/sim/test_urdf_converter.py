@@ -7,11 +7,11 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
@@ -27,7 +27,6 @@ import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
-from omni.isaac.version import get_version
 
 from omni.isaac.orbit.sim.converters import UrdfConverter, UrdfConverterCfg
 
@@ -39,13 +38,8 @@ class TestUrdfConverter(unittest.TestCase):
         """Create a blank new stage for each test."""
         # Create a new stage
         stage_utils.create_new_stage()
-        # Isaac Sim version
-        self.isaacsim_version_year = int(get_version()[2])
         # retrieve path to urdf importer extension
-        if self.isaacsim_version_year == 2022:
-            extension_path = get_extension_path_from_name("omni.isaac.urdf")
-        else:
-            extension_path = get_extension_path_from_name("omni.importer.urdf")
+        extension_path = get_extension_path_from_name("omni.importer.urdf")
         # default configuration
         self.config = UrdfConverterCfg(
             asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True

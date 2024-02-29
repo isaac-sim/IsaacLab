@@ -15,10 +15,11 @@ It is possible to add additional callbacks to it for user-defined operations.
 """Launch Isaac Sim Simulator first."""
 
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
-# launch the simulator
-simulation_app = SimulationApp({"headless": False})
+# launch omniverse app
+app_launcher = AppLauncher()
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 

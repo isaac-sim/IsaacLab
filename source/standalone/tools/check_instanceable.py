@@ -48,21 +48,22 @@ import contextlib
 import os
 
 # omni-isaac-orbit
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Utility to empirically check if asset in instanced properly.")
 parser.add_argument("input", type=str, help="The path to the USD file.")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("-n", "--num_clones", type=int, default=128, help="Number of clones to spawn.")
 parser.add_argument("-s", "--spacing", type=float, default=1.5, help="Spacing between instances in a grid.")
 parser.add_argument("-p", "--physics", action="store_true", default=False, help="Clone assets using physics cloner.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -123,7 +124,7 @@ def main():
     # Simulate scene (if not headless)
     if not args_cli.headless:
         with contextlib.suppress(KeyboardInterrupt):
-            while True:
+            while sim.is_playing():
                 # perform step
                 sim.step()
 

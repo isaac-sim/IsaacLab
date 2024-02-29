@@ -7,7 +7,15 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
+import argparse
 import os
+import traceback
+
+parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
+parser.add_argument(
+    "--headless", action="store_true", default=False, help="Don't create a window to display each output."
+)
+args_cli = parser.parse_args()
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -22,11 +30,13 @@ simulation_app = app_launcher.app
 import argparse
 import trimesh
 
+import carb
+
 import omni.isaac.orbit.terrains.trimesh as mesh_gen
 from omni.isaac.orbit.terrains.utils import color_meshes_by_height
 
 
-def test_flat_terrain(difficulty: float):
+def test_flat_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshPlaneTerrainCfg(size=(8.0, 8.0))
     # generate the terrain
@@ -48,7 +58,7 @@ def test_flat_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Flat Terrain")
 
 
-def test_pyramid_stairs_terrain(difficulty: float, holes: bool):
+def test_pyramid_stairs_terrain(difficulty: float, holes: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshPyramidStairsTerrainCfg(
         size=(8.0, 8.0),
@@ -84,7 +94,7 @@ def test_pyramid_stairs_terrain(difficulty: float, holes: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_inverted_pyramid_stairs_terrain(difficulty: float, holes: bool):
+def test_inverted_pyramid_stairs_terrain(difficulty: float, holes: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshInvertedPyramidStairsTerrainCfg(
         size=(8.0, 8.0),
@@ -120,7 +130,7 @@ def test_inverted_pyramid_stairs_terrain(difficulty: float, holes: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_random_grid_terrain(difficulty: float, holes: bool):
+def test_random_grid_terrain(difficulty: float, holes: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshRandomGridTerrainCfg(
         size=(8.0, 8.0),
@@ -155,7 +165,7 @@ def test_random_grid_terrain(difficulty: float, holes: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_rails_terrain(difficulty: float):
+def test_rails_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshRailsTerrainCfg(
         size=(8.0, 8.0),
@@ -182,7 +192,7 @@ def test_rails_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Rail Terrain")
 
 
-def test_pit_terrain(difficulty: float, double_pit: bool):
+def test_pit_terrain(difficulty: float, double_pit: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshPitTerrainCfg(
         size=(8.0, 8.0), platform_width=1.5, pit_depth_range=(0.05, 1.1), double_pit=double_pit
@@ -213,7 +223,7 @@ def test_pit_terrain(difficulty: float, double_pit: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_box_terrain(difficulty: float, double_box: bool):
+def test_box_terrain(difficulty: float, double_box: bool, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshBoxTerrainCfg(
         size=(8.0, 8.0),
@@ -247,7 +257,7 @@ def test_box_terrain(difficulty: float, double_box: bool):
         trimesh.viewer.SceneViewer(scene=scene, caption=caption)
 
 
-def test_gap_terrain(difficulty: float):
+def test_gap_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshGapTerrainCfg(
         size=(8.0, 8.0),
@@ -273,7 +283,7 @@ def test_gap_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Gap Terrain")
 
 
-def test_floating_ring_terrain(difficulty: float):
+def test_floating_ring_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshFloatingRingTerrainCfg(
         size=(8.0, 8.0),
@@ -301,7 +311,7 @@ def test_floating_ring_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Floating Ring Terrain")
 
 
-def test_star_terrain(difficulty: float):
+def test_star_terrain(difficulty: float, output_dir: str, headless: bool):
     # parameters for the terrain
     cfg = mesh_gen.MeshStarTerrainCfg(
         size=(8.0, 8.0),
@@ -329,7 +339,9 @@ def test_star_terrain(difficulty: float):
         trimesh.viewer.SceneViewer(scene=scene, caption="Star Terrain")
 
 
-def test_repeated_objects_terrain(difficulty: float, object_type: str, provide_as_string: bool = False):
+def test_repeated_objects_terrain(
+    difficulty: float, object_type: str, output_dir: str, headless: bool, provide_as_string: bool = False
+):
     # parameters for the terrain
     if object_type == "pyramid":
         cfg = mesh_gen.MeshRepeatedPyramidsTerrainCfg(
@@ -393,38 +405,39 @@ def test_repeated_objects_terrain(difficulty: float, object_type: str, provide_a
         trimesh.viewer.SceneViewer(scene=scene, caption=f"Repeated Objects Terrain: {object_type}")
 
 
-if __name__ == "__main__":
-    # Create argparse for headless mode
-    parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
-    parser.add_argument("--headless", action="store_true", default=False, help="Run in headless mode")
-    args = parser.parse_args()
-    # Read headless mode
-    headless = args.headless
+def main():
     # Create directory to dump results
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "terrains", "trimesh")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
+    # Read headless mode
+    headless = args_cli.headless
     # generate terrains
-    test_flat_terrain(difficulty=0.0)
-    test_pyramid_stairs_terrain(difficulty=0.75, holes=False)
-    test_pyramid_stairs_terrain(difficulty=0.75, holes=True)
-    test_inverted_pyramid_stairs_terrain(difficulty=0.75, holes=False)
-    test_inverted_pyramid_stairs_terrain(difficulty=0.75, holes=True)
-    test_random_grid_terrain(difficulty=0.75, holes=False)
-    test_random_grid_terrain(difficulty=0.75, holes=True)
-    test_rails_terrain(difficulty=0.75)
-    test_pit_terrain(difficulty=0.75, double_pit=False)
-    test_pit_terrain(difficulty=0.75, double_pit=True)
-    test_box_terrain(difficulty=0.75, double_box=False)
-    test_box_terrain(difficulty=0.75, double_box=True)
-    test_gap_terrain(difficulty=0.75)
-    test_floating_ring_terrain(difficulty=0.75)
-    test_star_terrain(difficulty=0.75)
-    test_repeated_objects_terrain(difficulty=0.75, object_type="pyramid")
-    test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder")
-    test_repeated_objects_terrain(difficulty=0.75, object_type="box")
-    test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder", provide_as_string=True)
+    test_flat_terrain(difficulty=0.0, output_dir=output_dir, headless=headless)
+    test_pyramid_stairs_terrain(difficulty=0.75, holes=False, output_dir=output_dir, headless=headless)
+    test_pyramid_stairs_terrain(difficulty=0.75, holes=True, output_dir=output_dir, headless=headless)
+    test_inverted_pyramid_stairs_terrain(difficulty=0.75, holes=False, output_dir=output_dir, headless=headless)
+    test_inverted_pyramid_stairs_terrain(difficulty=0.75, holes=True, output_dir=output_dir, headless=headless)
+    test_random_grid_terrain(difficulty=0.75, holes=False, output_dir=output_dir, headless=headless)
+    test_random_grid_terrain(difficulty=0.75, holes=True, output_dir=output_dir, headless=headless)
+    test_star_terrain(difficulty=0.75, output_dir=output_dir, headless=headless)
+    test_repeated_objects_terrain(difficulty=0.75, object_type="pyramid", output_dir=output_dir, headless=headless)
+    test_repeated_objects_terrain(difficulty=0.75, object_type="cylinder", output_dir=output_dir, headless=headless)
+    test_repeated_objects_terrain(difficulty=0.75, object_type="box", output_dir=output_dir, headless=headless)
+    test_repeated_objects_terrain(
+        difficulty=0.75, object_type="cylinder", provide_as_string=True, output_dir=output_dir, headless=headless
+    )
 
-    # close the app
-    simulation_app.close()
+
+if __name__ == "__main__":
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

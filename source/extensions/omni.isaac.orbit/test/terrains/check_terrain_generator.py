@@ -7,8 +7,8 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-
 import os
+import traceback
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -22,10 +22,13 @@ simulation_app = app_launcher.app
 
 import shutil
 
+import carb
+
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_generator import TerrainGenerator
 
-if __name__ == "__main__":
+
+def main():
     # Create directory to dump results
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "generator")
@@ -39,7 +42,17 @@ if __name__ == "__main__":
     ROUGH_TERRAINS_CFG.cache_dir = output_dir
     ROUGH_TERRAINS_CFG.curriculum = False
     # generate terrains
-    terrain_generator = TerrainGenerator(cfg=ROUGH_TERRAINS_CFG)
+    terrain_generator = TerrainGenerator(cfg=ROUGH_TERRAINS_CFG)  # noqa: F841
 
-    # close the simulation app
-    simulation_app.close()
+
+if __name__ == "__main__":
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

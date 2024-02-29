@@ -15,7 +15,6 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit
 from omni.isaac.core.materials import PhysicsMaterial
 from omni.isaac.core.prims import GeometryPrim
-from omni.isaac.version import get_version
 from pxr import Gf, PhysxSchema, UsdPhysics, UsdShade
 
 
@@ -102,11 +101,8 @@ def create_ground_plane(
     # Warning: This is specific to the default grid plane asset.
     ambient_light = kwargs.get("ambient_light", True)
     if ambient_light:
-        # check isaacsim version to determine the attribute name
         attributes = {"intensity": 600.0}
-        isaacsim_version = get_version()
-        if int(isaacsim_version[2]) > 2022:
-            attributes = {f"inputs:{k}": v for k, v in attributes.items()}
+        attributes = {f"inputs:{k}": v for k, v in attributes.items()}
         # create light prim
         prim_utils.create_prim(f"{prim_path}/AmbientLight", "DistantLight", attributes=attributes)
 

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+import traceback
 import unittest
 
 """Launch Isaac Sim Simulator first.
@@ -16,7 +17,9 @@ This is only needed because of warp dependency.
 from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app in headless mode
-app_launcher = AppLauncher(headless=True)
+simulation_app = AppLauncher(headless=True).app
+
+import carb
 
 import omni.isaac.orbit.utils.math as math_utils
 
@@ -49,4 +52,12 @@ class TestMathUtilities(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

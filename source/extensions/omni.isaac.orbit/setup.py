@@ -28,7 +28,7 @@ INSTALL_REQUIRES = [
     "gymnasium==0.29.0",
     # procedural-generation
     "trimesh",
-    "pyglet",
+    "pyglet<2",
 ]
 
 # Installation operation

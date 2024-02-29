@@ -12,7 +12,6 @@ import omni
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from omni.isaac.version import get_version
 from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.orbit.sim.converters.asset_converter_base import AssetConverterBase
@@ -93,28 +92,17 @@ class MeshConverter(AssetConverterBase):
 
         # Open converted USD stage
         # note: This opens a new stage and does not use the stage created earlier by the user
-        # TODO: Fix this in Isaac 2023 using Usd.Stage.Open and update MovePrim commands to take in opened stage
-        isaacsim_major_version = int(get_version()[2])
-        if isaacsim_major_version == 2022:
-            omni.usd.get_context().open_stage(self.usd_path)
-            stage = omni.usd.get_context().get_stage()
-            # we do not need to cache as we use opened stage
-            stage_id = None
-            # no kwargs for 2022
-            stage_kwargs = {}
-            stage_or_context_kwargs = {}
-        else:
-            # create a new stage
-            stage = Usd.Stage.Open(self.usd_path)
-            # add USD to stage cache
-            stage_id = UsdUtils.StageCache.Get().Insert(stage)
-            # need to make kwargs for compatibility with 2022
-            stage_kwargs = {"stage": stage}
-            stage_or_context_kwargs = {"stage_or_context": stage}
-            # FIXME: we need to hack this into command because Kit 105 has a bug.
-            from omni.usd.commands import MovePrimCommand
+        # create a new stage
+        stage = Usd.Stage.Open(self.usd_path)
+        # add USD to stage cache
+        stage_id = UsdUtils.StageCache.Get().Insert(stage)
+        # need to make kwargs for compatibility with 2023
+        stage_kwargs = {"stage": stage}
+        stage_or_context_kwargs = {"stage_or_context": stage}
+        # FIXME: we need to hack this into command because Kit 105 has a bug.
+        from omni.usd.commands import MovePrimCommand
 
-            MovePrimCommand._selection = None  # type: ignore
+        MovePrimCommand._selection = None  # type: ignore
         # Set stage up-axis to Z
         # note: later we need to rotate the mesh so that it is Z-up in the world
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)

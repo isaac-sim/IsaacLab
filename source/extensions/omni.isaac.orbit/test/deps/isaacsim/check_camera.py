@@ -22,23 +22,27 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import traceback
+
+import carb
 
 # omni-isaac-orbit
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
     description="This script shows the issue with renderer in Isaac Sim that affects episodic resets."
 )
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--gpu", action="store_true", default=False, help="Use GPU device for camera rendering output.")
 parser.add_argument("--scenario", type=str, default="anymal", help="Scenario to load.", choices=["anymal", "cube"])
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -191,7 +195,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not world.is_playing():
-            world.step(render=not args_cli.headless)
+            world.step(render=False)
             continue
         # Reset on intervals
         if count % 25 == 0:
@@ -246,7 +250,13 @@ def main():
 
 
 if __name__ == "__main__":
-    # Runs the main function
-    main()
-    # Close the simulator
-    simulation_app.close()
+    try:
+        # Run the main function
+        main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

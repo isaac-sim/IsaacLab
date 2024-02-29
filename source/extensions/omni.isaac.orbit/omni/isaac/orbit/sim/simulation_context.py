@@ -515,18 +515,12 @@ class SimulationContext(_SimulationContext):
         physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
         physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
 
-        # simulation iteration count
-        if self.get_version()[0] == 2022:
-            # position and velocity iteration counts
-            physx_scene_api.CreateMinIterationCountAttr(self.cfg.physx.min_position_iteration_count)
-            physx_scene_api.CreateMaxIterationCountAttr(self.cfg.physx.max_position_iteration_count)
-        else:
-            # position iteration count
-            physx_scene_api.CreateMinPositionIterationCountAttr(self.cfg.physx.min_position_iteration_count)
-            physx_scene_api.CreateMaxPositionIterationCountAttr(self.cfg.physx.max_position_iteration_count)
-            # velocity iteration count
-            physx_scene_api.CreateMinVelocityIterationCountAttr(self.cfg.physx.min_velocity_iteration_count)
-            physx_scene_api.CreateMaxVelocityIterationCountAttr(self.cfg.physx.max_velocity_iteration_count)
+        # position iteration count
+        physx_scene_api.CreateMinPositionIterationCountAttr(self.cfg.physx.min_position_iteration_count)
+        physx_scene_api.CreateMaxPositionIterationCountAttr(self.cfg.physx.max_position_iteration_count)
+        # velocity iteration count
+        physx_scene_api.CreateMinVelocityIterationCountAttr(self.cfg.physx.min_velocity_iteration_count)
+        physx_scene_api.CreateMaxVelocityIterationCountAttr(self.cfg.physx.max_velocity_iteration_count)
 
         # create the default physics material
         # this material is used when no material is specified for a primitive
@@ -537,25 +531,12 @@ class SimulationContext(_SimulationContext):
         bind_physics_material(self.cfg.physics_prim_path, material_path)
 
     def _load_fabric_interface(self):
-        """Loads the flatcache/fabric interface if enabled."""
-        # check isaac sim version
-        # note: flatcache is called fabric in isaac sim 2023.x
-        #   in isaac sim 2022.x, we use physx-flatcache module
-        #   in isaac sim 2023.x, we use physx-fabric module
-        if self.get_version()[0] == 2022:
-            # check if flatcache is enabled
-            if self.cfg.use_flatcache:
-                from omni.physxflatcache import get_physx_flatcache_interface
+        """Loads the fabric interface if enabled."""
+        if self.cfg.use_fabric:
+            from omni.physxfabric import get_physx_fabric_interface
 
-                # acquire flatcache interface
-                self._fabric_iface = get_physx_flatcache_interface()
-        else:
-            # check if fabric is enabled
-            if self.cfg.use_fabric:
-                from omni.physxfabric import get_physx_fabric_interface
-
-                # acquire fabric interface
-                self._fabric_iface = get_physx_fabric_interface()
+            # acquire fabric interface
+            self._fabric_iface = get_physx_fabric_interface()
 
     """
     Callbacks.

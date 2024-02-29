@@ -8,11 +8,11 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 

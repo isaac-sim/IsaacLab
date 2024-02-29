@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.version import get_version
 from pxr import Usd, UsdLux
 
 from omni.isaac.orbit.sim.utils import clone, safe_set_attribute_on_usd_prim
@@ -50,8 +49,6 @@ def spawn_light(
     # create the prim
     prim = prim_utils.create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
 
-    # obtain isaac sim version
-    isaac_sim_version = int(get_version()[2])
     # convert to dict
     cfg = cfg.to_dict()
     # delete spawner func specific parameters
@@ -73,12 +70,7 @@ def spawn_light(
             else:
                 raise ValueError(f"Unsupported texture attribute: '{attr_name}'.")
         else:
-            # there was a change in the USD API for setting attributes for lights
-            # USD 22.1 onwards, we need to set the attribute on the inputs namespace
-            if isaac_sim_version <= 2022:
-                prim_prop_name = attr_name
-            else:
-                prim_prop_name = f"inputs:{attr_name}"
+            prim_prop_name = f"inputs:{attr_name}"
             # set the attribute
             safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
     # return the prim

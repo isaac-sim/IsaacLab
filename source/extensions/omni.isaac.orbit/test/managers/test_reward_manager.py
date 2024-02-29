@@ -7,16 +7,19 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
+import traceback
 import unittest
 from collections import namedtuple
+
+import carb
 
 from omni.isaac.orbit.managers import RewardManager, RewardTermCfg
 from omni.isaac.orbit.utils import configclass
@@ -168,5 +171,12 @@ class TestRewardManager(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
-    simulation_app.close()
+    try:
+        unittest.main()
+    except Exception as err:
+        carb.log_error(err)
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        # close sim app
+        simulation_app.close()

@@ -17,7 +17,6 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from omni.isaac.cloner import Cloner
-from omni.isaac.version import get_version
 from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from omni.isaac.orbit.utils.string import to_camel_case
@@ -272,14 +271,8 @@ def clone(func: Callable) -> Callable:
         # clone asset using cloner API
         if len(prim_paths) > 1:
             cloner = Cloner()
-            # clone the prim based on isaac-sim version
-            isaac_major_version = int(get_version()[2])
-            if isaac_major_version <= 2022:
-                cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False)
-            else:
-                cloner.clone(
-                    prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source
-                )
+            # clone the prim
+            cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source)
         # return the source prim
         return prim
 

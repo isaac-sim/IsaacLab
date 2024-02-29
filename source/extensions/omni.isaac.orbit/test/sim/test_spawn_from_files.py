@@ -20,7 +20,6 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.extensions import get_extension_path_from_name
-from omni.isaac.version import get_version
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
@@ -37,8 +36,6 @@ class TestSpawningFromFiles(unittest.TestCase):
         self.dt = 0.1
         # Load kit helper
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
-        # Isaac Sim version
-        self.isaacsim_version_year = int(get_version()[2])
         # Wait for spawning
         stage_utils.update_stage()
 
@@ -67,10 +64,7 @@ class TestSpawningFromFiles(unittest.TestCase):
     def test_spawn_urdf(self):
         """Test loading prim from URDF file."""
         # retrieve path to urdf importer extension
-        if self.isaacsim_version_year == 2022:
-            extension_path = get_extension_path_from_name("omni.isaac.urdf")
-        else:
-            extension_path = get_extension_path_from_name("omni.importer.urdf")
+        extension_path = get_extension_path_from_name("omni.importer.urdf")
         # Spawn franka from URDF
         cfg = sim_utils.UrdfFileCfg(
             asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True
