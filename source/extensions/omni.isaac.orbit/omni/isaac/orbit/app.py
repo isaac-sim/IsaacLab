@@ -653,6 +653,8 @@ class AppLauncher:
         # note: we need to always import this even with headless to make
         #   the module for orbit.envs.ui work
         enable_extension("omni.isaac.ui")
+        # enable animation recording extension
+        enable_extension("omni.kit.stagerecorder.core")
 
         # set the nucleus directory manually to the 2023.1.0 version
         # TODO: Remove this once the 2023.1.0 version is released

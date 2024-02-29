@@ -17,6 +17,9 @@ from omni.isaac.orbit.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Orbit environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument(
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--device", type=str, default="keyboard", help="Device for interacting with environment")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -64,7 +67,9 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 def main():
     """Running keyboard teleoperation with Orbit manipulation environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(
+        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    )
     # modify configuration
     env_cfg.terminations.time_out = None
 

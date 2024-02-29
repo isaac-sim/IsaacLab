@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.10.27 (2024-02-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added UI feature to start and stop animation recording in the stage when running an environment.
+  To enable this feature, please pass the argument ``--disable_fabric`` to the environment script to allow
+  USD read/write operations. Be aware that this will slow down the simulation.
+
+
 0.10.26 (2024-02-26)
 ~~~~~~~~~~~~~~~~~~~~
 

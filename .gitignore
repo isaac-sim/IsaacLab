@@ -55,3 +55,4 @@ _build
 # RL-Games
 **/runs/*
 **/logs/*
+**/recordings/*

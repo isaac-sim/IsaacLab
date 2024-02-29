@@ -229,9 +229,22 @@ class SimulationContext(_SimulationContext):
     def has_gui(self) -> bool:
         """Returns whether the simulation has a GUI enabled.
 
-        The simulation has a GUI enabled either locally or livestreamed.
+        True if the simulation has a GUI enabled either locally or live-streamed.
         """
         return self._has_gui
+
+    def is_fabric_enabled(self) -> bool:
+        """Returns whether the fabric interface is enabled.
+
+        When fabric interface is enabled, USD read/write operations are disabled. Instead all applications
+        read and write the simulation state directly from the fabric interface. This reduces a lot of overhead
+        that occurs during USD read/write operations.
+
+        For more information, please check `Fabric documentation`_.
+
+        .. _Fabric documentation: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
+        """
+        return self._fabric_iface is not None
 
     def get_version(self) -> tuple[int, int, int]:
         """Returns the version of the simulator.

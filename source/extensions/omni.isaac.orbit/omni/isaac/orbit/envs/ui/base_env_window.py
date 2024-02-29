@@ -6,12 +6,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import weakref
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import omni.isaac.ui.ui_utils as ui_utils
+import omni.kit.app
+import omni.kit.commands
 import omni.ui
+import omni.usd
 from omni.kit.window.extensions import SimpleCheckBox
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
 if TYPE_CHECKING:
     from ..base_env import BaseEnv
@@ -115,6 +121,19 @@ class BaseEnvWindow:
                 }
                 self.ui_window_elements["render_dropdown"] = ui_utils.dropdown_builder(**render_mode_cfg)
 
+                # create animation recording box
+                record_animate_cfg = {
+                    "label": "Record Animation",
+                    "type": "state_button",
+                    "a_text": "START",
+                    "b_text": "STOP",
+                    "tooltip": "Record the animation of the scene. Only effective if fabric is disabled.",
+                    "on_clicked_fn": lambda value: self._toggle_recording_animation_fn(value),
+                }
+                self.ui_window_elements["record_animation"] = ui_utils.state_btn_builder(**record_animate_cfg)
+                # disable the button if fabric is not enabled
+                self.ui_window_elements["record_animation"].enabled = not self.env.sim.is_fabric_enabled()
+
     def _build_viewer_frame(self):
         """Build the viewer-related control frame for the UI."""
         # create collapsable frame for viewer
@@ -214,6 +233,85 @@ class BaseEnvWindow:
     """
     Custom callbacks for UI elements.
     """
+
+    def _toggle_recording_animation_fn(self, value: bool):
+        """Toggles the animation recording."""
+        if value:
+            # log directory to save the recording
+            if not hasattr(self, "animation_log_dir"):
+                # create a new log directory
+                log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                self.animation_log_dir = os.path.join(os.getcwd(), "recordings", log_dir)
+            # start the recording
+            _ = omni.kit.commands.execute(
+                "StartRecording",
+                target_paths=[("/World", True)],
+                live_mode=True,
+                use_frame_range=False,
+                start_frame=0,
+                end_frame=0,
+                use_preroll=False,
+                preroll_frame=0,
+                record_to="FILE",
+                fps=0,
+                apply_root_anim=False,
+                increment_name=True,
+                record_folder=self.animation_log_dir,
+                take_name="TimeSample",
+            )
+        else:
+            # stop the recording
+            _ = omni.kit.commands.execute("StopRecording")
+            # save the current stage
+            stage = omni.usd.get_context().get_stage()
+            source_layer = stage.GetRootLayer()
+            # output the stage to a file
+            stage_usd_path = os.path.join(self.animation_log_dir, "Stage.usd")
+            source_prim_path = "/"
+            # creates empty anon layer
+            temp_layer = Sdf.Find(stage_usd_path)
+            if temp_layer is None:
+                temp_layer = Sdf.Layer.CreateNew(stage_usd_path)
+            temp_stage = Usd.Stage.Open(temp_layer)
+            # update stage data
+            UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.GetStageUpAxis(stage))
+            UsdGeom.SetStageMetersPerUnit(temp_stage, UsdGeom.GetStageMetersPerUnit(stage))
+            # copy the prim
+            Sdf.CreatePrimInLayer(temp_layer, source_prim_path)
+            Sdf.CopySpec(source_layer, source_prim_path, temp_layer, source_prim_path)
+            # set the default prim
+            temp_layer.defaultPrim = Sdf.Path(source_prim_path).name
+            # remove all physics from the stage
+            for prim in temp_stage.TraverseAll():
+                # skip if the prim is an instance
+                if prim.IsInstanceable():
+                    continue
+                # if prim has articulation then disable it
+                if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                    prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+                    prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+                # if prim has rigid body then disable it
+                if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+                    prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+                # if prim is a joint type then disable it
+                if prim.IsA(UsdPhysics.Joint):
+                    prim.GetAttribute("physics:jointEnabled").Set(False)
+            # resolve all paths relative to layer path
+            omni.usd.resolve_paths(source_layer.identifier, temp_layer.identifier)
+            # save the stage
+            temp_layer.Save()
+            # print the path to the saved stage
+            print("Recording completed.")
+            print(f"\tSaved recorded stage to    : {stage_usd_path}")
+            print(f"\tSaved recorded animation to: {os.path.join(self.animation_log_dir, 'TimeSample_tk001.usd')}")
+            print("\nTo play the animation, check the instructions in the following link:")
+            print(
+                "\thttps://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html#using-the-captured-timesamples"
+            )
+            print("\n")
+            # reset the log directory
+            self.animation_log_dir = None
 
     def _set_viewer_origin_type_fn(self, value: str):
         """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""

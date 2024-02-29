@@ -13,12 +13,12 @@ import inspect
 import os
 import re
 import yaml
-from typing import Any
 
+from omni.isaac.orbit.envs import RLTaskEnvCfg
 from omni.isaac.orbit.utils import update_class_from_dict, update_dict
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Any:
+def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | RLTaskEnvCfg:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -97,13 +97,18 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Any:
     return cfg
 
 
-def parse_env_cfg(task_name: str, use_gpu: bool | None = None, num_envs: int | None = None) -> dict | Any:
+def parse_env_cfg(
+    task_name: str, use_gpu: bool | None = None, num_envs: int | None = None, use_fabric: bool | None = None
+) -> dict | RLTaskEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
         task_name: The name of the environment.
         use_gpu: Whether to use GPU/CPU pipeline. Defaults to None, in which case it is left unchanged.
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
+        use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
+            This slows down the simulation but allows seeing the changes in the USD through the USD stage.
+            Defaults to None, in which case it is left unchanged.
 
     Returns:
         The parsed configuration object. This is either a dictionary or a class object.
@@ -126,6 +131,10 @@ def parse_env_cfg(task_name: str, use_gpu: bool | None = None, num_envs: int | N
             args_cfg["sim"]["use_gpu_pipeline"] = True
             args_cfg["sim"]["physx"]["use_gpu"] = True
             args_cfg["sim"]["device"] = "cuda:0"
+
+    # disable fabric to read/write through USD
+    if use_fabric is not None:
+        args_cfg["sim"]["use_fabric"] = use_fabric
 
     # number of environments
     if num_envs is not None:

@@ -24,6 +24,9 @@ from omni.isaac.orbit.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument(
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -221,6 +224,7 @@ class PickAndLiftSm:
                 self.des_gripper_state_wp,
                 self.offset_wp,
             ],
+            device=self.device,
         )
 
         # convert to torch
@@ -230,7 +234,10 @@ class PickAndLiftSm:
 def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
-        "Isaac-Lift-Cube-Franka-IK-Abs-v0", use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs
+        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        use_gpu=not args_cli.cpu,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
     )
     # create environment
     env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
