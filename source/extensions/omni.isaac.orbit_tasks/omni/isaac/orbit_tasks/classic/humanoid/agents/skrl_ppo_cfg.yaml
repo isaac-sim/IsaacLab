@@ -7,6 +7,7 @@ models:
   policy:  # see skrl.utils.model_instantiators.gaussian_model for parameter details
     clip_actions: True
     clip_log_std: True
+    initial_log_std: 0
     min_log_std: -20.0
     max_log_std: 2.0
     input_shape: "Shape.STATES"
@@ -34,7 +35,7 @@ agent:
   discount_factor: 0.99
   lambda: 0.95
   learning_rate: 3.e-4
-  learning_rate_scheduler: "KLAdaptiveRL"
+  learning_rate_scheduler: "KLAdaptiveLR"
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
   state_preprocessor: "RunningStandardScaler"

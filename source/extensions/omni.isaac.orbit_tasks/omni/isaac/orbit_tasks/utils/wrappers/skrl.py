@@ -30,12 +30,12 @@ import torch
 import tqdm
 
 from skrl.agents.torch import Agent
-from skrl.envs.torch.wrappers import Wrapper, wrap_env
+from skrl.envs.wrappers.torch import Wrapper, wrap_env
 from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
-from skrl.resources.schedulers.torch import KLAdaptiveRL  # noqa: F401
+from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
 from skrl.trainers.torch import Trainer
 from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
-from skrl.utils.model_instantiators import Shape  # noqa: F401
+from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
 
 from omni.isaac.orbit.envs import RLTaskEnv
 
@@ -160,7 +160,7 @@ class SkrlSequentialLogTrainer(Trainer):
         # initialize the base class
         super().__init__(env=env, agents=agents, agents_scope=agents_scope, cfg=_cfg)
         # init agents
-        if self.num_agents > 1:
+        if self.env.num_agents > 1:
             for agent in self.agents:
                 agent.init(trainer_cfg=self.cfg)
         else:
@@ -271,10 +271,10 @@ class SkrlSequentialLogTrainer(Trainer):
                         timesteps=self.timesteps,
                     )
                     # log custom environment data
-                    if "episode" in infos:
-                        for k, v in infos["episode"].items():
+                    if "log" in infos:
+                        for k, v in infos["log"].items():
                             if isinstance(v, torch.Tensor) and v.numel() == 1:
-                                agent.track_data(f"EpisodeInfo / {k}", v.item())
+                                agent.track_data(k, v.item())
                     # perform post-interaction
                     super(type(agent), agent).post_interaction(timestep=timestep, timesteps=self.timesteps)
 

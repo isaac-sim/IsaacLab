@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.7 (2024-02-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the RL wrapper for the skrl library to the latest release (>= 1.1.0)
+
+
 0.5.6 (2024-02-21)
 ~~~~~~~~~~~~~~~~~~
 
