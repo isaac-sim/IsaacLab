@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.11.2 (2024-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added checks for default joint position and joint velocity in the articulation class. This is to prevent
+  users from configuring values for these quantities that might be outside the valid range from the simulation.
+
+
 0.11.1 (2024-02-29)
 ~~~~~~~~~~~~~~~~~~~
 

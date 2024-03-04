@@ -185,6 +185,42 @@ class TestArticulation(unittest.TestCase):
             # update robot
             robot.update(self.dt)
 
+    def test_out_of_range_default_joint_pos(self):
+        """Test that the default joint position from configuration is out of range."""
+        # Create articulation
+        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+        robot_cfg.init_state.joint_pos = {
+            "panda_joint1": 10.0,
+            "panda_joint[2, 4]": -20.0,
+        }
+        robot = Articulation(robot_cfg)
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertFalse(robot._is_initialized)
+
+    def test_out_of_range_default_joint_vel(self):
+        """Test that the default joint velocity from configuration is out of range."""
+        # Create articulation
+        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+        robot_cfg.init_state.joint_vel = {
+            "panda_joint1": 100.0,
+            "panda_joint[2, 4]": -60.0,
+        }
+        robot = Articulation(robot_cfg)
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertFalse(robot._is_initialized)
+
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the robot."""
 
