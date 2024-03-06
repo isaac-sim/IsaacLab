@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.11.3 (2024-03-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Corrects the functions :func:`omni.isaac.orbit.utils.math.axis_angle_from_quat` and :func:`omni.isaac.orbit.utils.math.quat_error_magnitude`
+  to accept tensors of the form (..., 4) instead of (N, 4). This brings us in line with our documentation and also upgrades one of our functions
+  to handle higher dimensions.
+
+
 0.11.2 (2024-03-04)
 ~~~~~~~~~~~~~~~~~~~
 

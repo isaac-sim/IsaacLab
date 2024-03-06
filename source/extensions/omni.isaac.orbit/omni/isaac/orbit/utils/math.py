@@ -634,7 +634,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     # When theta = 0, (sin(theta/2) / theta) is undefined
     # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
     quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
-    mag = torch.linalg.norm(quat[..., 1:], dim=1)
+    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
     half_angle = torch.atan2(mag, quat[..., 0])
     angle = 2.0 * half_angle
     # check whether to apply Taylor approximation
@@ -649,14 +649,14 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """Computes the rotation difference between two quaternions.
 
     Args:
-        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
-        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
+        q1: The first quaternion in (w, x, y, z). Shape is (..., 4).
+        q2: The second quaternion in (w, x, y, z). Shape is (..., 4).
 
     Returns:
         Angular error between input quaternions in radians.
     """
     quat_diff = quat_mul(q1, quat_conjugate(q2))
-    return torch.norm(axis_angle_from_quat(quat_diff), dim=1)
+    return torch.norm(axis_angle_from_quat(quat_diff), dim=-1)
 
 
 @torch.jit.script
