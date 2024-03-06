@@ -9,7 +9,10 @@ import builtins
 import enum
 import numpy as np
 import sys
+import traceback
 import weakref
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import carb
@@ -21,6 +24,7 @@ from omni.isaac.version import get_version
 from pxr import Gf, Usd
 
 from .simulation_cfg import SimulationCfg
+from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import bind_physics_material
 
 
@@ -77,7 +81,7 @@ class SimulationContext(_SimulationContext):
            extensions that are running in the background that need to be updated when the simulation is running.
         2. **Cameras**: These are typically based on Hydra textures and are used to render the scene from different
            viewpoints. They can be attached to a viewport or be used independently to render the scene.
-        3. **`Viewports`**: These are windows where you can see the rendered scene.
+        3. **Viewports**: These are windows where you can see the rendered scene.
 
         Updating each of the above components has a different overhead. For example, updating the viewports is
         computationally expensive compared to updating the UI elements. Therefore, it is useful to be able to
@@ -593,3 +597,101 @@ class SimulationContext(_SimulationContext):
             self.app.shutdown()
             # disabled on linux to avoid a crash
             carb.get_framework().unload_all_plugins()
+
+
+@contextmanager
+def build_simulation_context(
+    create_new_stage: bool = True,
+    gravity_enabled: bool = True,
+    device: str = "cuda:0",
+    dt: float = 0.01,
+    sim_cfg: SimulationCfg | None = None,
+    add_ground_plane: bool = False,
+    add_lighting: bool = False,
+    auto_add_lighting: bool = False,
+) -> Iterator[SimulationContext]:
+    """Context manager to build a simulation context with the provided settings.
+
+    This function facilitates the creation of a simulation context and provides flexibility in configuring various
+    aspects of the simulation, such as time step, gravity, device, and scene elements like ground plane and
+    lighting.
+
+    If :attr:`sim_cfg` is None, then an instance of :class:`SimulationCfg` is created with default settings, with parameters
+    overwritten based on arguments to the function.
+
+    An example usage of the context manager function:
+
+    ..  code-block:: python
+
+        with build_simulation_context() as sim:
+             # Design the scene
+
+             # Play the simulation
+             sim.reset()
+             while sim.is_playing():
+                 sim.step()
+
+    Args:
+        create_new_stage: Whether to create a new stage. Defaults to True.
+        gravity_enabled: Whether to enable gravity in the simulation. Defaults to True.
+        device: Device to run the simulation on. Defaults to "cuda:0".
+        dt: Time step for the simulation: Defaults to 0.01.
+        sim_cfg: :class:`omni.isaac.orbit.sim.SimulationCfg` to use for the simulation. Defaults to None.
+        add_ground_plane: Whether to add a ground plane to the simulation. Defaults to False.
+        add_lighting: Whether to add a dome light to the simulation. Defaults to False.
+        auto_add_lighting: Whether to automatically add a dome light to the simulation if the simulation has a GUI.
+            Defaults to False. This is useful for debugging tests in the GUI.
+
+    Yields:
+        The simulation context to use for the simulation.
+
+    """
+    try:
+        if create_new_stage:
+            stage_utils.create_new_stage()
+
+        if sim_cfg is None:
+            # Construct one and overwrite the dt, gravity, and device
+            sim_cfg = SimulationCfg(dt=dt)
+
+            # Set up gravity
+            if gravity_enabled:
+                sim_cfg.gravity = (0.0, 0.0, -9.81)
+            else:
+                sim_cfg.gravity = (0.0, 0.0, 0.0)
+
+            # Set device
+            sim_cfg.device = device
+
+        # Construct simulation context
+        sim = SimulationContext(sim_cfg)
+
+        if add_ground_plane:
+            # Ground-plane
+            cfg = GroundPlaneCfg()
+            cfg.func("/World/defaultGroundPlane", cfg)
+
+        if add_lighting or (auto_add_lighting and sim.has_gui()):
+            # Lighting
+            cfg = DomeLightCfg(
+                color=(0.1, 0.1, 0.1),
+                enable_color_temperature=True,
+                color_temperature=5500,
+                intensity=10000,
+            )
+            # Dome light named specifically to avoid conflicts
+            cfg.func(prim_path="/World/defaultDomeLight", cfg=cfg, translation=(0.0, 0.0, 10.0))
+
+        yield sim
+
+    except Exception:
+        carb.log_error(traceback.format_exc())
+        raise
+    finally:
+        if not sim.has_gui():
+            # Stop simulation only if we aren't rendering otherwise the app will hang indefinitely
+            sim.stop()
+
+        # Clear the stage
+        sim.clear_all_callbacks()
+        sim.clear_instance()
