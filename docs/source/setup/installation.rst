@@ -219,6 +219,21 @@ use the following command:
    # Option 2: Custom name for conda environment
    ./orbit.sh --conda my_env  # or "./orbit.sh -c my_env"
 
+Note: If you are using ``zsh`` rather than ``bash``, you should also change ``SCRIPT_DIR`` in ``_isaac_sim/setup_conda_env.sh`` and ``_isaac_sim/setup_python_env.sh``.  For example:
+
+.. code:: bash
+
+  if [ -n "$BASH_VERSION" ]; then
+    # Bash 
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+  elif [ -n "$ZSH_VERSION" ]; then
+    # Zsh 
+    SCRIPT_DIR="$( cd "$( dirname "${(%):-%x}" )" && pwd )"
+  else
+    echo "Unsupported shell."
+    exit 1
+  fi
+
 If you are using ``conda`` to create a virtual environment, make sure to
 activate the environment before running any scripts. For example:
 
