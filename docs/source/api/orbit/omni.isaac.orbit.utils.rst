@@ -9,6 +9,7 @@
 
       io
       array
+      assets
       dict
       math
       noise
@@ -41,6 +42,13 @@ Array operations
 ~~~~~~~~~~~~~~~~
 
 .. automodule:: omni.isaac.orbit.utils.array
+   :members:
+   :show-inheritance:
+
+Asset operations
+~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.orbit.utils.assets
    :members:
    :show-inheritance:
 
