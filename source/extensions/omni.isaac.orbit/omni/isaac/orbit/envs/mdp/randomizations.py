@@ -220,6 +220,76 @@ def reset_root_state_uniform(
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 
+def reset_robot_root_from_terrain(
+    env: BaseEnv,
+    env_ids: torch.Tensor,
+    pose_range: dict[str, tuple[float, float]],
+    velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the robot root state by sampling a random valid pose from the terrain.
+
+    This function samples a random valid pose(based on flat patches) from the terrain and sets the root state
+    of the robot to this pose. The function also samples random velocities from the given ranges and sets them
+    into the physics simulation.
+
+    Note:
+        The function expects the terrain to have valid flat patches under the key "init_pos". The flat patches
+        are used to sample the random pose for the robot.
+
+    Raises:
+        ValueError: If the terrain does not have valid flat patches under the key "init_pos".
+    """
+    # access the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+
+    # obtain all flat patches corresponding to the valid poses
+    valid_poses: torch.Tensor = env.scene.terrain.flat_patches.get("init_pos")
+    if valid_poses is None:
+        raise ValueError(
+            "The randomization term 'reset_robot_root_from_terrain' requires valid flat patches under 'init_pos'."
+            f" Found: {list(env.scene.terrain.flat_patches.keys())}"
+        )
+
+    # sample random valid poses
+    ids = torch.randint(0, valid_poses.shape[2], size=(len(env_ids),), device=env.device)
+    positions = valid_poses[env.scene.terrain.terrain_levels[env_ids], env.scene.terrain.terrain_types[env_ids], ids]
+    positions += asset.data.default_root_state[env_ids, :3]
+
+    # sample random orientations
+    ranges = torch.tensor(
+        [
+            pose_range.get("roll", (0.0, 0.0)),
+            pose_range.get("pitch", (0.0, 0.0)),
+            pose_range.get("yaw", (0.0, 0.0)),
+        ],
+        device=env.device,
+    )
+    euler_angles = torch.zeros_like(positions).uniform_()
+    euler_angles = ranges[0] + (ranges[1] - ranges[0]) * euler_angles
+    # convert to quaternions
+    orientations = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
+
+    # sample random velocities
+    ranges = torch.tensor(
+        [
+            velocity_range.get("x", (0.0, 0.0)),
+            velocity_range.get("y", (0.0, 0.0)),
+            velocity_range.get("z", (0.0, 0.0)),
+            velocity_range.get("roll", (0.0, 0.0)),
+            velocity_range.get("pitch", (0.0, 0.0)),
+            velocity_range.get("yaw", (0.0, 0.0)),
+        ],
+        device=env.device,
+    )
+    velocities = torch.zeros(len(env_ids), 6, device=asset.device).uniform_()
+    velocities = ranges[:, 0] + (ranges[:, 1] - ranges[:, 0]) * velocities
+
+    # set into the physics simulation
+    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
 def reset_joints_by_scale(
     env: BaseEnv,
     env_ids: torch.Tensor,

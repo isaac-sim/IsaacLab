@@ -24,6 +24,45 @@ from omni.isaac.orbit.utils import configclass
 
 
 @configclass
+class FlatPatchSamplingCfg:
+    """Configuration for sampling flat patches on the sub-terrain.
+
+    For a given sub-terrain, this configuration specifies how to sample flat patches on the terrain.
+    The sampled flat patches can be used for spawning robots, targets, etc.
+
+    Please check the function :meth:`~omni.isaac.orbit.terrains.utils.find_flat_patches` for more details.
+    """
+
+    num_patches: int = MISSING
+    """Number of patches to sample."""
+
+    patch_radius: float | list[float] = MISSING
+    """Radius of the patches.
+
+    A list of radii can be provided to check for patches of different sizes. This is useful to deal with
+    cases where the terrain may have holes or obstacles in some areas.
+    """
+
+    x_range: tuple[float, float] = (-1e6, 1e6)
+    """The range of x-coordinates to sample from. Defaults to (-1e6, 1e6).
+
+    This range is internally clamped to the size of the terrain mesh.
+    """
+
+    y_range: tuple[float, float] = (-1e6, 1e6)
+    """The range of y-coordinates to sample from. Defaults to (-1e6, 1e6).
+
+    This range is internally clamped to the size of the terrain mesh.
+    """
+
+    z_range: tuple[float, float] = (-1e6, 1e6)
+    """Allowed range of z-coordinates for the sampled patch. Defaults to (-1e6, 1e6)."""
+
+    max_height_diff: float = MISSING
+    """Maximum allowed height difference between the highest and lowest points on the patch."""
+
+
+@configclass
 class SubTerrainBaseCfg:
     """Base class for terrain configurations.
 
@@ -51,6 +90,14 @@ class SubTerrainBaseCfg:
 
     size: tuple[float, float] = MISSING
     """The width (along x) and length (along y) of the terrain (in m)."""
+
+    flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None
+    """Dictionary of configurations for sampling flat patches on the sub-terrain. Defaults to None,
+    in which case no flat patch sampling is performed.
+
+    The keys correspond to the name of the flat patch sampling configuration and the values are the
+    corresponding configurations.
+    """
 
 
 @configclass
@@ -115,16 +162,17 @@ class TerrainGeneratorCfg:
     """
 
     sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING
-    """List of sub-terrain configurations."""
+    """Dictionary of sub-terrain configurations.
 
-    difficulty_choices: list[float] = [0.5, 0.75, 0.9]
-    """List of difficulty choices. Defaults to [0.5, 0.75, 0.9].
+    The keys correspond to the name of the sub-terrain configuration and the values are the corresponding
+    configurations.
+    """
 
-    The difficulty choices are used to sample the difficulty of the generated terrain. The specified
-    choices are randomly sampled with equal probability.
+    difficulty_range: tuple[float, float] = (0.0, 1.0)
+    """The range of difficulty values for the sub-terrains. Defaults to (0.0, 1.0).
 
-    Note:
-      This is used only when curriculum-based generation is disabled.
+    If curriculum is enabled, the terrains will be generated based on this range in ascending order
+    of difficulty. Otherwise, the terrains will be generated based on this range in a random order.
     """
 
     use_cache: bool = False

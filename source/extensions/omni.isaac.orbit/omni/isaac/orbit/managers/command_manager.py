@@ -354,6 +354,17 @@ class CommandManager(ManagerBase):
         """
         return self._terms[name].command
 
+    def get_term(self, name: str) -> CommandTerm:
+        """Returns the command term with the specified name.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command term with the specified name.
+        """
+        return self._terms[name]
+
     """
     Helper functions.
     """

@@ -8,11 +8,12 @@
 from .commands_cfg import (
     NormalVelocityCommandCfg,
     NullCommandCfg,
-    TerrainBasedPositionCommandCfg,
+    UniformPose2dCommandCfg,
     UniformPoseCommandCfg,
+    UniformTerrainBasedPose2dCommandCfg,
     UniformVelocityCommandCfg,
 )
 from .null_command import NullCommand
+from .pose_2d_command import UniformPose2dCommand, UniformTerrainBasedPose2dCommandCfg
 from .pose_command import UniformPoseCommand
-from .position_command import TerrainBasedPositionCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand

@@ -8,7 +8,6 @@ from __future__ import annotations
 import numpy as np
 import torch
 import trimesh
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp
@@ -77,6 +76,8 @@ class TerrainImporter:
         self.warp_meshes = dict()
         self.env_origins = None
         self.terrain_origins = None
+        # private variables
+        self._terrain_flat_patches = dict()
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
@@ -84,10 +85,12 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator)
+            terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator, device=self.device)
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # configure the terrain origins based on the terrain generator
             self.configure_env_origins(terrain_generator.terrain_origins)
+            # refer to the flat patches
+            self._terrain_flat_patches = terrain_generator.flat_patches
         elif self.cfg.terrain_type == "usd":
             # check if config is provided
             if self.cfg.usd_path is None:
@@ -118,6 +121,17 @@ class TerrainImporter:
         This always returns True.
         """
         return True
+
+    @property
+    def flat_patches(self) -> dict[str, torch.Tensor]:
+        """A dictionary containing the sampled valid (flat) patches for the terrain.
+
+        This is only available if the terrain type is 'generator'. For other terrain types, this feature
+        is not available and the function returns an empty dictionary.
+
+        Please refer to the :attr:`TerrainGenerator.flat_patches` for more information.
+        """
+        return self._terrain_flat_patches
 
     """
     Operations - Visibility.
@@ -304,26 +318,6 @@ class TerrainImporter:
         )
         # update the env origins
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
-
-    """
-    Operations - Sampling
-    """
-
-    def sample_new_targets(self, env_ids: Sequence[int]) -> torch.Tensor:
-        """Samples terrain-aware locations of flat patches to set spawn or target locations.
-
-        Note:
-            This is a dummy function that returns the environment origins as target locations.
-            Please inherit the class and reimplement the function for specific terrain types
-
-        Args:
-            env_ids: The environment indices to sample targets locations for.
-
-        Returns:
-            The sampled target locations as (x, y, z). Shape is (N, 3).
-        """
-
-        return self.env_origins[env_ids]
 
     """
     Internal helpers.
