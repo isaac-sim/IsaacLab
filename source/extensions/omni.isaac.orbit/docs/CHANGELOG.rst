@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.12.1 (2024-03-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an option to the last actions observation term to get a specific term by name from the action manager.
+  If None, the behavior remains the same as before (the entire action is returned).
+
+
 0.12.0 (2024-03-08)
 ~~~~~~~~~~~~~~~~~~~
 

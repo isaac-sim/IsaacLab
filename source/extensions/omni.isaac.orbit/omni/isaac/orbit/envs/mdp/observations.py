@@ -101,6 +101,7 @@ Sensors.
 
 def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.
+
     The provided offset (Defaults to 0.5) is subtracted from the returned values.
     """
     # extract the used quantities (to enable type-hinting)
@@ -126,9 +127,16 @@ Actions.
 """
 
 
-def last_action(env: BaseEnv) -> torch.Tensor:
-    """The last input action to the environment."""
-    return env.action_manager.action
+def last_action(env: BaseEnv, action_name: str | None = None) -> torch.Tensor:
+    """The last input action to the environment.
+
+    The name of the action term for which the action is required. If None, the
+    entire action tensor is returned.
+    """
+    if action_name is None:
+        return env.action_manager.action
+    else:
+        return env.action_manager.get_term(action_name).raw_actions
 
 
 """
