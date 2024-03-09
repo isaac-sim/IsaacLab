@@ -12,7 +12,7 @@ from omni.isaac.orbit.managers import CommandTermCfg
 from omni.isaac.orbit.utils import configclass
 
 from .null_command import NullCommand
-from .pose_2d_command import UniformPose2dCommand, UniformTerrainBasedPose2dCommand
+from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
 from .pose_command import UniformPoseCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
@@ -130,8 +130,7 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
-    rel_standing_envs: float = MISSING
-    """Probability threshold for environments where the robots that are standing still."""
+
     simple_heading: bool = MISSING
     """Whether to use simple heading or not.
 
@@ -157,10 +156,10 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
 
 @configclass
-class UniformTerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
+class TerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_type = UniformTerrainBasedPose2dCommand
+    class_type = TerrainBasedPose2dCommand
 
     @configclass
     class Ranges:

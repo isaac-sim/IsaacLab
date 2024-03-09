@@ -21,7 +21,7 @@ from omni.isaac.orbit.utils.math import quat_from_euler_xyz, quat_rotate_inverse
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
 
-    from .commands_cfg import UniformPose2dCommandCfg, UniformTerrainBasedPose2dCommandCfg
+    from .commands_cfg import TerrainBasedPose2dCommandCfg, UniformPose2dCommandCfg
 
 
 class UniformPose2dCommand(CommandTerm):
@@ -64,8 +64,7 @@ class UniformPose2dCommand(CommandTerm):
     def __str__(self) -> str:
         msg = "PositionCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
-        msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
-        msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
+        msg += f"\tResampling time range: {self.cfg.resampling_time_range}"
         return msg
 
     """
@@ -148,7 +147,7 @@ class UniformPose2dCommand(CommandTerm):
         )
 
 
-class UniformTerrainBasedPose2dCommand(UniformPose2dCommand):
+class TerrainBasedPose2dCommand(UniformPose2dCommand):
     """Command generator that generates pose commands based on the terrain.
 
     This command generator samples the position commands from the valid patches of the terrain.
@@ -157,7 +156,10 @@ class UniformTerrainBasedPose2dCommand(UniformPose2dCommand):
     It expects the terrain to have a valid flat patches under the key 'target'.
     """
 
-    def __init__(self, cfg: UniformTerrainBasedPose2dCommandCfg, env: BaseEnv):
+    cfg: TerrainBasedPose2dCommandCfg
+    """Configuration for the command generator."""
+
+    def __init__(self, cfg: TerrainBasedPose2dCommandCfg, env: BaseEnv):
         # initialize the base class
         super().__init__(cfg, env)
 
