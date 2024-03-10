@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Script to run an environment with a pick and lift state machine.
+Script to run an environment with a cabinet opening state machine.
 
 The state machine is implemented in the kernel function `infer_state_machine`.
 It uses the `warp` library to run the state machine in parallel on the GPU.
@@ -22,7 +22,7 @@ import argparse
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
+parser = argparse.ArgumentParser(description="Pick and lift state machine for cabinet environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -47,10 +47,10 @@ from collections.abc import Sequence
 import carb
 import warp as wp
 
-from omni.isaac.orbit.assets.rigid_object.rigid_object_data import RigidObjectData
+from omni.isaac.orbit.sensors import FrameTransformer
 
 import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from omni.isaac.orbit_tasks.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
@@ -64,24 +64,26 @@ class GripperState:
     CLOSE = wp.constant(-1.0)
 
 
-class PickSmState:
-    """States for the pick state machine."""
+class OpenDrawerSmState:
+    """States for the cabinet drawer opening state machine."""
 
     REST = wp.constant(0)
-    APPROACH_ABOVE_OBJECT = wp.constant(1)
-    APPROACH_OBJECT = wp.constant(2)
-    GRASP_OBJECT = wp.constant(3)
-    LIFT_OBJECT = wp.constant(4)
+    APPROACH_INFRONT_HANDLE = wp.constant(1)
+    APPROACH_HANDLE = wp.constant(2)
+    GRASP_HANDLE = wp.constant(3)
+    OPEN_DRAWER = wp.constant(4)
+    RELEASE_HANDLE = wp.constant(5)
 
 
-class PickSmWaitTime:
+class OpenDrawerSmWaitTime:
     """Additional wait times (in s) for states for before switching."""
 
-    REST = wp.constant(0.2)
-    APPROACH_ABOVE_OBJECT = wp.constant(0.5)
-    APPROACH_OBJECT = wp.constant(0.6)
-    GRASP_OBJECT = wp.constant(0.3)
-    LIFT_OBJECT = wp.constant(1.0)
+    REST = wp.constant(0.5)
+    APPROACH_INFRONT_HANDLE = wp.constant(1.25)
+    APPROACH_HANDLE = wp.constant(1.0)
+    GRASP_HANDLE = wp.constant(1.0)
+    OPEN_DRAWER = wp.constant(3.0)
+    RELEASE_HANDLE = wp.constant(0.2)
 
 
 @wp.kernel
@@ -90,66 +92,74 @@ def infer_state_machine(
     sm_state: wp.array(dtype=int),
     sm_wait_time: wp.array(dtype=float),
     ee_pose: wp.array(dtype=wp.transform),
-    object_pose: wp.array(dtype=wp.transform),
-    des_object_pose: wp.array(dtype=wp.transform),
+    handle_pose: wp.array(dtype=wp.transform),
     des_ee_pose: wp.array(dtype=wp.transform),
     gripper_state: wp.array(dtype=float),
-    offset: wp.array(dtype=wp.transform),
+    handle_approach_offset: wp.array(dtype=wp.transform),
+    handle_grasp_offset: wp.array(dtype=wp.transform),
+    drawer_opening_rate: wp.array(dtype=wp.transform),
 ):
     # retrieve thread id
     tid = wp.tid()
     # retrieve state machine state
     state = sm_state[tid]
     # decide next state
-    if state == PickSmState.REST:
+    if state == OpenDrawerSmState.REST:
         des_ee_pose[tid] = ee_pose[tid]
         gripper_state[tid] = GripperState.OPEN
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.REST:
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.REST:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_ABOVE_OBJECT
+            sm_state[tid] = OpenDrawerSmState.APPROACH_INFRONT_HANDLE
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_ABOVE_OBJECT:
-        des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
+    elif state == OpenDrawerSmState.APPROACH_INFRONT_HANDLE:
+        des_ee_pose[tid] = wp.transform_multiply(handle_approach_offset[tid], handle_pose[tid])
         gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_INFRONT_HANDLE:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.APPROACH_OBJECT
+            sm_state[tid] = OpenDrawerSmState.APPROACH_HANDLE
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.APPROACH_OBJECT:
-        des_ee_pose[tid] = object_pose[tid]
+    elif state == OpenDrawerSmState.APPROACH_HANDLE:
+        des_ee_pose[tid] = handle_pose[tid]
         gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.APPROACH_OBJECT:
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.APPROACH_HANDLE:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.GRASP_OBJECT
+            sm_state[tid] = OpenDrawerSmState.GRASP_HANDLE
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.GRASP_OBJECT:
-        des_ee_pose[tid] = object_pose[tid]
+    elif state == OpenDrawerSmState.GRASP_HANDLE:
+        des_ee_pose[tid] = wp.transform_multiply(handle_grasp_offset[tid], handle_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.GRASP_OBJECT:
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.GRASP_HANDLE:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
+            sm_state[tid] = OpenDrawerSmState.OPEN_DRAWER
             sm_wait_time[tid] = 0.0
-    elif state == PickSmState.LIFT_OBJECT:
-        des_ee_pose[tid] = des_object_pose[tid]
+    elif state == OpenDrawerSmState.OPEN_DRAWER:
+        des_ee_pose[tid] = wp.transform_multiply(drawer_opening_rate[tid], handle_pose[tid])
         gripper_state[tid] = GripperState.CLOSE
-        # TODO: error between current and desired ee pose below threshold
         # wait for a while
-        if sm_wait_time[tid] >= PickSmWaitTime.LIFT_OBJECT:
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.OPEN_DRAWER:
             # move to next state and reset wait time
-            sm_state[tid] = PickSmState.LIFT_OBJECT
+            sm_state[tid] = OpenDrawerSmState.RELEASE_HANDLE
+            sm_wait_time[tid] = 0.0
+    elif state == OpenDrawerSmState.RELEASE_HANDLE:
+        des_ee_pose[tid] = ee_pose[tid]
+        gripper_state[tid] = GripperState.CLOSE
+        # wait for a while
+        if sm_wait_time[tid] >= OpenDrawerSmWaitTime.RELEASE_HANDLE:
+            # move to next state and reset wait time
+            sm_state[tid] = OpenDrawerSmState.RELEASE_HANDLE
             sm_wait_time[tid] = 0.0
     # increment wait time
     sm_wait_time[tid] = sm_wait_time[tid] + dt[tid]
 
 
-class PickAndLiftSm:
-    """A simple state machine in a robot's task space to pick and lift an object.
+class OpenDrawerSm:
+    """A simple state machine in a robot's task space to open a drawer in the cabinet.
 
     The state machine is implemented as a warp kernel. It takes in the current state of
     the robot's end-effector and the object, and outputs the desired state of the robot's
@@ -157,10 +167,10 @@ class PickAndLiftSm:
     machine with the following states:
 
     1. REST: The robot is at rest.
-    2. APPROACH_ABOVE_OBJECT: The robot moves above the object.
-    3. APPROACH_OBJECT: The robot moves to the object.
-    4. GRASP_OBJECT: The robot grasps the object.
-    5. LIFT_OBJECT: The robot lifts the object to the desired pose. This is the final state.
+    2. APPROACH_HANDLE: The robot moves towards the handle of the drawer.
+    3. GRASP_HANDLE: The robot grasps the handle of the drawer.
+    4. OPEN_DRAWER: The robot opens the drawer.
+    5. RELEASE_HANDLE: The robot releases the handle of the drawer. This is the final state.
     """
 
     def __init__(self, dt: float, num_envs: int, device: torch.device | str = "cpu"):
@@ -184,10 +194,20 @@ class PickAndLiftSm:
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
 
-        # approach above object offset
-        self.offset = torch.zeros((self.num_envs, 7), device=self.device)
-        self.offset[:, 2] = 0.1
-        self.offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
+        # approach infront of the handle
+        self.handle_approach_offset = torch.zeros((self.num_envs, 7), device=self.device)
+        self.handle_approach_offset[:, 0] = -0.1
+        self.handle_approach_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
+
+        # handle grasp offset
+        self.handle_grasp_offset = torch.zeros((self.num_envs, 7), device=self.device)
+        self.handle_grasp_offset[:, 0] = 0.025
+        self.handle_grasp_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
+
+        # drawer opening rate
+        self.drawer_opening_rate = torch.zeros((self.num_envs, 7), device=self.device)
+        self.drawer_opening_rate[:, 0] = -0.015
+        self.drawer_opening_rate[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
 
         # convert to warp
         self.sm_dt_wp = wp.from_torch(self.sm_dt, wp.float32)
@@ -195,26 +215,26 @@ class PickAndLiftSm:
         self.sm_wait_time_wp = wp.from_torch(self.sm_wait_time, wp.float32)
         self.des_ee_pose_wp = wp.from_torch(self.des_ee_pose, wp.transform)
         self.des_gripper_state_wp = wp.from_torch(self.des_gripper_state, wp.float32)
-        self.offset_wp = wp.from_torch(self.offset, wp.transform)
+        self.handle_approach_offset_wp = wp.from_torch(self.handle_approach_offset, wp.transform)
+        self.handle_grasp_offset_wp = wp.from_torch(self.handle_grasp_offset, wp.transform)
+        self.drawer_opening_rate_wp = wp.from_torch(self.drawer_opening_rate, wp.transform)
 
-    def reset_idx(self, env_ids: Sequence[int] = None):
+    def reset_idx(self, env_ids: Sequence[int] | None = None):
         """Reset the state machine."""
         if env_ids is None:
             env_ids = slice(None)
+        # reset state machine
         self.sm_state[env_ids] = 0
         self.sm_wait_time[env_ids] = 0.0
 
-    def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
+    def compute(self, ee_pose: torch.Tensor, handle_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
         # convert all transformations from (w, x, y, z) to (x, y, z, w)
         ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        object_pose = object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        des_object_pose = des_object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-
+        handle_pose = handle_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
-        object_pose_wp = wp.from_torch(object_pose.contiguous(), wp.transform)
-        des_object_pose_wp = wp.from_torch(des_object_pose.contiguous(), wp.transform)
+        handle_pose_wp = wp.from_torch(handle_pose.contiguous(), wp.transform)
 
         # run state machine
         wp.launch(
@@ -225,11 +245,12 @@ class PickAndLiftSm:
                 self.sm_state_wp,
                 self.sm_wait_time_wp,
                 ee_pose_wp,
-                object_pose_wp,
-                des_object_pose_wp,
+                handle_pose_wp,
                 self.des_ee_pose_wp,
                 self.des_gripper_state_wp,
-                self.offset_wp,
+                self.handle_approach_offset_wp,
+                self.handle_grasp_offset_wp,
+                self.drawer_opening_rate_wp,
             ],
             device=self.device,
         )
@@ -242,14 +263,14 @@ class PickAndLiftSm:
 
 def main():
     # parse configuration
-    env_cfg: LiftEnvCfg = parse_env_cfg(
-        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+    env_cfg: CabinetEnvCfg = parse_env_cfg(
+        "Isaac-Open-Drawer-Franka-IK-Abs-v0",
         use_gpu=not args_cli.cpu,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("Isaac-Open-Drawer-Franka-IK-Abs-v0", cfg=env_cfg)
     # reset environment at start
     env.reset()
 
@@ -260,7 +281,7 @@ def main():
     desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
     desired_orientation[:, 1] = 1.0
     # create state machine
-    pick_sm = PickAndLiftSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+    open_sm = OpenDrawerSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
     while simulation_app.is_running():
         # run everything in inference mode
@@ -270,25 +291,23 @@ def main():
 
             # observations
             # -- end-effector frame
-            ee_frame_sensor = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
-            # -- object frame
-            object_data: RigidObjectData = env.unwrapped.scene["object"].data
-            object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
-            # -- target object frame
-            desired_position = env.unwrapped.command_manager.get_command("object_pose")[..., :3]
+            ee_frame_tf: FrameTransformer = env.unwrapped.scene["ee_frame"]
+            tcp_rest_position = ee_frame_tf.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_orientation = ee_frame_tf.data.target_quat_w[..., 0, :].clone()
+            # -- handle frame
+            cabinet_frame_tf: FrameTransformer = env.unwrapped.scene["cabinet_frame"]
+            cabinet_position = cabinet_frame_tf.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            cabinet_orientation = cabinet_frame_tf.data.target_quat_w[..., 0, :].clone()
 
             # advance state machine
-            actions = pick_sm.compute(
+            actions = open_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-                torch.cat([object_position, desired_orientation], dim=-1),
-                torch.cat([desired_position, desired_orientation], dim=-1),
+                torch.cat([cabinet_position, cabinet_orientation], dim=-1),
             )
 
             # reset state machine
             if dones.any():
-                pick_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+                open_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
     # close the environment
     env.close()

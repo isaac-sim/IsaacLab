@@ -103,12 +103,13 @@ class CommandTermCfg:
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
-    func: Callable[..., float | dict[str, float]] = MISSING
+    func: Callable[..., float | dict[str, float] | None] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object, environment indices
     and any other parameters as input and return the curriculum state for
-    logging purposes.
+    logging purposes. If the function returns None, the curriculum state
+    is not logged.
     """
 
 

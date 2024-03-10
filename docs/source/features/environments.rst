@@ -45,6 +45,12 @@ Manipulation
 
 Environments based on fixed-arm manipulation tasks.
 
+For many of these tasks, we include configurations with different arm action spaces. For example,
+for the reach environment:
+
+* |lift-cube-link|: Franka arm with joint position control
+* |lift-cube-ik-abs-link|: Franka arm with absolute IK control
+* |lift-cube-ik-rel-link|: Franka arm with relative IK control
 
 .. table::
     :widths: 33 37 30
@@ -58,15 +64,20 @@ Environments based on fixed-arm manipulation tasks.
     +----------------+---------------------+-----------------------------------------------------------------------------+
     | |lift-cube|    | |lift-cube-link|    | Pick a cube and bring it to a sampled target position with the Franka robot |
     +----------------+---------------------+-----------------------------------------------------------------------------+
+    | |cabi-franka|  | |cabi-franka-link|  | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |
+    +----------------+---------------------+-----------------------------------------------------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
 .. |lift-cube| image:: ../_static/tasks/manipulation/franka_lift.jpg
+.. |cabi-franka| image:: ../_static/tasks/manipulation/franka_open_drawer.jpg
 
-
-.. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/franka/env_cfg.py>`__
-.. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/ur_10/env_cfg.py>`__
+.. |reach-franka-link| replace:: `Isaac-Reach-Franka-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/franka/joint_pos_env_cfg.py>`__
+.. |reach-ur10-link| replace:: `Isaac-Reach-UR10-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/reach/config/ur_10/joint_pos_env_cfg.py>`__
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/config/franka/joint_pos_env_cfg.py>`__
+.. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/config/franka/ik_abs_env_cfg.py>`__
+.. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/lift/config/franka/ik_rel_env_cfg.py>`__
+.. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka-v0 <https://github.com/NVIDIA-Omniverse/orbit/blob/main/source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/manipulation/cabinet/config/franka/joint_pos_env_cfg.py>`__
 
 
 Locomotion

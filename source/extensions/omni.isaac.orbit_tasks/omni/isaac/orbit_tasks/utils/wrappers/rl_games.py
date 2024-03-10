@@ -253,6 +253,9 @@ class RlGamesVecEnvWrapper(IVecEnv):
         extras = {
             k: v.to(device=self._rl_device, non_blocking=True) if hasattr(v, "to") else v for k, v in extras.items()
         }
+        # remap extras from "log" to "episode"
+        if "log" in extras:
+            extras["episode"] = extras.pop("log")
 
         return obs_and_states, rew, dones, extras
 

@@ -65,6 +65,9 @@ class ViewportCameraController:
             # at each rendering step.
             if self.cfg.asset_name is None:
                 raise ValueError(f"No asset name provided for viewer with origin type: '{self.cfg.origin_type}'.")
+        else:
+            # set the camera origin to the center of the world
+            self.update_view_to_world()
 
         # subscribe to post update event so that camera view can be updated at each rendering step
         app_interface = omni.kit.app.get_app_interface()
