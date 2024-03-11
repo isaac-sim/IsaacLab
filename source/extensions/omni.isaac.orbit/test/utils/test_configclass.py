@@ -19,14 +19,11 @@ simulation_app = app_launcher.app
 
 import copy
 import os
-import traceback
 import unittest
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
 from typing import ClassVar
-
-import carb
 
 from omni.isaac.orbit.utils.configclass import configclass
 from omni.isaac.orbit.utils.dict import class_to_dict, update_class_from_dict
@@ -708,12 +705,7 @@ class TestConfigClass(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

@@ -40,13 +40,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import os
 import torch
-import traceback
 
-import carb
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -115,13 +112,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

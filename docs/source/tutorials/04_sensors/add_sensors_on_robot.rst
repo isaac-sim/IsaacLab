@@ -37,7 +37,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 77-100, 152-162, 176-177
+      :emphasize-lines: 74-97, 145-155, 169-170
       :linenos:
 
 
@@ -85,9 +85,11 @@ and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 78-88
-   :linenos:
-   :lineno-start: 78
+   :start-at: camera = CameraCfg(
+   :end-before: height_scanner = RayCasterCfg(
+
+Height scanner
+--------------
 
 The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
 Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
@@ -108,9 +110,8 @@ The entire configuration of the height-scanner is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 89-97
-   :linenos:
-   :lineno-start: 89
+   :start-at: height_scanner = RayCasterCfg(
+   :end-before: contact_forces = ContactSensorCfg(
 
 Contact sensor
 --------------
@@ -138,9 +139,8 @@ The entire configuration of the contact sensor is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 98-100
-   :linenos:
-   :lineno-start: 98
+   :start-at: contact_forces = ContactSensorCfg(
+   :lines: 1-3
 
 Running the simulation loop
 ---------------------------
@@ -150,9 +150,8 @@ when the simulation is played, i.e., it is important to call ``sim.reset()`` aft
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 176-177
-   :linenos:
-   :lineno-start: 177
+   :start-at: # Play the simulator
+   :end-at: sim.reset()
 
 Besides that, the simulation loop is similar to the previous tutorials. The sensors are updated as part
 of the scene update and they internally handle the updating of their buffers based on their update
@@ -163,9 +162,8 @@ to access the data for the different sensors created in this tutorial:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 152-162
-   :linenos:
-   :lineno-start: 152
+   :start-at: # print information from the sensors
+   :end-at: print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
 
 
 The Code Execution

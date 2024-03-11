@@ -40,7 +40,7 @@ This tutorial corresponds to the ``create_scene.py`` script within
 
    .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
       :language: python
-      :emphasize-lines: 55-68, 73-75, 96-97, 104-105, 110-111, 121-123
+      :emphasize-lines: 52-65, 70-72, 93-94, 101-102, 107-108, 118-120
       :linenos:
 
 
@@ -63,9 +63,7 @@ them now in the configuration class :class:`CartpoleSceneCfg` instead of manuall
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 55-68
-   :linenos:
-   :lineno-start: 55
+   :pyobject: CartpoleSceneCfg
 
 The variable names in the configuration class are used as keys to access the corresponding
 entity from the :class:`scene.InteractiveScene` object. For example, the cartpole can
@@ -110,9 +108,8 @@ This will be used to clone the scene for each environment.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 121-123
-   :linenos:
-   :lineno-start: 121
+   :start-at: # Design scene
+   :end-at: scene = InteractiveScene(scene_cfg)
 
 Accessing scene elements
 ------------------------
@@ -125,9 +122,8 @@ the cartpole is specified using the key ``"cartpole"`` in the configuration clas
 
 .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
    :language: python
-   :lines: 73-75
-   :linenos:
-   :lineno-start: 73
+   :start-at: # Extract scene entities
+   :end-at: robot = scene["cartpole"]
 
 Running the simulation loop
 ---------------------------

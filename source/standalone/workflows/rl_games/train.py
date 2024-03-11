@@ -41,16 +41,14 @@ else:
 # launch omniverse app
 app_launcher = AppLauncher(args_cli, experience=app_experience)
 simulation_app = app_launcher.app
-"""Rest everything follows."""
 
+"""Rest everything follows."""
 
 import gymnasium as gym
 import math
 import os
-import traceback
 from datetime import datetime
 
-import carb
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -141,13 +139,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

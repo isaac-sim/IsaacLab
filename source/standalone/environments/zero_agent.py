@@ -35,9 +35,6 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import traceback
-
-import carb
 
 import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
@@ -72,13 +69,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

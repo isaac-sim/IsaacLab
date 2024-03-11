@@ -21,7 +21,6 @@ mpl_logger.setLevel(logging.WARNING)
 
 """Rest everything follows."""
 
-
 import numpy as np
 import os
 import random

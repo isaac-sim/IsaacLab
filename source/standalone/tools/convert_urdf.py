@@ -33,9 +33,7 @@ from __future__ import annotations
 
 
 import argparse
-import contextlib
 
-# omni-isaac-orbit
 from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
@@ -66,8 +64,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import contextlib
 import os
-import traceback
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
@@ -140,13 +138,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

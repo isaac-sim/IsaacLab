@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import traceback
 
 parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
 parser.add_argument(
@@ -29,8 +28,6 @@ simulation_app = app_launcher.app
 
 import argparse
 import trimesh
-
-import carb
 
 import omni.isaac.orbit.terrains.trimesh as mesh_gen
 from omni.isaac.orbit.terrains.utils import color_meshes_by_height
@@ -431,13 +428,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

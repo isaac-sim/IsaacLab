@@ -15,10 +15,8 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.cloner import GridCloner
@@ -207,12 +205,7 @@ class TestDifferentialIKController(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

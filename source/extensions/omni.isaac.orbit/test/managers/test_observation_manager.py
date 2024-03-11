@@ -16,11 +16,8 @@ simulation_app = AppLauncher(config).app
 """Rest everything follows."""
 
 import torch
-import traceback
 import unittest
 from collections import namedtuple
-
-import carb
 
 from omni.isaac.orbit.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from omni.isaac.orbit.utils import configclass
@@ -300,12 +297,7 @@ class TestObservationManager(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

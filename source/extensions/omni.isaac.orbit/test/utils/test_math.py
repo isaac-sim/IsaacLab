@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import torch
-import traceback
 import unittest
 from math import pi as PI
 
@@ -20,7 +19,6 @@ from omni.isaac.orbit.app import AppLauncher
 # launch omniverse app in headless mode
 simulation_app = AppLauncher(headless=True).app
 
-import carb
 
 import omni.isaac.orbit.utils.math as math_utils
 
@@ -114,12 +112,7 @@ class TestMathUtilities(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

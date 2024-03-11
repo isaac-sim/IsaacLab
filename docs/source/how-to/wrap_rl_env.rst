@@ -102,7 +102,6 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
 
     """Rest everything follows."""
 
-
     import gymnasium as gym
 
     # adjust camera resolution and pose

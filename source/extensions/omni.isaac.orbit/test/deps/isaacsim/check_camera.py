@@ -22,9 +22,6 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import traceback
-
-import carb
 
 # omni-isaac-orbit
 from omni.isaac.orbit.app import AppLauncher
@@ -45,7 +42,6 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
-
 
 import numpy as np
 import os
@@ -250,13 +246,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

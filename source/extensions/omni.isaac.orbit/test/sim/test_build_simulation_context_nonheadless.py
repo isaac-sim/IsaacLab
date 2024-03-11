@@ -20,11 +20,11 @@ app_launcher = AppLauncher(headless=False)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import unittest
 
 from omni.isaac.core.utils.prims import is_prim_path_valid
 
-from omni.isaac.orbit.sim.runners import run_tests
 from omni.isaac.orbit.sim.simulation_cfg import SimulationCfg
 from omni.isaac.orbit.sim.simulation_context import build_simulation_context
 
@@ -100,4 +100,7 @@ class TestBuildSimulationContextNonheadless(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    run_tests(simulation_app=simulation_app)
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

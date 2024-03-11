@@ -23,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 62-73, 95-108, 112-115, 120-121
+      :emphasize-lines: 60-71, 93-106, 110-113, 118-119
       :linenos:
 
 
@@ -49,9 +49,8 @@ an instance of the :class:`assets.Articulation` class by passing the configurati
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 62-73
-   :linenos:
-   :lineno-start: 62
+   :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
+   :end-at: cartpole = Articulation(cfg=cartpole_cfg)
 
 
 Running the simulation loop
@@ -73,9 +72,8 @@ Finally, we call the :meth:`Articulation.reset` method to reset any internal buf
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 95-108
-   :linenos:
-   :lineno-start: 95
+   :start-at: # reset the scene entities
+   :end-at: robot.reset()
 
 Stepping the simulation
 """""""""""""""""""""""
@@ -97,9 +95,8 @@ the simulation.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 112-115
-   :linenos:
-   :lineno-start: 112
+   :start-at: # Apply random action
+   :end-at: robot.write_data_to_sim()
 
 
 Updating the state
@@ -110,9 +107,8 @@ articulation. To update the state inside the buffer, we call the :meth:`assets.A
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 120-121
-   :linenos:
-   :lineno-start: 120
+   :start-at: # Update buffers
+   :end-at: robot.update(sim_dt)
 
 
 The Code Execution

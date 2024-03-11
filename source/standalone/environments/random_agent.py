@@ -33,12 +33,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import torch
-import traceback
-
-import carb
 
 import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
@@ -47,7 +43,7 @@ from omni.isaac.orbit_tasks.utils import parse_env_cfg
 
 def main():
     """Random actions agent with Orbit environment."""
-    # parse configuration
+    # create environment configuration
     env_cfg = parse_env_cfg(
         args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
@@ -73,13 +69,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

@@ -8,7 +8,6 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import os
-import traceback
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -21,8 +20,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import shutil
-
-import carb
 
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_generator import TerrainGenerator
@@ -46,13 +43,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

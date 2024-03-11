@@ -18,10 +18,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import time
-import traceback
 import unittest
-
-import carb
 
 from omni.isaac.orbit.utils.timer import Timer
 
@@ -52,12 +49,7 @@ class TestTimer(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

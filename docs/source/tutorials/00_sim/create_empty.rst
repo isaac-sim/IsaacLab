@@ -21,7 +21,7 @@ The tutorial corresponds to the ``create_empty.py`` script in the ``orbit/source
 
    .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
       :language: python
-      :emphasize-lines: 18-30,34-38,44-48,51,56-58,71
+      :emphasize-lines: 18-30,34,40-44,46-47,51-54,60-61
       :linenos:
 
 
@@ -47,24 +47,21 @@ and enabling off-screen rendering.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :lines: 18-30
-   :linenos:
-   :lineno-start: 18
+   :start-at: import argparse
+   :end-at: simulation_app = app_launcher.app
 
 Importing python modules
 ------------------------
 
 Once the simulation app is running, it is possible to import different Python modules from
-Isaac Sim and other libraries. Here we import two modules:
+Isaac Sim and other libraries. Here we import the following module:
 
-* `carb`_: A library that provides various microservices and diagnostics utilities in Omniverse.
 * :mod:`omni.isaac.orbit.sim`: A sub-package in Orbit for all the core simulator-related operations.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :lines: 36-38
-   :linenos:
-   :lineno-start: 36
+   :start-at: from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
+   :end-at: from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
 
 
 Configuring the simulation context
@@ -85,9 +82,9 @@ instance of the simulation context.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :lines: 44-48
-   :linenos:
-   :lineno-start: 44
+   :start-at: # Initialize the simulation context
+   :end-at: sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+
 
 Following the creation of the simulation context, we have only configured the physics acting on the
 simulated scene. This includes the device to use for simulation, the gravity vector, and other advanced
@@ -120,22 +117,19 @@ set to True.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :lines: 56-58
-   :linenos:
-   :lineno-start: 56
+   :start-at: # Play the simulator
+   :end-at: sim.step()
 
 Exiting the simulation
 ----------------------
 
 Lastly, the simulation application is stopped and its window is closed by calling
-:meth:`omni.isaac.kit.SimulationApp.close` method. We do this operation under a try-catch
-statement to close the app gracefully in case an error happens.
+:meth:`omni.isaac.kit.SimulationApp.close` method.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :lines: 70-71
-   :linenos:
-   :lineno-start: 70
+   :start-at: # close sim app
+   :end-at: simulation_app.close()
 
 
 The Code Execution

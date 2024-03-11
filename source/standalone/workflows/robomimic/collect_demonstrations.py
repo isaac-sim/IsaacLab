@@ -33,14 +33,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import contextlib
 import gymnasium as gym
 import os
 import torch
-import traceback
-
-import carb
 
 from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
@@ -168,13 +164,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

@@ -15,7 +15,6 @@ simulation_app = SimulationApp(config)
 
 """Rest everything follows."""
 
-
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils

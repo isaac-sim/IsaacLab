@@ -25,7 +25,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 103-105, 126-141, 160-162, 166-176
+      :emphasize-lines: 100-102, 123-138, 157-159, 163-173
       :linenos:
 
 
@@ -67,9 +67,8 @@ will use the absolute pose command mode.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 103-105
-   :linenos:
-   :lineno-start: 103
+   :start-at: # Create controller
+   :end-at: diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
 
 Obtaining the robot's joint and body indices
 --------------------------------------------
@@ -97,9 +96,8 @@ this class.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 126-141
-   :linenos:
-   :lineno-start: 126
+   :start-at: # Specify robot-specific parameters
+   :end-before: # Define simulation stepping
 
 
 Computing robot command
@@ -115,9 +113,8 @@ the robot's base frame.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 160-162
-   :linenos:
-   :lineno-start: 160
+   :start-at: # reset controller
+   :end-at: diff_ik_controller.set_command(ik_commands)
 
 We can then compute the desired joint positions using the
 :meth:`~controllers.DifferentialIKController.compute` method.
@@ -128,18 +125,16 @@ its value computed from the physics engine.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 166-176
-   :linenos:
-   :lineno-start: 166
+   :start-at: # obtain quantities from simulation
+   :end-at: joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
 
 The computed joint position targets can then be applied on the robot, as done in the
 previous tutorials.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 178-180
-   :linenos:
-   :lineno-start: 178
+   :start-at: # apply actions
+   :end-at: scene.write_data_to_sim()
 
 
 The Code Execution

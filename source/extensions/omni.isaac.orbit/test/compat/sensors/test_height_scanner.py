@@ -22,7 +22,6 @@ mpl_logger.setLevel(logging.WARNING)
 
 """Rest everything follows."""
 
-
 import matplotlib.pyplot as plt
 import numpy as np
 import os

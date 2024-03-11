@@ -33,12 +33,9 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import torch
-import traceback
 
-import carb
 import robomimic  # noqa: F401
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
@@ -88,13 +85,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

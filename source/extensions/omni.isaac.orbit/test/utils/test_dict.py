@@ -17,10 +17,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import traceback
 import unittest
-
-import carb
 
 import omni.isaac.orbit.utils.dict as dict_utils
 
@@ -86,12 +83,7 @@ class TestDictUtilities(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

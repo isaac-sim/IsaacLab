@@ -11,7 +11,6 @@
     schemas
     spawners
     utils
-    runners
 
   .. rubric:: Classes
 
@@ -56,12 +55,5 @@ Utilities
 ---------
 
 .. automodule:: omni.isaac.orbit.sim.utils
-  :members:
-  :show-inheritance:
-
-Runners
--------
-
-.. automodule:: omni.isaac.orbit.sim.runners
   :members:
   :show-inheritance:
