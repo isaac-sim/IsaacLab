@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.12.3 (2024-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added signal handler to the :class:`omni.isaac.orbit.app.AppLauncher` class to catch the ``SIGINT`` signal
+  and close the application gracefully. This is to prevent the application from crashing when the user
+  presses ``Ctrl+C`` to close the application.
+
+
 0.12.2 (2024-03-10)
 ~~~~~~~~~~~~~~~~~~~
 

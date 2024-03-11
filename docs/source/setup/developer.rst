@@ -197,26 +197,24 @@ enabled that load the python module and run the python application. While this i
 workflow, it is not always possible to use this workflow. For example, for robot learning, it is
 essential to have complete control over simulation stepping and all the other functionalities
 instead of asynchronously waiting for the simulator to step. In such cases, it is necessary to
-write a standalone application that launches the simulator using
-`SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html>`__
-and allows complete control over the simulation through the
-`SimulationContext <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html?highlight=simulation%20context#module-omni.isaac.core.simulation_context>`__
+write a standalone application that launches the simulator using :class:`~omni.isaac.orbit.app.AppLauncher`
+and allows complete control over the simulation through the :class:`~omni.isaac.orbit.sim.SimulationContext`
 class.
 
 .. code:: python
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.kit import SimulationApp
+   from omni.isaac.orbit.app import AppLauncher
 
    # launch omniverse app
-   config = {"headless": False}
-   simulation_app = SimulationApp(config)
+   app_launcher = AppLauncher(headless=False)
+   simulation_app = app_launcher.app
 
 
    """Rest everything follows."""
 
-   from omni.isaac.core.simulation_context import SimulationContext
+   from omni.isaac.orbit.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
@@ -227,6 +225,9 @@ class.
       simulation_context.step()
       # stop simulation
       simulation_context.stop()
+
+      # close the simulation
+      simulation_app.close()
 
 
 The ``source/standalone`` directory contains various standalone applications designed using the extensions
