@@ -19,7 +19,10 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import Articulation, RigidObject
 from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.utils.math import quat_from_euler_xyz, sample_uniform
+from omni.isaac.orbit.managers.manager_base import ManagerTermBase
+from omni.isaac.orbit.managers.manager_term_cfg import RandomizationTermCfg
+from omni.isaac.orbit.terrains import TerrainImporter
+from omni.isaac.orbit.utils.math import quat_from_euler_xyz, random_orientation, sample_uniform
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
@@ -159,12 +162,9 @@ def push_by_setting_velocity(
     # velocities
     vel_w = asset.data.root_vel_w[env_ids]
     # sample random velocities
-    vel_w[:, 0].uniform_(*velocity_range.get("x", (0.0, 0.0)))
-    vel_w[:, 1].uniform_(*velocity_range.get("y", (0.0, 0.0)))
-    vel_w[:, 2].uniform_(*velocity_range.get("z", (0.0, 0.0)))
-    vel_w[:, 3].uniform_(*velocity_range.get("roll", (0.0, 0.0)))
-    vel_w[:, 4].uniform_(*velocity_range.get("pitch", (0.0, 0.0)))
-    vel_w[:, 5].uniform_(*velocity_range.get("yaw", (0.0, 0.0)))
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    vel_w[:] = sample_uniform(ranges[:, 0], ranges[:, 1], vel_w.shape, device=asset.device)
     # set the velocities into the physics simulation
     asset.write_root_velocity_to_sim(vel_w, env_ids=env_ids)
 
@@ -194,26 +194,72 @@ def reset_root_state_uniform(
     # get default root state
     root_states = asset.data.default_root_state[env_ids].clone()
 
-    # positions
-    pos_offset = torch.zeros_like(root_states[:, 0:3])
-    pos_offset[:, 0].uniform_(*pose_range.get("x", (0.0, 0.0)))
-    pos_offset[:, 1].uniform_(*pose_range.get("y", (0.0, 0.0)))
-    pos_offset[:, 2].uniform_(*pose_range.get("z", (0.0, 0.0)))
-    positions = root_states[:, 0:3] + env.scene.env_origins[env_ids] + pos_offset
-    # orientations
-    euler_angles = torch.zeros_like(positions)
-    euler_angles[:, 0].uniform_(*pose_range.get("roll", (0.0, 0.0)))
-    euler_angles[:, 1].uniform_(*pose_range.get("pitch", (0.0, 0.0)))
-    euler_angles[:, 2].uniform_(*pose_range.get("yaw", (0.0, 0.0)))
-    orientations = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
+    # poses
+    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+    positions = root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+    orientations = quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
+
     # velocities
-    velocities = root_states[:, 7:13]
-    velocities[:, 0].uniform_(*velocity_range.get("x", (0.0, 0.0)))
-    velocities[:, 1].uniform_(*velocity_range.get("y", (0.0, 0.0)))
-    velocities[:, 2].uniform_(*velocity_range.get("z", (0.0, 0.0)))
-    velocities[:, 3].uniform_(*velocity_range.get("roll", (0.0, 0.0)))
-    velocities[:, 4].uniform_(*velocity_range.get("pitch", (0.0, 0.0)))
-    velocities[:, 5].uniform_(*velocity_range.get("yaw", (0.0, 0.0)))
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+    velocities = root_states[:, 7:13] + rand_samples
+
+    # set into the physics simulation
+    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+
+def reset_root_state_with_random_orientation(
+    env: BaseEnv,
+    env_ids: torch.Tensor,
+    pose_range: dict[str, tuple[float, float]],
+    velocity_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the asset root position and velocities sampled randomly within the given ranges
+    and the asset root orientation sampled randomly from the SO(3).
+
+    This function randomizes the root position and velocity of the asset.
+
+    * It samples the root position from the given ranges and adds them to the default root position, before setting
+      them into the physics simulation.
+    * It samples the root orientation uniformly from the SO(3) and sets them into the physics simulation.
+    * It samples the root velocity from the given ranges and sets them into the physics simulation.
+
+    The function takes a dictionary of position and velocity ranges for each axis and rotation:
+
+    * :attr:`pose_range` - a dictionary of position ranges for each axis. The keys of the dictionary are ``x``,
+      ``y``, and ``z``.
+    * :attr:`velocity_range` - a dictionary of velocity ranges for each axis and rotation. The keys of the dictionary
+      are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``.
+
+    The values are tuples of the form ``(min, max)``. If the dictionary does not contain a particular key,
+    the position is set to zero for that axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+    # get default root state
+    root_states = asset.data.default_root_state[env_ids].clone()
+
+    # poses
+    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+
+    positions = root_states[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples
+    orientations = random_orientation(len(env_ids), device=asset.device)
+
+    # velocities
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+    velocities = root_states[:, 7:13] + rand_samples
 
     # set into the physics simulation
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
@@ -242,48 +288,35 @@ def reset_robot_root_from_terrain(
     """
     # access the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+    terrain: TerrainImporter = env.scene.terrain
 
     # obtain all flat patches corresponding to the valid poses
-    valid_poses: torch.Tensor = env.scene.terrain.flat_patches.get("init_pos")
+    valid_poses: torch.Tensor = terrain.flat_patches.get("init_pos")
     if valid_poses is None:
         raise ValueError(
             "The randomization term 'reset_robot_root_from_terrain' requires valid flat patches under 'init_pos'."
-            f" Found: {list(env.scene.terrain.flat_patches.keys())}"
+            f" Found: {list(terrain.flat_patches.keys())}"
         )
 
     # sample random valid poses
     ids = torch.randint(0, valid_poses.shape[2], size=(len(env_ids),), device=env.device)
-    positions = valid_poses[env.scene.terrain.terrain_levels[env_ids], env.scene.terrain.terrain_types[env_ids], ids]
+    positions = valid_poses[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
     positions += asset.data.default_root_state[env_ids, :3]
 
     # sample random orientations
-    ranges = torch.tensor(
-        [
-            pose_range.get("roll", (0.0, 0.0)),
-            pose_range.get("pitch", (0.0, 0.0)),
-            pose_range.get("yaw", (0.0, 0.0)),
-        ],
-        device=env.device,
-    )
-    euler_angles = torch.zeros_like(positions).uniform_()
-    euler_angles = ranges[0] + (ranges[1] - ranges[0]) * euler_angles
+    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+
     # convert to quaternions
-    orientations = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
+    orientations = quat_from_euler_xyz(rand_samples[:, 0], rand_samples[:, 1], rand_samples[:, 2])
 
     # sample random velocities
-    ranges = torch.tensor(
-        [
-            velocity_range.get("x", (0.0, 0.0)),
-            velocity_range.get("y", (0.0, 0.0)),
-            velocity_range.get("z", (0.0, 0.0)),
-            velocity_range.get("roll", (0.0, 0.0)),
-            velocity_range.get("pitch", (0.0, 0.0)),
-            velocity_range.get("yaw", (0.0, 0.0)),
-        ],
-        device=env.device,
-    )
-    velocities = torch.zeros(len(env_ids), 6, device=asset.device).uniform_()
-    velocities = ranges[:, 0] + (ranges[:, 1] - ranges[:, 0]) * velocities
+    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    ranges = torch.tensor(range_list, device=asset.device)
+    rand_samples = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+    velocities = asset.data.default_root_state[:, 7:13] + rand_samples
 
     # set into the physics simulation
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
@@ -345,6 +378,124 @@ def reset_joints_by_offset(
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+
+class reset_joints_within_range(ManagerTermBase):
+    """Reset an articulation's joints to a random position in the given ranges.
+
+    This function samples random values for the joint position and velocities from the given ranges.
+    The values are then set into the physics simulation.
+
+    The parameters to the function are:
+
+    * :attr:`position_range` - a dictionary of position ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`velocity_range` - a dictionary of velocity ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`use_default_offset` - a boolean flag to indicate if the ranges are offset by the default joint state.
+      Defaults to False.
+    * :attr:`asset_cfg` - the configuration of the asset to reset. Defaults to the entity named "robot" in the scene.
+
+    The dictionary values are a tuple of the form ``(min, max)``, where ``min`` and ``max`` are the minimum and
+    maximum values. If the dictionary does not contain a key, the joint position or joint velocity is set to
+    the default value for that joint. If the ``min`` or the ``max`` value is ``None``, the joint limits are used
+    instead.
+    """
+
+    def __init__(self, cfg: RandomizationTermCfg, env: BaseEnv):
+        # initialize the base class
+        super().__init__(cfg, env)
+
+        # check if the cfg has the required parameters
+        if "position_range" not in cfg.params or "velocity_range" not in cfg.params:
+            raise ValueError(
+                f"The term 'reset_joints_within_range' requires parameters: 'position_range' and 'velocity_range'."
+                f" Received: {list(cfg.params.keys())}."
+            )
+
+        # parse the parameters
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        use_default_offset = cfg.params.get("use_default_offset", False)
+
+        # extract the used quantities (to enable type-hinting)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        default_joint_pos = self._asset.data.default_joint_pos[0]
+        default_joint_vel = self._asset.data.default_joint_vel[0]
+
+        # create buffers to store the joint position and velocity ranges
+        self._pos_ranges = self._asset.data.soft_joint_pos_limits[0].clone()
+        self._vel_ranges = torch.stack(
+            [-self._asset.data.soft_joint_vel_limits[0], self._asset.data.soft_joint_vel_limits[0]], dim=1
+        )
+
+        # parse joint position ranges
+        pos_joint_ids = []
+        for joint_name, joint_range in cfg.params["position_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            pos_joint_ids.extend(joint_ids)
+
+            # set the joint position ranges based on the given values
+            if joint_range[0] is not None:
+                self._pos_ranges[joint_ids, 0] = joint_range[0] + use_default_offset * default_joint_pos[joint_ids]
+            if joint_range[1] is not None:
+                self._pos_ranges[joint_ids, 1] = joint_range[1] + use_default_offset * default_joint_pos[joint_ids]
+
+        # store the joint pos ids (used later to sample the joint positions)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, device=self._pos_ranges.device)
+        # clamp sampling range to the joint position limits
+        joint_pos_limits = self._asset.data.soft_joint_pos_limits[0]
+        self._pos_ranges = self._pos_ranges.clamp(min=joint_pos_limits[:, 0], max=joint_pos_limits[:, 1])
+        self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
+
+        # parse joint velocity ranges
+        vel_joint_ids = []
+        for joint_name, joint_range in cfg.params["velocity_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            vel_joint_ids.extend(joint_ids)
+
+            # set the joint position ranges based on the given values
+            if joint_range[0] is not None:
+                self._vel_ranges[joint_ids, 0] = joint_range[0] + use_default_offset * default_joint_vel[joint_ids]
+            if joint_range[1] is not None:
+                self._vel_ranges[joint_ids, 1] = joint_range[1] + use_default_offset * default_joint_vel[joint_ids]
+
+        # store the joint vel ids (used later to sample the joint positions)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, device=self._vel_ranges.device)
+        # clamp sampling range to the joint velocity limits
+        joint_vel_limits = self._asset.data.soft_joint_vel_limits[0]
+        self._vel_ranges = self._vel_ranges.clamp(min=-joint_vel_limits[:, None], max=joint_vel_limits[:, None])
+        self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
+
+    def __call__(
+        self,
+        env: BaseEnv,
+        env_ids: torch.Tensor,
+        position_range: dict[str, tuple[float | None, float | None]],
+        velocity_range: dict[str, tuple[float | None, float | None]],
+        use_default_offset: bool = False,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ):
+        # get default joint state
+        joint_pos = self._asset.data.default_joint_pos[env_ids].clone()
+        joint_vel = self._asset.data.default_joint_vel[env_ids].clone()
+
+        # sample random joint positions for each joint
+        if len(self._pos_joint_ids) > 0:
+            joint_pos_shape = (len(env_ids), len(self._pos_joint_ids))
+            joint_pos[:, self._pos_joint_ids] = sample_uniform(
+                self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
+            )
+        # sample random joint velocities for each joint
+        if len(self._vel_joint_ids) > 0:
+            joint_vel_shape = (len(env_ids), len(self._vel_joint_ids))
+            joint_vel[:, self._vel_joint_ids] = sample_uniform(
+                self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
+            )
+
+        # set into the physics simulation
+        self._asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
 
 def reset_scene_to_default(env: BaseEnv, env_ids: torch.Tensor):

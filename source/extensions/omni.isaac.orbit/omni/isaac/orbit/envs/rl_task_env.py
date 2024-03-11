@@ -120,18 +120,19 @@ class RLTaskEnv(BaseEnv, gym.Env):
 
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
+        # and the reward manager needs to know the termination manager
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
         # prepare the managers
-        # -- reward manager
-        self.reward_manager = RewardManager(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
         print("[INFO] Termination Manager: ", self.termination_manager)
+        # -- reward manager
+        self.reward_manager = RewardManager(self.cfg.rewards, self)
+        print("[INFO] Reward Manager: ", self.reward_manager)
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)

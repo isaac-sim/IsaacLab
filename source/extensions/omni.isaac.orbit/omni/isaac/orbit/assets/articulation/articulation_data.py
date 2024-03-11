@@ -114,7 +114,7 @@ class ArticulationData(RigidObjectData):
     """Joint positions limits for all joints. Shape is (count, num_joints, 2)."""
 
     soft_joint_vel_limits: torch.Tensor = None
-    """Joint velocity limits for all joints. Shape is (count, num_joints, 2)."""
+    """Joint velocity limits for all joints. Shape is (count, num_joints)."""
 
     gear_ratio: torch.Tensor = None
     """Gear ratio for relating motor torques to applied Joint torques. Shape is (count, num_joints)."""

@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.12.2 (2024-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added observation terms for states of a rigid object in world frame.
+* Added randomization terms to set root state with randomized orientation and joint state within user-specified limits.
+* Added reward term for penalizing specific termination terms.
+
+Fixed
+^^^^^
+
+* Improved sampling of states inside randomization terms. Earlier, the code did multiple torch calls
+  for sampling different components of the vector. Now, it uses a single call to sample the entire vector.
+
+
 0.12.1 (2024-03-09)
 ~~~~~~~~~~~~~~~~~~~
 
