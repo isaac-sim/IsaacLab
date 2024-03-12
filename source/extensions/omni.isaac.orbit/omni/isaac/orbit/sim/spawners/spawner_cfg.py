@@ -51,7 +51,12 @@ class SpawnerCfg:
     spawned asset in the class avocado and the color green, the semantic tags would be
     ``[("class", "avocado"), ("color", "green")]``.
 
-    .. _Replicator Semantic: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html
+    .. seealso::
+
+        For more information on the semantics filter, see the documentation for the `semantics schema editor`_.
+
+    .. _semantics schema editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
+
     """
 
     copy_from_source: bool = True

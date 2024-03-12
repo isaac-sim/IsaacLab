@@ -137,6 +137,7 @@ autodoc_mock_imports = [
     "omni.isaac.version",
     "omni.isaac.motion_generation",
     "omni.isaac.ui",
+    "omni.syntheticdata",
     "omni.timeline",
     "omni.ui",
     "gym",

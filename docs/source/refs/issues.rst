@@ -58,8 +58,8 @@ For more information, please refer to the `PhysX Determinism documentation`_.
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`Camera` sensor in standalone scripts, the first few frames may be blank.
-This is a known issue with the simulator where it needs a few steps to load the material
+When using the :class:`omni.isaac.orbit.sensors.Camera` sensor in standalone scripts, the first few frames
+may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
 A hack to work around this is to add the following after initializing the camera sensor and setting
@@ -67,7 +67,7 @@ its pose:
 
 .. code-block:: python
 
-    from omni.isaac.core.simulation_context import SimulationContext
+    from omni.isaac.orbit.sim import SimulationContext
 
     sim = SimulationContext.instance()
 

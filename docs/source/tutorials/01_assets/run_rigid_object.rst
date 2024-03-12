@@ -125,7 +125,7 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
    :start-at: # update buffers
-   :end-at: cone_object.update(sim-dt)
+   :end-at: cone_object.update(sim_dt)
 
 
 The Code Execution

@@ -50,13 +50,18 @@ class RayCasterCamera(RayCaster):
     UNSUPPORTED_TYPES: ClassVar[set[str]] = {
         "rgb",
         "instance_id_segmentation",
+        "instance_id_segmentation_fast",
         "instance_segmentation",
+        "instance_segmentation_fast",
         "semantic_segmentation",
         "skeleton_data",
         "motion_vectors",
         "bounding_box_2d_tight",
+        "bounding_box_2d_tight_fast",
         "bounding_box_2d_loose",
+        "bounding_box_2d_loose_fast",
         "bounding_box_3d",
+        "bounding_box_3d_fast",
     }
     """A set of sensor types that are not supported by the ray-caster camera."""
 

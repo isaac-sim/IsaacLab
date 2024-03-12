@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
+from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 from pxr import UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -44,27 +45,40 @@ class Camera(SensorBase):
     - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
     - ``"normals"``: An image containing the local surface normal vectors at each pixel.
     - ``"motion_vectors"``: An image containing the motion vector data at each pixel.
-    - ``"instance_segmentation"``: The instance segmentation data.
     - ``"semantic_segmentation"``: The semantic segmentation data.
+    - ``"instance_segmentation_fast"``: The instance segmentation data.
+    - ``"instance_id_segmentation_fast"``: The instance id segmentation data.
 
     .. note::
         Currently the following sensor types are not supported in a "view" format:
 
+        - ``"instance_segmentation"``: The instance segmentation data. Please use the fast counterparts instead.
+        - ``"instance_id_segmentation"``: The instance id segmentation data. Please use the fast counterparts instead.
         - ``"bounding_box_2d_tight"``: The tight 2D bounding box data (only contains non-occluded regions).
+        - ``"bounding_box_2d_tight_fast"``: The tight 2D bounding box data (only contains non-occluded regions).
         - ``"bounding_box_2d_loose"``: The loose 2D bounding box data (contains occluded regions).
+        - ``"bounding_box_2d_loose_fast"``: The loose 2D bounding box data (contains occluded regions).
         - ``"bounding_box_3d"``: The 3D view space bounding box data.
+        - ``"bounding_box_3d_fast"``: The 3D view space bounding box data.
 
-        In case you need to work with these sensor types, we recommend using the single camera implementation
-        from the :mod:`omni.isaac.orbit.compat.camera` module.
-
-    .. _replicator extension: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
+    .. _replicator extension: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/annotators_details.html#annotator-output
     .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
 
     """
 
     cfg: CameraCfg
     """The configuration parameters."""
-    UNSUPPORTED_TYPES: set[str] = {"bounding_box_2d_tight", "bounding_box_2d_loose", "bounding_box_3d"}
+
+    UNSUPPORTED_TYPES: set[str] = {
+        "instance_id_segmentation",
+        "instance_segmentation",
+        "bounding_box_2d_tight",
+        "bounding_box_2d_loose",
+        "bounding_box_3d",
+        "bounding_box_2d_tight_fast",
+        "bounding_box_2d_loose_fast",
+        "bounding_box_3d_fast",
+    }
     """The set of sensor types that are not supported by the camera class."""
 
     def __init__(self, cfg: CameraCfg):
@@ -128,6 +142,10 @@ class Camera(SensorBase):
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
             f"\tdata types   : {self.data.output.sorted_keys} \n"
+            f"\tsemantic filter : {self.cfg.semantic_filter}\n"
+            f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
+            f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
+            f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
@@ -358,11 +376,7 @@ class Camera(SensorBase):
         # Attach the sensor data types to render node
         self._render_product_paths: list[str] = list()
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
-        # Resolve device name
-        if "cuda" in self._device:
-            device_name = self._device.split(":")[0]
-        else:
-            device_name = "cpu"
+
         # Obtain current stage
         stage = omni.usd.get_context().get_stage()
         # Convert all encapsulated prims to Camera
@@ -375,33 +389,53 @@ class Camera(SensorBase):
             # Add to list
             sensor_prim = UsdGeom.Camera(cam_prim)
             self._sensor_prims.append(sensor_prim)
+
             # Get render product
             # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
             render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
             if not isinstance(render_prod_path, str):
                 render_prod_path = render_prod_path.path
             self._render_product_paths.append(render_prod_path)
+
+            # Check if semantic types or semantic filter predicate is provided
+            if isinstance(self.cfg.semantic_filter, list):
+                semantic_filter_predicate = ":*; ".join(self.cfg.semantic_filter) + ":*"
+            elif isinstance(self.cfg.semantic_filter, str):
+                semantic_filter_predicate = self.cfg.semantic_filter
+            else:
+                raise ValueError(f"Semantic types must be a list or a string. Received: {self.cfg.semantic_filter}.")
+            # set the semantic filter predicate
+            # copied from rep.scripts.writes_default.basic_writer.py
+            SyntheticData.Get().set_instance_mapping_semantic_filter(semantic_filter_predicate)
+
             # Iterate over each data type and create annotator
             # TODO: This will move out of the loop once Replicator supports multiple render products within a single
             #  annotator, i.e.: rep_annotator.attach(self._render_product_paths)
             for name in self.cfg.data_types:
-                # init params -- Checked from rep.scripts.writes_default.basic_writer.py
                 # note: we are verbose here to make it easier to understand the code.
                 #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
                 #   if colorize is false, the data is returned as a uint32 image with ids as values.
-                if name in ["bounding_box_2d_tight", "bounding_box_2d_loose", "bounding_box_3d"]:
-                    init_params = {"semanticTypes": self.cfg.semantic_types}
-                elif name in ["semantic_segmentation", "instance_segmentation"]:
-                    init_params = {"semanticTypes": self.cfg.semantic_types, "colorize": self.cfg.colorize}
-                elif name in ["instance_id_segmentation"]:
-                    init_params = {"colorize": self.cfg.colorize}
+                if name == "semantic_segmentation":
+                    init_params = {"colorize": self.cfg.colorize_semantic_segmentation}
+                elif name == "instance_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
+                elif name == "instance_id_segmentation_fast":
+                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
                 else:
                     init_params = None
+
+                # Resolve device name
+                if "cuda" in self._device:
+                    device_name = self._device.split(":")[0]
+                else:
+                    device_name = "cpu"
+
                 # create annotator node
                 rep_annotator = rep.AnnotatorRegistry.get_annotator(name, init_params, device=device_name)
                 rep_annotator.attach(render_prod_path)
                 # add to registry
                 self._rep_registry[name].append(rep_annotator)
+
         # Create internal buffers
         self._create_buffers()
 
@@ -426,7 +460,7 @@ class Camera(SensorBase):
                     # get the output
                     output = annotators[index].get_data()
                     # process the output
-                    data, info = self._process_annotator_output(output)
+                    data, info = self._process_annotator_output(name, output)
                     # add data to output
                     self._data.output[name][index] = data
                     # add info to output
@@ -442,12 +476,18 @@ class Camera(SensorBase):
         # reason: these use np structured data types which we can't yet convert to torch tensor
         common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
         if common_elements:
+            # provide alternative fast counterparts
+            fast_common_elements = []
+            for item in common_elements:
+                if "instance_segmentation" in item or "instance_id_segmentation" in item:
+                    fast_common_elements.append(item + "_fast")
+            # raise error
             raise ValueError(
                 f"Camera class does not support the following sensor types: {common_elements}."
                 "\n\tThis is because these sensor types output numpy structured data types which"
                 "can't be converted to torch tensors easily."
-                "\n\tHint: If you need to work with these sensor types, we recommend using the single camera"
-                " implementation from the omni.isaac.orbit.compat.camera module."
+                "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
+                f"\n\t\tFast counterparts: {fast_common_elements}"
             )
 
     def _create_buffers(self):
@@ -530,7 +570,7 @@ class Camera(SensorBase):
                 # get the output
                 output = annotators[index].get_data()
                 # process the output
-                data, info = self._process_annotator_output(output)
+                data, info = self._process_annotator_output(name, output)
                 # append the data
                 data_all_cameras.append(data)
                 # store the info
@@ -538,7 +578,7 @@ class Camera(SensorBase):
             # concatenate the data along the batch dimension
             self._data.output[name] = torch.stack(data_all_cameras, dim=0)
 
-    def _process_annotator_output(self, output: Any) -> tuple[torch.tensor, dict]:
+    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
         """Process the annotator output.
 
         This function is called after the data has been collected from all the cameras.
@@ -552,6 +592,27 @@ class Camera(SensorBase):
             info = None
         # convert data into torch tensor
         data = convert_to_torch(data, device=self.device)
+
+        # process data for different segmentation types
+        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
+        #   so we need to convert them to uint8 4 channel images for colorized types
+        height, width = self.image_shape
+        if name == "semantic_segmentation":
+            if self.cfg.colorize_semantic_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width)
+        elif name == "instance_segmentation_fast":
+            if self.cfg.colorize_instance_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width)
+        elif name == "instance_id_segmentation_fast":
+            if self.cfg.colorize_instance_id_segmentation:
+                data = data.view(torch.uint8).reshape(height, width, -1)
+            else:
+                data = data.view(height, width)
+
         # return the data and info
         return data, info
 

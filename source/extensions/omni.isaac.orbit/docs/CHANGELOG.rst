@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+0.13.0 (2024-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for the following data types inside the :class:`omni.isaac.orbit.sensors.Camera` class:
+  ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``. These are are GPU-supported annotations
+  and are faster than the regular annotations.
+
+Fixed
+^^^^^
+
+* Fixed handling of semantic filtering inside the :class:`omni.isaac.orbit.sensors.Camera` class. Earlier,
+  the annotator was given ``semanticTypes`` as an argument. However, with Isaac Sim 2023.1, the annotator
+  does not accept this argument. Instead the mapping needs to be set to the synthetic data interface directly.
+* Fixed the return shape of colored images for segmentation data types inside the
+  :class:`omni.isaac.orbit.sensors.Camera` class. Earlier, the images were always returned as ``int32``. Now,
+  they are casted to ``uint8`` 4-channel array before returning if colorization is enabled for the annotation type.
+
+Removed
+^^^^^^^
+
+* Dropped support for ``instance_segmentation`` and ``instance_id_segmentation`` annotations in the
+  :class:`omni.isaac.orbit.sensors.Camera` class. Their "fast" counterparts should be used instead.
+* Renamed the argument :attr:`omni.isaac.orbit.sensors.CameraCfg.semantic_types` to
+  :attr:`omni.isaac.orbit.sensors.CameraCfg.semantic_filter`. This is more aligned with Replicator's terminology
+  for semantic filter predicates.
+* Replaced the argument :attr:`omni.isaac.orbit.sensors.CameraCfg.colorize` with separate colorized
+  arguments for each annotation type (:attr:`~omni.isaac.orbit.sensors.CameraCfg.colorize_instance_segmentation`,
+  :attr:`~omni.isaac.orbit.sensors.CameraCfg.colorize_instance_id_segmentation`, and
+  :attr:`~omni.isaac.orbit.sensors.CameraCfg.colorize_semantic_segmentation`).
+
+
 0.12.4 (2024-03-11)
 ~~~~~~~~~~~~~~~~~~~
 

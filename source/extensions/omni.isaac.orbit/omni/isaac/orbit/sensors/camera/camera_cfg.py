@@ -56,7 +56,10 @@ class CameraCfg(SensorBaseCfg):
     """
 
     data_types: list[str] = ["rgb"]
-    """List of sensor names/types to enable for the camera. Defaults to ["rgb"]."""
+    """List of sensor names/types to enable for the camera. Defaults to ["rgb"].
+
+    Please refer to the :class:`Camera` class for a list of available data types.
+    """
 
     width: int = MISSING
     """Width of the image in pixels."""
@@ -64,22 +67,44 @@ class CameraCfg(SensorBaseCfg):
     height: int = MISSING
     """Height of the image in pixels."""
 
-    semantic_types: list[str] = ["class"]
-    """List of allowed semantic types the types. Defaults to ["class"].
+    semantic_filter: str | list[str] = "*:*"
+    """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 
-    For example, if semantic types is [“class”], only the bounding boxes for prims with semantics of
-    type “class” will be retrieved.
+    If a string, it should be a disjunctive normal form of (semantic type, labels). For examples:
 
-    More information available at:
-        https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
+    * ``"typeA : labelA & !labelB | labelC , typeB: labelA ; typeC: labelE"``:
+      All prims with semantic type "typeA" and label "labelA" but not "labelB" or with label "labelC".
+      Also, all prims with semantic type "typeB" and label "labelA", or with semantic type "typeC" and label "labelE".
+    * ``"typeA : * ; * : labelA"``: All prims with semantic type "typeA" or with label "labelA"
+
+    If a list of strings, each string should be a semantic type. The segmentation for prims with
+    semantics of the specified types will be retrieved. For example, if the list is ["class"], only
+    the segmentation for prims with semantics of type "class" will be retrieved.
+
+    .. seealso::
+
+        For more information on the semantics filter, see the documentation on `Replicator Semantics Schema Editor`_.
+
+    .. _Replicator Semantics Schema Editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
     """
 
-    colorize: bool = False
-    """whether to output colorized semantic information or non-colorized one. Defaults to False.
+    colorize_semantic_segmentation: bool = True
+    """Whether to colorize the semantic segmentation images. Defaults to True.
 
-    If True, the semantic images will be a 2D array of RGBA values, where each pixel is colored according to
-    the semantic type. Accordingly, the information output will contain mapping from color to semantic labels.
+    If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors
+    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+    """
 
-    If False, the semantic images will be a 2D array of integers, where each pixel is an integer representing
-    the semantic ID. Accordingly, the information output will contain mapping from semantic ID to semantic labels.
+    colorize_instance_id_segmentation: bool = True
+    """Whether to colorize the instance ID segmentation images. Defaults to True.
+
+    If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.
+    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
+    """
+
+    colorize_instance_segmentation: bool = True
+    """Whether to colorize the instance ID segmentation images. Defaults to True.
+
+    If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
+    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
     """
