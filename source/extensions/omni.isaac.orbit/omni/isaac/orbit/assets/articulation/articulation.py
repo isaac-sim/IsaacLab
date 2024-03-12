@@ -235,8 +235,8 @@ class Articulation(RigidObject):
         self,
         position: torch.Tensor,
         velocity: torch.Tensor,
-        joint_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | slice | None = None,
     ):
         """Write joint positions and velocities to the simulation.
 
@@ -265,7 +265,7 @@ class Articulation(RigidObject):
     def write_joint_stiffness_to_sim(
         self,
         stiffness: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint stiffness into the simulation.
@@ -291,7 +291,7 @@ class Articulation(RigidObject):
     def write_joint_damping_to_sim(
         self,
         damping: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint damping into the simulation.
@@ -319,7 +319,7 @@ class Articulation(RigidObject):
     def write_joint_effort_limit_to_sim(
         self,
         limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
@@ -349,7 +349,7 @@ class Articulation(RigidObject):
     def write_joint_armature_to_sim(
         self,
         armature: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint armature into the simulation.
@@ -374,7 +374,7 @@ class Articulation(RigidObject):
     def write_joint_friction_to_sim(
         self,
         joint_friction: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint friction into the simulation.
@@ -401,7 +401,7 @@ class Articulation(RigidObject):
     """
 
     def set_joint_position_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint position targets into internal buffers.
 
@@ -423,7 +423,7 @@ class Articulation(RigidObject):
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
     def set_joint_velocity_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint velocity targets into internal buffers.
 
@@ -445,7 +445,7 @@ class Articulation(RigidObject):
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
     def set_joint_effort_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint efforts into internal buffers.
 

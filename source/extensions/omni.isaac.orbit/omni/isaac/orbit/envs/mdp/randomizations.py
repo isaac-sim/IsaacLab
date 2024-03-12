@@ -62,7 +62,12 @@ def randomize_rigid_body_material(
     num_envs = env.scene.num_envs
     # resolve environment ids
     if env_ids is None:
-        env_ids = torch.arange(num_envs)
+        env_ids = torch.arange(num_envs, device="cpu")
+    # resolve body indices
+    if isinstance(asset_cfg.body_ids, slice):
+        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device="cpu")[asset_cfg.body_ids]
+    else:
+        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device="cpu")
 
     # sample material properties from the given ranges
     material_buckets = torch.zeros(num_buckets, 3)
@@ -74,11 +79,10 @@ def randomize_rigid_body_material(
     materials = material_buckets[material_ids]
     # resolve the global body indices from the env_ids and the env_body_ids
     bodies_per_env = asset.body_physx_view.count // num_envs  # - number of bodies per spawned asset
-    indices = torch.tensor(asset_cfg.body_ids, dtype=torch.int).repeat(len(env_ids), 1)
+    indices = body_ids.repeat(len(env_ids), 1)
     indices += env_ids.unsqueeze(1) * bodies_per_env
 
     # set the material properties into the physics simulation
-    # TODO: Need to use CPU tensors for now. Check if this changes in the new release
     asset.body_physx_view.set_material_properties(materials, indices)
 
 
@@ -96,18 +100,22 @@ def add_body_mass(
     num_envs = env.scene.num_envs
     # resolve environment ids
     if env_ids is None:
-        env_ids = torch.arange(num_envs)
+        env_ids = torch.arange(num_envs, device="cpu")
+    # resolve body indices
+    if isinstance(asset_cfg.body_ids, slice):
+        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device="cpu")[asset_cfg.body_ids]
+    else:
+        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device="cpu")
 
     # get the current masses of the bodies (num_assets x num_bodies)
     masses = asset.body_physx_view.get_masses()
     masses += sample_uniform(*mass_range, masses.shape, device=masses.device)
     # resolve the global body indices from the env_ids and the env_body_ids
     bodies_per_env = asset.body_physx_view.count // env.num_envs
-    indices = torch.tensor(asset_cfg.body_ids, dtype=torch.int).repeat(len(env_ids), 1)
+    indices = body_ids.repeat(len(env_ids), 1)
     indices += env_ids.unsqueeze(1) * bodies_per_env
 
     # set the mass into the physics simulation
-    # TODO: Need to use CPU tensors for now. Check if this changes in the new release
     asset.body_physx_view.set_masses(masses, indices)
 
 
@@ -123,7 +131,7 @@ def apply_external_force_torque(
     This function creates a set of random forces and torques sampled from the given ranges. The number of forces
     and torques is equal to the number of bodies times the number of environments. The forces and torques are
     applied to the bodies by calling ``asset.set_external_force_and_torque``. The forces and torques are only
-    applied when ``asset.write_data_to_sim()`` is called.
+    applied when ``asset.write_data_to_sim()`` is called in the environment.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -131,9 +139,11 @@ def apply_external_force_torque(
     # resolve environment ids
     if env_ids is None:
         env_ids = torch.arange(num_envs)
+    # resolve number of bodies
+    num_bodies = len(asset_cfg.body_ids) if isinstance(asset_cfg.body_ids, list) else asset.num_bodies
 
     # sample random forces and torques
-    size = (len(env_ids), len(asset_cfg.body_ids), 3)
+    size = (len(env_ids), num_bodies, 3)
     forces = sample_uniform(*force_range, size, asset.device)
     torques = sample_uniform(*torque_range, size, asset.device)
     # set the forces and torques into the buffers

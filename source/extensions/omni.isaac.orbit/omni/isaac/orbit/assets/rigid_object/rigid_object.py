@@ -222,7 +222,7 @@ class RigidObject(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Set external force and torque to apply on the asset's bodies in their local frame.
@@ -261,6 +261,8 @@ class RigidObject(AssetBase):
             # -- body_ids
             if body_ids is None:
                 body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+            elif isinstance(body_ids, slice):
+                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
             elif not isinstance(body_ids, torch.Tensor):
                 body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
 

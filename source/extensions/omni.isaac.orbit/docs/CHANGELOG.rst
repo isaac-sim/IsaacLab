@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.12.4 (2024-03-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+
+* Adapted randomization terms to deal with ``slice`` for the body indices. Earlier, the terms were not
+  able to handle the slice object and were throwing an error.
+* Added ``slice`` type-hinting to all body and joint related methods in the rigid body and articulation
+  classes. This is to make it clear that the methods can handle both list of indices and slices.
+
+
 0.12.3 (2024-03-11)
 ~~~~~~~~~~~~~~~~~~~
 
