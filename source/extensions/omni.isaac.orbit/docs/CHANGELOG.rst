@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.13.1 (2024-03-14)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the :mod:`omni.isaac.orbit.compat` module. This module was used to provide compatibility
+  with older versions of Isaac Sim. It is no longer needed since we have most of the functionality
+  absorbed into the main classes.
+
+
 0.13.0 (2024-03-12)
 ~~~~~~~~~~~~~~~~~~~
 
