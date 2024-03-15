@@ -86,6 +86,19 @@ class TestArticulation(unittest.TestCase):
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
         self.assertTrue(robot.data.joint_pos.shape == (1, 21))
 
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Check that the body_physx_view is deprecated
+        with self.assertWarns(DeprecationWarning):
+            robot.body_physx_view
+
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -112,6 +125,19 @@ class TestArticulation(unittest.TestCase):
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
         self.assertTrue(robot.data.joint_pos.shape == (1, 12))
 
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Check that the body_physx_view is deprecated
+        with self.assertWarns(DeprecationWarning):
+            robot.body_physx_view
+
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -137,6 +163,19 @@ class TestArticulation(unittest.TestCase):
         self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
         self.assertTrue(robot.data.joint_pos.shape == (1, 9))
+
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Check that the body_physx_view is deprecated
+        with self.assertWarns(DeprecationWarning):
+            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -175,6 +214,19 @@ class TestArticulation(unittest.TestCase):
         self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
         self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
         self.assertTrue(robot.data.joint_pos.shape == (1, 1))
+
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Check that the body_physx_view is deprecated
+        with self.assertWarns(DeprecationWarning):
+            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):

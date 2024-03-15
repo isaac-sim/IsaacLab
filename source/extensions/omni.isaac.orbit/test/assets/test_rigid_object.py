@@ -219,7 +219,7 @@ class TestRigidObject(unittest.TestCase):
                                     # assert that set root quantities are equal to the ones set in the state_dict
                                     for key, expected_value in state_dict.items():
                                         value = getattr(cube_object.data, key)
-                                        torch.testing.assert_allclose(value, expected_value, rtol=1e-5, atol=1e-5)
+                                        torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
                                     cube_object.update(sim.cfg.dt)
 
@@ -282,7 +282,7 @@ class TestRigidObject(unittest.TestCase):
 
                         indices = torch.tensor(range(num_cubes), dtype=torch.int)
                         # Add friction to cube
-                        cube_object.body_physx_view.set_material_properties(materials, indices)
+                        cube_object.root_physx_view.set_material_properties(materials, indices)
 
                         # Simulate physics
                         # perform rendering
@@ -291,7 +291,7 @@ class TestRigidObject(unittest.TestCase):
                         cube_object.update(sim.cfg.dt)
 
                         # Get material properties
-                        materials_to_check = cube_object.body_physx_view.get_material_properties()
+                        materials_to_check = cube_object.root_physx_view.get_material_properties()
 
                         # Check if material properties are set correctly
                         torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
@@ -325,7 +325,7 @@ class TestRigidObject(unittest.TestCase):
                         cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
                         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
-                        cube_object.body_physx_view.set_material_properties(cube_object_materials, indices)
+                        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
                         # Set initial velocity
                         # Initial velocity in X to get the block moving
@@ -388,7 +388,7 @@ class TestRigidObject(unittest.TestCase):
                         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
                         # Add friction to cube
-                        cube_object.body_physx_view.set_material_properties(cube_object_materials, indices)
+                        cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
                         # 2 cases: force applied is below and above mu
                         # below mu: block should not move as the force applied is <= mu
@@ -490,7 +490,7 @@ class TestRigidObject(unittest.TestCase):
                                 )
 
                                 # Add friction to cube
-                                cube_object.body_physx_view.set_material_properties(cube_object_materials, indices)
+                                cube_object.root_physx_view.set_material_properties(cube_object_materials, indices)
 
                                 curr_z_velocity = cube_object.data.root_lin_vel_w[:, 2]
 
@@ -535,7 +535,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Get masses before increasing
-                        original_masses = cube_object.body_physx_view.get_masses()
+                        original_masses = cube_object.root_physx_view.get_masses()
 
                         self.assertEqual(original_masses.shape, (num_cubes, 1))
 
@@ -545,9 +545,9 @@ class TestRigidObject(unittest.TestCase):
                         indices = torch.tensor(range(num_cubes), dtype=torch.int)
 
                         # Add friction to cube
-                        cube_object.body_physx_view.set_masses(masses, indices)
+                        cube_object.root_physx_view.set_masses(masses, indices)
 
-                        torch.testing.assert_close(cube_object.body_physx_view.get_masses(), masses)
+                        torch.testing.assert_close(cube_object.root_physx_view.get_masses(), masses)
 
                         # Simulate physics
                         # perform rendering
@@ -555,7 +555,7 @@ class TestRigidObject(unittest.TestCase):
                         # update object
                         cube_object.update(sim.cfg.dt)
 
-                        masses_to_check = cube_object.body_physx_view.get_masses()
+                        masses_to_check = cube_object.root_physx_view.get_masses()
 
                         # Check if mass is set correctly
                         torch.testing.assert_close(masses, masses_to_check)

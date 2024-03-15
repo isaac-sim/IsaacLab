@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.14.0 (2024-03-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ordering of body names used in the :class:`omni.isaac.orbit.assets.Articulation` class. Earlier,
+  the body names were not following the same ordering as the bodies in the articulation. This led
+  to issues when using the body names to access data related to the links from the articulation view
+  (such as Jacobians, mass matrices, etc.).
+
+Removed
+^^^^^^^
+
+* Removed the attribute :attr:`body_physx_view` from the :class:`omni.isaac.orbit.assets.RigidObject`
+  and :class:`omni.isaac.orbit.assets.Articulation` classes. These were causing confusions when used
+  with articulation view since the body names were not following the same ordering.
+
+
 0.13.1 (2024-03-14)
 ~~~~~~~~~~~~~~~~~~~
 

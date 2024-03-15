@@ -87,5 +87,4 @@ class InteractiveSceneCfg:
     """
 
     replicate_physics: bool = True
-    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
-    """
+    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True."""
