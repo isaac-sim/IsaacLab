@@ -32,6 +32,12 @@ class FileCfg(RigidObjectSpawnerCfg):
     articulation_props: schemas.ArticulationPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
 
+    fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
+    """Properties to apply to the fixed tendons (if any)."""
+
+    joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
+    """Properties to apply to a joint."""
+
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 

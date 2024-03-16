@@ -33,7 +33,7 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG  # isort:skip
+from omni.isaac.orbit_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
 
 
 class TestArticulation(unittest.TestCase):
@@ -227,6 +227,39 @@ class TestArticulation(unittest.TestCase):
         # Check that the body_physx_view is deprecated
         with self.assertWarns(DeprecationWarning):
             robot.body_physx_view
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update robot
+            robot.update(self.dt)
+
+    def test_initialization_hand_with_tendons(self):
+        """Test initialization for fixed base articulated hand with tendons."""
+        # Create articulation
+        robot_cfg = SHADOW_HAND_CFG
+        robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot"))
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertTrue(robot._is_initialized)
+        # Check that fixed base
+        self.assertTrue(robot.is_fixed_base)
+        # Check buffers that exists and have correct shapes
+        self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
+        self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
+        self.assertTrue(robot.data.joint_pos.shape == (1, 24))
+
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
 
         # Simulate physics
         for _ in range(10):

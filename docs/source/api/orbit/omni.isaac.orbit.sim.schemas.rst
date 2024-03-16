@@ -11,6 +11,8 @@
     RigidBodyPropertiesCfg
     CollisionPropertiesCfg
     MassPropertiesCfg
+    JointDrivePropertiesCfg
+    FixedTendonPropertiesCfg
 
   .. rubric:: Functions
 
@@ -25,6 +27,8 @@
     modify_collision_properties
     define_mass_properties
     modify_mass_properties
+    modify_joint_drive_properties
+    modify_fixed_tendon_properties
 
 Articulation Root
 -----------------
@@ -66,3 +70,21 @@ Mass
 
 .. autofunction:: define_mass_properties
 .. autofunction:: modify_mass_properties
+
+Joint Drive
+-----------
+
+.. autoclass:: JointDrivePropertiesCfg
+    :members:
+    :exclude-members: __init__
+
+.. autofunction:: modify_joint_drive_properties
+
+Fixed Tendon
+------------
+
+.. autoclass:: FixedTendonPropertiesCfg
+    :members:
+    :exclude-members: __init__
+
+.. autofunction:: modify_fixed_tendon_properties

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from omni.isaac.orbit.utils import configclass
 
 
@@ -142,3 +144,51 @@ class MassPropertiesCfg:
     The density indirectly defines the mass of the rigid body. It is generally computed using the collision
     approximation of the body.
     """
+
+
+@configclass
+class JointDrivePropertiesCfg:
+    """Properties to define the drive mechanism of a joint.
+
+    See :meth:`modify_joint_drive_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    drive_type: Literal["force", "acceleration"] | None = None
+    """Joint drive type to apply.
+
+    If the drive type is "force", then the joint is driven by a force. If the drive type is "acceleration",
+    then the joint is driven by an acceleration (usually used for kinematic joints).
+    """
+
+
+@configclass
+class FixedTendonPropertiesCfg:
+    """Properties to define fixed tendons of an articulation.
+
+    See :meth:`modify_fixed_tendon_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+    """
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length."""
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits."""
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits."""
+    offset: float | None = None
+    """Length offset term for the tendon.
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
+    rest_length: float | None = None
+    """Spring rest length of the tendon."""

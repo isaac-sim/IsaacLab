@@ -1,6 +1,6 @@
 [package]
 # Semantic Versioning is used: https://semver.org/
-version = "0.1.0"
+version = "0.1.1"
 
 # Description
 title =  "ORBIT Assets"

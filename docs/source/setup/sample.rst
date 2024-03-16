@@ -23,6 +23,18 @@ A few quick showroom scripts to run and checkout:
 
       ./orbit.sh -p source/standalone/demos/arms.py
 
+-  Spawn different hands and command them to open and close:
+
+   .. code:: bash
+
+      ./orbit.sh -p source/standalone/demos/hands.py
+
+-  Spawn procedurally generated terrains with different configurations:
+
+   .. code:: bash
+
+      ./orbit.sh -p source/standalone/demos/procedural_terrain.py
+
 -  Spawn multiple markers that are useful for visualizations:
 
    .. code:: bash

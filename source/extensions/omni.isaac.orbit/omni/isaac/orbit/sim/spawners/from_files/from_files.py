@@ -243,6 +243,15 @@ def _spawn_from_usd_file(
     # modify articulation root properties
     if cfg.articulation_props is not None:
         schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
+    # modify tendon properties
+    if cfg.fixed_tendons_props is not None:
+        schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
+
+    # define drive API on the joints
+    # note: these are only for setting low-level simulation properties. all others should be set or are
+    #  and overridden by the articulation/actuator properties.
+    if cfg.joint_drive_props is not None:
+        schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
 
     # apply visual material
     if cfg.visual_material is not None:

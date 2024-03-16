@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.14.1 (2024-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added simulation schemas for joint drive and fixed tendons. These can be configured for assets imported
+  from file formats.
+* Added logging of tendon properties to the articulation class (if they are present in the USD prim).
+
+
 0.14.0 (2024-03-15)
 ~~~~~~~~~~~~~~~~~~~
 

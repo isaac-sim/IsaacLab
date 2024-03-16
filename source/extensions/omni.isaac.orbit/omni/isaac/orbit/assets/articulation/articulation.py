@@ -118,6 +118,11 @@ class Articulation(RigidObject):
         return self.root_physx_view.shared_metatype.dof_count
 
     @property
+    def num_fixed_tendons(self) -> int:
+        """Number of fixed tendons in articulation."""
+        return self.root_physx_view.max_fixed_tendons
+
+    @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
         return self.root_physx_view.shared_metatype.link_count
@@ -580,9 +585,11 @@ class Articulation(RigidObject):
         carb.log_info(f"Body names: {self.body_names}")
         carb.log_info(f"Number of joints: {self.num_joints}")
         carb.log_info(f"Joint names: {self.joint_names}")
+        carb.log_info(f"Number of fixed tendons: {self.num_fixed_tendons}")
         # -- assert that parsing was successful
         if set(physx_body_names) != set(self.body_names):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -724,7 +731,7 @@ class Articulation(RigidObject):
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
-        if total_act_joints != self.num_joints:
+        if total_act_joints != (self.num_joints - self.num_fixed_tendons):
             carb.log_warn(
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
                 f" joints available: {total_act_joints} != {self.num_joints}."
@@ -857,3 +864,39 @@ class Articulation(RigidObject):
             ])
         # convert table to string
         carb.log_info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())
+
+        # read out all tendon parameters from simulation
+        if self.num_fixed_tendons > 0:
+            # -- gains
+            ft_stiffnesses = self.root_physx_view.get_fixed_tendon_stiffnesses()[0].tolist()
+            ft_dampings = self.root_physx_view.get_fixed_tendon_dampings()[0].tolist()
+            # -- limits
+            ft_limit_stiffnesses = self.root_physx_view.get_fixed_tendon_limit_stiffnesses()[0].tolist()
+            ft_limits = self.root_physx_view.get_fixed_tendon_limits()[0].tolist()
+            ft_rest_lengths = self.root_physx_view.get_fixed_tendon_rest_lengths()[0].tolist()
+            ft_offsets = self.root_physx_view.get_fixed_tendon_offsets()[0].tolist()
+            # create table for term information
+            tendon_table = PrettyTable(float_format=".3f")
+            tendon_table.title = f"Simulation Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table.field_names = [
+                "Index",
+                "Stiffness",
+                "Damping",
+                "Limit Stiffness",
+                "Limit",
+                "Rest Length",
+                "Offset",
+            ]
+            # add info on each term
+            for index in range(self.num_fixed_tendons):
+                tendon_table.add_row([
+                    index,
+                    ft_stiffnesses[index],
+                    ft_dampings[index],
+                    ft_limit_stiffnesses[index],
+                    ft_limits[index],
+                    ft_rest_lengths[index],
+                    ft_offsets[index],
+                ])
+            # convert table to string
+            carb.log_info(f"Simulation parameters for tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())
