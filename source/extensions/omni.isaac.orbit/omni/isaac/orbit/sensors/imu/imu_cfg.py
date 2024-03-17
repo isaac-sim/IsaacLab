@@ -24,6 +24,19 @@ class IMUCfg(SensorBaseCfg):
 
     class_type: IMU = IMU
 
+    @configclass
+    class OffsetCfg:
+        """The offset pose of the sensor's frame from the sensor's parent frame."""
+
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+
+    offset: OffsetCfg = OffsetCfg()
+
     visualizer_cfg: VisualizationMarkersCfg = RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Command/velocity_goal")
     """The configuration object for the visualization markers. Defaults to RED_ARROW_X_MARKER_CFG.
 

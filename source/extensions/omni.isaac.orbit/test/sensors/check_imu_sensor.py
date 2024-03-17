@@ -55,10 +55,21 @@ from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
+from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048):
+def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     """Design the scene."""
+    # Handler for terrains importing
+    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type=args_cli.terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+        max_init_terrain_level=None,
+        num_envs=1,
+    )
+    _ = TerrainImporter(terrain_importer_cfg)
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
@@ -69,14 +80,18 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     cfg = sim_utils.DistantLightCfg(intensity=2000)
     cfg.func("/World/light", cfg)
     # -- Balls
-    cfg = sim_utils.SphereCfg(
-        radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+    cfg = RigidObjectCfg(
+        spawn=sim_utils.SphereCfg(
+            radius=0.25,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
+        prim_path="/World/envs/env_0/ball",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
-    cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
+    balls = RigidObject(cfg)
     # Clone the scene
     cloner.define_base_env("/World/envs")
     envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
@@ -85,6 +100,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     cloner.filter_collisions(
         physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
+    return balls
 
 
 def main():
@@ -107,17 +123,7 @@ def main():
     # Parameters
     num_envs = args_cli.num_envs
     # Design the scene
-    design_scene(sim=sim, num_envs=num_envs)
-    # Handler for terrains importing
-    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type=args_cli.terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-        max_init_terrain_level=None,
-        num_envs=1,
-    )
-    _ = TerrainImporter(terrain_importer_cfg)
+    balls = design_scene(sim=sim, num_envs=num_envs)
 
     # Create a ray-caster sensor
     imu_cfg = IMUCfg(
@@ -126,18 +132,16 @@ def main():
     )
     imu = IMU(cfg=imu_cfg)
 
-    # Play simulator
+    # Play simulator and init the IMU
     sim.reset()
 
-    # Get the ball initial positions
-    imu.update(dt=1e-6, force_recompute=True)
-    ball_initial_positions = imu.data.pos_w.clone()
-    ball_initial_orientations = imu.data.quat_w.clone()
-
-    # init pose buffer (used to reset imu position and orientation)
-    _pose_buf = sim._backend_utils.create_zeros_tensor(shape=[imu.num_instances, 7], dtype="float32", device=sim.device)
     # Print the sensor information
     print(imu)
+    
+    # Get the ball initial positions
+    imu.update(dt=1e-6, force_recompute=True)
+    ball_initial_positions = balls.data.root_pos_w.clone()
+    ball_initial_orientations = balls.data.root_quat_w.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -152,15 +156,9 @@ def main():
             continue
         # Reset the scene
         if step_count % 500 == 0:
-            # reset the balls (here we have a physx.RigidBodyView, for other view classes this command might change)
-            indices = sim._backend_utils.resolve_indices(torch.arange(num_envs), imu.num_instances, sim.device)
-            current_positions, current_orientations = imu.data.pos_w, imu.data.quat_w
-            positions = sim._backend_utils.move_data(ball_initial_positions, sim.device)
-            orientations = sim._backend_utils.move_data(ball_initial_orientations, sim.device)
-            pose = sim._backend_utils.assign_pose(
-                current_positions, current_orientations, positions, orientations, indices, sim.device, _pose_buf
-            )
-            imu._view.set_transforms(pose, indices=indices)
+            # reset ball positions
+            balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
+            balls.reset()
             # reset the sensor
             imu.reset()
             # reset the counter

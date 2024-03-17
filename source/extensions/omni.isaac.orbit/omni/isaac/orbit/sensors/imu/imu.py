@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES, ETH Zurich, and University of Toronto
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
@@ -132,24 +128,21 @@ class IMU(SensorBase):
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
-        # note: we clone here because we are read-only operations
-        pos_w = pos_w.clone()
-        quat_w = quat_w.clone()
         # store the poses
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w[env_ids] = quat_w
+        # note: we clone here because the obtained tensors are read-only
+        self._data.pos_w[env_ids] = pos_w.clone() + math_utils.quat_rotate(quat_w, self._offset_pos)
+        self._data.quat_w[env_ids] = math_utils.quat_mul(self._offset_quat, quat_w.clone())
 
         # obtain the velocities of the sensors
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
-        # note: we clone here because we are read-only operations
-        lin_vel_w = lin_vel_w.clone()
-        ang_vel_w = ang_vel_w.clone()
         # store the velocities
-        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(quat_w, ang_vel_w)
+        # note: we clone here because the obtained tensors are read-only
+        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w.clone())
         self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
-            (lin_vel_w - self._last_lin_vel_w[env_ids]) / self._dt
+            self._data.quat_w[env_ids],
+            (lin_vel_w.clone() - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period)
         )
-        self._last_lin_vel_w[env_ids] = lin_vel_w
+        self._last_lin_vel_w[env_ids] = lin_vel_w.clone()
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
@@ -161,6 +154,9 @@ class IMU(SensorBase):
         self._data.ang_vel_b = torch.zeros(self._view.count, 3, device=self._device)
         # internal buffers
         self._last_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        # store sensor offset transformation
+        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device)
+        self._offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
