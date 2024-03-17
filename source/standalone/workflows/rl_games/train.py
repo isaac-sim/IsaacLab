@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,6 +21,9 @@ parser.add_argument("--video", action="store_true", default=False, help="Record 
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument(
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -38,16 +41,14 @@ else:
 # launch omniverse app
 app_launcher = AppLauncher(args_cli, experience=app_experience)
 simulation_app = app_launcher.app
-"""Rest everything follows."""
 
+"""Rest everything follows."""
 
 import gymnasium as gym
 import math
 import os
-import traceback
 from datetime import datetime
 
-import carb
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -67,7 +68,9 @@ def main():
     args_cli_seed = args_cli.seed
 
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(
+        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    )
     agent_cfg = load_cfg_from_registry(args_cli.task, "rl_games_cfg_entry_point")
     # override from command line
     if args_cli_seed is not None:
@@ -136,13 +139,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,13 +19,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.usd
 
 from omni.isaac.orbit.envs import RLTaskEnvCfg
@@ -54,7 +51,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
 
     def setUp(self) -> None:
         # common parameters
-        self.num_envs = 512
+        self.num_envs = 64
         self.use_gpu = True
 
     def test_random_actions(self):
@@ -92,6 +89,41 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
             print(f">>> Closing environment: {task_name}")
             env.close()
 
+    def test_no_time_outs(self):
+        """Check that environments with finite horizon do not send time-out signals."""
+        for task_name in self.registered_tasks[0:5]:
+            print(f">>> Running test for environment: {task_name}")
+            # create a new stage
+            omni.usd.get_context().new_stage()
+            # parse configuration
+            env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            # change to finite horizon
+            env_cfg.is_finite_horizon = True
+
+            # create environment
+            env = gym.make(task_name, cfg=env_cfg)
+            # wrap environment
+            env = RslRlVecEnvWrapper(env)
+
+            # reset environment
+            _, extras = env.reset()
+            # check signal
+            self.assertNotIn("time_outs", extras, msg="Time-out signal found in finite horizon environment.")
+
+            # simulate environment for 10 steps
+            with torch.inference_mode():
+                for _ in range(10):
+                    # sample actions from -1 to 1
+                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    # apply actions
+                    extras = env.step(actions)[-1]
+                    # check signals
+                    self.assertNotIn("time_outs", extras, msg="Time-out signal found in finite horizon environment.")
+
+            # close the environment
+            print(f">>> Closing environment: {task_name}")
+            env.close()
+
     """
     Helper functions.
     """
@@ -121,12 +153,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

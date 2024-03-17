@@ -1,6 +1,14 @@
 Tricks and Troubleshooting
 ==========================
 
+.. note::
+
+    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
+    Please also check the `troubleshooting page on Omniverse
+    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
+    assistance.
+
+
 Using CPU Scaling Governor for performance
 ------------------------------------------
 
@@ -55,85 +63,25 @@ exceeds the size of the buffers, the simulation will fail with an error such as 
 
 .. code:: bash
 
-    PhysX error: the application need to increase the PxgDynamicsMemoryConfig::foundLostPairsCapacity parameter to 3072, otherwise the simulation will miss interactions
+    PhysX error: the application need to increase the PxgDynamicsMemoryConfig::foundLostPairsCapacity
+    parameter to 3072, otherwise the simulation will miss interactions
 
-In this case, you need to increase the size of the buffers passed to the :class:`SimulationContext` class.
-The size of the buffers can be increased by setting the ``found_lost_pairs_capacity`` in the ``sim_params``
-argument to the :class:`SimulationContext` class. For example, to increase the size of the buffers to
-``4096``, you can use the following code:
+In this case, you need to increase the size of the buffers passed to the
+:class:`~omni.isaac.orbit.sim.SimulationContext` class. The size of the buffers can be increased by setting
+the :attr:`~omni.isaac.orbit.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
+:class:`~omni.isaac.orbit.sim.PhysxCfg` class. For example, to increase the size of the buffers to
+4096, you can use the following code:
 
 .. code:: python
 
-    from omni.isaac.core.simulation_context import SimulationContext
+    import omni.isaac.orbit.sim as sim_utils
 
-    sim = SimulationContext(sim_params={"gpu_found_lost_pairs_capacity": 4096})
+    sim_cfg = sim_utils.SimulationConfig()
+    sim_cfg.physx.gpu_found_lost_pairs_capacity = 4096
+    sim = SimulationContext(sim_params=sim_cfg)
 
-These settings are also directly exposed through the :class:`PhysxCfg` class in the ``omni.isaac.orbit_tasks``
-extension, which can be used to configure the simulation engine. Please see the documentation for
-:class:`PhysxCfg` for more details.
-
-
-Understanding the error logs from crashes
------------------------------------------
-
-Many times the simulator crashes due to a bug in the implementation.
-This swamps the terminal with exceptions, some of which are coming from
-the python interpreter calling ``__del__()`` destructor of the
-simulation application. These typically look like the following:
-
-.. code:: bash
-
-    ...
-
-    [INFO]: Completed setting up the environment...
-
-    Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 166, in <module>
-        main()
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 126, in main
-        actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
-        return torch.concat([delta_pose, gripper_vel], dim=1)
-    TypeError: expected Tensor as element 1 in argument 0, but got int
-    Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
-    Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
-    TypeError: 'NoneType' object is not callable
-    Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
-    Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
-    TypeError: 'NoneType' object is not callable
-    Exception ignored in: <function SettingChangeSubscription.__del__ at 0x7fa2ea173e60>
-    Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/kernel/py/omni/kit/app/_impl/__init__.py", line 114, in __del__
-    AttributeError: 'NoneType' object has no attribute 'get_settings'
-    Exception ignored in: <function RegisteredActions.__del__ at 0x7f935f5cae60>
-    Traceback (most recent call last):
-    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 345, in __del__
-    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 350, in destroy
-    TypeError: 'NoneType' object is not callable
-    2022-12-02 15:41:54 [18,514ms] [Warning] [carb.audio.context] 1 contexts were leaked
-    ../orbit/_isaac_sim/python.sh: line 41: 414372 Segmentation fault      (core dumped) $python_exe "$@" $args
-    There was an error running python
-
-This is a known error with running standalone scripts with the Isaac Sim
-simulator. Please scroll above the exceptions thrown with
-``registry`` to see the actual error log.
-
-In the above case, the actual error is:
-
-.. code:: bash
-
-    Traceback (most recent call last):
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 166, in <module>
-        main()
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 126, in main
-        actions = pre_process_actions(delta_pose, gripper_command)
-    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
-        return torch.concat([delta_pose, gripper_vel], dim=1)
-    TypeError: expected Tensor as element 1 in argument 0, but got int
+Please see the documentation for :class:`~omni.isaac.orbit.sim.SimulationCfg` for more details
+on the parameters that can be used to configure the simulation.
 
 
 Preventing memory leaks in the simulator
@@ -204,3 +152,66 @@ In this revised code, the weak reference ``weakref.proxy(self)`` is used when re
 allowing the ``MyClass`` object to be properly garbage collected.
 
 By following this pattern, you can prevent memory leaks and maintain a more efficient and stable simulation.
+
+
+Understanding the error logs from crashes
+-----------------------------------------
+
+Many times the simulator crashes due to a bug in the implementation.
+This swamps the terminal with exceptions, some of which are coming from
+the python interpreter calling ``__del__()`` destructor of the
+simulation application. These typically look like the following:
+
+.. code:: bash
+
+    ...
+
+    [INFO]: Completed setting up the environment...
+
+    Traceback (most recent call last):
+    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 166, in <module>
+        main()
+    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 126, in main
+        actions = pre_process_actions(delta_pose, gripper_command)
+    File "source/standalone/workflows/robomimic/collect_demonstrations.py", line 57, in pre_process_actions
+        return torch.concat([delta_pose, gripper_vel], dim=1)
+    TypeError: expected Tensor as element 1 in argument 0, but got int
+    Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
+    Traceback (most recent call last):
+    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
+    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
+    TypeError: 'NoneType' object is not callable
+    Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
+    Traceback (most recent call last):
+    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
+    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
+    TypeError: 'NoneType' object is not callable
+    Exception ignored in: <function SettingChangeSubscription.__del__ at 0x7fa2ea173e60>
+    Traceback (most recent call last):
+    File "../orbit/_isaac_sim/kit/kernel/py/omni/kit/app/_impl/__init__.py", line 114, in __del__
+    AttributeError: 'NoneType' object has no attribute 'get_settings'
+    Exception ignored in: <function RegisteredActions.__del__ at 0x7f935f5cae60>
+    Traceback (most recent call last):
+    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 345, in __del__
+    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 350, in destroy
+    TypeError: 'NoneType' object is not callable
+    2022-12-02 15:41:54 [18,514ms] [Warning] [carb.audio.context] 1 contexts were leaked
+    ../orbit/_isaac_sim/python.sh: line 41: 414372 Segmentation fault      (core dumped) $python_exe "$@" $args
+    There was an error running python
+
+This is a known error with running standalone scripts with the Isaac Sim
+simulator. Please scroll above the exceptions thrown with
+``registry`` to see the actual error log.
+
+In the above case, the actual error is:
+
+.. code:: bash
+
+    Traceback (most recent call last):
+    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 166, in <module>
+        main()
+    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 126, in main
+        actions = pre_process_actions(delta_pose, gripper_command)
+    File "source/standalone/workflows/robomimic/tools/collect_demonstrations.py", line 57, in pre_process_actions
+        return torch.concat([delta_pose, gripper_vel], dim=1)
+    TypeError: expected Tensor as element 1 in argument 0, but got int

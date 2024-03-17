@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -240,8 +240,10 @@ class RlGamesVecEnvWrapper(IVecEnv):
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
 
         # move time out information to the extras dict
+        # this is only needed for infinite horizon tasks
         # note: only useful when `value_bootstrap` is True in the agent configuration
-        extras["time_outs"] = truncated.to(device=self._rl_device)
+        if not self.unwrapped.cfg.is_finite_horizon:
+            extras["time_outs"] = truncated.to(device=self._rl_device)
         # process observations and states
         obs_and_states = self._process_obs(obs_dict)
         # move buffers to rl-device
@@ -251,6 +253,9 @@ class RlGamesVecEnvWrapper(IVecEnv):
         extras = {
             k: v.to(device=self._rl_device, non_blocking=True) if hasattr(v, "to") else v for k, v in extras.items()
         }
+        # remap extras from "log" to "episode"
+        if "log" in extras:
+            extras["episode"] = extras.pop("log")
 
         return obs_and_states, rew, dones, extras
 

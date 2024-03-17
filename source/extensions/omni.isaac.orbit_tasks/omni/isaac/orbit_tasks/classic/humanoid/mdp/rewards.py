@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,11 +16,11 @@ from omni.isaac.orbit.managers import ManagerTermBase, RewardTermCfg, SceneEntit
 from . import observations as obs
 
 if TYPE_CHECKING:
-    from ..humanoid_env import HumanoidEnv
+    from omni.isaac.orbit.envs import RLTaskEnv
 
 
 def upright_posture_bonus(
-    env: HumanoidEnv, threshold: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: RLTaskEnv, threshold: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Reward for maintaining an upright posture."""
     up_proj = obs.base_up_proj(env, asset_cfg).squeeze(-1)
@@ -28,7 +28,7 @@ def upright_posture_bonus(
 
 
 def move_to_target_bonus(
-    env: HumanoidEnv,
+    env: RLTaskEnv,
     threshold: float,
     target_pos: tuple[float, float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -41,7 +41,7 @@ def move_to_target_bonus(
 class progress_reward(ManagerTermBase):
     """Reward for making progress towards the target."""
 
-    def __init__(self, env: HumanoidEnv, cfg: RewardTermCfg):
+    def __init__(self, env: RLTaskEnv, cfg: RewardTermCfg):
         # initialize the base class
         super().__init__(cfg, env)
         # create history buffer
@@ -60,7 +60,7 @@ class progress_reward(ManagerTermBase):
 
     def __call__(
         self,
-        env: HumanoidEnv,
+        env: RLTaskEnv,
         target_pos: tuple[float, float, float],
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ) -> torch.Tensor:
@@ -80,7 +80,7 @@ class progress_reward(ManagerTermBase):
 class joint_limits_penalty_ratio(ManagerTermBase):
     """Penalty for violating joint limits weighted by the gear ratio."""
 
-    def __init__(self, env: HumanoidEnv, cfg: RewardTermCfg):
+    def __init__(self, env: RLTaskEnv, cfg: RewardTermCfg):
         # add default argument
         if "asset_cfg" not in cfg.params:
             cfg.params["asset_cfg"] = SceneEntityCfg("robot")
@@ -95,7 +95,7 @@ class joint_limits_penalty_ratio(ManagerTermBase):
         self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
 
     def __call__(
-        self, env: HumanoidEnv, threshold: float, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg
+        self, env: RLTaskEnv, threshold: float, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg
     ) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
@@ -116,7 +116,7 @@ class power_consumption(ManagerTermBase):
     This is computed as commanded torque times the joint velocity.
     """
 
-    def __init__(self, env: HumanoidEnv, cfg: RewardTermCfg):
+    def __init__(self, env: RLTaskEnv, cfg: RewardTermCfg):
         # add default argument
         if "asset_cfg" not in cfg.params:
             cfg.params["asset_cfg"] = SceneEntityCfg("robot")
@@ -130,7 +130,7 @@ class power_consumption(ManagerTermBase):
         self.gear_ratio[:, index_list] = torch.tensor(value_list, device=env.device)
         self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
 
-    def __call__(self, env: HumanoidEnv, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    def __call__(self, env: RLTaskEnv, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # return power = torque * velocity (here actions: joint torques)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,15 +34,17 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import torch
-import traceback
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config import FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG, UR10_CFG
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import FRANKA_PANDA_CFG, UR10_CFG  # isort:skip
 
 
 def design_scene() -> tuple[dict, list[list[float]]]:
@@ -64,7 +66,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
-    franka_arm_cfg = FRANKA_PANDA_ARM_WITH_PANDA_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
     robot_franka = Articulation(cfg=franka_arm_cfg)
 
@@ -150,13 +152,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

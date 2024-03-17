@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -49,7 +49,7 @@ class DifferentialIKControllerCfg:
     - Jacobian transpose ("trans"):
         - "k_val": Scaling of computed delta-joint positions (default: 1.0).
     - Damped Moore-Penrose pseudo-inverse ("dls"):
-        - "lambda_val": Damping coefficient (default: 0.1).
+        - "lambda_val": Damping coefficient (default: 0.01).
     """
 
     def __post_init__(self):
@@ -63,7 +63,7 @@ class DifferentialIKControllerCfg:
             "pinv": {"k_val": 1.0},
             "svd": {"k_val": 1.0, "min_singular_value": 1e-5},
             "trans": {"k_val": 1.0},
-            "dls": {"lambda_val": 0.1},
+            "dls": {"lambda_val": 0.01},
         }
         # update parameters for IK-method if not provided
         ik_params = default_ik_params[self.ik_method].copy()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 import torch.nn.functional
-from typing_extensions import Literal
+from typing import Literal
 
 """
 General
@@ -634,7 +634,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     # When theta = 0, (sin(theta/2) / theta) is undefined
     # However, as theta --> 0, we can use the Taylor approximation 1/2 - theta^2 / 48
     quat = quat * (1.0 - 2.0 * (quat[..., 0:1] < 0.0))
-    mag = torch.linalg.norm(quat[..., 1:], dim=1)
+    mag = torch.linalg.norm(quat[..., 1:], dim=-1)
     half_angle = torch.atan2(mag, quat[..., 0])
     angle = 2.0 * half_angle
     # check whether to apply Taylor approximation
@@ -649,14 +649,45 @@ def quat_error_magnitude(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """Computes the rotation difference between two quaternions.
 
     Args:
-        q1: The first quaternion in (w, x, y, z). Shape is (N, 4).
-        q2: The second quaternion in (w, x, y, z). Shape is (N, 4).
+        q1: The first quaternion in (w, x, y, z). Shape is (..., 4).
+        q2: The second quaternion in (w, x, y, z). Shape is (..., 4).
 
     Returns:
         Angular error between input quaternions in radians.
     """
     quat_diff = quat_mul(q1, quat_conjugate(q2))
-    return torch.norm(axis_angle_from_quat(quat_diff), dim=1)
+    return torch.norm(axis_angle_from_quat(quat_diff), dim=-1)
+
+
+@torch.jit.script
+def skew_symmetric_matrix(vec: torch.Tensor) -> torch.Tensor:
+    """Computes the skew-symmetric matrix of a vector.
+
+    Args:
+        vec: The input vector. Shape is (3,) or (N, 3).
+
+    Returns:
+        The skew-symmetric matrix. Shape is (1, 3, 3) or (N, 3, 3).
+
+    Raises:
+        ValueError: If input tensor is not of shape (..., 3).
+    """
+    # check input is correct
+    if vec.shape[-1] != 3:
+        raise ValueError(f"Expected input vector shape mismatch: {vec.shape} != (..., 3).")
+    # unsqueeze the last dimension
+    if vec.ndim == 1:
+        vec = vec.unsqueeze(0)
+    # create a skew-symmetric matrix
+    skew_sym_mat = torch.zeros(vec.shape[0], 3, 3, device=vec.device, dtype=vec.dtype)
+    skew_sym_mat[:, 0, 1] = -vec[:, 2]
+    skew_sym_mat[:, 0, 2] = vec[:, 1]
+    skew_sym_mat[:, 1, 2] = -vec[:, 0]
+    skew_sym_mat[:, 1, 0] = vec[:, 2]
+    skew_sym_mat[:, 2, 0] = -vec[:, 1]
+    skew_sym_mat[:, 2, 1] = vec[:, 0]
+
+    return skew_sym_mat
 
 
 """

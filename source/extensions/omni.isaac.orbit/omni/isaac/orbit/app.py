@@ -1,121 +1,15 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-package with the utility class to configure the :class:`omni.isaac.kit.SimulationApp`.
 
-Based on the desired functionality, this class parses environment variables and input CLI arguments
-to launch the simulator in various different modes. This includes with or without GUI, switching between
-different Omniverse remote clients, and enabling particular ROS bridges. Some of these require the
-extensions to be loaded in a specific order, otherwise a segmentation fault occurs.
-The launched `SimulationApp`_ instance is accessible via the :attr:`AppLauncher.app` property.
-
-Environment variables
----------------------
-
-The following details the behavior of the class based on the environment variables:
-
-* **Headless mode**: If the environment variable ``HEADLESS=1``, then SimulationApp will be started in headless mode.
-  If ``LIVESTREAM={1,2,3}``, then it will supersede the ``HEADLESS`` envvar and force headlessness.
-
-  * ``HEADLESS=1`` causes the app to run in headless mode.
-
-* **Livestreaming**: If the environment variable ``LIVESTREAM={1,2,3}`` , then `livestream`_ is enabled. Any
-  of the livestream modes being true forces the app to run in headless mode.
-
-  * ``LIVESTREAM=1`` enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
-    connect through the Omniverse Streaming Client.
-  * ``LIVESTREAM=2`` enables streaming via the `Websocket Livestream`_ extension. This allows users to
-    connect in a browser using the WebSocket protocol.
-  * ``LIVESTREAM=3`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
-    connect in a browser using the WebRTC protocol.
-
-* **Loading ROS Bridge**: If the environment variable ``ROS_ENABLED`` is set to non-zero, then the
-  following behavior happens:
-
-  * ``ROS_ENABLED=1``: Enables the ROS1 Noetic bridge in Isaac Sim.
-  * ``ROS_ENABLED=2``: Enables the ROS2 Foxy bridge in Isaac Sim.
-
-  .. caution::
-
-      In Isaac Sim 2022.2.1, loading ``omni.isaac.ros_bridge`` before ``omni.kit.livestream.native``
-      causes a segfault. Thus, to work around this issue, we enable the ROS-bridge extensions after the
-      livestreaming extensions.
-
-* **Offscreen Render**: If the environment variable ``OFFSCREEN_RENDER`` is set to 1, then the
-  offscreen-render pipeline is enabled. This is useful for running the simulator without a GUI but
-  still rendering the viewport and camera images.
-
-  * ``OFFSCREEN_RENDER=1``: Enables the offscreen-render pipeline which allows users to render
-    the scene without launching a GUI.
-
-  .. note::
-
-      The off-screen rendering pipeline only works when used in conjunction with the
-      :class:`omni.isaac.orbit.sim.SimulationContext` class. This is because the off-screen rendering
-      pipeline enables flags that are internally used by the SimulationContext class.
-
-
-To set the environment variables, one can use the following command in the terminal:
-
-.. code:: bash
-
-    export REMOTE_DEPLOYMENT=3
-    export OFFSCREEN_RENDER=1
-    # run the python script
-    ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
-
-Alternatively, one can set the environment variables to the python script directly:
-
-.. code:: bash
-
-    REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
-
-
-Overriding the environment variables
-------------------------------------
-
-The environment variables can be overridden in the python script itself using the :class:`AppLauncher`.
-These can be passed as a dictionary, a :class:`argparse.Namespace` object or as keyword arguments.
-When the passed arguments are not the default values, then they override the environment variables.
-
-The following snippet shows how use the :class:`AppLauncher` in different ways:
-
-.. code:: python
-
-    import argparser
-
-    from omni.isaac.orbit.app import AppLauncher
-
-    # add argparse arguments
-    parser = argparse.ArgumentParser()
-    # add your own arguments
-    # ....
-    # add app launcher arguments for cli
-    AppLauncher.add_app_launcher_args(parser)
-    # parse arguments
-    args = parser.parse_args()
-
-    # launch omniverse isaac-sim app
-    # -- Option 1: Pass the settings as a Namespace object
-    app_launcher = AppLauncher(args).app
-    # -- Option 2: Pass the settings as keywords arguments
-    app_launcher = AppLauncher(headless=args.headless, livestream=args.livestream)
-    # -- Option 3: Pass the settings as a dictionary
-    app_launcher = AppLauncher(vars(args))
-    # -- Option 4: Pass no settings
-    app_launcher = AppLauncher()
-
-    # obtain the launched app
-    simulation_app = app_launcher.app
-
-
-.. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
-.. _livestream: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
-.. _`Native Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-kit-remote
-.. _`Websocket Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-webrtc
-.. _`WebRTC Livestream`: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket
+The :class:`AppLauncher` parses environment variables and input CLI arguments to launch the simulator in
+various different modes. This includes with or without GUI and switching between different Omniverse remote
+clients. Some of these require the extensions to be loaded in a specific order, otherwise a segmentation
+fault occurs. The launched :class:`omni.isaac.kit.SimulationApp` instance is accessible via the
+:attr:`AppLauncher.app` property.
 """
 
 from __future__ import annotations
@@ -124,9 +18,9 @@ import argparse
 import faulthandler
 import os
 import re
+import signal
 import sys
-from typing import Any
-from typing_extensions import Literal
+from typing import Any, Literal
 
 from omni.isaac.kit import SimulationApp
 
@@ -151,7 +45,7 @@ class AppLauncher:
 
     """
 
-    def __init__(self, launcher_args: argparse.Namespace | dict = None, **kwargs):
+    def __init__(self, launcher_args: argparse.Namespace | dict | None = None, **kwargs):
         """Create a `SimulationApp`_ instance based on the input settings.
 
         Args:
@@ -168,7 +62,7 @@ class AppLauncher:
             ValueError: If combination of ``launcher_args`` and ``kwargs`` are missing the necessary arguments
                 that are needed by the AppLauncher to resolve the desired app configuration.
             ValueError: If incompatible or undefined values are assigned to relevant environment values,
-                such as ``LIVESTREAM`` and ``ROS_ENABLED``.
+                such as ``LIVESTREAM``.
 
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
@@ -183,7 +77,7 @@ class AppLauncher:
         # and will be passed directly to the SimulationApp initialization.
         #
         # We could potentially require users to enter each argument they want passed here
-        # as a kwarg, but this would require them to pass livestream, headless, ros, and
+        # as a kwarg, but this would require them to pass livestream, headless, and
         # any other options we choose to add here explicitly, and with the correct keywords.
         #
         # @hunter: I feel that this is cumbersome and could introduce error, and would prefer to do
@@ -207,7 +101,6 @@ class AppLauncher:
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
         self._livestream: Literal[0, 1, 2, 3]  # 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC
-        self._ros: Literal[0, 1, 2]  # 0: Disabled, 1: ROS1, 2: ROS2
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
 
         # Integrate env-vars and input keyword args into simulation app config
@@ -218,6 +111,15 @@ class AppLauncher:
         self._load_extensions()
         # Hide the stop button in the toolbar
         self._hide_stop_button()
+
+        # Set up signal handlers for graceful shutdown
+        # -- during interrupts
+        signal.signal(signal.SIGINT, self._interrupt_signal_handle_callback)
+        # -- during explicit `kill` commands
+        signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
+        # -- during segfaults
+        signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
+        signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
 
     """
     Properties.
@@ -252,9 +154,6 @@ class AppLauncher:
         * ``livestream`` (int): If one of {0, 1, 2, 3}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
-        * ``ros`` (int): If one of {0, 1, 2}, then the corresponding ROS bridge is enabled. The values
-          map the same as that for the ``ROS_ENABLED`` environment variable. If :obj:`-1`, then ROS bridge is
-          determined by the ``ROS_ENABLED`` environment variable.
         * ``offscreen_render`` (bool): If True, the app will be launched in offscreen-render mode. The values
           map the same as that for the ``OFFSCREEN_RENDER`` environment variable. If False, then offscreen-render
           mode is determined by the ``OFFSCREEN_RENDER`` environment variable.
@@ -309,13 +208,6 @@ class AppLauncher:
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
         )
         arg_group.add_argument(
-            "--ros",
-            type=int,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1],
-            choices={0, 1, 2},
-            help="Enable ROS middleware. Mapping corresponds to that for the `ROS_ENABLED` environment variable",
-        )
-        arg_group.add_argument(
             "--offscreen_render",
             action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1],
@@ -335,7 +227,6 @@ class AppLauncher:
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
         "livestream": ([int], -1),
-        "ros": ([int], -1),
         "offscreen_render": ([bool], False),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -497,32 +388,6 @@ class AppLauncher:
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
-        # --ROS logic--
-        #
-        ros_env = int(os.environ.get("ROS_ENABLED", 0))
-        ros_arg = int(launcher_args.pop("ros", AppLauncher._APPLAUNCHER_CFG_INFO["ros"][1]))
-        ros_valid_vals = {0, 1, 2}
-        # Value checking on LIVESTREAM
-        if ros_env not in ros_valid_vals:
-            raise ValueError(
-                f"Invalid value for environment variable `ROS_ENABLED`: {ros_env} . Expected: {ros_valid_vals}."
-            )
-        # We allow livestream kwarg to supersede LIVESTREAM envvar
-        if ros_arg >= 0:
-            if ros_arg in ros_valid_vals:
-                self._ros = ros_arg
-                # print info that we overrode the env-var
-                print(
-                    f"[INFO][AppLauncher]: Input keyword argument `ros={ros_arg}` has overridden"
-                    f" the environment variable `ROS_ENABLED={ros_env}`."
-                )
-            else:
-                raise ValueError(
-                    f"Invalid value for input keyword argument `ros`: {ros_arg} . Expected: {ros_valid_vals}."
-                )
-        else:
-            self._ros = ros_env
-
         # --OFFSCREEN_RENDER logic--
         #
         # off-screen rendering
@@ -577,14 +442,14 @@ class AppLauncher:
         # These have to be loaded after SimulationApp is initialized
         import carb
         from omni.isaac.core.utils.extensions import enable_extension
-        from omni.isaac.version import get_version
 
-        # Read isaac sim version (this includes build tag, release tag etc.)
-        isaacsim_version = get_version()
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
 
         if self._livestream >= 1:
+            # Ensure that a viewport exists in case an experience has been
+            # loaded which does not load it by default
+            enable_extension("omni.kit.viewport.window")
             # Set carb settings to allow for livestreaming
             carb_settings_iface.set_bool("/app/livestream/enabled", True)
             carb_settings_iface.set_bool("/app/window/drawMouse", True)
@@ -607,17 +472,8 @@ class AppLauncher:
                 enable_extension("omni.services.streamclient.webrtc")
             else:
                 raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2, 3 .")
-
-        # As of IsaacSim 2022.1.1, the ros extension has to be loaded
-        # after the streaming extension or it will cause a segfault
-        # Note: Only one ROS bridge extension can be enabled at a time
-        if self._ros != 0:
-            if self._ros == 1:
-                enable_extension("omni.isaac.ros_bridge")
-            elif self._ros == 2:
-                enable_extension("omni.isaac.ros2_bridge")
-            else:
-                raise ValueError(f"Invalid value for ros: {self._ros}. Expected: 1, 2 .")
+        else:
+            carb_settings_iface.set_bool("/app/livestream/enabled", False)
 
         # set carb setting to indicate orbit's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
@@ -648,18 +504,19 @@ class AppLauncher:
         # note: we need to always import this even with headless to make
         #   the module for orbit.envs.ui work
         enable_extension("omni.isaac.ui")
+        # enable animation recording extension
+        enable_extension("omni.kit.stagerecorder.core")
 
-        # set the nucleus directory manually to the 2023.1.0 version
-        # TODO: Remove this once the 2023.1.0 version is released
-        if int(isaacsim_version[2]) == 2023:
-            carb_settings_iface.set_string(
-                "/persistent/isaac/asset_root/default",
-                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
-            )
-            carb_settings_iface.set_string(
-                "/persistent/isaac/asset_root/nvidia",
-                "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
-            )
+        # set the nucleus directory manually to the latest published Nucleus
+        # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
+        carb_settings_iface.set_string(
+            "/persistent/isaac/asset_root/default",
+            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
+        )
+        carb_settings_iface.set_string(
+            "/persistent/isaac/asset_root/nvidia",
+            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
+        )
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.
@@ -679,3 +536,15 @@ class AppLauncher:
                 play_button_group._stop_button.visible = False  # type: ignore
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
+
+    def _interrupt_signal_handle_callback(self, signal, frame):
+        """Handle the interrupt signal from the keyboard."""
+        # close the app
+        self._app.close()
+        # raise the error for keyboard interrupt
+        raise KeyboardInterrupt
+
+    def _abort_signal_handle_callback(self, signal, frame):
+        """Handle the abort/segmentation/kill signals."""
+        # close the app
+        self._app.close()

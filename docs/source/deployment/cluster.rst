@@ -43,6 +43,17 @@ For simplicity, we recommend that an SSH connection is set up between the local
 development machine and the cluster. Such a connection will simplify the file transfer and prevent
 the user cluster password from being requested multiple times.
 
+.. attention::
+  The workflow has been tested with ``apptainer version 1.2.5-1.el7`` and ``docker version 24.0.7``.
+
+  - ``apptainer``:
+    There have been reported binding issues with previous versions (such as ``apptainer version 1.1.3-1.el7``). Please
+    ensure that you are using the latest version.
+  - ``Docker``:
+    The latest versions (``25.x``) cannot be used as they are not compatible yet with apptainer/ singularity.
+
+    We are waiting for an update from the apptainer team. To track this issue, please check the `forum post`_.
+
 Configuring the cluster parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -136,7 +147,7 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 .. code:: bash
 
-    ./docker/container.sh job ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --offscreen_render
+    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --offscreen_render
 
 The above will, in addition, also render videos of the training progress and store them under ``orbit/logs`` directory.
 
@@ -153,3 +164,4 @@ The above will, in addition, also render videos of the training progress and sto
 .. _apptainer: https://apptainer.org/
 .. _documentation: www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages
 .. _SLURM documentation: www.slurm.schedmd.com/sbatch.html
+.. _forum post: https://forums.docker.com/t/trouble-after-upgrade-to-docker-ce-25-0-1-on-debian-12/139613

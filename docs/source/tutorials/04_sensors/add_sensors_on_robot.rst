@@ -1,6 +1,5 @@
 .. _tutorial-add-sensors-on-robot:
 
-
 Adding sensors on a robot
 =========================
 
@@ -38,7 +37,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 73-96, 145-154, 172-173
+      :emphasize-lines: 74-97, 145-155, 169-170
       :linenos:
 
 
@@ -79,19 +78,18 @@ frame of the robot. The offset is specified as a translation and rotation relati
 and the :attr:`~sensors.CameraCfg.OffsetCfg.convention` in which the offset is specified.
 
 In the following, we show the configuration of the camera sensor used in this tutorial. We set the
-update period to 0s to update the sensor at simulation frequency. The prim path is set to
-``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is the namespace of the environment,
+update period to 0.1s, which means that the camera sensor is updated at 10Hz. The prim path expression is
+set to ``{ENV_REGEX_NS}/Robot/base/front_cam`` where the ``{ENV_REGEX_NS}`` is the environment namespace,
 ``"Robot"`` is the name of the robot, ``"base"`` is the name of the prim to which the camera is attached,
 and ``"front_cam"`` is the name of the prim associated with the camera sensor.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 74-84
-   :linenos:
-   :lineno-start: 74
+   :start-at: camera = CameraCfg(
+   :end-before: height_scanner = RayCasterCfg(
 
-Height scanner sensor
----------------------
+Height scanner
+--------------
 
 The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
 Through the :class:`sensors.RayCasterCfg`, we can specify the pattern of rays to cast and the
@@ -112,9 +110,8 @@ The entire configuration of the height-scanner is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 85-93
-   :linenos:
-   :lineno-start: 85
+   :start-at: height_scanner = RayCasterCfg(
+   :end-before: contact_forces = ContactSensorCfg(
 
 Contact sensor
 --------------
@@ -142,9 +139,8 @@ The entire configuration of the contact sensor is as follows:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 94-96
-   :linenos:
-   :lineno-start: 94
+   :start-at: contact_forces = ContactSensorCfg(
+   :lines: 1-3
 
 Running the simulation loop
 ---------------------------
@@ -154,9 +150,8 @@ when the simulation is played, i.e., it is important to call ``sim.reset()`` aft
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 172-173
-   :linenos:
-   :lineno-start: 173
+   :start-at: # Play the simulator
+   :end-at: sim.reset()
 
 Besides that, the simulation loop is similar to the previous tutorials. The sensors are updated as part
 of the scene update and they internally handle the updating of their buffers based on their update
@@ -167,9 +162,8 @@ to access the data for the different sensors created in this tutorial:
 
 .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
    :language: python
-   :lines: 148-158
-   :linenos:
-   :lineno-start: 148
+   :start-at: # print information from the sensors
+   :end-at: print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
 
 
 The Code Execution

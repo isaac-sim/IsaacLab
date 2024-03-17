@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,9 +6,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from tensordict import TensorDict
-from typing import TYPE_CHECKING, ClassVar, Sequence
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
@@ -50,13 +50,18 @@ class RayCasterCamera(RayCaster):
     UNSUPPORTED_TYPES: ClassVar[set[str]] = {
         "rgb",
         "instance_id_segmentation",
+        "instance_id_segmentation_fast",
         "instance_segmentation",
+        "instance_segmentation_fast",
         "semantic_segmentation",
         "skeleton_data",
         "motion_vectors",
         "bounding_box_2d_tight",
+        "bounding_box_2d_tight_fast",
         "bounding_box_2d_loose",
+        "bounding_box_2d_loose_fast",
         "bounding_box_3d",
+        "bounding_box_3d_fast",
     }
     """A set of sensor types that are not supported by the ray-caster camera."""
 
@@ -146,8 +151,6 @@ class RayCasterCamera(RayCaster):
         pos_w, quat_w = self._compute_camera_world_poses(env_ids)
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
-        # Set all reset sensors to not outdated since their value won't be updated till next sim step.
-        self._is_outdated[env_ids] = False
         # Reset the frame count
         self._frame[env_ids] = 0
 

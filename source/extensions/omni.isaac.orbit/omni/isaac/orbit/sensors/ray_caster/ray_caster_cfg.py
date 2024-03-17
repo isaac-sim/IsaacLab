@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -53,8 +53,8 @@ class RayCasterCfg(SensorBaseCfg):
     pattern_cfg: PatternBaseCfg = MISSING
     """The pattern that defines the local ray starting positions and directions."""
 
-    max_distance: float = 100.0
-    """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 100.0."""
+    max_distance: float = 1e6
+    """Maximum distance (in meters) from the sensor to ray cast to. Defaults to 1e6."""
 
     drift_range: tuple[float, float] = (0.0, 0.0)
     """The range of drift (in meters) to add to the ray starting positions (xyz). Defaults to (0.0, 0.0).

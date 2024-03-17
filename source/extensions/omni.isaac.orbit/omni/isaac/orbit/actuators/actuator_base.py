@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import torch
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.core.utils.types import ArticulationActions
 
@@ -57,7 +58,7 @@ class ActuatorBase(ABC):
         self,
         cfg: ActuatorBaseCfg,
         joint_names: list[str],
-        joint_ids: Sequence[int],
+        joint_ids: slice | Sequence[int],
         num_envs: int,
         device: str,
         stiffness: torch.Tensor | float = 0.0,
@@ -144,7 +145,7 @@ class ActuatorBase(ABC):
         return self._joint_names
 
     @property
-    def joint_indices(self) -> Sequence[int]:
+    def joint_indices(self) -> slice | Sequence[int]:
         """Articulation's joint indices that are part of the group.
 
         Note:
@@ -234,3 +235,14 @@ class ActuatorBase(ABC):
             raise ValueError("The parameter value is None and no default value is provided.")
 
         return param
+
+    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
+        """Clip the desired torques based on the motor limits.
+
+        Args:
+            desired_torques: The desired torques to clip.
+
+        Returns:
+            The clipped torques.
+        """
+        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)

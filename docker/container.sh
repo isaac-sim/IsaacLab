@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #==
 # Configurations
@@ -44,6 +44,21 @@ install_apptainer() {
     fi
 }
 
+# Function to check docker versions
+# If docker version is more than 25, the script errors out.
+check_docker_version() {
+    # Retrieve Docker version
+    docker_version=$(docker --version | awk '{ print $3 }')
+    apptainer_version=$(apptainer --version | awk '{ print $3 }')
+
+    # Check if version is above 25.xx
+    if [ "$(echo "${docker_version}" | cut -d '.' -f 1)" -ge 25 ]; then
+        echo "[ERROR]: Docker version ${docker_version} is not compatible with Apptainer version ${apptainer_version}. Exiting."
+        exit 1
+    else
+        echo "[INFO]: Building singularity with docker version: ${docker_version} and Apptainer version: ${apptainer_version}."
+    fi
+}
 
 #==
 # Main
@@ -116,6 +131,8 @@ case $mode in
         if ! command -v apptainer &> /dev/null; then
             install_apptainer
         fi
+        # Check if Docker version is greater than 25
+        check_docker_version
         # Check if .env file exists
         if [ -f $SCRIPT_DIR/.env ]; then
             # source env file to get cluster login and path information
@@ -125,7 +142,7 @@ case $mode in
             mkdir -p /$SCRIPT_DIR/exports
             # create singularity image
             cd /$SCRIPT_DIR/exports
-            SINGULARITY_NOHTTPS=1 apptainer build --sandbox orbit.sif docker-daemon://orbit:latest
+            APPTAINER_NOHTTPS=1 apptainer build --sandbox orbit.sif docker-daemon://orbit:latest
             # tar image and send to cluster
             tar -cvf /$SCRIPT_DIR/exports/orbit.tar orbit.sif
             scp /$SCRIPT_DIR/exports/orbit.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit.tar
@@ -140,10 +157,6 @@ case $mode in
             echo "[INFO] Syncing orbit code..."
             source $SCRIPT_DIR/.env
             rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
-            # Explicitly also sync orbit_assets as long as it is still used
-            if [ -f /$SCRIPT_DIR/../source/extensions/omni.isaac.orbit_assets ]; then
-                rsync -rh  --exclude="*.git*" /$SCRIPT_DIR/../source/extensions/omni.isaac.orbit_assets $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR/source/extensions
-            fi
             # execute job script
             echo "[INFO] Executing job script..."
             ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "${@:2}"

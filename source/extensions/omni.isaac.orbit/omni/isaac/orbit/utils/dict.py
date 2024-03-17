@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,8 @@ from __future__ import annotations
 import collections.abc
 import hashlib
 import json
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable

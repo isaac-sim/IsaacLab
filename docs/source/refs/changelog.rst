@@ -15,6 +15,15 @@ Extension containing the core framework of Orbit.
    :start-line: 3
 
 
+omni.isaac.orbit_assets
+------------------------
+
+Extension for configurations of various assets and sensors for Orbit.
+
+.. include:: ../../../source/extensions/omni.isaac.orbit_assets/docs/CHANGELOG.rst
+   :start-line: 3
+
+
 omni.isaac.orbit_tasks
 ----------------------
 

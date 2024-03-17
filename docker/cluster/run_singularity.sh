@@ -36,6 +36,16 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # load variables to set the orbit path on the cluster
 source $SCRIPT_DIR/../.env
 
+# make sure that all directories exists in cache directory
+setup_directories
+# copy all cache files
+cp -r $CLUSTER_ISAAC_SIM_CACHE_DIR $TMPDIR
+
+# copy orbit source code
+mkdir -p "$CLUSTER_ORBIT_DIR/logs"
+touch "$CLUSTER_ORBIT_DIR/logs/.keep"
+cp -r $CLUSTER_ORBIT_DIR $TMPDIR
+
 # copy singulary image to the compute node
 folder="$TMPDIR/isaac-sim.sif"
 
@@ -45,14 +55,6 @@ if [ -d "$folder" ]; then
 else
     tar -xf $CLUSTER_SIF_PATH/orbit.tar  -C $TMPDIR
 fi
-
-# make sure that all directories exists in cache directory
-setup_directories
-# copy all cache files
-cp -r $CLUSTER_ISAAC_SIM_CACHE_DIR $TMPDIR
-
-# copy orbit source code
-cp -r $CLUSTER_ORBIT_DIR $TMPDIR
 
 # execute command in singularity container
 singularity exec \
@@ -65,11 +67,9 @@ singularity exec \
     -B $TMPDIR/docker-isaac-sim/data:${DOCKER_USER_HOME}/.local/share/ov/data:rw \
     -B $TMPDIR/docker-isaac-sim/documents:${DOCKER_USER_HOME}/Documents:rw \
     -B $TMPDIR/orbit:/workspace/orbit:rw \
+    -B $CLUSTER_ORBIT_DIR/logs:/workspace/orbit/logs:rw \
     --nv --writable --containall $TMPDIR/orbit.sif \
     bash -c "cd /workspace/orbit && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} $@"
-
-# copy orbit logs back to host
-cp -r $TMPDIR/orbit/logs $CLUSTER_ORBIT_DIR
 
 # copy resulting cache files back to host
 cp -r $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..

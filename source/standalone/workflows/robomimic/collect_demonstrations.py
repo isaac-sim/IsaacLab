@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,14 +33,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import contextlib
 import gymnasium as gym
 import os
 import torch
-import traceback
-
-import carb
 
 from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
@@ -135,7 +131,8 @@ def main():
             # -- actions
             collector_interface.add("actions", actions)
             # perform action on environment
-            obs_dict, rewards, dones, info = env.step(actions)
+            obs_dict, rewards, terminated, truncated, info = env.step(actions)
+            dones = terminated | truncated
             # check that simulation is stopped or not
             if env.unwrapped.sim.is_stopped():
                 break
@@ -167,13 +164,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

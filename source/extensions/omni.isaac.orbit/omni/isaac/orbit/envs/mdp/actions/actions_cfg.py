@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -46,7 +46,40 @@ class JointPositionActionCfg(JointActionCfg):
     """Whether to use default joint positions configured in the articulation asset as offset.
     Defaults to True.
 
-    This overrides the settings from :attr:`offset` if set to True.
+    If True, this flag results in overwriting the values of :attr:`offset` to the default joint positions
+    from the articulation asset.
+    """
+
+
+@configclass
+class RelativeJointPositionActionCfg(JointActionCfg):
+    """Configuration for the relative joint position action term.
+
+    See :class:`RelativeJointPositionAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.RelativeJointPositionAction
+
+    use_zero_offset: bool = True
+    """Whether to ignore the offset defined in articulation asset. Defaults to True.
+
+    If True, this flag results in overwriting the values of :attr:`offset` to zero.
+    """
+
+
+@configclass
+class ExponentialMovingAverageJointPositionActionCfg(JointPositionActionCfg):
+    """Configuration for the exponential moving average joint position action term.
+
+    See :class:`ExponentialMovingAverageJointPositionAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.ExponentialMovingAverageJointPositionAction
+
+    weight: float | dict[str, float] = 1.0
+    """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
+
+    If set to 1.0, the processed action is applied directly without any moving average window.
     """
 
 
@@ -157,12 +190,29 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
 
+    @configclass
+    class OffsetCfg:
+        """The offset pose from parent frame to child frame.
+
+        On many robots, end-effector frames are fictitious frames that do not have a corresponding
+        rigid body. In such cases, it is easier to define this transform w.r.t. their parent rigid body.
+        For instance, for the Franka Emika arm, the end-effector is defined at an offset to the the
+        "panda_hand" frame.
+        """
+
+        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        """Quaternion rotation ``(w, x, y, z)`` w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
     class_type: type[ActionTerm] = task_space_actions.DifferentialInverseKinematicsAction
 
     joint_names: list[str] = MISSING
     """List of joint names or regex expressions that the action will be mapped to."""
     body_name: str = MISSING
     """Name of the body or frame for which IK is performed."""
+    body_offset: OffsetCfg | None = None
+    """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
     controller: DifferentialIKControllerCfg = MISSING

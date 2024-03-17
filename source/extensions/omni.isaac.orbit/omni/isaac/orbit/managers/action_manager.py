@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import torch
 from abc import abstractmethod
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import AssetBase
 
@@ -133,10 +134,11 @@ class ActionManager(ManagerBase):
         table.align["Name"] = "l"
         table.align["Dimension"] = "r"
         # add info on each term
-        for index, (name, term) in enumerate(zip(self._term_names, self._terms)):
+        for index, (name, term) in enumerate(self._terms.items()):
             table.add_row([index, name, term.action_dim])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 
@@ -157,7 +159,7 @@ class ActionManager(ManagerBase):
     @property
     def action_term_dim(self) -> list[int]:
         """Shape of each action term."""
-        return [term.action_dim for term in self._terms]
+        return [term.action_dim for term in self._terms.values()]
 
     @property
     def action(self) -> torch.Tensor:
@@ -190,7 +192,7 @@ class ActionManager(ManagerBase):
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0
         # reset all action terms
-        for term in self._terms:
+        for term in self._terms.values():
             term.reset(env_ids=env_ids)
         # nothing to log here
         return {}
@@ -213,7 +215,7 @@ class ActionManager(ManagerBase):
 
         # split the actions and apply to each tensor
         idx = 0
-        for term in self._terms:
+        for term in self._terms.values():
             term_actions = action[:, idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
@@ -224,8 +226,19 @@ class ActionManager(ManagerBase):
         Note:
             This should be called at every simulation step.
         """
-        for term in self._terms:
+        for term in self._terms.values():
             term.apply_actions()
+
+    def get_term(self, name: str) -> ActionTerm:
+        """Returns the action term with the specified name.
+
+        Args:
+            name: The name of the action term.
+
+        Returns:
+            The action term with the specified name.
+        """
+        return self._terms[name]
 
     """
     Helper functions.
@@ -235,7 +248,7 @@ class ActionManager(ManagerBase):
         """Prepares a list of action terms."""
         # parse action terms from the config
         self._term_names: list[str] = list()
-        self._terms: list[ActionTerm] = list()
+        self._terms: dict[str, ActionTerm] = dict()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -259,4 +272,4 @@ class ActionManager(ManagerBase):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")
             # add term name and parameters
             self._term_names.append(term_name)
-            self._terms.append(term)
+            self._terms[term_name] = term

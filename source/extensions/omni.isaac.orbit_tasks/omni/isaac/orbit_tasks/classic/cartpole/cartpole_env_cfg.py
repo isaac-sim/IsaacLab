@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -22,7 +22,7 @@ import omni.isaac.orbit_tasks.classic.cartpole.mdp as mdp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.cartpole import CARTPOLE_CFG  # isort:skip
+from omni.isaac.orbit_assets.cartpole import CARTPOLE_CFG  # isort:skip
 
 
 ##
@@ -179,7 +179,7 @@ class CartpoleEnvCfg(RLTaskEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
     description="This script shows the issue in Isaac Sim with GPU simulation of floating robots."
 )
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_robots", type=int, default=128, help="Number of robots to spawn.")
 parser.add_argument(
     "--asset",
@@ -30,15 +29,16 @@ parser.add_argument(
     default="orbit",
     help="The asset source location for the robot. Can be: orbit, oige, custom asset path.",
 )
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
-
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
-
 
 import os
 import torch
@@ -167,7 +167,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not world.is_playing():
-            world.step(render=not args_cli.headless)
+            world.step(render=False)
             continue
         # perform step
         world.step()
@@ -176,7 +176,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run the main function
+    # run the main function
     main()
-    # Close the simulator
+    # close sim app
     simulation_app.close()

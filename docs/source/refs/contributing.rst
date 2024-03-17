@@ -169,14 +169,14 @@ To do a clean build, run the following command in the terminal:
 Contributing assets
 -------------------
 
-Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/prod_nucleus/prod_nucleus/overview.html>`__.
+Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/nucleus/latest/index.html>`__.
 Nucleus is a cloud-based storage service that allows users to store and share large files. It is
 integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omniverse>`__.
 
 Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
 we need to include the links to the assets in the documentation.
 
-The included assets are part of the `Isaac Sim Content <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/reference_assets.html>`__.
+The included assets are part of the `Isaac Sim Content <https://docs.omniverse.nvidia.com/isaacsim/latest/features/environment_setup/assets/usd_assets_overview.html>`__.
 To use this content, you need to download the files to a Nucleus server or create an **Isaac** Mount on
 a Nucleus server.
 

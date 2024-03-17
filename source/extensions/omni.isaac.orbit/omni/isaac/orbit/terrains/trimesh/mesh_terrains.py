@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -809,12 +809,10 @@ def repeated_objects_terrain(
     meshes_list = list()
     # compute quantities
     origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * height))
-    platform_corners = np.asarray(
-        [
-            [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
-            [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
-        ]
-    )
+    platform_corners = np.asarray([
+        [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
+        [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
+    ])
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample center for objects

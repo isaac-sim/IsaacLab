@@ -1,13 +1,16 @@
 .. _how-to-env-wrappers:
 
-Using environment wrappers
-==========================
+
+Wrapping environments
+=====================
+
+.. currentmodule:: omni.isaac.orbit
 
 Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
 A detailed description of the API is available in the :class:`gymnasium.Wrapper` class.
 
-At present, all RL environments inheriting from the :class:`omni.isaac.orbit.envs.RLTaskEnv` class
+At present, all RL environments inheriting from the :class:`~envs.RLTaskEnv` class
 are compatible with :class:`gymnasium.Wrapper`, since the base class implements the :class:`gymnasium.Env` interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling ``env = wrapper(env, *args, **kwargs)`` repeatedly.
@@ -68,7 +71,7 @@ To use the wrapper, you need to first install ``ffmpeg``. On Ubuntu, you can ins
 
 The viewport camera used for rendering is the default camera in the scene called ``"/OmniverseKit_Persp"``.
 The camera's pose and image resolution can be configured through the
-:class:`omni.isaac.orbit.envs.ViewerCfg` class.
+:class:`~envs.ViewerCfg` class.
 
 
 .. dropdown:: Default parameters of the ViewerCfg class:
@@ -99,7 +102,6 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
 
     """Rest everything follows."""
 
-
     import gymnasium as gym
 
     # adjust camera resolution and pose
@@ -125,7 +127,7 @@ Every learning framework has its own API for interacting with environments. For 
 `Stable-Baselines3`_ library uses the `gym.Env <https://gymnasium.farama.org/api/env/>`_
 interface to interact with environments. However, libraries like `RL-Games`_ or `RSL-RL`_
 use their own API for interfacing with a learning environments. Since there is no one-size-fits-all
-solution, we do not base the :class:`RLTaskEnv` class on any particular learning framework's
+solution, we do not base the :class:`~envs.RLTaskEnv` class on any particular learning framework's
 environment definition. Instead, we implement wrappers to make it compatible with the learning
 framework's environment definition.
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
@@ -70,6 +71,7 @@ class RewardManager(ManagerBase):
             table.add_row([index, name, term_cfg.weight])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 

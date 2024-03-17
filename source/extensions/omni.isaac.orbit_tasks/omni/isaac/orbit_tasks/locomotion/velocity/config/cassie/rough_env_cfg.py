@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.cassie import CASSIE_CFG  # isort: skip
+from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort: skip
 
 
 @configclass
@@ -21,7 +21,7 @@ class CassieRewardsCfg(RewardsCfg):
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
-        weight=10.0,
+        weight=2.5,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
             "command_name": "base_velocity",

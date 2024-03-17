@@ -9,6 +9,6 @@ simulated scene. They cover the following APIs: :class:`~omni.isaac.orbit.app.Ap
     :maxdepth: 1
     :titlesonly:
 
-    launch_app
     create_empty
     spawn_prims
+    launch_app

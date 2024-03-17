@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,19 +8,17 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
 
@@ -209,12 +207,7 @@ class TestUsdVisualizationMarkers(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

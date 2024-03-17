@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,6 +17,9 @@ from omni.isaac.orbit.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Orbit environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument(
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--device", type=str, default="keyboard", help="Device for interacting with environment")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -35,7 +38,6 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import traceback
 
 import carb
 
@@ -64,11 +66,12 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 def main():
     """Running keyboard teleoperation with Orbit manipulation environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(
+        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    )
     # modify configuration
-    env_cfg.control.control_type = "inverse_kinematics"
-    env_cfg.control.inverse_kinematics.command_type = "pose_rel"
-    env_cfg.terminations.episode_timeout = False
+    env_cfg.terminations.time_out = None
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
     # check environment name (for reach , we don't allow the gripper)
@@ -107,25 +110,20 @@ def main():
         with torch.inference_mode():
             # get keyboard command
             delta_pose, gripper_command = teleop_interface.advance()
+            delta_pose = delta_pose.astype("float32")
             # convert to torch
-            delta_pose = torch.tensor(delta_pose, dtype=torch.float, device=env.device).repeat(env.num_envs, 1)
+            delta_pose = torch.tensor(delta_pose, device=env.unwrapped.device).repeat(env.unwrapped.num_envs, 1)
             # pre-process actions
             actions = pre_process_actions(delta_pose, gripper_command)
             # apply actions
-            _, _, _, _ = env.step(actions)
+            env.step(actions)
 
     # close the simulator
     env.close()
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

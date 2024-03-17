@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -76,6 +76,8 @@ class TerrainImporter:
         self.warp_meshes = dict()
         self.env_origins = None
         self.terrain_origins = None
+        # private variables
+        self._terrain_flat_patches = dict()
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
@@ -83,10 +85,12 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator)
+            terrain_generator = TerrainGenerator(cfg=self.cfg.terrain_generator, device=self.device)
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # configure the terrain origins based on the terrain generator
             self.configure_env_origins(terrain_generator.terrain_origins)
+            # refer to the flat patches
+            self._terrain_flat_patches = terrain_generator.flat_patches
         elif self.cfg.terrain_type == "usd":
             # check if config is provided
             if self.cfg.usd_path is None:
@@ -117,6 +121,17 @@ class TerrainImporter:
         This always returns True.
         """
         return True
+
+    @property
+    def flat_patches(self) -> dict[str, torch.Tensor]:
+        """A dictionary containing the sampled valid (flat) patches for the terrain.
+
+        This is only available if the terrain type is 'generator'. For other terrain types, this feature
+        is not available and the function returns an empty dictionary.
+
+        Please refer to the :attr:`TerrainGenerator.flat_patches` for more information.
+        """
+        return self._terrain_flat_patches
 
     """
     Operations - Visibility.
@@ -159,7 +174,7 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, key: str, size: tuple[int, int] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, key: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
         """Add a plane to the terrain importer.
 
         Args:
@@ -181,7 +196,7 @@ class TerrainImporter:
         self.warp_meshes[key] = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=device)
 
         # get the mesh
-        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material)
+        ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size)
         ground_plane_cfg.func(self.cfg.prim_path, ground_plane_cfg)
 
     def import_mesh(self, key: str, mesh: trimesh.Trimesh):

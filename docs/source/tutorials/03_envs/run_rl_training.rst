@@ -40,7 +40,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 
     .. literalinclude:: ../../../../source/standalone/workflows/sb3/train.py
       :language: python
-      :emphasize-lines: 61, 69, 74-76, 96-110, 125-126, 114-123
+      :emphasize-lines: 58, 61, 67-69, 78, 92-96, 98-99, 102-110, 112, 117-125, 127-128, 135-138
       :linenos:
 
 The Code Explained
@@ -141,9 +141,9 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32
+   ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
 
-By default, the above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
+The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/

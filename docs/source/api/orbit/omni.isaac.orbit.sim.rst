@@ -20,6 +20,12 @@
     SimulationCfg
     PhysxCfg
 
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    simulation_context.build_simulation_context
+
 Simulation Context
 ------------------
 
@@ -40,6 +46,10 @@ Simulation Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+Simulation Context Builder
+--------------------------
+
+.. automethod:: simulation_context.build_simulation_context
 
 Utilities
 ---------

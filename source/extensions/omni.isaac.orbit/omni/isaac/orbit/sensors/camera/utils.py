@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,8 @@ import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Sequence
-from typing_extensions import Literal
+from collections.abc import Sequence
+from typing import Literal
 
 import omni.isaac.core.utils.stage as stage_utils
 import warp as wp

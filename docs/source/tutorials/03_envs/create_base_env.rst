@@ -32,7 +32,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
-      :emphasize-lines: 51-55, 58-75, 78-111, 114-133, 138-142, 147, 151, 156-157, 163-164
+      :emphasize-lines: 49-53, 56-73, 76-109, 112-131, 136-140, 145, 149, 154-155, 161-162
       :linenos:
 
 
@@ -79,8 +79,6 @@ Thus, we will create an action term that controls the force applied to the cart.
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ActionsCfg
-   :linenos:
-   :lineno-start: 51
 
 Defining observations
 ---------------------
@@ -111,8 +109,6 @@ default values for this tutorial.
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ObservationsCfg
-   :linenos:
-   :lineno-start: 58
 
 Defining randomizations
 -----------------------
@@ -141,8 +137,6 @@ the cartpole and the pole at every reset.
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: RandomizationCfg
-   :linenos:
-   :lineno-start: 78
 
 Tying it all together
 ---------------------
@@ -159,8 +153,6 @@ be modified as needed. We recommend doing so by defining the :meth:`__post_init_
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: CartpoleEnvCfg
-   :linenos:
-   :lineno-start: 114
 
 Running the simulation
 ----------------------
@@ -179,8 +171,6 @@ for the environment. In this tutorial, we reset the simulation at regular interv
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: main
-   :linenos:
-   :lineno-start: 136
 
 An important thing to note above is that the entire simulation loop is wrapped inside the
 :meth:`torch.inference_mode` context manager. This is because the environment uses PyTorch

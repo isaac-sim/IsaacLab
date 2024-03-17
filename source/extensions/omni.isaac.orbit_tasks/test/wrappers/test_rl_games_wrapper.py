@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,13 +19,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.usd
 
 from omni.isaac.orbit.envs import RLTaskEnvCfg
@@ -54,7 +51,7 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
 
     def setUp(self) -> None:
         # common parameters
-        self.num_envs = 512
+        self.num_envs = 64
         self.use_gpu = True
 
     def test_random_actions(self):
@@ -120,12 +117,7 @@ class TestRlGamesVecEnvWrapper(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
+    simulation_app.close()

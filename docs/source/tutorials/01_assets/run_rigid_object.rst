@@ -20,7 +20,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``orbit/so
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
       :language: python
-      :emphasize-lines: 59-78, 80-82, 102-112, 115-118, 122-123, 136-138, 143-144
+      :emphasize-lines: 57-76, 78-80, 100-110, 113-114, 120-121, 134-136, 141-142
       :linenos:
 
 
@@ -63,9 +63,8 @@ present in the scene, the rigid object prims are spawned at the locations ``/Wor
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
-   :lines: 59-78
-   :linenos:
-   :lineno-start: 59
+   :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
+   :end-at: cone_object = RigidObject(cfg=cone_cfg)
 
 Since we want to interact with the rigid object, we pass this entity back to the main function. This entity
 is then used to interact with the rigid object in the simulation loop. In later tutorials, we will see a more
@@ -73,9 +72,8 @@ convenient way to handle multiple scene entities using the :class:`scene.Interac
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
-   :lines: 80-82
-   :linenos:
-   :lineno-start: 80
+   :start-at: # return the scene information
+   :end-at: return scene_entities, origins
 
 
 Running the simulation loop
@@ -103,9 +101,8 @@ As the name suggests, this method writes the root state of the rigid object prim
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
-   :lines: 102-112
-   :linenos:
-   :lineno-start: 102
+   :start-at: # reset root state
+   :end-at: cone_object.reset()
 
 Stepping the simulation
 """""""""""""""""""""""
@@ -116,9 +113,8 @@ external forces to the rigid object, so this method is not necessary. However, i
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
-   :lines: 115-116
-   :linenos:
-   :lineno-start: 115
+   :start-at: # apply sim data
+   :end-at: cone_object.write_data_to_sim()
 
 Updating the state
 """"""""""""""""""
@@ -128,9 +124,8 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
    :language: python
-   :lines: 122-123
-   :linenos:
-   :lineno-start: 122
+   :start-at: # update buffers
+   :end-at: cone_object.update(sim_dt)
 
 
 The Code Execution

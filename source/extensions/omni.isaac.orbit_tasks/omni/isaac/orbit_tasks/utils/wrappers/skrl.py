@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,12 +30,12 @@ import torch
 import tqdm
 
 from skrl.agents.torch import Agent
-from skrl.envs.torch.wrappers import Wrapper, wrap_env
+from skrl.envs.wrappers.torch import Wrapper, wrap_env
 from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
-from skrl.resources.schedulers.torch import KLAdaptiveRL  # noqa: F401
+from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
 from skrl.trainers.torch import Trainer
 from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
-from skrl.utils.model_instantiators import Shape  # noqa: F401
+from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
 
 from omni.isaac.orbit.envs import RLTaskEnv
 
@@ -160,7 +160,7 @@ class SkrlSequentialLogTrainer(Trainer):
         # initialize the base class
         super().__init__(env=env, agents=agents, agents_scope=agents_scope, cfg=_cfg)
         # init agents
-        if self.num_agents > 1:
+        if self.env.num_agents > 1:
             for agent in self.agents:
                 agent.init(trainer_cfg=self.cfg)
         else:
@@ -247,12 +247,10 @@ class SkrlSequentialLogTrainer(Trainer):
         for timestep in tqdm.tqdm(range(self.initial_timestep, self.timesteps), disable=self.disable_progressbar):
             # compute actions
             with torch.no_grad():
-                actions = torch.vstack(
-                    [
-                        agent.act(states[scope[0] : scope[1]], timestep=timestep, timesteps=self.timesteps)[0]
-                        for agent, scope in zip(self.agents, self.agents_scope)
-                    ]
-                )
+                actions = torch.vstack([
+                    agent.act(states[scope[0] : scope[1]], timestep=timestep, timesteps=self.timesteps)[0]
+                    for agent, scope in zip(self.agents, self.agents_scope)
+                ])
 
             # step the environments
             next_states, rewards, terminated, truncated, infos = self.env.step(actions)
@@ -273,10 +271,10 @@ class SkrlSequentialLogTrainer(Trainer):
                         timesteps=self.timesteps,
                     )
                     # log custom environment data
-                    if "episode" in infos:
-                        for k, v in infos["episode"].items():
+                    if "log" in infos:
+                        for k, v in infos["log"].items():
                             if isinstance(v, torch.Tensor) and v.numel() == 1:
-                                agent.track_data(f"EpisodeInfo / {k}", v.item())
+                                agent.track_data(k, v.item())
                     # perform post-interaction
                     super(type(agent), agent).post_interaction(timestep=timestep, timesteps=self.timesteps)
 

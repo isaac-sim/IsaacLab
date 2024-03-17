@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.core.utils.types import ArticulationActions
 
@@ -54,7 +55,13 @@ class ImplicitActuator(ActuatorBase):
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # we do not need to do anything here
+        """Compute the aproximmate torques for the actuated joint (physX does not compute this explicitly)."""
+        # store approximate torques for reward computation
+        error_pos = control_action.joint_positions - joint_pos
+        error_vel = control_action.joint_velocities - joint_vel
+        self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
+        # clip the torques based on the motor limits
+        self.applied_effort = self._clip_effort(self.computed_effort)
         return control_action
 
 
@@ -114,21 +121,6 @@ class IdealPDActuator(ActuatorBase):
         control_action.joint_positions = None
         control_action.joint_velocities = None
         return control_action
-
-    """
-    Helper functions.
-    """
-
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        """Clip the desired torques based on the motor limits.
-
-        Args:
-            desired_torques: The desired torques to clip.
-
-        Returns:
-            The clipped torques.
-        """
-        return torch.clip(effort, min=-self.effort_limit, max=self.effort_limit)
 
 
 class DCMotor(IdealPDActuator):

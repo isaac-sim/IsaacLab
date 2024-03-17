@@ -8,4 +8,4 @@ tutorials show you how to use motion generators to control the robots at the tas
     :maxdepth: 1
     :titlesonly:
 
-    ik_controller
+    run_diff_ik

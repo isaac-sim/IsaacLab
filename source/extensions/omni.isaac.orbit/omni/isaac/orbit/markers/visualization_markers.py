@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -25,7 +25,7 @@ from dataclasses import MISSING
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
-from pxr import Gf, Sdf, UsdGeom, Vt
+from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.sim.spawners import SpawnerCfg
@@ -347,17 +347,9 @@ class VisualizationMarkers:
             prim = cfg.func(prim_path=marker_prim_path, cfg=cfg)
             # make the asset uninstanceable (in case it is)
             # point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
-            sim_utils.make_uninstanceable(marker_prim_path)
+            self._process_prototype_prim(prim)
             # remove any physics on the markers because they are only for visualization!
             physx_utils.removeRigidBodySubtree(prim)
-            # make marker invisible to secondary rays
-            omni.kit.commands.execute(
-                "ChangePropertyCommand",
-                prop_path=Sdf.Path(f"{marker_prim_path}.primvars:invisibleToSecondaryRays"),
-                value=True,
-                prev=None,
-                type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-            )
             # add child reference to point instancer
             self._instancer_manager.GetPrototypesRel().AddTarget(marker_prim_path)
         # check that we loaded all the prototypes
@@ -366,3 +358,51 @@ class VisualizationMarkers:
             raise RuntimeError(
                 f"Failed to load all the prototypes. Expected: {len(markers_cfg)}. Received: {len(prototypes)}."
             )
+
+    def _process_prototype_prim(self, prim: Usd.Prim):
+        """Process a prim and its descendants to make them suitable for defining prototypes.
+
+        Point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
+        This function checks if the prim at the specified prim path and its descendants are instanced.
+        If so, it makes the respective prim uninstanceable by disabling instancing on the prim.
+
+        Additionally, it makes the prim invisible to secondary rays. This is useful when we do not want
+        to see the marker prims on camera images.
+
+        Args:
+            prim_path: The prim path to check.
+            stage: The stage where the prim exists.
+                Defaults to None, in which case the current stage is used.
+        """
+        # check if prim is valid
+        if not prim.IsValid():
+            raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
+        # iterate over all prims under prim-path
+        all_prims = [prim]
+        while len(all_prims) > 0:
+            # get current prim
+            child_prim = all_prims.pop(0)
+            # check if it is physics body -> if so, remove it
+            if child_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                child_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+                child_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+            if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                child_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
+                child_prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
+            if child_prim.IsA(UsdPhysics.Joint):
+                child_prim.GetAttribute("physics:jointEnabled").Set(False)
+            # check if prim is instanced -> if so, make it uninstanceable
+            if child_prim.IsInstance():
+                child_prim.SetInstanceable(False)
+            # check if prim is a mesh -> if so, make it invisible to secondary rays
+            if child_prim.IsA(UsdGeom.Gprim):
+                # invisible to secondary rays such as depth images
+                omni.kit.commands.execute(
+                    "ChangePropertyCommand",
+                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
+                    value=True,
+                    prev=None,
+                    type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
+                )
+            # add children to list
+            all_prims += child_prim.GetChildren()

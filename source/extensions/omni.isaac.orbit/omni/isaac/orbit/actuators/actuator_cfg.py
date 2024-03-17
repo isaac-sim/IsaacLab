@@ -1,13 +1,13 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import MISSING
-from typing import Iterable
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -32,16 +32,16 @@ class ActuatorBaseCfg:
         This can be a list of joint names or a list of regex expressions (e.g. ".*").
     """
 
-    effort_limit: float | None = None
+    effort_limit: dict[str, float] | float | None = None
     """Force/Torque limit of the joints in the group. Defaults to None.
 
     If None, the limit is set to the value specified in the USD joint prim.
     """
 
-    velocity_limit: float | None = None
+    velocity_limit: dict[str, float] | float | None = None
     """Velocity limit of the joints in the group. Defaults to None.
 
-    If None, the limit is set to infinity.
+    If None, the limit is set to the value specified in the USD joint prim.
     """
 
     stiffness: dict[str, float] | float | None = MISSING

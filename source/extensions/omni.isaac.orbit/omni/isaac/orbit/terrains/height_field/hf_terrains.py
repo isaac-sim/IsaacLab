@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -69,12 +69,12 @@ def random_uniform_terrain(difficulty: float, cfg: hf_terrains_cfg.HfRandomUnifo
     # create interpolation function for the sampled heights
     x = np.linspace(0, cfg.size[0] * cfg.horizontal_scale, width_downsampled)
     y = np.linspace(0, cfg.size[1] * cfg.horizontal_scale, length_downsampled)
-    func = interpolate.RectBivariateSpline(y, x, height_field_downsampled)
+    func = interpolate.RectBivariateSpline(x, y, height_field_downsampled)
 
     # interpolate the sampled heights to obtain the height field
     x_upsampled = np.linspace(0, cfg.size[0] * cfg.horizontal_scale, width_pixels)
     y_upsampled = np.linspace(0, cfg.size[1] * cfg.horizontal_scale, length_pixels)
-    z_upsampled = func(y_upsampled, x_upsampled)
+    z_upsampled = func(x_upsampled, y_upsampled)
     # round off the interpolated heights to the nearest vertical step
     return np.rint(z_upsampled).astype(np.int16)
 

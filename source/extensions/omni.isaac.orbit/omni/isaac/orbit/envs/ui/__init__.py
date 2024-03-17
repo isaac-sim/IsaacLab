@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,3 +12,4 @@ toggling different debug visualization tools, and other user-defined functionali
 
 from .base_env_window import BaseEnvWindow
 from .rl_task_env_window import RLTaskEnvWindow
+from .viewport_camera_controller import ViewportCameraController

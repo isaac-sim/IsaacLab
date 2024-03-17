@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
+    libglib2.0-0 \
     ncurses-term && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
@@ -47,7 +48,7 @@ RUN ln -sf ${ISAACSIM_PATH} ${ORBIT_PATH}/_isaac_sim
 RUN mkdir -p ${ISAACSIM_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
-    mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache&&  \
+    mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \
     mkdir -p ${DOCKER_USER_HOME}/.nv/ComputeCache && \
     mkdir -p ${DOCKER_USER_HOME}/.nvidia-omniverse/logs && \
     mkdir -p ${DOCKER_USER_HOME}/.local/share/ov/data && \
@@ -59,10 +60,15 @@ RUN touch /bin/nvidia-smi && \
     touch /bin/nvidia-persistenced && \
     touch /bin/nvidia-cuda-mps-control && \
     touch /bin/nvidia-cuda-mps-server && \
-    touch /etc/localtime
+    touch /etc/localtime && \
+    mkdir -p /var/run/nvidia-persistenced && \
+    touch /var/run/nvidia-persistenced/socket
 
 # installing Orbit dependencies
-RUN ${ORBIT_PATH}/orbit.sh --install --extra
+# use pip caching to avoid reinstalling large packages
+RUN --mount=type=cache,target=/${DOCKER_USER_HOME}/.cache/pip \
+    ${ORBIT_PATH}/orbit.sh --install --extra
+
 # aliasing orbit.sh and python for convenience
 RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
     echo "alias python=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \

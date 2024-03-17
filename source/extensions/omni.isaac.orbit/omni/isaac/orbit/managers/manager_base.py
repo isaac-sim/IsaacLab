@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,10 +8,12 @@ from __future__ import annotations
 import copy
 import inspect
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import carb
 
+import omni.isaac.orbit.utils.string as string_utils
 from omni.isaac.orbit.utils import string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
@@ -162,6 +164,33 @@ class ManagerBase(ABC):
             Dictionary containing the logging information.
         """
         return {}
+
+    def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
+        """Find terms in the manager based on the names.
+
+        This function searches the manager for terms based on the names. The names can be
+        specified as regular expressions or a list of regular expressions. The search is
+        performed on the active terms in the manager.
+
+        Please check the :meth:`omni.isaac.orbit.utils.string_utils.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the term names.
+
+        Returns:
+            A list of term names that match the input keys.
+        """
+        # resolve search keys
+        if isinstance(self.active_terms, dict):
+            list_of_strings = []
+            for names in self.active_terms.values():
+                list_of_strings.extend(names)
+        else:
+            list_of_strings = self.active_terms
+
+        # return the matching names
+        return string_utils.resolve_matching_names(name_keys, list_of_strings)[1]
 
     """
     Implementation specific.

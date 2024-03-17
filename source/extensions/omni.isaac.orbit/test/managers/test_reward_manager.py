@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,11 +7,11 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
@@ -168,5 +168,7 @@ class TestRewardManager(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # run main
+    unittest.main(verbosity=2, exit=False)
+    # close sim app
     simulation_app.close()

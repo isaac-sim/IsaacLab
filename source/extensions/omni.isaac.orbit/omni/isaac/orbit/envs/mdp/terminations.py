@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,6 +20,7 @@ from omni.isaac.orbit.sensors import ContactSensor
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import RLTaskEnv
+    from omni.isaac.orbit.managers.command_manager import CommandTerm
 
 """
 MDP terminations.
@@ -31,15 +32,14 @@ def time_out(env: RLTaskEnv) -> torch.Tensor:
     return env.episode_length_buf >= env.max_episode_length
 
 
-def command_resample(env: RLTaskEnv, num_resamples: int = 1) -> torch.Tensor:
+def command_resample(env: RLTaskEnv, command_name: str, num_resamples: int = 1) -> torch.Tensor:
     """Terminate the episode based on the total number of times commands have been re-sampled.
 
     This makes the maximum episode length fluid in nature as it depends on how the commands are
     sampled. It is useful in situations where delayed rewards are used :cite:`rudin2022advanced`.
     """
-    return torch.logical_and(
-        (env.command_manager.time_left <= env.step_dt), (env.command_manager.command_counter == num_resamples)
-    )
+    command: CommandTerm = env.command_manager.get_term(command_name)
+    return torch.logical_and((command.time_left <= env.step_dt), (command.command_counter == num_resamples))
 
 
 """

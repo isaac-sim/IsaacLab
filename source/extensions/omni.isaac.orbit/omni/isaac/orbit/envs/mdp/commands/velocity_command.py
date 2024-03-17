@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation
@@ -119,8 +120,9 @@ class UniformVelocityCommand(CommandTerm):
             # resolve indices of heading envs
             env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
             # compute angular velocity
+            heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
             self.vel_command_b[env_ids, 2] = torch.clip(
-                0.5 * math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids]),
+                self.cfg.heading_control_stiffness * heading_error,
                 min=self.cfg.ranges.ang_vel_z[0],
                 max=self.cfg.ranges.ang_vel_z[1],
             )

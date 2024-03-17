@@ -29,9 +29,11 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Anton Bjørndahl Mortensen
 * Alice Zhou
 * Andrej Orsula
 * Antonio Serrano-Muñoz
+* Arjun Bhardwaj
 * Calvin Yu
 * Chenyu Yang
 * Jia Lin Yuan

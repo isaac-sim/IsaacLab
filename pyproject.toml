@@ -1,6 +1,6 @@
 [tool.isort]
 
-py_version = 37
+py_version = 310
 line_length = 120
 group_by_package = true
 
@@ -36,7 +36,6 @@ extra_standard_library = [
     "toml",
     "trimesh",
     "tqdm",
-    "typing_extensions",
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
@@ -71,7 +70,7 @@ exclude = [
 ]
 
 typeCheckingMode = "basic"
-pythonVersion = "3.7"
+pythonVersion = "3.10"
 pythonPlatform = "Linux"
 enableTypeIgnoreComments = true
 

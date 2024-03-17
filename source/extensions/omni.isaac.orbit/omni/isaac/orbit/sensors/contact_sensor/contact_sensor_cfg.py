@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,7 +23,14 @@ class ContactSensorCfg(SensorBaseCfg):
     """Whether to track the pose of the sensor's origin. Defaults to False."""
 
     track_air_time: bool = False
-    """Whether to track the air time of the bodies (time between contacts). Defaults to False."""
+    """Whether to track the air/contact time of the bodies (time between contacts). Defaults to False."""
+
+    force_threshold: float = 1.0
+    """The threshold on the norm of the contact force that determines whether two bodies are in collision or not.
+
+    This value is only used for tracking the mode duration (the time in contact or in air),
+    if :attr:`track_air_time` is True.
+    """
 
     filter_prim_paths_expr: list[str] = list()
     """The list of primitive paths to filter contacts with.

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,9 @@ import inspect
 import torch
 import weakref
 from abc import abstractmethod
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import omni.kit.app
 
@@ -263,6 +264,7 @@ class CommandManager(ManagerBase):
             table.add_row([index, name, term.__class__.__name__])
         # convert table to string
         msg += table.get_string()
+        msg += "\n"
 
         return msg
 
@@ -351,6 +353,17 @@ class CommandManager(ManagerBase):
             The command tensor of the specified command term.
         """
         return self._terms[name].command
+
+    def get_term(self, name: str) -> CommandTerm:
+        """Returns the command term with the specified name.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command term with the specified name.
+        """
+        return self._terms[name]
 
     """
     Helper functions.

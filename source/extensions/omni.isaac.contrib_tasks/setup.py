@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,12 +26,13 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     packages=["omni.isaac.contrib_tasks"],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
         "Isaac Sim :: 2023.1.0-hotfix.1",
+        "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,
 )

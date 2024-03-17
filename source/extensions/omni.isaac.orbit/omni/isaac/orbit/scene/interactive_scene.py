@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import builtins
 import torch
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import carb
 import omni.usd
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.version import get_version
 from pxr import PhysxSchema
 
 import omni.isaac.orbit.sim as sim_utils
@@ -36,9 +36,10 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
         from omni.isaac.orbit.scene import InteractiveSceneCfg
         from omni.isaac.orbit.utils import configclass
+
+        from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
@@ -101,11 +102,6 @@ class InteractiveScene:
     def __init__(self, cfg: InteractiveSceneCfg):
         """Initializes the scene.
 
-        .. note::
-            In Isaac Sim 2022.2, we do not have a way to copy the prim from source. It is always inherited.
-            Thus, it is not possible to have a scene with multiple environments with different assets (or
-            as we call heterogeneous environments). This limitation is fixed in Isaac Sim 2023.1.
-
         Args:
             cfg: The configuration class for the scene.
         """
@@ -119,44 +115,25 @@ class InteractiveScene:
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # obtain major isaac sim version
-        isaac_major_version = int(get_version()[2])
         # clone the env xform
-        # in isaac sim 2022.2, we do not have a way to copy the prim from source. it is always inherited.
-        if isaac_major_version == 2022:
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-            )
-        else:
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-            )
+        env_origins = self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=False,
+            copy_from_source=True,
+        )
         self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         # add entities from config
         self._add_entities_from_cfg()
         # replicate physics if we have more than one environment
         # this is done to make scene initialization faster at play time
-        if self.cfg.replicate_physics:
-            # in isaac sim 2022.2, this function is private
-            if isaac_major_version == 2022:
-                self.cloner._replicate_physics(  # pyright: ignore [reportPrivateUsage]
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                )
-            else:
-                self.cloner.replicate_physics(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                )
+        if self.cfg.replicate_physics and self.cfg.num_envs > 1:
+            self.cloner.replicate_physics(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                base_env_path=self.env_ns,
+                root_path=self.env_regex_ns.replace(".*", ""),
+            )
         # obtain the current physics scene
         physics_scene_prim_path = None
         for prim in self.stage.Traverse():
@@ -171,6 +148,12 @@ class InteractiveScene:
             self.env_prim_paths,
             global_paths=self._global_prim_paths,
         )
+
+    def __del__(self):
+        """Clear instances of registered assets and sensors."""
+        self.articulations.clear()
+        self.rigid_objects.clear()
+        self.sensors.clear()
 
     def __str__(self) -> str:
         """Returns a string representation of the scene."""

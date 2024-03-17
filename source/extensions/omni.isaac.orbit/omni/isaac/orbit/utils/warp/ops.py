@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -42,16 +42,13 @@ def raycast_mesh(
         The ray hit position. Shape (N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit distance. Shape (N,).
-            Will only return if `return_distance` is True, else returns None.
-            Always at second position of the output tuple.
+            Will only return if :attr:`return_distance` is True, else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit normal. Shape (N, 3).
-            Will only return if `return_normal` is True else returns None.
-            Always at third position of the output tuple.
+            Will only return if :attr:`return_normal` is True else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit face id. Shape (N,).
-            Will only return if `return_face_id` is True else returns None.
-            Always at fourth position of the output tuple.
+            Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
     """
     # extract device and shape information

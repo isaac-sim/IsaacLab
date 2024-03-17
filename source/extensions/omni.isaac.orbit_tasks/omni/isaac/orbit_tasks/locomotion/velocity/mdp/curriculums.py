@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +12,8 @@ the curriculum introduced by the function.
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.managers import SceneEntityCfg

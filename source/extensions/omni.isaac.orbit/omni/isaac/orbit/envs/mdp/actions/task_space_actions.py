@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 
 import carb
 
+import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets.articulation import Articulation
 from omni.isaac.orbit.controllers.differential_ik import DifferentialIKController
 from omni.isaac.orbit.managers.action_manager import ActionTerm
-from omni.isaac.orbit.utils.math import subtract_frame_transforms
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
@@ -79,7 +79,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._joint_ids = slice(None)
 
         # create the differential IK controller
-        self._controller = DifferentialIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)
+        self._ik_controller = DifferentialIKController(
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
+        )
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -89,13 +91,20 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
         self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
 
+        # convert the fixed offsets to torch tensors of batched shape
+        if self.cfg.body_offset is not None:
+            self._offset_pos = torch.tensor(self.cfg.body_offset.pos, device=self.device).repeat(self.num_envs, 1)
+            self._offset_rot = torch.tensor(self.cfg.body_offset.rot, device=self.device).repeat(self.num_envs, 1)
+        else:
+            self._offset_pos, self._offset_rot = None, None
+
     """
     Properties.
     """
 
     @property
     def action_dim(self) -> int:
-        return self._controller.action_dim
+        return self._ik_controller.action_dim
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -114,17 +123,20 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale
         # obtain quantities from simulation
-        ee_pos_curr, ee_quat_curr = self._compute_body_pose()
+        ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         # set command into controller
         self._ik_controller.set_command(self._processed_actions, ee_pos_curr, ee_quat_curr)
 
     def apply_actions(self):
         # obtain quantities from simulation
-        jacobian = self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._joint_ids]
-        ee_pos_curr, ee_quat_curr = self._compute_body_pose()
+        ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos[:, self._joint_ids]
         # compute the delta in joint-space
-        joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        if ee_quat_curr.norm() != 0:
+            jacobian = self._compute_frame_jacobian()
+            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        else:
+            joint_pos_des = joint_pos.clone()
         # set the joint position command
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
 
@@ -132,8 +144,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     Helper functions.
     """
 
-    def _compute_body_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Computes the pose of the body in the root frame.
+    def _compute_frame_pose(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Computes the pose of the target frame in the root frame.
 
         Returns:
             A tuple of the body's position and orientation in the root frame.
@@ -142,4 +154,35 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         ee_pose_w = self._asset.data.body_state_w[:, self._body_idx, :7]
         root_pose_w = self._asset.data.root_state_w[:, :7]
         # compute the pose of the body in the root frame
-        return subtract_frame_transforms(root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
+        ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(
+            root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+        )
+        # account for the offset
+        if self.cfg.body_offset is not None:
+            ee_pose_b, ee_quat_b = math_utils.combine_frame_transforms(
+                ee_pose_b, ee_quat_b, self._offset_pos, self._offset_rot
+            )
+
+        return ee_pose_b, ee_quat_b
+
+    def _compute_frame_jacobian(self):
+        """Computes the geometric Jacobian of the target frame in the root frame.
+
+        This function accounts for the target frame offset and applies the necessary transformations to obtain
+        the right Jacobian from the parent body Jacobian.
+        """
+        # read the parent jacobian
+        jacobian = self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._joint_ids]
+        # account for the offset
+        if self.cfg.body_offset is not None:
+            # Modify the jacobian to account for the offset
+            # -- translational part
+            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
+            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
+            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
+            jacobian[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(self._offset_pos), jacobian[:, 3:, :])
+            # -- rotational part
+            # w_link = R_link_ee @ w_ee
+            jacobian[:, 3:, :] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), jacobian[:, 3:, :])
+
+        return jacobian

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks/
 # -- Project information -----------------------------------------------------
 
 project = "orbit"
-copyright = "2022-2023, The ORBIT Project Developers."
+copyright = "2022-2024, The ORBIT Project Developers."
 author = "The ORBIT Project Developers."
 
 version = "0.2.0"
@@ -103,6 +103,7 @@ intersphinx_mapping = {
     "torch": ("https://pytorch.org/docs/stable/", None),
     "isaac": ("https://docs.omniverse.nvidia.com/py/isaacsim", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
+    "warp": ("https://nvidia.github.io/warp/", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -137,6 +138,7 @@ autodoc_mock_imports = [
     "omni.isaac.version",
     "omni.isaac.motion_generation",
     "omni.isaac.ui",
+    "omni.syntheticdata",
     "omni.timeline",
     "omni.ui",
     "gym",
@@ -201,6 +203,7 @@ html_css_files = ["custom.css"]
 html_theme_options = {
     "collapse_navigation": True,
     "repository_url": "https://github.com/NVIDIA-Omniverse/Orbit",
+    "announcement": "We have now released v0.2.0! Please use the latest version for the best experience.",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
@@ -221,7 +224,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg",
             "type": "url",
         },
         {

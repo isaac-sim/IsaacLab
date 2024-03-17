@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -40,12 +40,16 @@ from .schemas import (
     define_rigid_body_properties,
     modify_articulation_root_properties,
     modify_collision_properties,
+    modify_fixed_tendon_properties,
+    modify_joint_drive_properties,
     modify_mass_properties,
     modify_rigid_body_properties,
 )
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
+    FixedTendonPropertiesCfg,
+    JointDrivePropertiesCfg,
     MassPropertiesCfg,
     RigidBodyPropertiesCfg,
 )

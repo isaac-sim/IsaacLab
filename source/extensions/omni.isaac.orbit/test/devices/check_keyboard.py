@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,17 +15,16 @@ It is possible to add additional callbacks to it for user-defined operations.
 """Launch Isaac Sim Simulator first."""
 
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
-# launch the simulator
-simulation_app = SimulationApp({"headless": False})
+# launch omniverse app
+app_launcher = AppLauncher()
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import ctypes
-import traceback
 
-import carb
 from omni.isaac.core.simulation_context import SimulationContext
 
 from omni.isaac.orbit.devices import Se3Keyboard
@@ -87,13 +86,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()
