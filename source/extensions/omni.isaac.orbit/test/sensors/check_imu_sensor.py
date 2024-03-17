@@ -4,12 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script shows how to use the ray caster from the Orbit framework.
-
-.. code-block:: bash
-
-    # Usage
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_ray_caster.py --headless
+Visual test script for the imu sensor from the Orbit framework.
 """
 
 from __future__ import annotations
@@ -21,7 +16,7 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Ray Caster Test Script")
+parser = argparse.ArgumentParser(description="IMU Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
