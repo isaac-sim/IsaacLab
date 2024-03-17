@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -34,7 +34,6 @@ simulation_app = SimulationApp(config)
 
 """Rest everything follows."""
 
-import torch
 import traceback
 
 import carb
@@ -45,12 +44,12 @@ from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.terrains as terrain_gen
+from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
 from omni.isaac.orbit.sensors.imu import IMU, IMUCfg
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
-from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
@@ -132,11 +131,6 @@ def main():
 
     # Print the sensor information
     print(imu)
-    
-    # Get the ball initial positions
-    imu.update(dt=1e-6, force_recompute=True)
-    ball_initial_positions = balls.data.root_pos_w.clone()
-    ball_initial_orientations = balls.data.root_quat_w.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -151,8 +145,9 @@ def main():
             continue
         # Reset the scene
         if step_count % 500 == 0:
+            print("Reset Scene")
             # reset ball positions
-            balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
+            balls.write_root_state_to_sim(balls.data.default_root_state)
             balls.reset()
             # reset the sensor
             imu.reset()

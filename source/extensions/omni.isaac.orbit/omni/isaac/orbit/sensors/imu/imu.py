@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,8 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
@@ -140,7 +141,7 @@ class IMU(SensorBase):
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w.clone())
         self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
             self._data.quat_w[env_ids],
-            (lin_vel_w.clone() - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period)
+            (lin_vel_w.clone() - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period),
         )
         self._last_lin_vel_w[env_ids] = lin_vel_w.clone()
 
