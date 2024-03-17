@@ -188,13 +188,13 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install        Install the extensions inside Orbit."
-    echo -e "\t-e, --extra          Install extra dependencies such as the learning frameworks."
+    echo -e "\t-e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
-    echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
+    echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
     echo -e "\t-t, --test           Run all python unittest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."

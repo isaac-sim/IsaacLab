@@ -56,9 +56,9 @@ NVIDIA Isaac Sim is available freely under [individual license](https://www.nvid
 
 Orbit framework is released under [BSD-3 License](LICENSE). The license files of its dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
 
-## Citation
+## Citing
 
-Please cite [this paper](https://arxiv.org/abs/2301.04195) if you use this framework in your work:
+If you use this framework in your work, please cite [this paper](https://arxiv.org/abs/2301.04195):
 
 ```text
 @article{mittal2023orbit,

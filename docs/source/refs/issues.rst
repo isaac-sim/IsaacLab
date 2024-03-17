@@ -1,4 +1,4 @@
-Known issues
+Known Issues
 ============
 
 .. attention::

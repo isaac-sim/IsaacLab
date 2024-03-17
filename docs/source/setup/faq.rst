@@ -4,11 +4,6 @@ Frequently Asked Questions
 Where does Orbit fit in the Isaac ecosystem?
 --------------------------------------------
 
-.. attention::
-
-    This section is based on the author's understanding of the Isaac ecosystem and is not an official
-    statement from NVIDIA.
-
 Over the years, NVIDIA has developed a number of tools for robotics and AI. These tools leverage
 the power of GPUs to accelerate the simulation both in terms of speed and realism. They show great
 promise in the field of simulation technology and are being used by many researchers and companies

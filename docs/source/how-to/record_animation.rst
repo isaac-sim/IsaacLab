@@ -58,9 +58,21 @@ to the ``recordings`` folder in the current working directory. The files are sto
 - ``Stage.usd``: The original stage with all physics disabled
 - ``TimeSample_tk001.usd``: The timeSampled file containing the recorded animation
 
-You can open Omniverse Create application to play back the animation. On a new stage, add the ``Stage.usd``
-as a sublayer and then add the ``TimeSample_tk001.usd`` as a sublayer. You can then play the animation by
-pressing the play button.
+You can open Omniverse Isaac Sim application to play back the animation. There are many ways to launch
+the application (such as from terminal or `Omniverse Launcher`_). Here we use the terminal to open the
+application and play the animation.
+
+.. code-block:: bash
+
+  ./orbit.sh -s  # Opens Isaac Sim application through _isaac_sim/isaac-sim.sh
+
+On a new stage, add the ``Stage.usd`` as a sublayer and then add the ``TimeSample_tk001.usd`` as a sublayer.
+You can do this by dragging and dropping the files from the file explorer to the stage. Please check out
+the `tutorial on layering in Omniverse`_ for more details.
+
+You can then play the animation by pressing the play button.
 
 .. _Stage Recorder: https://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html
 .. _Fabric: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html
+.. _Omniverse Launcher: https://docs.omniverse.nvidia.com/launcher/latest/index.html
+.. _tutorial on layering in Omniverse: https://www.youtube.com/watch?v=LTwmNkSDh-c&ab_channel=NVIDIAOmniverse

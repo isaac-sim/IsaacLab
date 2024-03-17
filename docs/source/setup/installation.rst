@@ -140,7 +140,7 @@ Organizing the workspace
       # Option 1: With SSH
       git clone git@github.com:NVIDIA-Omniverse/orbit.git
       # Option 2: With HTTPS
-      git clone https://github.com/NVIDIA-Omniverse/Orbit.git
+      git clone https://github.com/NVIDIA-Omniverse/orbit.git
 
 -  Set up a symbolic link between the installed Isaac Sim root folder
    and ``_isaac_sim`` in the ``orbit``` directory. This makes it convenient
@@ -161,42 +161,20 @@ utilities to manage extensions:
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit.
 
    optional arguments:
       -h, --help           Display the help content.
-      -i, --install        Install the extensions inside Isaac Orbit.
+      -i, --install        Install the extensions inside Orbit.
       -e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'.
       -f, --format         Run pre-commit to format the code and check lints.
-      -p, --python         Run the python executable (python.sh) provided by Isaac Sim.
+      -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
       -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
+      -t, --test           Run all python unittest tests.
       -o, --docker         Run the docker container helper script (docker/container.sh).
       -v, --vscode         Generate the VSCode settings file from template.
       -d, --docs           Build the documentation from source using sphinx.
       -c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'.
-
-To not restrict running commands only from the top of this repository
-(where the README.md is located), we recommend adding the executable to your environment
-variables in your ``.bashrc`` or ``.zshrc`` file as an alias command. This can be achieved
-running the following on your terminal:
-
-.. code:: bash
-
-   # note: execute the command from where the "orbit.sh" executable exists
-   # option1: for bash users
-   echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.bashrc
-   # option2: for zshell users
-   echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.zshrc
-
-After running the above command, don't forget to source your ``.bashrc`` or ``.zshrc`` file:
-
-.. code:: bash
-
-   # option1: for bash users
-   source ${HOME}/.bashrc
-   # option2: for zshell users
-   source ${HOME}/.zshrc
-
 
 Setting up the environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
