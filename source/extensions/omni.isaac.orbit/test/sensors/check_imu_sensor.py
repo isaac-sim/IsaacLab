@@ -34,13 +34,15 @@ simulation_app = SimulationApp(config)
 
 """Rest everything follows."""
 
+import torch
 import traceback
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
+import omni
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
+from pxr import PhysxSchema
 
 import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.terrains as terrain_gen
@@ -64,11 +66,16 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
         num_envs=1,
     )
     _ = TerrainImporter(terrain_importer_cfg)
+    # obtain the current stage
+    stage = omni.usd.get_context().get_stage()
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
-    # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
+    # create source prim
+    stage.DefinePrim(envs_prim_paths[0], "Xform")
+    # clone the env xform
+    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -82,17 +89,23 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
-        prim_path="/World/envs/env_0/ball",
+        prim_path="/World/envs/env_.*/ball",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
     balls = RigidObject(cfg)
     # Clone the scene
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
-    physics_scene_path = sim.get_physics_context().prim_path
+    # obtain the current physics scene
+    physics_scene_prim_path = None
+    for prim in stage.Traverse():
+        if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+            physics_scene_prim_path = prim.GetPrimPath()
+            carb.log_info(f"Physics scene prim path: {physics_scene_prim_path}")
+            break
+    # filter collisions within each environment instance
     cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+        physics_scene_prim_path,
+        "/World/collisions",
+        envs_prim_paths,
     )
     return balls
 
@@ -132,6 +145,12 @@ def main():
     # Print the sensor information
     print(imu)
 
+    # Get the ball initial positions
+    sim.step(render=not args_cli.headless)
+    balls.update(sim.get_physics_dt())
+    ball_initial_positions = balls.data.root_pos_w.clone()
+    ball_initial_orientations = balls.data.root_quat_w.clone()
+
     # Create a counter for resetting the scene
     step_count = 0
     # Simulate physics
@@ -145,9 +164,8 @@ def main():
             continue
         # Reset the scene
         if step_count % 500 == 0:
-            print("Reset Scene")
             # reset ball positions
-            balls.write_root_state_to_sim(balls.data.default_root_state)
+            balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
             balls.reset()
             # reset the sensor
             imu.reset()
