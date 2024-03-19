@@ -448,7 +448,7 @@ class reset_joints_within_range(ManagerTermBase):
         # check if the cfg has the required parameters
         if "position_range" not in cfg.params or "velocity_range" not in cfg.params:
             raise ValueError(
-                f"The term 'reset_joints_within_range' requires parameters: 'position_range' and 'velocity_range'."
+                "The term 'reset_joints_within_range' requires parameters: 'position_range' and 'velocity_range'."
                 f" Received: {list(cfg.params.keys())}."
             )
 

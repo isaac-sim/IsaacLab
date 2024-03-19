@@ -34,13 +34,13 @@ parser.add_argument(
     "--draw",
     action="store_true",
     default=False,
-    help="Draw the obtained pointcloud on viewport from the perspective of camera at index specified by ``--camera_id``.",
+    help="Draw the pointcloud from camera at index specified by ``--camera_id``.",
 )
 parser.add_argument(
     "--save",
     action="store_true",
     default=False,
-    help="Draw the obtained pointcloud on viewport from the perspective of camera at index specified by ``--camera_id``.",
+    help="Save the data from camera at index specified by ``--camera_id``.",
 )
 parser.add_argument(
     "--camera_id",

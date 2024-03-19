@@ -1,9 +1,9 @@
 repos:
   - repo: https://github.com/python/black
-    rev: 24.1.1
+    rev: 24.3.0
     hooks:
       - id: black
-        args: ["--line-length", "120", "--preview"]
+        args: ["--line-length", "120", "--unstable"]
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
@@ -15,6 +15,8 @@ repos:
       - id: trailing-whitespace
       - id: check-symlinks
       - id: destroyed-symlinks
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
       - id: check-merge-conflict
       - id: check-case-conflict
@@ -31,7 +33,7 @@ repos:
         name: isort (python)
         args: ["--profile", "black", "--filter-files"]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
+    rev: v3.15.1
     hooks:
       - id: pyupgrade
         args: ["--py310-plus"]
