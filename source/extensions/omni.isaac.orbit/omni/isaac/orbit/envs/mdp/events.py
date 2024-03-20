@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common functions that can be used to enable different randomizations.
+"""Common functions that can be used to enable different events.
 
-Randomization includes anything related to altering the simulation state. This includes changing the physics
+Events include anything related to altering the simulation state. This includes changing the physics
 materials, applying external forces, and resetting the state of the asset.
 
-The functions can be passed to the :class:`omni.isaac.orbit.managers.RandomizationTermCfg` object to enable
-the randomization introduced by the function.
+The functions can be passed to the :class:`omni.isaac.orbit.managers.EventTermCfg` object to enable
+the event introduced by the function.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from omni.isaac.orbit.assets import Articulation, RigidObject
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.managers.manager_base import ManagerTermBase
-from omni.isaac.orbit.managers.manager_term_cfg import RandomizationTermCfg
+from omni.isaac.orbit.managers.manager_term_cfg import EventTermCfg
 from omni.isaac.orbit.terrains import TerrainImporter
 from omni.isaac.orbit.utils.math import quat_from_euler_xyz, random_orientation, sample_uniform
 
@@ -333,7 +333,7 @@ def reset_robot_root_from_terrain(
     valid_poses: torch.Tensor = terrain.flat_patches.get("init_pos")
     if valid_poses is None:
         raise ValueError(
-            "The randomization term 'reset_robot_root_from_terrain' requires valid flat patches under 'init_pos'."
+            "The event term 'reset_robot_root_from_terrain' requires valid flat patches under 'init_pos'."
             f" Found: {list(terrain.flat_patches.keys())}"
         )
 
@@ -441,7 +441,7 @@ class reset_joints_within_range(ManagerTermBase):
     instead.
     """
 
-    def __init__(self, cfg: RandomizationTermCfg, env: BaseEnv):
+    def __init__(self, cfg: EventTermCfg, env: BaseEnv):
         # initialize the base class
         super().__init__(cfg, env)
 

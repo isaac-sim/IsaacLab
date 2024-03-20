@@ -97,10 +97,10 @@ class RigidObject(AssetBase):
 
         .. deprecated:: v0.3.0
 
-            The attribute 'body_physx_view' will be removed in v0.3.0. Please use :attr:`root_physx_view` instead.
+            The attribute 'body_physx_view' will be removed in v0.4.0. Please use :attr:`root_physx_view` instead.
 
         """
-        dep_msg = "The attribute 'body_physx_view' will be removed in v0.3.0. Please use 'root_physx_view' instead."
+        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
         warnings.warn(dep_msg, DeprecationWarning)
         carb.log_error(dep_msg)
         return self.root_physx_view

@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.15.0 (2024-03-17)
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Renamed :class:`omni.isaac.orbit.managers.RandomizationManager` to :class:`omni.isaac.orbit.managers.EventManager`
+  class for clarification as the manager takes care of events such as reset in addition to pure randomizations.
+* Renamed :class:`omni.isaac.orbit.managers.RandomizationTermCfg` to :class:`omni.isaac.orbit.managers.EventTermCfg`
+  for consistency with the class name change.
+
+
 0.14.1 (2024-03-16)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -5,7 +5,7 @@
 
 """
 This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of
-scene, action, observation and randomization managers to create an environment.
+scene, action, observation and event managers to create an environment.
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ import torch
 
 import omni.isaac.orbit.envs.mdp as mdp
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.orbit.managers import EventTermCfg as EventTerm
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.utils import configclass
 
@@ -74,11 +74,11 @@ class ObservationsCfg:
 
 
 @configclass
-class RandomizationCfg:
-    """Configuration for randomization."""
+class EventCfg:
+    """Configuration for events."""
 
     # on startup
-    add_pole_mass = RandTerm(
+    add_pole_mass = EventTerm(
         func=mdp.add_body_mass,
         mode="startup",
         params={
@@ -88,7 +88,7 @@ class RandomizationCfg:
     )
 
     # on reset
-    reset_cart_position = RandTerm(
+    reset_cart_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
@@ -98,7 +98,7 @@ class RandomizationCfg:
         },
     )
 
-    reset_pole_position = RandTerm(
+    reset_pole_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
@@ -118,7 +118,7 @@ class CartpoleEnvCfg(BaseEnvCfg):
     # Basic settings
     observations = ObservationsCfg()
     actions = ActionsCfg()
-    randomization = RandomizationCfg()
+    events = EventCfg()
 
     def __post_init__(self):
         """Post initialization."""

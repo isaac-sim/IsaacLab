@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.orbit.managers import ActionManager, ObservationManager, RandomizationManager
+from omni.isaac.orbit.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.orbit.scene import InteractiveScene
 from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.timer import Timer
@@ -64,10 +64,10 @@ class BaseEnv:
       raw actions at different levels of abstraction. For example, in case of a robotic arm, the raw actions
       can be joint torques, joint positions, or end-effector poses. Similarly for a mobile base, it can be
       the joint torques, or the desired velocity of the floating base.
-    * **Randomization Manager**: The randomization manager that randomizes different elements in the scene.
-      This includes resetting the scene to a default state or randomize the scene at different intervals
-      of time. The randomization manager can be configured to randomize different elements of the scene
-      such as the masses of objects, friction coefficients, or apply random pushes to the robot.
+    * **Event Manager**: The event manager orchestrates operations triggered based on simulation events.
+      This includes resetting the scene to a default state, applying random pushes to the robot at different intervals
+      of time, or randomizing properties such as mass and friction coefficients. This is useful for training
+      and evaluating the robot in a variety of scenarios.
 
     The environment provides a unified interface for interacting with the simulation. However, it does not
     include task-specific quantities such as the reward function, or the termination conditions. These
@@ -190,7 +190,7 @@ class BaseEnv:
         """Load the managers for the environment.
 
         This function is responsible for creating the various managers (action, observation,
-        randomization, etc.) for the environment. Since the managers require access to physics handles,
+        events, etc.) for the environment. Since the managers require access to physics handles,
         they can only be created after the simulator is reset (i.e. played for the first time).
 
         .. note::
@@ -209,9 +209,9 @@ class BaseEnv:
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
-        # -- randomization manager
-        self.randomization_manager = RandomizationManager(self.cfg.randomization, self)
-        print("[INFO] Randomization Manager: ", self.randomization_manager)
+        # -- event manager
+        self.event_manager = EventManager(self.cfg.events, self)
+        print("[INFO] Event Manager: ", self.event_manager)
 
     """
     Operations - MDP.
@@ -270,9 +270,9 @@ class BaseEnv:
         if self.sim.has_gui():
             self.sim.render()
 
-        # post-step: step interval randomization
-        if "interval" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+        # post-step: step interval event
+        if "interval" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # return observations and extras
         return self.observation_manager.compute(), self.extras
@@ -303,7 +303,7 @@ class BaseEnv:
             # destructor is order-sensitive
             del self.action_manager
             del self.observation_manager
-            del self.randomization_manager
+            del self.event_manager
             del self.scene
             del self.viewport_camera_controller
             # clear callbacks and instance
@@ -327,9 +327,9 @@ class BaseEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
-        # randomize the MDP for environments that need a reset
-        if "reset" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
+        # apply events such as randomizations for environments that need a reset
+        if "reset" in self.event_manager.available_modes:
+            self.event_manager.apply(env_ids=env_ids, mode="reset")
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
@@ -341,6 +341,6 @@ class BaseEnv:
         # -- action manager
         info = self.action_manager.reset(env_ids)
         self.extras["log"].update(info)
-        # -- randomization manager
-        info = self.randomization_manager.reset(env_ids)
+        # -- event manager
+        info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)

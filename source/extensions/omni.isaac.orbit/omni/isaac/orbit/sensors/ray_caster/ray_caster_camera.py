@@ -147,7 +147,7 @@ class RayCasterCamera(RayCaster):
         if env_ids is None:
             env_ids = slice(None)
         # reset the data
-        # note: this recomputation is useful if one performs randomization on the camera poses.
+        # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         pos_w, quat_w = self._compute_camera_world_poses(env_ids)
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w

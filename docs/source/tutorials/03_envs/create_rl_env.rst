@@ -57,7 +57,7 @@ The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
 We already went through parts of the above in the :ref:`tutorial-create-base-env` tutorial to learn
-about how to specify the scene, observations, actions and randomizations. Thus, in this tutorial, we
+about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.
 
 In Orbit, we provide various implementations of different terms in the :mod:`envs.mdp` module. We will use

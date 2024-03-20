@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import torch
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
@@ -162,13 +163,13 @@ class ObservationGroupCfg:
 
 
 ##
-# Randomization manager
+# Event manager
 ##
 
 
 @configclass
-class RandomizationTermCfg(ManagerTermBaseCfg):
-    """Configuration for a randomization term."""
+class EventTermCfg(ManagerTermBaseCfg):
+    """Configuration for a event term."""
 
     func: Callable[..., None] = MISSING
     """The name of the function to be called.
@@ -178,7 +179,7 @@ class RandomizationTermCfg(ManagerTermBaseCfg):
     """
 
     mode: str = MISSING
-    """The mode in which the randomization term is applied.
+    """The mode in which the event term is applied.
 
     Note:
         The mode name ``"interval"`` is a special mode that is handled by the
@@ -189,12 +190,31 @@ class RandomizationTermCfg(ManagerTermBaseCfg):
     """The range of time in seconds at which the term is applied.
 
     Based on this, the interval is sampled uniformly between the specified
-    interval range for each environment instance and the term is applied for
-    the environment instances if the current time hits the interval time.
+    range for each environment instance. The term is applied on the environment
+    instances where the current time hits the interval time.
 
     Note:
         This is only used if the mode is ``"interval"``.
     """
+
+
+@configclass
+class RandomizationTermCfg(EventTermCfg):
+    """Configuration for a randomization term.
+
+    .. deprecated:: v0.3.0
+
+        This class is deprecated and will be removed in v0.4.0. Please use :class:`EventTermCfg` instead.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Deprecation warning.
+        warnings.warn(
+            "The RandomizationTermCfg has been renamed to EventTermCfg and will be removed in v0.4.0. Please use"
+            " EventTermCfg instead.",
+            DeprecationWarning,
+        )
 
 
 ##

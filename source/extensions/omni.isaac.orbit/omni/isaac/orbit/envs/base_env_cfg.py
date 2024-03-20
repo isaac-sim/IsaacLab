@@ -11,11 +11,12 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import MISSING
 from typing import Literal
 
 import omni.isaac.orbit.envs.mdp as mdp
-from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
+from omni.isaac.orbit.managers import EventTermCfg as EventTerm
 from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sim import SimulationCfg
 from omni.isaac.orbit.utils import configclass
@@ -67,14 +68,14 @@ class ViewerCfg:
 
 
 @configclass
-class DefaultRandomizationManagerCfg:
-    """Configuration of the default randomization manager.
+class DefaultEventManagerCfg:
+    """Configuration of the default event manager.
 
     This manager is used to reset the scene to a default state. The default state is specified
     by the scene configuration.
     """
 
-    reset_scene_to_default = RandTerm(func=mdp.reset_scene_to_default, mode="reset")
+    reset_scene_to_default = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
 @configclass
@@ -86,6 +87,7 @@ class BaseEnvCfg:
     """Viewer configuration. Default is ViewerCfg()."""
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
+
     # ui settings
     ui_window_class_type: type | None = BaseEnvWindow
     """The class type of the UI window. Default is None.
@@ -100,15 +102,51 @@ class BaseEnvCfg:
 
     # general settings
     decimation: int = MISSING
-    """Number of control action updates @ sim dt per policy dt."""
+    """Number of control action updates @ sim dt per policy dt.
+
+    For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.
+    This means that the control action is updated every 10 simulation steps.
+    """
 
     # environment settings
     scene: InteractiveSceneCfg = MISSING
-    """Scene settings"""
+    """Scene settings.
+
+    Please refer to the :class:`omni.isaac.orbit.scene.InteractiveSceneCfg` class for more details.
+    """
+
     observations: object = MISSING
-    """Observation space settings."""
+    """Observation space settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.ObservationManager` class for more details.
+    """
+
     actions: object = MISSING
-    """Action space settings."""
-    randomization: object = DefaultRandomizationManagerCfg()
-    """Randomization settings. Default is the default randomization manager, which resets
-    the scene to its default state."""
+    """Action space settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.ActionManager` class for more details.
+    """
+
+    events: object = DefaultEventManagerCfg()
+    """Event settings. Defaults to the basic configuration that resets the scene to its default state.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.EventManager` class for more details.
+    """
+
+    randomization: object | None = None
+    """Randomization settings. Default is None.
+
+    .. deprecated:: 0.3.0
+        This attribute is deprecated and will be removed in v0.4.0. Please use the :attr:`events`
+        attribute to configure the randomization settings.
+
+    """
+
+    def __post_init__(self):
+        if self.randomization is not None:
+            warnings.warn(
+                "The 'randomization' attribute is deprecated and will be removed in a future release. "
+                "Please use the 'events' attribute to configure the randomization settings.",
+                DeprecationWarning,
+            )
+            self.events = self.randomization

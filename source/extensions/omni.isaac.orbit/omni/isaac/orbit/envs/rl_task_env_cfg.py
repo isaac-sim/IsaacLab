@@ -44,14 +44,39 @@ class RLTaskEnvCfg(BaseEnvCfg):
     """
 
     episode_length_s: float = MISSING
-    """Duration of an episode (in seconds)."""
+    """Duration of an episode (in seconds).
+
+    Based on the decimation rate and physics time step, the episode length is calculated as:
+
+    .. code-block:: python
+
+        episode_length_steps = ceil(episode_length_s / (decimation_rate * physics_time_step))
+
+    For example, if the decimation rate is 10, the physics time step is 0.01, and the episode length is 10 seconds,
+    then the episode length in steps is 100.
+    """
 
     # environment settings
     rewards: object = MISSING
-    """Reward settings."""
+    """Reward settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.RewardManager` class for more details.
+    """
+
     terminations: object = MISSING
-    """Termination settings."""
+    """Termination settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.TerminationManager` class for more details.
+    """
+
     curriculum: object = MISSING
-    """Curriculum settings."""
+    """Curriculum settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.CurriculumManager` class for more details.
+    """
+
     commands: object = MISSING
-    """Command settings."""
+    """Command settings.
+
+    Please refer to the :class:`omni.isaac.orbit.managers.CommandManager` class for more details.
+    """

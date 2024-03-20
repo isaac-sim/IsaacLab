@@ -61,12 +61,12 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # actions
         self.actions.joint_pos.scale = 0.5
 
-        # randomizations
-        self.randomization.push_robot = None
-        self.randomization.add_base_mass = None
-        self.randomization.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.randomization.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
-        self.randomization.reset_base.params = {
+        # events
+        self.events.push_robot = None
+        self.events.add_base_mass = None
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
+        self.events.reset_base.params = {
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (0.0, 0.0),

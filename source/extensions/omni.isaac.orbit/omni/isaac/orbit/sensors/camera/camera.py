@@ -335,7 +335,7 @@ class Camera(SensorBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
         # reset the data
-        # note: this recomputation is useful if one performs randomization on the camera poses.
+        # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_poses(env_ids)
         self._update_intrinsic_matrices(env_ids)
         # Reset the frame count

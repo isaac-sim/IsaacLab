@@ -156,11 +156,11 @@ class Articulation(RigidObject):
             However, this led to confusion with the link ordering as they were not ordered in the same way as the
             articulation view.
 
-            Therefore, this attribute will be removed in v0.3.0. Please use the :attr:`root_physx_view` attribute
+            Therefore, this attribute will be removed in v0.4.0. Please use the :attr:`root_physx_view` attribute
             instead.
 
         """
-        dep_msg = "The attribute 'body_physx_view' will be removed in v0.3.0. Please use 'root_physx_view' instead."
+        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
         warnings.warn(dep_msg, DeprecationWarning)
         carb.log_error(dep_msg)
         return self._body_physx_view

@@ -94,9 +94,9 @@ class RLTaskEnv(BaseEnv, gym.Env):
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
-        # perform randomization at the start of the simulation
-        if "startup" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(mode="startup")
+        # perform events at the start of the simulation
+        if "startup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="startup")
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
@@ -193,9 +193,9 @@ class RLTaskEnv(BaseEnv, gym.Env):
             self._reset_idx(reset_env_ids)
         # -- update command
         self.command_manager.compute(dt=self.step_dt)
-        # -- step interval randomization
-        if "interval" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+        # -- step interval events
+        if "interval" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute()
@@ -310,9 +310,9 @@ class RLTaskEnv(BaseEnv, gym.Env):
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
-        # randomize the MDP for environments that need a reset
-        if "reset" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
+        # apply events such as randomizations for environments that need a reset
+        if "reset" in self.event_manager.available_modes:
+            self.event_manager.apply(env_ids=env_ids, mode="reset")
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
@@ -333,8 +333,8 @@ class RLTaskEnv(BaseEnv, gym.Env):
         # -- command manager
         info = self.command_manager.reset(env_ids)
         self.extras["log"].update(info)
-        # -- randomization manager
-        info = self.randomization_manager.reset(env_ids)
+        # -- event manager
+        info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- termination manager
         info = self.termination_manager.reset(env_ids)

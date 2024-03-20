@@ -31,8 +31,8 @@ class UR10ReachEnvCfg(ReachEnvCfg):
 
         # switch robot to ur10
         self.scene.robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # override randomization
-        self.randomization.reset_robot_joints.params["position_range"] = (0.75, 1.25)
+        # override events
+        self.events.reset_robot_joints.params["position_range"] = (0.75, 1.25)
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["ee_link"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["ee_link"]
