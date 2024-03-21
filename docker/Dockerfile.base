@@ -8,7 +8,7 @@
 
 # Base image
 ARG ISAACSIM_VERSION
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION}
+FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION} AS base
 
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
@@ -20,16 +20,18 @@ LABEL description="Dockerfile for building and running the Orbit framework insid
 # Arguments
 # Path to Isaac Sim root folder
 ARG ISAACSIM_PATH
-# Path to the Docker User Home
+# Home dir of docker user, typically '/root'
 ARG DOCKER_USER_HOME
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+# Path to orbit directory
 ENV ORBIT_PATH=/workspace/orbit
 
 # Install dependencies and remove cache
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
@@ -66,7 +68,7 @@ RUN touch /bin/nvidia-smi && \
 
 # installing Orbit dependencies
 # use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=/${DOCKER_USER_HOME}/.cache/pip \
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ORBIT_PATH}/orbit.sh --install --extra
 
 # aliasing orbit.sh and python for convenience
