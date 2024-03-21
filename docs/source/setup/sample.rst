@@ -234,10 +234,12 @@ To view the logs, run:
 
 .. note::
 
-   In some examples above, you should replace ``--checkpoint model_filename.pt`` to your needs,
-   for example ``--checkpoint model_999.pt``.  
+   In some examples above the ``--checkpoint`` argument is used.
    It is not required: if not specified, the latest ``model.pt`` is taken automatically.
 
-   You can specify the run where to take the checkpoint from: ``--load_run 2024-03-11_16-11-38``
+   Example usage: ``--checkpoint model_999.pt``
+
+   You can also specify the run where to take the checkpoint from, for example: 
+   ``--load_run 2024-03-11_16-11-38``
 
    The model checkpoints are saved and loaded from the ``logs`` directory (see above).
