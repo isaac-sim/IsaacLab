@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.15.1 (2024-03-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the env origins in :meth:`_compute_env_origins_grid` of :class:`omni.isaac.orbit.terrain.TerrainImporter`
+  to match that of Isaac Sim cloner in :class:`omni.isaac.cloner.GridCloner`.
+
+
 0.15.0 (2024-03-17)
 ~~~~~~~~~~~~~~~~~~~
 
