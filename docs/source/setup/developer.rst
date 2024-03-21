@@ -219,7 +219,7 @@ class.
    if __name__ == "__main__":
       # get simulation context
       simulation_context = SimulationContext()
-      # rest and play simulation
+      # reset and play simulation
       simulation_context.reset()
       # step simulation
       simulation_context.step()
