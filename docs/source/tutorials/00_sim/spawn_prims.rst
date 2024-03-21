@@ -33,7 +33,7 @@ Scene designing in Omniverse is built around a software system and file format c
 It allows describing 3D scenes in a hierarchical manner, similar to a file system. Since USD is a comprehensive framework,
 we recommend reading the `USD documentation`_ to learn more about it.
 
-For completion, we introduce the must know concepts of USD in this tutorial.
+For completeness, we introduce the must know concepts of USD in this tutorial.
 
 * **Primitives (Prims)**: These are the basic building block of a USD scene. They can be thought of as nodes in a scene
   graph. Each node can be a mesh, a light, a camera, or a transform. It can also be a group of other prims under it.

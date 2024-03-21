@@ -202,7 +202,7 @@ started the simulation.
 
 In this tutorial, we learned about the different managers that help define a base environment. We
 include more examples of defining the base environment in the ``orbit/source/standalone/tutorials/03_envs``
-directory. For completion, they can be run using the following commands:
+directory. For completeness, they can be run using the following commands:
 
 .. code-block:: bash
 
