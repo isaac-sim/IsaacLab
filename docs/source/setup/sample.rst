@@ -157,7 +157,7 @@ format.
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
+      ./orbit.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint model_filename.pt
 
 Reinforcement Learning
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -177,7 +177,7 @@ from the environments into the respective libraries function argument and return
       # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
       ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+      ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint model_filename.pt
 
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
@@ -189,7 +189,7 @@ from the environments into the respective libraries function argument and return
       # run script for training
       ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+      ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint model_filename.pt
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
@@ -201,7 +201,7 @@ from the environments into the respective libraries function argument and return
       # run script for training
       ./orbit.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+      ./orbit.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint model_filename.pt
 
 -  Training an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka-v0``:
@@ -213,10 +213,12 @@ from the environments into the respective libraries function argument and return
       # run script for training
       ./orbit.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+      ./orbit.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint model_filename.pt
 
-All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
-the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
+All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory.
+
+The ``logs`` directory is in the root of the repository, and follows the pattern 
+``logs/<library>/<task>/<date-time>``, where ``<library>``
 is the name of the learning framework, ``<task>`` is the task name, and ``<date-time>`` is the timestamp at
 which the training script was executed.
 
@@ -228,3 +230,14 @@ To view the logs, run:
    ./orbit.sh -p -m tensorboard.main --logdir=logs
 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard
+
+
+.. note::
+
+   In some examples above, you should replace ``--checkpoint model_filename.pt`` to your needs,
+   for example ``--checkpoint model_999.pt``.  
+   It is not required: if not specified, the latest ``model.pt`` is taken automatically.
+
+   You can specify the run where to take the checkpoint from: ``--load_run 2024-03-11_16-11-38``
+
+   The model checkpoints are saved and loaded from the ``logs`` directory (see above).
