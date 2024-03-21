@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.15.1 (2024-03-19)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the imitation learning workflow example script, updating Orbit and Robomimic API calls.
+* Removed the resetting of :attr:`_term_dones` in the :meth:`omni.isaac.orbit.managers.TerminationManager.reset`.
+  Previously, the environment cleared out all the terms. However, it impaired reading the specific term's values externally.
+
+
 0.15.0 (2024-03-17)
 ~~~~~~~~~~~~~~~~~~~
 

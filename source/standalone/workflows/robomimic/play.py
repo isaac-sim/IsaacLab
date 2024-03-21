@@ -49,12 +49,9 @@ def main():
     """Run a trained policy from robomimic with Orbit environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=1, use_fabric=not args_cli.disable_fabric)
-    # modify configuration
-    env_cfg.control.control_type = "inverse_kinematics"
-    env_cfg.control.inverse_kinematics.command_type = "pose_rel"
-    env_cfg.terminations.episode_timeout = False
-    env_cfg.terminations.is_success = True
-    env_cfg.observations.return_dict_obs_in_group = True
+    # we want to have the terms in the observations returned as a dictionary
+    # rather than a concatenated tensor
+    env_cfg.observations.policy.concatenate_terms = False
 
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
@@ -65,7 +62,7 @@ def main():
     policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device, verbose=True)
 
     # reset environment
-    obs_dict = env.reset()
+    obs_dict, _ = env.reset()
     # robomimic only cares about policy observations
     obs = obs_dict["policy"]
     # simulate environment
@@ -74,9 +71,9 @@ def main():
         with torch.inference_mode():
             # compute actions
             actions = policy(obs)
-            actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[0])
+            actions = torch.from_numpy(actions).to(device=device).view(1, env.action_space.shape[1])
             # apply actions
-            obs_dict, _, _, _ = env.step(actions)
+            obs_dict = env.step(actions)[0]
             # robomimic only cares about policy observations
             obs = obs_dict["policy"]
 
