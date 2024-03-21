@@ -35,7 +35,7 @@ we recommend reading the `USD documentation`_ to learn more about it.
 
 For completion, we introduce the must know concepts of USD in this tutorial.
 
-* **Primitives (Prims)**: These are the basic building block of a USD scene. They can be thought of as nodes in a scene
+* **Primitives (Prims)**: These are the basic building blocks of a USD scene. They can be thought of as nodes in a scene
   graph. Each node can be a mesh, a light, a camera, or a transform. It can also be a group of other prims under it.
 * **Attributes**: These are the properties of a prim. They can be thought of as key-value pairs. For example, a prim can
   have an attribute called ``color`` with a value of ``red``.
