@@ -102,6 +102,12 @@ Executing the above script will create two USD files inside the
 * ``anymal_d.usd`` - This is the main asset file. It contains all the non-mesh data.
 * ``Props/instanceable_assets.usd`` - This is the mesh data file.
 
+.. note::
+
+  Since Isaac Sim 2023.1.1, the URDF importer behavior has changed and it stores the mesh data inside the
+  main asset file even if the ``--make-instanceable`` flag is set. This means that the
+  ``Props/instanceable_assets.usd`` file is created but not used anymore.
+
 You can press play on the opened window to see the asset in the scene. The asset should "collapse"
 if everything is working correctly. If it blows up, then it might be that you have self-collisions
 present in the URDF.
