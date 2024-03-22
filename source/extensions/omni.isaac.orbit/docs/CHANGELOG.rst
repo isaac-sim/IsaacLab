@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.15.3 (2024-03-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit test to check that :class:`omni.isaac.orbit.scene.InteractiveScene` entity data is not shared between separate instances.
+
+Fixed
+^^^^^
+* Moved class variables in :class:`omni.isaac.orbit.scene.InteractiveScene` to correctly  be assigned as
+  instance variables.
+* Removed custom ``__del__`` magic method from :class:`omni.isaac.orbit.scene.InteractiveScene`.
+
+
 0.15.2 (2024-03-21)
 ~~~~~~~~~~~~~~~~~~~
 
