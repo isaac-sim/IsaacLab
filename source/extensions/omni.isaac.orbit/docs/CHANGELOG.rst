@@ -1,13 +1,41 @@
 Changelog
 ---------
 
-0.15.2 (2024-03-21)
+0.15.4 (2024-03-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
 * Fixed the NonHolonomicActionCfg variable naming from joint_vel to _joint_vel_command to match the initialized variable in the init() function.
+
+
+0.15.3 (2024-03-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added unit test to check that :class:`omni.isaac.orbit.scene.InteractiveScene` entity data is not shared between separate instances.
+
+Fixed
+^^^^^
+
+* Moved class variables in :class:`omni.isaac.orbit.scene.InteractiveScene` to correctly  be assigned as
+  instance variables.
+* Removed custom ``__del__`` magic method from :class:`omni.isaac.orbit.scene.InteractiveScene`.
+
+
+0.15.2 (2024-03-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added resolving of relative paths for the main asset USD file when using the
+  :class:`omni.isaac.orbit.sim.converters.UrdfConverter` class. This is to ensure that the material paths are
+  resolved correctly when the main asset file is moved to a different location.
+
 
 0.15.1 (2024-03-19)
 ~~~~~~~~~~~~~~~~~~~

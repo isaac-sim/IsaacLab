@@ -19,7 +19,6 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.version import get_version
 from pxr import UsdLux
 
 import omni.isaac.orbit.sim as sim_utils
@@ -39,8 +38,6 @@ class TestSpawningLights(unittest.TestCase):
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
         # Wait for spawning
         stage_utils.update_stage()
-        # obtain isaac sim version
-        self.isaac_sim_version = int(get_version()[2])
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
