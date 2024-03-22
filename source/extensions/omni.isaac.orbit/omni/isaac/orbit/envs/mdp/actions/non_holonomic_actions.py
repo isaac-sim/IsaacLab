@@ -134,8 +134,8 @@ class NonHolonomicAction(ActionTerm):
         quat_w = self._asset.data.body_quat_w[:, self._body_idx]
         yaw_w = euler_xyz_from_quat(quat_w)[2]
         # compute joint velocities targets
-        self.joint_vel[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x
-        self.joint_vel[:, 1] = torch.sin(yaw_w) * self.processed_actions[:, 0]  # y
-        self.joint_vel[:, 2] = self.processed_actions[:, 1]  # yaw
+        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x
+        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * self.processed_actions[:, 0]  # y
+        self._joint_vel_command[:, 2] = self.processed_actions[:, 1]  # yaw
         # set the joint velocity targets
-        self._asset.set_joint_velocity_target(self.joint_vel, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target(self._joint_vel_command, joint_ids=self._joint_ids)
