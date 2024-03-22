@@ -40,7 +40,8 @@
         "hdf5_cache_mode": "all",
         "hdf5_use_swmr": true,
         "hdf5_normalize_obs": false,
-        "hdf5_filter_key": null,
+        "hdf5_filter_key": "train",
+        "hdf5_validation_filter_key": "valid",
         "seq_length": 1,
         "dataset_keys": [
             "actions",
@@ -141,10 +142,10 @@
         "modalities": {
             "obs": {
                 "low_dim": [
-                    "tool_dof_pos_scaled",
-                    "tool_positions",
-                    "object_relative_tool_positions",
-                    "object_desired_positions"
+                    "joint_pos",
+                    "joint_vel",
+                    "object_position",
+                    "target_object_position"
                 ],
                 "rgb": [],
                 "depth": [],

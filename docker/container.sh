@@ -84,7 +84,24 @@ case $mode in
     start)
         echo "[INFO] Building the docker image and starting the container in the background..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker compose --file docker-compose.yaml up --detach --build --remove-orphans
+        # The second argument is interpreted as the profile to use.
+        # We will select the base profile by default.
+        # This will also determine the .env file that is loaded
+        if [ -z "$2" ]; then
+            add_profiles="--profile base"
+            add_envs="--env-file .env.base"
+        else
+            profile="$2"
+            add_profiles="--profile $profile"
+            # We have to load multiple .env files here in order to combine
+            # them for the args from base required for extensions, (i.e. DOCKER_USER_HOME)
+            add_envs="--env-file .env.base --env-file .env.$profile"
+        fi
+        # We have to build the base image as a separate step,
+        # in case we are building a profile which depends
+        # upon
+        docker compose --file docker-compose.yaml --env-file .env.base build orbit-base
+        docker compose --file docker-compose.yaml $add_profiles $add_envs up --detach --build --remove-orphans
         popd > /dev/null 2>&1
         ;;
     enter)
@@ -124,7 +141,17 @@ case $mode in
     stop)
         echo "[INFO] Stopping the launched docker container..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker compose --file docker-compose.yaml down
+        if [ -z "$2" ]; then
+            add_profiles="--profile base"
+            add_envs="--env-file .env.base"
+        else
+            profile="$2"
+            add_profiles="--profile $profile"
+            # We have to load multiple .env files here in order to combine
+            # them for the args from base required for ROS2, (i.e. DOCKER_USER_HOME)
+            add_envs="--env-file .env.base --env-file .env.$profile"
+        fi
+        docker compose --file docker-compose.yaml $add_profiles $add_envs down
         popd > /dev/null 2>&1
         ;;
     push)
@@ -133,10 +160,10 @@ case $mode in
         fi
         # Check if Docker version is greater than 25
         check_docker_version
-        # Check if .env file exists
-        if [ -f $SCRIPT_DIR/.env ]; then
+        # Check if .env.base file exists
+        if [ -f $SCRIPT_DIR/.env.base ]; then
             # source env file to get cluster login and path information
-            source $SCRIPT_DIR/.env
+            source $SCRIPT_DIR/.env.base
             # clear old exports
             sudo rm -r -f /$SCRIPT_DIR/exports
             mkdir -p /$SCRIPT_DIR/exports
@@ -147,21 +174,21 @@ case $mode in
             tar -cvf /$SCRIPT_DIR/exports/orbit.tar orbit.sif
             scp /$SCRIPT_DIR/exports/orbit.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit.tar
         else
-            echo "[Error]: ".env" file not found."
+            echo "[Error]: ".env.base" file not found."
         fi
         ;;
     job)
         # Check if .env file exists
-        if [ -f $SCRIPT_DIR/.env ]; then
+        if [ -f $SCRIPT_DIR/.env.base ]; then
             # Sync orbit code
             echo "[INFO] Syncing orbit code..."
-            source $SCRIPT_DIR/.env
+            source $SCRIPT_DIR/.env.base
             rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
             # execute job script
             echo "[INFO] Executing job script..."
             ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "${@:2}"
         else
-            echo "[Error]: ".env" file not found."
+            echo "[Error]: ".env.base" file not found."
         fi
         ;;
     *)

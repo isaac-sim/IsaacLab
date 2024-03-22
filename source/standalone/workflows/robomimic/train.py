@@ -75,6 +75,9 @@ from robomimic.algo import RolloutPolicy, algo_factory
 from robomimic.config import config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
 
+# Needed so that environment is registered
+import omni.isaac.orbit_tasks  # noqa: F401
+
 
 def train(config, device):
     """Train a model using the algorithm."""
@@ -139,7 +142,7 @@ def train(config, device):
     print("")
 
     # setup for a new training run
-    data_logger = DataLogger(log_dir, log_tb=config.experiment.logging.log_tb)
+    data_logger = DataLogger(log_dir, config=config, log_tb=config.experiment.logging.log_tb)
     model = algo_factory(
         algo_name=config.algo_name,
         config=config,
@@ -347,7 +350,9 @@ def main(args):
     if args.task is not None:
         # obtain the configuration entry point
         cfg_entry_point_key = f"robomimic_{args.algo}_cfg_entry_point"
-        cfg_entry_point_file = gym.spec(args.task)._kwargs.pop(cfg_entry_point_key)
+
+        print(f"Loading configuration for task: {args.task}")
+        cfg_entry_point_file = gym.spec(args.task).kwargs.pop(cfg_entry_point_key)
         # check if entry point exists
         if cfg_entry_point_file is None:
             raise ValueError(
@@ -411,11 +416,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    try:
-        # run training
-        main(args)
-    except Exception:
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run training
+    main(args)
+    # close sim app
+    simulation_app.close()
