@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.15.2 (2024-03-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added resolving of relative paths for the main asset USD file when using the
+  :class:`omni.isaac.orbit.sim.converters.UrdfConverter` class. This is to ensure that the material paths are
+  resolved correctly when the main asset file is moved to a different location.
+
+
 0.15.1 (2024-03-19)
 ~~~~~~~~~~~~~~~~~~~
 
