@@ -43,6 +43,7 @@ Guidelines for modifications:
 * René Zurbrügg
 * Ritvik Singh
 * Rosario Scalise
+* Shafeef Omar
 * Vladimir Fokow
 
 ## Acknowledgements

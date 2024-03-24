@@ -351,10 +351,12 @@ class TerrainImporter:
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
         # create a grid of origins
-        num_cols = np.floor(np.sqrt(num_envs))
-        num_rows = np.ceil(num_envs / num_cols)
-        xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
-        env_origins[:, 0] = env_spacing * xx.flatten()[:num_envs] - env_spacing * (num_rows - 1) / 2
-        env_origins[:, 1] = env_spacing * yy.flatten()[:num_envs] - env_spacing * (num_cols - 1) / 2
+        num_rows = np.ceil(num_envs / int(np.sqrt(num_envs)))
+        num_cols = np.ceil(num_envs / num_rows)
+        ii, jj = torch.meshgrid(
+            torch.arange(num_rows, device=self.device), torch.arange(num_cols, device=self.device), indexing="ij"
+        )
+        env_origins[:, 0] = -(ii.flatten()[:num_envs] - (num_rows - 1) / 2) * env_spacing
+        env_origins[:, 1] = (jj.flatten()[:num_envs] - (num_cols - 1) / 2) * env_spacing
         env_origins[:, 2] = 0.0
         return env_origins
