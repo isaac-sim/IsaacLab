@@ -186,7 +186,7 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 While in this tutorial, we went over creating and using different sensors, there are many more sensors
 available in the :mod:`sensors` module. We include minimal examples of using these sensors in the
-``source/standalone/tutorials/04_sensors`` directory. For completion, these scripts can be run using the
+``source/standalone/tutorials/04_sensors`` directory. For completeness, these scripts can be run using the
 following commands:
 
 .. code-block:: bash

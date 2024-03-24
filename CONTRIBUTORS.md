@@ -44,6 +44,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Shafeef Omar
+* Vladimir Fokow
 
 ## Acknowledgements
 
