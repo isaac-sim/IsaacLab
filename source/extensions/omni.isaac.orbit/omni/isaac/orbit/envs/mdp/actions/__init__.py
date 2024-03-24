@@ -7,6 +7,6 @@
 
 from .actions_cfg import *
 from .binary_joint_actions import *
+from .holonomic_actions import *
 from .joint_actions import *
 from .non_holonomic_actions import *
-from .holonomic_actions import *

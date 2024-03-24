@@ -1,14 +1,17 @@
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
-from dataclasses import MISSING
 
 import carb
 
-from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.assets.articulation import Articulation
+from omni.isaac.orbit.managers.action_manager import ActionTerm
 from omni.isaac.orbit.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
@@ -16,13 +19,14 @@ if TYPE_CHECKING:
 
     from . import actions_cfg
 
+
 class HolonomicAction(ActionTerm):
     r"""Holonomic action that maps a three dimensional action in the robot's local frame to the velocity of the robot in
     the x, y and yaw directions in the world frame.
 
     This action term helps model a holonomic robot base. The action is a 3D vector which comprises of the
-    forward velocity :math:`v_{B,x}`, lateral velocity :math:`v_{B,y}`,and the turning rate :\omega_{B,z}: 
-    in the base frame. Using the current base orientation, the commands are transformed into dummy joint 
+    forward velocity :math:`v_{B,x}`, lateral velocity :math:`v_{B,y}`,and the turning rate :\omega_{B,z}:
+    in the base frame. Using the current base orientation, the commands are transformed into dummy joint
     velocity targets as:
 
     .. math::
@@ -77,7 +81,8 @@ class HolonomicAction(ActionTerm):
         yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name)
         if len(yaw_joint_id) != 1:
             raise ValueError(
-                f"Expected a single joint match for the yaw joint name: {self.cfg.yaw_joint_name}, got {len(yaw_joint_id)}"
+                f"Expected a single joint match for the yaw joint name: {self.cfg.yaw_joint_name}, got"
+                f" {len(yaw_joint_id)}"
             )
         # -- body link
         self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name)
@@ -135,8 +140,12 @@ class HolonomicAction(ActionTerm):
         quat_w = self._asset.data.body_quat_w[:, self._body_idx].squeeze(1)
         yaw_w = euler_xyz_from_quat(quat_w)[2]
         # compute joint velocities targets
-        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * (self.processed_actions[:, 0] + self.processed_actions[:, 1])  # x
-        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * (self.processed_actions[:, 0] - self.processed_actions[:, 1])  # y
+        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * (
+            self.processed_actions[:, 0] + self.processed_actions[:, 1]
+        )  # x
+        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * (
+            self.processed_actions[:, 0] - self.processed_actions[:, 1]
+        )  # y
         self._joint_vel_command[:, 2] = self.processed_actions[:, 2]  # yaw
         # set the joint velocity targets
         self._asset.set_joint_velocity_target(self._joint_vel_command, joint_ids=self._joint_ids)

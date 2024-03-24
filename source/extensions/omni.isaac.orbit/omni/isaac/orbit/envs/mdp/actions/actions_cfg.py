@@ -11,7 +11,7 @@ from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
 
-from . import binary_joint_actions, joint_actions, non_holonomic_actions, task_space_actions, holonomic_actions
+from . import binary_joint_actions, holonomic_actions, joint_actions, non_holonomic_actions, task_space_actions
 
 ##
 # Joint actions.
@@ -218,6 +218,7 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
 
+
 @configclass
 class HolonomicActionCfg(ActionTermCfg):
     """Configuration for the holonomic action term with dummy joints at the base.
@@ -225,7 +226,7 @@ class HolonomicActionCfg(ActionTermCfg):
     See :class:`HolonomicAction` for more details.
     """
 
-    class_type: type[ActionTerm] = HolonomicAction
+    class_type: type[ActionTerm] = holonomic_actions.HolonomicAction
 
     body_name: str = MISSING
     """Name of the body which has the dummy mechanism connected to."""
