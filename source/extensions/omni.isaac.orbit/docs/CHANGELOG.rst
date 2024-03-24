@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.15.5 (2024-03-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+
+* Added ``HolonomicAction`` action term to mirror the ``NonHolonomicAction`` action term but with an additional lateral velocity component.  This type of action can be accomplished with the joint velocity action term but requires transforming the coordinates of the learned policy to run on a real robot; with this action term the policy can be used directly for velocity control on holonomic mobile bases.
+
+
+Fixed
+^^^^^
+
+
+* Squeezed ``quat_w`` in  ``NonHolonomicAction`` action term where the quaternion in ``apply_action()`` was shaped as ``[num envs, 1, 4]`` but it needs to be shaped ``[num envs, 4]`` in order to get the yaw component via ``euler_xyz_from_quat()``.
+
+
 0.15.4 (2024-03-22)
 ~~~~~~~~~~~~~~~~~~~
 

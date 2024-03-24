@@ -20,18 +20,19 @@ if TYPE_CHECKING:
     from . import actions_cfg
 
 
-class NonHolonomicAction(ActionTerm):
-    r"""Non-holonomic action that maps a two dimensional action to the velocity of the robot in
-    the x, y and yaw directions.
+class HolonomicAction(ActionTerm):
+    r"""Holonomic action that maps a three dimensional action in the robot's local frame to the velocity of the robot in
+    the x, y and yaw directions in the world frame.
 
-    This action term helps model a skid-steer robot base. The action is a 2D vector which comprises of the
-    forward velocity :math:`v_{B,x}` and the turning rate :\omega_{B,z}: in the base frame. Using the current
-    base orientation, the commands are transformed into dummy joint velocity targets as:
+    This action term helps model a holonomic robot base. The action is a 3D vector which comprises of the
+    forward velocity :math:`v_{B,x}`, lateral velocity :math:`v_{B,y}`,and the turning rate :\omega_{B,z}:
+    in the base frame. Using the current base orientation, the commands are transformed into dummy joint
+    velocity targets as:
 
     .. math::
 
-        \dot{q}_{0, des} &= v_{B,x} \cos(\theta) \\
-        \dot{q}_{1, des} &= v_{B,x} \sin(\theta) \\
+        \dot{q}_{0, des} &= v_{B,x} \cos(\theta) + v_{B,y} \cos(\theta) \\
+        \dot{q}_{1, des} &= v_{B,x} \sin(\theta) - v_{B,y} \sin(\theta) \\
         \dot{q}_{2, des} &= \omega_{B,z}
 
     where :math:`\theta` is the yaw of the 2-D base. Since the base is simulated as a dummy joint, the yaw is directly
@@ -50,16 +51,16 @@ class NonHolonomicAction(ActionTerm):
         This ensures that the base remains unperturbed from external disturbances, such as an arm mounted on the base.
     """
 
-    cfg: actions_cfg.NonHolonomicActionCfg
+    cfg: actions_cfg.HolonomicActionCfg
     """The configuration of the action term."""
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
     _scale: torch.Tensor
-    """The scaling factor applied to the input action. Shape is (1, 2)."""
+    """The scaling factor applied to the input action. Shape is (1, 3)."""
     _offset: torch.Tensor
-    """The offset applied to the input action. Shape is (1, 2)."""
+    """The offset applied to the input action. Shape is (1, 3)."""
 
-    def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.HolonomicActionCfg, env: BaseEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -73,12 +74,17 @@ class NonHolonomicAction(ActionTerm):
         # -- y joint
         y_joint_id, y_joint_name = self._asset.find_joints(self.cfg.y_joint_name)
         if len(y_joint_id) != 1:
-            raise ValueError(f"Found more than one joint match for the y joint name: {self.cfg.y_joint_name}")
+            raise ValueError(
+                f"Expected a single joint match for the y joint name: {self.cfg.y_joint_name}, got {len(y_joint_id)}"
+            )
         # -- yaw joint
         yaw_joint_id, yaw_joint_name = self._asset.find_joints(self.cfg.yaw_joint_name)
         if len(yaw_joint_id) != 1:
-            raise ValueError(f"Found more than one joint match for the yaw joint name: {self.cfg.yaw_joint_name}")
-        # parse the body index
+            raise ValueError(
+                f"Expected a single joint match for the yaw joint name: {self.cfg.yaw_joint_name}, got"
+                f" {len(yaw_joint_id)}"
+            )
+        # -- body link
         self._body_idx, self._body_name = self._asset.find_bodies(self.cfg.body_name)
         if len(self._body_idx) != 1:
             raise ValueError(f"Found more than one body match for the body name: {self.cfg.body_name}")
@@ -110,7 +116,7 @@ class NonHolonomicAction(ActionTerm):
 
     @property
     def action_dim(self) -> int:
-        return 2
+        return 3
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -134,8 +140,12 @@ class NonHolonomicAction(ActionTerm):
         quat_w = self._asset.data.body_quat_w[:, self._body_idx].squeeze(1)
         yaw_w = euler_xyz_from_quat(quat_w)[2]
         # compute joint velocities targets
-        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * self.processed_actions[:, 0]  # x
-        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * self.processed_actions[:, 0]  # y
-        self._joint_vel_command[:, 2] = self.processed_actions[:, 1]  # yaw
+        self._joint_vel_command[:, 0] = torch.cos(yaw_w) * (
+            self.processed_actions[:, 0] + self.processed_actions[:, 1]
+        )  # x
+        self._joint_vel_command[:, 1] = torch.sin(yaw_w) * (
+            self.processed_actions[:, 0] - self.processed_actions[:, 1]
+        )  # y
+        self._joint_vel_command[:, 2] = self.processed_actions[:, 2]  # yaw
         # set the joint velocity targets
         self._asset.set_joint_velocity_target(self._joint_vel_command, joint_ids=self._joint_ids)

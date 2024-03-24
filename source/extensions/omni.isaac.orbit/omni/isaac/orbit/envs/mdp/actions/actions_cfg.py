@@ -11,7 +11,7 @@ from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
 
-from . import binary_joint_actions, joint_actions, non_holonomic_actions, task_space_actions
+from . import binary_joint_actions, holonomic_actions, joint_actions, non_holonomic_actions, task_space_actions
 
 ##
 # Joint actions.
@@ -217,3 +217,26 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Scale factor for the action. Defaults to 1.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
+
+
+@configclass
+class HolonomicActionCfg(ActionTermCfg):
+    """Configuration for the holonomic action term with dummy joints at the base.
+
+    See :class:`HolonomicAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = holonomic_actions.HolonomicAction
+
+    body_name: str = MISSING
+    """Name of the body which has the dummy mechanism connected to."""
+    x_joint_name: str = MISSING
+    """The dummy joint name in the x direction."""
+    y_joint_name: str = MISSING
+    """The dummy joint name in the y direction."""
+    yaw_joint_name: str = MISSING
+    """The dummy joint name in the yaw direction."""
+    scale: tuple[float, float] = (1.0, 1.0)
+    """Scale factor for the action. Defaults to (1.0, 1.0)."""
+    offset: tuple[float, float] = (0.0, 0.0)
+    """Offset factor for the action. Defaults to (0.0, 0.0)."""
