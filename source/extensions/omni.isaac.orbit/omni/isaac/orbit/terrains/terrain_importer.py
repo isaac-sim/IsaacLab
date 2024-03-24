@@ -347,7 +347,7 @@ class TerrainImporter:
         return env_origins
 
     def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> torch.Tensor:
-        """Compute the origins of the environments in a grid based on configured spacing"""
+        """Compute the origins of the environments in a grid based on configured spacing."""
         # create tensor based on number of environments
         env_origins = torch.zeros(num_envs, 3, device=self.device)
         # create a grid of origins

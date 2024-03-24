@@ -23,7 +23,7 @@ Added
 Fixed
 ^^^^^
 
-* Fixed the NonHolonomicActionCfg variable22 naming from joint_vel to _joint_vel_command to match the initialized variable in the init() function.
+* Fixed the NonHolonomicActionCfg variable naming from joint_vel to _joint_vel_command to match the initialized variable in the init() function.
 
 
 0.15.3 (2024-03-21)
