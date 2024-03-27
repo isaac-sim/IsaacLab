@@ -1,4 +1,3 @@
-version: "3.4"
 # Here we set the parts that would
 # be re-used between services to an
 # extension field
