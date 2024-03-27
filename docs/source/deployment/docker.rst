@@ -21,11 +21,11 @@ Setup Instructions
 Docker and Docker Compose
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We have tested the container using Docker Engine version 24.0.2 and Docker Compose version 2.18.1.
+We have tested the container using Docker Engine version 26.0.0 and Docker Compose version 2.25.0
 We recommend using these versions or newer.
 
 * To install Docker, please follow the instructions for your operating system on the `Docker website`_.
-* To install Docker Compose, please follow the instructions for your operating system on the `docker-compose`_ page.
+* To install Docker Compose, please follow the instructions for your operating system on the `docker compose`_ page.
 * Follow the post-installation steps for Docker on the `post-installation steps`_ page. These steps allow you to run
   Docker without using ``sudo``.
 * To build and run GPU-accelerated containers, you also need install the `NVIDIA Container Toolkit`_.
@@ -71,11 +71,11 @@ needed to run Orbit inside a Docker container. A subset of these are summarized 
 * ``Dockerfile.base``: Defines the orbit image by overlaying Orbit dependencies onto the Isaac Sim Docker image.
   ``Dockerfiles`` which end with something else, (i.e. ``Dockerfile.ros2``) build an `image_extension <#orbit-image-extensions>`_.
 * ``docker-compose.yaml``: Creates mounts to allow direct editing of Orbit code from the host machine that runs
-  the container along with X11 forwarding. It also creates several named volumes such as ``isaac-cache-kit`` to
+  the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * ``base.env``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#orbit-image-extensions>`_.
-* ``container.sh``: A script that wraps the ``docker-compose`` command to build the image and run the container.
+* ``container.sh``: A script that wraps the ``docker compose`` command to build the image and run the container.
 
 Running the Container
 ---------------------
@@ -94,15 +94,15 @@ Running the Container
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.sh`` wraps around three basic ``docker-compose`` commands:
+The script ``container.sh`` wraps around three basic ``docker compose`` commands. Each can accept an `image_extension argument <#orbit-image-extensions>`_,
+or else they will default to image_extension ``base``:
 
-1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background). It can accept an
-   `image_extension argument <#orbit-image-extensions>`_.
+1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background).
 2. ``enter``: This begins a new bash process in an existing orbit container, and which can be exited
-   without bringing down the container.  It can accept an `image_extension argument <#orbit-image-extensions>`_.
+   without bringing down the container.
 3. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``orbit-logs``, ``orbit-data`` and ``orbit-docs``
    volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker
-   container instances.
+   container instances and are shared between image extensions.
 4. ``stop``: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
@@ -110,16 +110,18 @@ The following shows how to launch the container in a detached state and enter it
 .. code:: bash
 
     # Launch the container in detached mode
+    # We don't pass an image extension arg, so it defaults to 'base'
     ./docker/container.sh start
     # Enter the container
-    ./docker/container.sh enter
+    # We pass 'base' explicitly, but if we hadn't it would default to 'base'
+    ./docker/container.sh enter base
 
-To copy files from the container to the host machine, you can use the following command:
+To copy files from the base container to the host machine, you can use the following command:
 
 .. code:: bash
 
     # Copy the file /workspace/orbit/logs to the current directory
-    docker cp orbit:/workspace/orbit/logs .
+    docker cp orbit-base:/workspace/orbit/logs .
 
 The script ``container.sh`` provides a wrapper around this command to copy the ``logs`` , ``data_storage`` and ``docs/_build``
 directories to the ``docker/artifacts`` directory. This is useful for copying the logs, data and documentation:
@@ -268,7 +270,7 @@ in docker-compose.yaml.
 .. _`NVIDIA Omniverse EULA`: https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html
 .. _`container installation`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html
 .. _`Docker website`: https://docs.docker.com/desktop/install/linux-install/
-.. _`docker-compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
+.. _`docker compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
 .. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
 .. _`Container Toolkit website`: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 .. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
