@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.15.6 (2024-03-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Extended the :class:`omni.isaac.orbit.app.AppLauncher` class to support the loading of experience files
+  from the command line. This allows users to load a specific experience file when running the application
+  (such as for multi-camera rendering or headless mode).
+
+Changed
+^^^^^^^
+
+* Changed default loading of experience files in the :class:`omni.isaac.orbit.app.AppLauncher` class from the ones
+  provided by Isaac Sim to the ones provided in Orbit's ``source/apps`` directory.
+
+
 0.15.5 (2024-03-23)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -76,7 +76,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
    [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
    usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2,3}]
-                        [--offscreen_render]
+                        [--offscreen_render] [--verbose] [--experience EXPERIENCE]
 
    Tutorial on running IsaacSim via the AppLauncher.
 
@@ -91,6 +91,13 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --livestream {0,1,2,3}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
    --offscreen_render    Enable offscreen rendering when running without a GUI.
+   --verbose             Enable verbose terminal logging from the SimulationApp.
+   --experience EXPERIENCE
+                         The experience file to load when launching the SimulationApp.
+
+                         * If an empty string is provided, the experience file is determined based on the headless flag.
+                         * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and
+                           Orbit (in that order).
 
 This readout details the ``--size``, ``--height``, and ``--width`` arguments defined in the script directly,
 as well as the :class:`~app.AppLauncher` arguments.

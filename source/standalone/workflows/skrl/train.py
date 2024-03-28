@@ -16,7 +16,6 @@ from __future__ import annotations
 
 
 import argparse
-import os
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -37,19 +36,14 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
-# launch the simulator
-# load cheaper kit config in headless
-if args_cli.headless:
-    app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-else:
-    app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.kit"
 # launch omniverse app
-app_launcher = AppLauncher(args_cli, experience=app_experience)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import gymnasium as gym
+import os
 from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG

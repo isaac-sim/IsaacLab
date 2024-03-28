@@ -59,8 +59,8 @@ def parse_args() -> argparse.Namespace:
     )
 
     # configure default logging path based on time stamp
-    log_file_name = "test_results_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    default_log_path = os.path.join(ORBIT_PATH, "logs", log_file_name)
+    log_file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
+    default_log_path = os.path.join(ORBIT_PATH, "logs", "test_results", log_file_name)
 
     parser.add_argument(
         "--log_path", type=str, default=default_log_path, help="Path to the log file to store the results in."

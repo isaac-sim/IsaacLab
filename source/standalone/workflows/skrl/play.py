@@ -16,7 +16,6 @@ from __future__ import annotations
 
 
 import argparse
-import os
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -41,6 +40,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import os
 import torch
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG

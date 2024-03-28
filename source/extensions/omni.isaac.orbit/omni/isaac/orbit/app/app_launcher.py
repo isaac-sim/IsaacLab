@@ -102,6 +102,7 @@ class AppLauncher:
         self._headless: bool  # 0: GUI, 1: Headless
         self._livestream: Literal[0, 1, 2, 3]  # 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
+        self._sim_experience_file: str  # Experience file to load
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
@@ -157,6 +158,13 @@ class AppLauncher:
         * ``offscreen_render`` (bool): If True, the app will be launched in offscreen-render mode. The values
           map the same as that for the ``OFFSCREEN_RENDER`` environment variable. If False, then offscreen-render
           mode is determined by the ``OFFSCREEN_RENDER`` environment variable.
+        * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
+          is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Orbit (in that order).
+
+          If provided as an empty string, the experience file is determined based on the headless flag:
+
+            * If headless is True, the experience file is set to ``orbit.python.headless.kit``.
+            * If headless is False, the experience file is set to ``orbit.python.kit``.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -184,7 +192,7 @@ class AppLauncher:
         config = vars(known)
         if len(config) == 0:
             print(
-                "[Warn][AppLauncher]: There are no arguments attached to the ArgumentParser object."
+                "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
                 " If you have your own arguments, please load your own arguments before calling the"
                 " `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity"
                 " of the arguments and perform checks for argument names."
@@ -193,7 +201,10 @@ class AppLauncher:
             AppLauncher._check_argparser_config_params(config)
 
         # Add custom arguments to the parser
-        arg_group = parser.add_argument_group("app_launcher arguments")
+        arg_group = parser.add_argument_group(
+            "app_launcher arguments",
+            description="Arguments for the AppLauncher. For more details, please check the documentation.",
+        )
         arg_group.add_argument(
             "--headless",
             action="store_true",
@@ -213,6 +224,21 @@ class AppLauncher:
             default=AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1],
             help="Enable offscreen rendering when running without a GUI.",
         )
+        arg_group.add_argument(
+            "--verbose",  # Note: This is read by SimulationApp through sys.argv
+            action="store_true",
+            help="Enable verbose terminal output from the SimulationApp.",
+        )
+        arg_group.add_argument(
+            "--experience",
+            type=str,
+            default="",
+            help=(
+                "The experience file to load when launching the SimulationApp. If an empty string is provided,"
+                " the experience file is determined based on the headless flag. If a relative path is provided,"
+                " it is resolved relative to the `apps` folder in Isaac Sim and Orbit (in that order)."
+            ),
+        )
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -228,6 +254,7 @@ class AppLauncher:
         "headless": ([bool], False),
         "livestream": ([int], -1),
         "offscreen_render": ([bool], False),
+        "experience": ([str], ""),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 
@@ -240,7 +267,7 @@ class AppLauncher:
     # TODO: Find some internally managed NVIDIA list of these types.
     # SimulationApp.DEFAULT_LAUNCHER_CONFIG almost works, except that
     # it is ambiguous where the default types are None
-    _SIMULATIONAPP_CFG_TYPES: dict[str, list[type]] = {
+    _SIM_APP_CFG_TYPES: dict[str, list[type]] = {
         "headless": [bool],
         "active_gpu": [int, type(None)],
         "physics_gpu": [int],
@@ -289,7 +316,7 @@ class AppLauncher:
             ValueError: If a key is an already existing field in the configuration parameters but
                 should be added by calling the :meth:`AppLauncher.add_app_launcher_args.
             ValueError: If keys corresponding to those used to initialize SimulationApp
-                (as found in :attr:`_SIMULATIONAPP_CFG_TYPES`) are of the wrong value type.
+                (as found in :attr:`_SIM_APP_CFG_TYPES`) are of the wrong value type.
         """
         # check that no config key conflicts with AppLauncher config names
         applauncher_keys = set(AppLauncher._APPLAUNCHER_CFG_INFO.keys())
@@ -301,11 +328,11 @@ class AppLauncher:
                     " argument or rename it to a non-conflicting name."
                 )
         # check that type of the passed keys are valid
-        simulationapp_keys = set(AppLauncher._SIMULATIONAPP_CFG_TYPES.keys())
+        simulationapp_keys = set(AppLauncher._SIM_APP_CFG_TYPES.keys())
         for key, value in config.items():
             if key in simulationapp_keys:
                 given_type = type(value)
-                expected_types = AppLauncher._SIMULATIONAPP_CFG_TYPES[key]
+                expected_types = AppLauncher._SIM_APP_CFG_TYPES[key]
                 if type(value) not in set(expected_types):
                     raise ValueError(
                         f"Invalid value type for the argument '{key}': {given_type}. Expected one of {expected_types},"
@@ -409,13 +436,42 @@ class AppLauncher:
 
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
-        self._simulationapp_experience = launcher_args.pop("experience", "")
-        print(f"[INFO][AppLauncher]: Loading experience file: {self._simulationapp_experience} .")
+        self._sim_experience_file = launcher_args.pop("experience", "")
+
+        # If nothing is provided resolve the experience file based on the headless flag
+        kit_app_exp_path = os.environ["EXP_PATH"]
+        orbit_app_exp_path = os.path.join(os.environ["ORBIT_PATH"], "source", "apps")
+        if self._sim_experience_file == "":
+            # check if the headless flag is set
+            if self._headless:
+                self._sim_experience_file = os.path.join(orbit_app_exp_path, "orbit.python.headless.kit")
+            else:
+                self._sim_experience_file = os.path.join(orbit_app_exp_path, "orbit.python.kit")
+        elif not os.path.isabs(self._sim_experience_file):
+            option_1_app_exp_path = os.path.join(kit_app_exp_path, self._sim_experience_file)
+            option_2_app_exp_path = os.path.join(orbit_app_exp_path, self._sim_experience_file)
+            if os.path.exists(option_1_app_exp_path):
+                self._sim_experience_file = option_1_app_exp_path
+            elif os.path.exists(option_2_app_exp_path):
+                self._sim_experience_file = option_2_app_exp_path
+            else:
+                raise FileNotFoundError(
+                    f"Invalid value for input keyword argument `experience`: {self._sim_experience_file}."
+                    "\n No such file exists in either the Kit or Orbit experience paths. Checked paths:"
+                    f"\n\t [1]: {option_1_app_exp_path}"
+                    f"\n\t [2]: {option_2_app_exp_path}"
+                )
+        elif not os.path.exists(self._sim_experience_file):
+            raise FileNotFoundError(
+                f"Invalid value for input keyword argument `experience`: {self._sim_experience_file}."
+                " The file does not exist."
+            )
+
+        print(f"[INFO][AppLauncher]: Loading experience file: {self._sim_experience_file}")
         # Remove all values from input keyword args which are not meant for SimulationApp
         # Assign all the passed settings to a dictionary for the simulation app
-        self._simulationapp_config = {
-            key: launcher_args[key]
-            for key in set(AppLauncher._SIMULATIONAPP_CFG_TYPES.keys()) & set(launcher_args.keys())
+        self._sim_app_config = {
+            key: launcher_args[key] for key in set(AppLauncher._SIM_APP_CFG_TYPES.keys()) & set(launcher_args.keys())
         }
 
     def _create_app(self):
@@ -432,7 +488,7 @@ class AppLauncher:
             hacked_modules[key] = sys.modules[key]
             del sys.modules[key]
         # launch simulation app
-        self._app = SimulationApp(self._simulationapp_config, experience=self._simulationapp_experience)
+        self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         # add orbit modules back to sys.modules
         for key, value in hacked_modules.items():
             sys.modules[key] = value
@@ -505,7 +561,8 @@ class AppLauncher:
         #   the module for orbit.envs.ui work
         enable_extension("omni.isaac.ui")
         # enable animation recording extension
-        enable_extension("omni.kit.stagerecorder.core")
+        if not self._headless or self._livestream >= 1:
+            enable_extension("omni.kit.stagerecorder.core")
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets

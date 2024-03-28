@@ -11,7 +11,6 @@ from __future__ import annotations
 
 
 import argparse
-import numpy as np
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -41,6 +40,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import os
 import torch
 

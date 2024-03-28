@@ -8,7 +8,6 @@ from __future__ import annotations
 """Launch Isaac Sim Simulator first."""
 
 import argparse
-import os
 
 parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
 parser.add_argument(
@@ -20,13 +19,13 @@ from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 # note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
-app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-app_launcher = AppLauncher(headless=True, experience=app_experience)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import argparse
+import os
 import trimesh
 
 import omni.isaac.orbit.terrains.trimesh as mesh_gen

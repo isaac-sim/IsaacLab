@@ -1,0 +1,110 @@
+##
+# Adapted from: https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs/blob/main/apps/omni.isaac.sim.python.gym.camera.kit
+#
+# This app file designed specifically towards vision-based RL tasks. It provides necessary settings to enable
+# multiple cameras to be rendered each frame. Additional settings are also applied to increase performance when
+# rendering cameras across multiple environments.
+##
+
+[package]
+title = "Isaac Sim Python - Minimal (efficient rendering)"
+description = "A minimal app for running standalone scripts with efficient camera rendering settings."
+version = "2023.1.1"
+
+# That makes it browsable in UI with "experience" filter
+keywords = ["experience", "app", "orbit", "python", "camera", "minimal"]
+
+[dependencies]
+# Orbit minimal app
+"orbit.python.headless" = {}
+
+# PhysX
+"omni.kit.property.physx" = {}
+"omni.kit.property.bundle" = {}
+
+# Rendering
+"omni.kit.material.library" = {}
+"omni.kit.viewport.rtx" = {}
+"omni.kit.viewport.bundle" = {}
+
+# Windows
+"omni.kit.window.file" = {}
+"omni.kit.window.status_bar" = {}
+"omni.kit.window.title" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.window.toolbar" = {}
+"omni.kit.window.stage" = {}
+
+# Menus
+"omni.kit.menu.utils" = {}
+"omni.kit.menu.file" = {}
+"omni.kit.menu.edit" = {}
+"omni.kit.menu.create" = {}
+"omni.kit.menu.common" = {}
+"omni.kit.menu.stage" = {}
+
+[settings]
+
+# Basic Kit App
+################################
+# Note: This path was adapted to be respective to the kit-exe file location
+app.versionFile = "${exe-path}/../VERSION"
+app.folder = "${exe-path}/../"
+app.name = "Isaac-Sim"
+app.version = "2023.1.1"
+
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
+# Increase available descriptors to support more simultaneous cameras
+rtx.descriptorSets=30000
+
+# Enable new denoiser to reduce motion blur artifacts
+rtx.newDenoiser.enabled=true
+
+# Disable present thread to improve performance
+exts."omni.renderer.core".present.enabled=false
+
+# Disabling these settings reduces renderer VRAM usage and improves rendering performance, but at some quality cost
+rtx.raytracing.cached.enabled = false
+rtx.raytracing.lightcache.spatialCache.enabled = false
+rtx.ambientOcclusion.enabled = false
+rtx-transient.dlssg.enabled = false
+
+rtx.sceneDb.ambientLightIntensity = 1.0
+rtx.directLighting.sampledLighting.enabled = true
+
+# Force synchronous rendering to improve training results
+omni.replicator.asyncRendering = false
+
+app.renderer.waitIdle=true
+app.hydraEngine.waitIdle=true
+
+[settings.exts."omni.kit.registry.nucleus"]
+registries = [
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+]
+
+[settings.app.renderer]
+skipWhileMinimized = false
+sleepMsOnFocus = 0
+sleepMsOutOfFocus = 0
+
+# Register extension folder from this repo in kit
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",  # kit extensions
+    "${exe-path}/extscore",  # kit core extensions
+    "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extscache",  # isaac cache extensions
+    "${exe-path}/../extsPhysics",  # isaac physics extensions,
+    "${app}", # needed to find other app files
+    "${app}/../extensions", # needed to find extensions in orbit
+]
+
+# Isaac Sim Extensions
+###############################
+[dependencies]
+"omni.isaac.app.setup" = { order = 1000 } # we are running that at the end

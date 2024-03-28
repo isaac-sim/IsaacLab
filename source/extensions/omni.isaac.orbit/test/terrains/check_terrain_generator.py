@@ -7,18 +7,16 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-import os
-
 from omni.isaac.orbit.app import AppLauncher
 
 # launch omniverse app
 # note: we only need to do this because of `TerrainImporter` which uses Omniverse functions
-app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-app_launcher = AppLauncher(headless=True, experience=app_experience)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import os
 import shutil
 
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG

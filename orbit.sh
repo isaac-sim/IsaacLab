@@ -132,6 +132,7 @@ setup_conda_env() {
         'source '${isaacsim_setup_conda_env_script}'' \
         '' \
         '# for orbit' \
+        'export ORBIT_PATH='${ORBIT_PATH}'' \
         'alias orbit='${ORBIT_PATH}'/orbit.sh' \
         '' \
         '# show icon if not runninng headless' \
@@ -144,6 +145,7 @@ setup_conda_env() {
     printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for orbit' \
         'unalias orbit &>/dev/null' \
+        'unalias ORBIT_PATH &>/dev/null' \
         '' \
         '# for isaac-sim' \
         'unset CARB_APP_PATH' \

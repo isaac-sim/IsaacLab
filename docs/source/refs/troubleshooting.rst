@@ -9,6 +9,33 @@ Tricks and Troubleshooting
     assistance.
 
 
+Checking the internal logs from the simulator
+---------------------------------------------
+
+When running the simulator from a standalone script, it logs warnings and errors to the terminal. At the same time,
+it also logs internal messages to a file. These are useful for debugging and understanding the internal state of the
+simulator. Depending on your system, the log file can be found in the locations listed
+`here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_faq.html#common-path-locations>`_.
+
+To obtain the exact location of the log file, you need to check the first few lines of the terminal output when
+you run the standalone script. The log file location is printed at the start of the terminal output. For example:
+
+.. code:: bash
+
+    [INFO] Using python from: /home/${USER}/git/orbit/_isaac_sim/python.sh
+    ...
+    Passing the following args to the base kit application:  []
+    Loading user config located at: '.../data/Kit/Isaac-Sim/2023.1/user.config.json'
+    [Info] [carb] Logging to file: '.../logs/Kit/Isaac-Sim/2023.1/kit_20240328_183346.log'
+
+
+In the above example, the log file is located at ``.../logs/Kit/Isaac-Sim/2023.1/kit_20240328_183346.log``,
+``...`` is the path to the user's log directory. The log file is named ``kit_20240328_183346.log``
+
+You can open this file to check the internal logs from the simulator. Also when reporting issues, please include
+this log file to help us debug the issue.
+
+
 Using CPU Scaling Governor for performance
 ------------------------------------------
 
