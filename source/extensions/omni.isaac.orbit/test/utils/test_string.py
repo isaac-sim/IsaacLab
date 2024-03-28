@@ -103,6 +103,41 @@ class TestStringUtilities(unittest.TestCase):
         self.assertEqual(index_list, ground_truth_index_list)
         self.assertEqual(names_list, [robot_joint_names[i] for i in ground_truth_index_list])
 
+    def test_resolve_matching_names_with_preserved_order(self):
+        # list of strings and query list
+        robot_joint_names = []
+        for i in ["hip", "thigh", "calf"]:
+            for j in ["FL", "FR", "RL", "RR"]:
+                robot_joint_names.append(f"{j}_{i}_joint")
+        query_list = [
+            "FL_hip_joint",
+            "FL_thigh_joint",
+            "FR_hip_joint",
+            "FR_thigh_joint",
+            "FL_calf_joint",
+            "FR_calf_joint",
+        ]
+        # test return in target ordering with sublist
+        query_list.reverse()
+        index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names, preserve_order=True)
+        ground_truth_index_list = [9, 8, 5, 1, 4, 0]
+        self.assertEqual(names_list, query_list)
+        self.assertEqual(index_list, ground_truth_index_list)
+        # test return in target ordering with regex expression
+        index_list, names_list = string_utils.resolve_matching_names(
+            ["FR.*", "FL.*"], robot_joint_names, preserve_order=True
+        )
+        ground_truth_index_list = [1, 5, 9, 0, 4, 8]
+        self.assertEqual(index_list, ground_truth_index_list)
+        self.assertEqual(names_list, [robot_joint_names[i] for i in ground_truth_index_list])
+        # test return in target ordering with a mix of regex and non-regex expression
+        index_list, names_list = string_utils.resolve_matching_names(
+            ["FR.*", "FL_calf_joint", "FL_thigh_joint", "FL_hip_joint"], robot_joint_names, preserve_order=True
+        )
+        ground_truth_index_list = [1, 5, 9, 8, 4, 0]
+        self.assertEqual(index_list, ground_truth_index_list)
+        self.assertEqual(names_list, [robot_joint_names[i] for i in ground_truth_index_list])
+
     def test_resolve_matching_names_values_with_basic_strings(self):
         """Test resolving matching names with a basic expression."""
         # list of strings
@@ -126,7 +161,36 @@ class TestStringUtilities(unittest.TestCase):
         # test no regex match
         query_names = {"a|c": 1, "b": 0, "f": 2}
         with self.assertRaises(ValueError):
-            _ = string_utils.resolve_matching_names(query_names, target_names)
+            _ = string_utils.resolve_matching_names_values(query_names, target_names)
+
+    def test_resolve_matching_names_values_with_basic_strings_and_preserved_order(self):
+        """Test resolving matching names with a basic expression."""
+        # list of strings
+        target_names = ["a", "b", "c", "d", "e"]
+        # test matching names
+        data = {"a|c": 1, "b": 2}
+        index_list, names_list, values_list = string_utils.resolve_matching_names_values(
+            data, target_names, preserve_order=True
+        )
+        self.assertEqual(index_list, [0, 2, 1])
+        self.assertEqual(names_list, ["a", "c", "b"])
+        self.assertEqual(values_list, [1, 1, 2])
+        # test matching names with regex
+        data = {"a|d|e": 1, "b|c": 2}
+        index_list, names_list, values_list = string_utils.resolve_matching_names_values(
+            data, target_names, preserve_order=True
+        )
+        self.assertEqual(index_list, [0, 3, 4, 1, 2])
+        self.assertEqual(names_list, ["a", "d", "e", "b", "c"])
+        self.assertEqual(values_list, [1, 1, 1, 2, 2])
+        # test matching names with regex
+        data = {"a|d|e|b": 1, "b|c": 2}
+        with self.assertRaises(ValueError):
+            _ = string_utils.resolve_matching_names_values(data, target_names, preserve_order=True)
+        # test no regex match
+        query_names = {"a|c": 1, "b": 0, "f": 2}
+        with self.assertRaises(ValueError):
+            _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
 
 
 if __name__ == "__main__":

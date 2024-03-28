@@ -147,17 +147,25 @@ Regex operations.
 """
 
 
-def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[str]) -> tuple[list[int], list[str]]:
+def resolve_matching_names(
+    keys: str | Sequence[str], list_of_strings: Sequence[str], preserve_order: bool = False
+) -> tuple[list[int], list[str]]:
     """Match a list of query regular expressions against a list of strings and return the matched indices and names.
 
     When a list of query regular expressions is provided, the function checks each target string against each
     query regular expression and returns the indices of the matched strings and the matched strings.
-    This means that the ordering is dictated by the order of the target strings and not the order of the query
-    regular expressions.
 
-    For example, if the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'],
-    then the function will return the indices of the matched strings and the matched strings, i.e.
-    ([0, 1, 2], ['a', 'b', 'c']).
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    of the provided list of strings. This means that the ordering is dictated by the order of the target strings
+    and not the order of the query regular expressions.
+
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    of the provided list of query regular expressions.
+
+    For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
+    If :attr:`preserve_order` is False, then the function will return the indices of the matched strings and the
+    strings as: ([0, 1, 2], ['a', 'b', 'c']). When :attr:`preserve_order` is True, it will return them as:
+    ([0, 2, 1], ['a', 'c', 'b']).
 
     Note:
         The function does not sort the indices. It returns the indices in the order they are found.
@@ -165,6 +173,7 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
     Args:
         keys: A regular expression or a list of regular expressions to match the strings in the list.
         list_of_strings: A list of strings to match.
+        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
 
     Returns:
         A tuple of lists containing the matched indices and names.
@@ -179,6 +188,7 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
     # find matching patterns
     index_list = []
     names_list = []
+    key_idx_list = []
     # book-keeping to check that we always have a one-to-one mapping
     # i.e. each target string should match only one regular expression
     target_strings_match_found = [None for _ in range(len(list_of_strings))]
@@ -197,8 +207,27 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
                 target_strings_match_found[target_index] = re_key
                 index_list.append(target_index)
                 names_list.append(potential_match_string)
+                key_idx_list.append(key_index)
                 # add for regex key
                 keys_match_found[key_index].append(potential_match_string)
+    # reorder keys if they should be returned in order of the query keys
+    if preserve_order:
+        reordered_index_list = [None] * len(index_list)
+        global_index = 0
+        for key_index in range(len(keys)):
+            for key_idx_position, key_idx_entry in enumerate(key_idx_list):
+                if key_idx_entry == key_index:
+                    reordered_index_list[key_idx_position] = global_index
+                    global_index += 1
+        # reorder index and names list
+        index_list_reorder = [None] * len(index_list)
+        names_list_reorder = [None] * len(index_list)
+        for idx, reorder_idx in enumerate(reordered_index_list):
+            index_list_reorder[reorder_idx] = index_list[idx]
+            names_list_reorder[reorder_idx] = names_list[idx]
+        # update
+        index_list = index_list_reorder
+        names_list = names_list_reorder
     # check that all regular expressions are matched
     if not all(keys_match_found):
         # make this print nicely aligned for debugging
@@ -215,27 +244,33 @@ def resolve_matching_names(keys: str | Sequence[str], list_of_strings: Sequence[
 
 
 def resolve_matching_names_values(
-    data: dict[str, Any], list_of_strings: Sequence[str]
+    data: dict[str, Any], list_of_strings: Sequence[str], preserve_order: bool = False
 ) -> tuple[list[int], list[str], list[Any]]:
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
 
-    For example, if the dictionary is {'a|b|c': 1, 'd|e': 2} and the list of strings is ['a', 'b', 'c', 'd', 'e'],
-    then the function will return the indices of the matched strings, the matched strings, and the values, i.e.
-    ([0, 1, 2, 3, 4], ['a', 'b', 'c', 'd', 'e'], [1, 1, 1, 2, 2]).
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    of the provided list of strings. This means that the ordering is dictated by the order of the target strings
+    and not the order of the query regular expressions.
 
-    Note:
-        The function does not sort the indices. It returns the indices in the order they are found.
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    of the provided list of query regular expressions.
+
+    For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].
+    If :attr:`preserve_order` is False, then the function will return the indices of the matched strings, the
+    matched strings, and the values as: ([0, 1, 2, 3, 4], ['a', 'b', 'c', 'd', 'e'], [1, 2, 2, 1, 1]). When
+    :attr:`preserve_order` is True, it will return them as: ([0, 3, 4, 1, 2], ['a', 'd', 'e', 'b', 'c'], [1, 1, 1, 2, 2]).
 
     Args:
         data: A dictionary of regular expressions and values to match the strings in the list.
         list_of_strings: A list of strings to match.
+        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
 
     Returns:
         A tuple of lists containing the matched indices, names, and values.
 
     Raises:
-        TypeError: When the input argument `data` is not a dictionary.
+        TypeError: When the input argument :attr:`data` is not a dictionary.
         ValueError: When multiple matches are found for a string in the dictionary.
         ValueError: When not all regular expressions in the data keys are matched.
     """
@@ -246,6 +281,7 @@ def resolve_matching_names_values(
     index_list = []
     names_list = []
     values_list = []
+    key_idx_list = []
     # book-keeping to check that we always have a one-to-one mapping
     # i.e. each target string should match only one regular expression
     target_strings_match_found = [None for _ in range(len(list_of_strings))]
@@ -265,8 +301,30 @@ def resolve_matching_names_values(
                 index_list.append(target_index)
                 names_list.append(potential_match_string)
                 values_list.append(value)
+                key_idx_list.append(key_index)
                 # add for regex key
                 keys_match_found[key_index].append(potential_match_string)
+    # reorder keys if they should be returned in order of the query keys
+    if preserve_order:
+        reordered_index_list = [None] * len(index_list)
+        global_index = 0
+        for key_index in range(len(data)):
+            for key_idx_position, key_idx_entry in enumerate(key_idx_list):
+                if key_idx_entry == key_index:
+                    reordered_index_list[key_idx_position] = global_index
+                    global_index += 1
+        # reorder index and names list
+        index_list_reorder = [None] * len(index_list)
+        names_list_reorder = [None] * len(index_list)
+        values_list_reorder = [None] * len(index_list)
+        for idx, reorder_idx in enumerate(reordered_index_list):
+            index_list_reorder[reorder_idx] = index_list[idx]
+            names_list_reorder[reorder_idx] = names_list[idx]
+            values_list_reorder[reorder_idx] = values_list[idx]
+        # update
+        index_list = index_list_reorder
+        names_list = names_list_reorder
+        values_list = values_list_reorder
     # check that all regular expressions are matched
     if not all(keys_match_found):
         # make this print nicely aligned for debugging

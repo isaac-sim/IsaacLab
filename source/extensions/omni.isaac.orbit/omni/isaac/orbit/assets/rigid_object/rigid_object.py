@@ -148,7 +148,7 @@ class RigidObject(AssetBase):
         # -- update common data
         self._update_common_data(dt)
 
-    def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`omni.isaac.orbit.utils.string_utils.resolve_matching_names` function for more
@@ -156,11 +156,12 @@ class RigidObject(AssetBase):
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names)
+        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     """
     Operations - Write to simulation.

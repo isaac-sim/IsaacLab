@@ -228,7 +228,7 @@ class Articulation(RigidObject):
         self._previous_joint_vel[:] = self._data.joint_vel[:]
 
     def find_joints(
-        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None
+        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
 
@@ -239,6 +239,7 @@ class Articulation(RigidObject):
             name_keys: A regular expression or a list of regular expressions to match the joint names.
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the joint indices and names.
@@ -246,7 +247,7 @@ class Articulation(RigidObject):
         if joint_subset is None:
             joint_subset = self.joint_names
         # find joints
-        return string_utils.resolve_matching_names(name_keys, joint_subset)
+        return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     """
     Operations - Setters.

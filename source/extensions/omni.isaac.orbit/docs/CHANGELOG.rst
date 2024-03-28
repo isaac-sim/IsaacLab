@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.15.7 (2024-03-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Adds option to return indices/data in the specified query keys order in
+  :class:`omni.isaac.orbit.managers.SceneEntityCfg` class, and the respective
+  :func:`omni.isaac.orbit.utils.string.resolve_matching_names_values` and
+  :func:`omni.isaac.orbit.utils.string.resolve_matching_names` functions.
+
+
 0.15.6 (2024-03-28)
 ~~~~~~~~~~~~~~~~~~~
 
