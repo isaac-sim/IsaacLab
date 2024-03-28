@@ -8,7 +8,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -370,7 +370,6 @@ class TestWarpCamera(unittest.TestCase):
             spawn=PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-4, 1.0e5)
             ),
-            colorize=False,
         )
         camera_usd = Camera(camera_cfg_usd)
 
@@ -440,7 +439,6 @@ class TestWarpCamera(unittest.TestCase):
             spawn=PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
             ),
-            colorize=False,
             offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
         )
         camera_usd = Camera(camera_cfg_usd)
@@ -518,7 +516,6 @@ class TestWarpCamera(unittest.TestCase):
             spawn=PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
             ),
-            colorize=False,
             offset=CameraCfg.OffsetCfg(pos=(0, 0, 2.0), rot=offset_rot, convention="ros"),
         )
         prim_usd = prim_utils.create_prim("/World/Camera_usd", "Xform")
@@ -565,7 +562,4 @@ class TestWarpCamera(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # run main
-    unittest.main(verbosity=2, exit=False)
-    # close sim app
-    simulation_app.close()
+    run_tests()

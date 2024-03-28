@@ -26,6 +26,7 @@ import argparse
 import logging
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -137,7 +138,7 @@ def test_all(
 
     # Print tests to be run
     logging.info("\n" + "=" * 60 + "\n")
-    logging.info(f"The following {len(all_test_paths)} tests will be run:")
+    logging.info(f"The following {len(all_test_paths)} tests were found:")
     for i, test_path in enumerate(all_test_paths):
         logging.info(f"{i + 1:02d}: {test_path}")
     logging.info("\n" + "=" * 60 + "\n")
@@ -153,8 +154,6 @@ def test_all(
 
     results = {}
 
-    # Resolve python executable to use
-    orbit_shell_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "orbit.sh")
     # Run each script and store results
     for test_path in test_paths:
         results[test_path] = {}
@@ -163,19 +162,28 @@ def test_all(
         logging.info(f"[INFO] Running '{test_path}'\n")
         try:
             completed_process = subprocess.run(
-                ["bash", orbit_shell_path, "-p", test_path], check=True, capture_output=True, timeout=timeout
+                [sys.executable, test_path], check=True, capture_output=True, timeout=timeout
             )
         except subprocess.TimeoutExpired as e:
             logging.error(f"Timeout occurred: {e}")
             result = "TIMEDOUT"
             stdout = e.stdout
             stderr = e.stderr
+        except subprocess.CalledProcessError as e:
+            # When check=True is passed to subprocess.run() above, CalledProcessError is raised if the process returns a
+            # non-zero exit code. The caveat is returncode is not correctly updated in this case, so we simply
+            # catch the exception and set this test as FAILED
+            result = "FAILED"
+            stdout = e.stdout
+            stderr = e.stderr
         except Exception as e:
-            logging.error(f"Exception {e}!")
+            logging.error(f"Unexpected exception {e}. Please report this issue on the repository.")
             result = "FAILED"
             stdout = e.stdout
             stderr = e.stderr
         else:
+            # Should only get here if the process ran successfully, e.g. no exceptions were raised
+            # but we still check the returncode just in case
             result = "PASSED" if completed_process.returncode == 0 else "FAILED"
             stdout = completed_process.stdout
             stderr = completed_process.stderr

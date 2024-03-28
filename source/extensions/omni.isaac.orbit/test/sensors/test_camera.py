@@ -10,7 +10,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -302,7 +302,7 @@ class TestCamera(unittest.TestCase):
         camera.update(self.dt)
 
         # expected sizes
-        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
         hw_1c_shape = (1, camera_cfg.height, camera_cfg.width)
         # access image data and compare shapes
         output = camera.data.output
@@ -352,7 +352,7 @@ class TestCamera(unittest.TestCase):
         camera.update(self.dt)
 
         # expected sizes
-        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
+        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
         hw_1c_shape = (1, camera_cfg.height, camera_cfg.width)
         # access image data and compare shapes
         output = camera.data.output
@@ -462,7 +462,4 @@ class TestCamera(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # run main
-    unittest.main(verbosity=2, exit=False)
-    # close sim app
-    simulation_app.close()
+    run_tests()

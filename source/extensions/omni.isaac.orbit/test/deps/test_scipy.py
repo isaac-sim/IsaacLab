@@ -15,6 +15,8 @@ import numpy as np
 import scipy.interpolate as interpolate
 import unittest
 
+from omni.isaac.orbit.app import run_tests
+
 
 class TestScipyOperations(unittest.TestCase):
     """Tests for assuring scipy related operations used in Orbit."""
@@ -72,4 +74,4 @@ class TestScipyOperations(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    run_tests()

@@ -9,6 +9,8 @@ import torch
 import torch.utils.benchmark as benchmark
 import unittest
 
+from omni.isaac.orbit.app import run_tests
+
 
 class TestTorchOperations(unittest.TestCase):
     """Tests for assuring torch related operations used in Orbit."""
@@ -151,4 +153,4 @@ class TestTorchOperations(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    run_tests()
