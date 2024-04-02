@@ -10,7 +10,7 @@ from __future__ import annotations
 from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, experience="omni.isaac.sim.python.gym.headless.kit").app
 
 """Rest everything follows."""
 

@@ -443,7 +443,7 @@ class AppLauncher:
         orbit_app_exp_path = os.path.join(os.environ["ORBIT_PATH"], "source", "apps")
         if self._sim_experience_file == "":
             # check if the headless flag is set
-            if self._headless:
+            if self._headless and not self._livestream:
                 self._sim_experience_file = os.path.join(orbit_app_exp_path, "orbit.python.headless.kit")
             else:
                 self._sim_experience_file = os.path.join(orbit_app_exp_path, "orbit.python.kit")

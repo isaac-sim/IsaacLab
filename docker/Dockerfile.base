@@ -19,15 +19,15 @@ LABEL description="Dockerfile for building and running the Orbit framework insid
 
 # Arguments
 # Path to Isaac Sim root folder
-ARG ISAACSIM_PATH
+ARG ISAACSIM_ROOT_PATH
+# Path to orbit directory
+ARG ORBIT_PATH
 # Home dir of docker user, typically '/root'
 ARG DOCKER_USER_HOME
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-# Path to orbit directory
-ENV ORBIT_PATH=/workspace/orbit
 
 # Install dependencies and remove cache
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -44,10 +44,10 @@ RUN --mount=type=cache,target=/var/cache/apt \
 COPY ../ ${ORBIT_PATH}
 
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the orbit directory
-RUN ln -sf ${ISAACSIM_PATH} ${ORBIT_PATH}/_isaac_sim
+RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ORBIT_PATH}/_isaac_sim
 
 # for singularity usage, have to create the directories that will binded
-RUN mkdir -p ${ISAACSIM_PATH}/kit/cache && \
+RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \
@@ -73,11 +73,11 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 
 # aliasing orbit.sh and python for convenience
 RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ISAACSIM_PATH}/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ISAACSIM_PATH}/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACSIM_PATH}/python.sh ${ISAACSIM_PATH}/tensorboard'" >> ${HOME}/.bashrc && \
+    echo "alias python=${ORBIT_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
+    echo "alias python3=${ORBIT_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
+    echo "alias pip='${ORBIT_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
+    echo "alias pip3='${ORBIT_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
+    echo "alias tensorboard='${ORBIT_PATH}/_isaac_sim/python.sh ${ORBIT_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
 # make working directory as the orbit directory

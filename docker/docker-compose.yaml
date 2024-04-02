@@ -8,7 +8,7 @@ x-default-orbit-volumes:
     # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
     - type: volume
       source: isaac-cache-kit
-      target: ${DOCKER_ISAACSIM_PATH}/kit/cache
+      target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache
     - type: volume
       source: isaac-cache-ov
       target: ${DOCKER_USER_HOME}/.cache/ov
@@ -26,7 +26,7 @@ x-default-orbit-volumes:
       target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
     - type: volume
       source: isaac-carb-logs
-      target: ${DOCKER_ISAACSIM_PATH}/kit/logs/Kit/Isaac-Sim
+      target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/logs/Kit/Isaac-Sim
     - type: volume
       source: isaac-data
       target: ${DOCKER_USER_HOME}/.local/share/ov/data
@@ -87,17 +87,16 @@ services:
       dockerfile: docker/Dockerfile.base
       args:
         - ISAACSIM_VERSION=${ISAACSIM_VERSION}
-        - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+        - ISAACSIM_ROOT_PATH=${DOCKER_ISAACSIM_ROOT_PATH}
+        - ORBIT_PATH=${DOCKER_ORBIT_PATH}
         - DOCKER_USER_HOME=${DOCKER_USER_HOME}
     image: orbit-base
     container_name: orbit-base
     environment:
-      # We set DOCKER_ISAACSIM_PATH and then forward it to ISAACSIM_PATH within
-      # the container to avoid collision with pre-existing ISAACSIM_PATH env vars
-      # that could come from installing Orbit on the local machine, causing build errors.
       # We can't just define this in the .env file because shell envars take precedence
       # https://docs.docker.com/compose/environment-variables/envvars-precedence/
-      - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+      - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
+      - ORBIT_PATH=${DOCKER_ORBIT_PATH}
       # This should also be enabled for X11 forwarding
       # - DISPLAY=${DISPLAY}
     volumes: *default-orbit-volumes
@@ -127,7 +126,8 @@ services:
     image: orbit-ros2
     container_name: orbit-ros2
     environment:
-      - ISAACSIM_PATH=${DOCKER_ISAACSIM_PATH}
+      - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
+      - ORBIT_PATH=${DOCKER_ORBIT_PATH}
     volumes: *default-orbit-volumes
     network_mode: host
     deploy: *default-orbit-deploy

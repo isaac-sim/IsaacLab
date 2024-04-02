@@ -17,7 +17,7 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.core.utils.extensions import get_extension_path_from_name
+from omni.isaac.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
@@ -62,6 +62,7 @@ class TestSpawningFromFiles(unittest.TestCase):
     def test_spawn_urdf(self):
         """Test loading prim from URDF file."""
         # retrieve path to urdf importer extension
+        enable_extension("omni.importer.urdf")
         extension_path = get_extension_path_from_name("omni.importer.urdf")
         # Spawn franka from URDF
         cfg = sim_utils.UrdfFileCfg(
