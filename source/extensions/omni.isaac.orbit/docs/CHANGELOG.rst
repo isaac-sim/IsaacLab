@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.15.8 (2024-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Adds option to define ordering of points for the mesh-grid generation in the
+  :func:`omni.isaac.orbit.sensors.ray_caster.patterns.grid_pattern`. This parameter defaults to 'xy'
+  for backward compatibility.
+
+
 0.15.7 (2024-03-28)
 ~~~~~~~~~~~~~~~~~~~
 
