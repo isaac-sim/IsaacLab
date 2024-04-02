@@ -138,17 +138,17 @@ class ContactSensor(SensorBase):
             self._data.current_contact_time[env_ids] = 0.0
             self._data.last_contact_time[env_ids] = 0.0
 
-    def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions
-                to match the body names.
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names)
+        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> torch.Tensor:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
