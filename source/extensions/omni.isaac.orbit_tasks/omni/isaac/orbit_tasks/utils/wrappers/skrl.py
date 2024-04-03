@@ -166,7 +166,7 @@ class SkrlSequentialLogTrainer(Trainer):
         else:
             self.agents.init(trainer_cfg=self.cfg)
 
-    def train(self):
+    def train(self, sim=None, scene=None):
         """Train the agents sequentially.
 
         This method executes the training loop for the agents. It performs the following steps:
@@ -180,6 +180,12 @@ class SkrlSequentialLogTrainer(Trainer):
         * Reset the environments: Reset the environments if they are terminated or truncated.
 
         """
+        if (sim is None) != (scene is None):
+            raise ValueError("sim and scene must both be None or both exist")
+        make_scene = (scene is not None)
+        if make_scene:
+            sim_dt = sim.get_physics_dt()
+            sim_time = 0.0
         # init agent
         self.agents.init(trainer_cfg=self.cfg)
         self.agents.set_running_mode("train")
@@ -219,6 +225,21 @@ class SkrlSequentialLogTrainer(Trainer):
             # note: here we do not call reset scene since it is done in the env.step() method
             # update states
             states.copy_(next_states)
+
+            if make_scene:
+                # Apply default actions to the robot
+                # -- generate actions/commands
+                targets = scene["robot"].data.default_joint_pos
+                # -- apply action to the robot
+                scene["robot"].set_joint_position_target(targets)
+                # -- write data to sim
+                scene.write_data_to_sim()
+                # perform step
+                sim.step()
+                # update sim-time
+                sim_time += sim_dt
+                # update buffers
+                scene.update(sim_dt)
 
     def eval(self) -> None:
         """Evaluate the agents sequentially.

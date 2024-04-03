@@ -16,6 +16,8 @@ from __future__ import annotations
 
 
 import argparse
+import os
+import time
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -36,14 +38,19 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
+# launch the simulator
+# load cheaper kit config in headless
+if args_cli.headless:
+    app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
+else:
+    app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.kit"
 # launch omniverse app
-app_launcher = AppLauncher(args_cli)
+app_launcher = AppLauncher(args_cli, experience=app_experience)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import gymnasium as gym
-import os
 from datetime import datetime
 
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
@@ -57,6 +64,46 @@ from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.orbit_tasks.utils.wrappers.skrl import SkrlSequentialLogTrainer, SkrlVecEnvWrapper, process_skrl_cfg
+
+import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.sensors import CameraCfg
+from omni.isaac.orbit.utils import configclass
+from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
+from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
+
+
+@configclass
+class SensorsSceneCfg(InteractiveSceneCfg):
+    """Design the scene with sensors on the robot."""
+
+    # ground plane
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+
+    # lights
+    dome_light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+
+    # robot
+    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # sensors
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
+        ),
+        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+    )
 
 
 def main():
@@ -103,7 +150,7 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
-    # wrap around environment for skrl
+    # wrap around { for skrl
     env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
 
     # set seed for the experiment (override from command line)
@@ -169,8 +216,25 @@ def main():
     trainer_cfg = experiment_cfg["trainer"]
     trainer = SkrlSequentialLogTrainer(cfg=trainer_cfg, env=env, agents=agent)
 
+    # Initialize the simulation context
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, substeps=1)
+    sim = sim_utils.SimulationContext(sim_cfg)
+    # Set main camera
+    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+    # design scene
+    scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    scene = InteractiveScene(scene_cfg)
+    # Play the simulator
+    sim.reset()
+    # Now we are ready!
+    print("[INFO]: Setup complete...")
+
+    start = time.time()
     # train the agent
-    trainer.train()
+    # (With the camera scene)
+    trainer.train(sim=sim, scene=scene)
+    with open("resultsor.txt", "a") as f:
+        f.writelines([f"{env.num_envs} envs - training: {time.time() - start}s\n"])
 
     # close the simulator
     env.close()
