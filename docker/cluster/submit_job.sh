@@ -17,7 +17,8 @@ cat <<EOT > job.sh
 #SBATCH --mail-user=name@mail
 #SBATCH --job-name="training-$(date +"%Y-%m-%dT%H:%M")"
 
-sh "$1/docker/cluster/run_singularity.sh" "${@:2}"
+# Pass the container profile first to run_singularity.sh, then all arguments intended for the executed script
+sh "$1/docker/cluster/run_singularity.sh" "$2" "${@:3}"
 EOT
 
 sbatch < job.sh

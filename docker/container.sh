@@ -21,13 +21,16 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 print_help () {
     echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Orbit."
     echo -e "\noptional arguments:"
-    echo -e "\t-h, --help         Display the help content."
-    echo -e "\tstart              Build the docker image and create the container in detached mode."
-    echo -e "\tenter              Begin a new bash process within an existing orbit container."
-    echo -e "\tcopy               Copy build and logs artifacts from the container to the host machine."
-    echo -e "\tstop               Stop the docker container and remove it."
-    echo -e "\tpush               Push the docker image to the cluster."
-    echo -e "\tjob                Submit a job to the cluster."
+    echo -e "\t-h, --help                  Display the help content."
+    echo -e "\tstart [profile]             Build the docker image and create the container in detached mode."
+    echo -e "\tenter [profile]             Begin a new bash process within an existing orbit container."
+    echo -e "\tcopy [profile]              Copy build and logs artifacts from the container to the host machine."
+    echo -e "\tstop [profile]              Stop the docker container and remove it."
+    echo -e "\tpush [profile]              Push the docker image to the cluster."
+    echo -e "\tjob [profile] [job_args]    Submit a job to the cluster."
+    echo -e "\n"
+    echo -e "[profile] is the optional container profile specification and [job_args] optional arguments specific"
+    echo -e "to the executed script"
     echo -e "\n" >&2
 }
 
@@ -64,9 +67,21 @@ check_docker_version() {
 resolve_image_extension() {
     # If no profile was passed, we default to 'base'
     container_profile=${1:-"base"}
+    # check if the second argument has to be a profile or can be a job argument instead
+    necessary_profile=${2:-true}
 
     # We also default to 'base' if "orbit" is passed
     if [ "$1" == "orbit" ]; then
+        container_profile="base"
+    fi
+
+    # check if a .env.$container_profile file exists
+    # if the argument is necessary a profile, then the file must exists otherwise an info is printed
+    if [ "$necessary_profile" = true ] && [ ! -f $SCRIPT_DIR/.env.$container_profile ]; then
+        echo "[Error] The profile '$container_profile' has no .env.$container_profile file!" >&2;
+        exit 1
+    elif [ ! -f $SCRIPT_DIR/.env.$container_profile ]; then
+        echo "[INFO] No .env.$container_profile found, assume second argument is no profile! Will use default container!" >&2;
         container_profile="base"
     fi
 
@@ -92,6 +107,24 @@ is_container_running() {
     fi
 }
 
+# Checks if a docker image exists, otherwise prints warning and exists
+check_image_exists() {
+    image_name="$1"
+    if ! docker image inspect $image_name &> /dev/null; then
+        echo "[Error] The '$image_name' image does not exist!" >&2;
+        exit 1
+    fi
+}
+
+# Check if the singularity image exists on the remote host, otherwise print warning and exit
+check_singularity_image_exists() {
+    image_name="$1"
+    if ! ssh "$CLUSTER_LOGIN" "[ -f $CLUSTER_SIF_PATH/$image_name.tar ]"; then
+        echo "[Error] The '$image_name' image does not exist on the remote host $CLUSTER_LOGIN!" >&2;
+        exit 1
+    fi
+}
+
 #==
 # Main
 #==
@@ -111,7 +144,27 @@ fi
 
 # parse arguments
 mode="$1"
-resolve_image_extension $2
+profile_arg="$2" # Capture the second argument as the potential profile argument
+
+# Check mode argument and resolve the container profile
+case $mode in
+    build|start|enter|copy|stop|push)
+        resolve_image_extension "$profile_arg" true
+        ;;
+    job)
+        resolve_image_extension "$profile_arg" false
+        ;;
+    *)
+        # Not recognized mode
+        echo "[Error] Invalid command provided: $mode"
+        print_help
+        exit 1
+        ;;
+esac
+
+# Produces a nice print statement stating which container profile is being used
+echo "[INFO] Using container profile: $container_profile"
+
 # resolve mode
 case $mode in
     start)
@@ -169,43 +222,53 @@ case $mode in
         if ! command -v apptainer &> /dev/null; then
             install_apptainer
         fi
+        # Check if Docker image exists
+        check_image_exists orbit-$container_profile:latest
         # Check if Docker version is greater than 25
         check_docker_version
-        # Check if .env.base file exists
-        if [ -f $SCRIPT_DIR/.env.base ]; then
-            # source env file to get cluster login and path information
-            source $SCRIPT_DIR/.env.base
-            # clear old exports
-            rm -rf /$SCRIPT_DIR/exports
-            mkdir -p /$SCRIPT_DIR/exports
-            # create singularity image
-            # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
-            # issues, remove the --fakeroot flag and open an issue on the orbit repository.
-            cd /$SCRIPT_DIR/exports
-            APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot orbit.sif docker-daemon://orbit:latest
-            # tar image and send to cluster
-            tar -cvf /$SCRIPT_DIR/exports/orbit.tar orbit.sif
-            scp /$SCRIPT_DIR/exports/orbit.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit.tar
-        else
-            echo "[Error]: ".env.base" file not found."
-        fi
+        # source env file to get cluster login and path information
+        source $SCRIPT_DIR/.env.base
+        # make sure exports directory exists
+        mkdir -p /$SCRIPT_DIR/exports
+        # clear old exports for selected profile
+        rm -rf /$SCRIPT_DIR/exports/orbit-$container_profile*
+        # create singularity image
+        # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
+        # issues, remove the --fakeroot flag and open an issue on the orbit repository.
+        cd /$SCRIPT_DIR/exports
+        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot orbit-$container_profile.sif docker-daemon://orbit-$container_profile:latest
+        # tar image (faster to send single file as opposed to directory with many files)
+        tar -cvf /$SCRIPT_DIR/exports/orbit-$container_profile.tar orbit-$container_profile.sif
+        # make sure target directory exists
+        ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_SIF_PATH"
+        # send image to cluster
+        scp $SCRIPT_DIR/exports/orbit-$container_profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit-$container_profile.tar
         ;;
     job)
-        # Check if .env file exists
-        if [ -f $SCRIPT_DIR/.env.base ]; then
-            # Sync orbit code
-            echo "[INFO] Syncing orbit code..."
-            source $SCRIPT_DIR/.env.base
-            rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
-            # execute job script
-            echo "[INFO] Executing job script..."
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "${@:2}"
+        source $SCRIPT_DIR/.env.base
+        # Check if singularity image exists on the remote host
+        check_singularity_image_exists orbit-$container_profile
+        # make sure target directory exists
+        ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ORBIT_DIR"
+        # Sync orbit code
+        echo "[INFO] Syncing orbit code..."
+        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
+        # execute job script
+        echo "[INFO] Executing job script..."
+        # check whether the second argument is a profile or a job argument
+        if [ "$profile_arg" == "$container_profile" ] ; then
+            # if the second argument is a profile, we have to shift the arguments
+            echo "[INFO] Arguments passed to job script ${@:3}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "orbit-$container_profile" "${@:3}"
         else
-            echo "[Error]: ".env.base" file not found."
+            # if the second argument is a job argument, we have to shift only one argument
+            echo "[INFO] Arguments passed to job script ${@:2}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "orbit-$container_profile" "${@:2}"
         fi
         ;;
     *)
-        echo "[Error] Invalid argument provided: $1"
+        # Not recognized mode
+        echo "[Error] Invalid command provided: $mode"
         print_help
         exit 1
         ;;
