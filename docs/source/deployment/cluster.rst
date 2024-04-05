@@ -57,7 +57,7 @@ the user cluster password from being requested multiple times.
 Configuring the cluster parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First, you need to configure the cluster-specific parameters in ``docker/.env`` file.
+First, you need to configure the cluster-specific parameters in ``docker/.env.base`` file.
 The following describes the parameters that need to be configured:
 
 - ``CLUSTER_ISAAC_SIM_CACHE_DIR``:
@@ -96,6 +96,11 @@ To export to a singularity image, execute the following command:
 This command will create a singularity image under ``docker/exports`` directory and
 upload it to the defined location on the cluster. Be aware that creating the singularity
 image can take a while.
+
+.. note::
+  By default, the singularity image is created without root access by providing the ``--fakeroot`` flag to
+  the ``apptainer build`` command. In case the image creation fails, you can try to create it with root
+  access by removing the flag in ``docker/container.sh``.
 
 
 Job Submission and Execution

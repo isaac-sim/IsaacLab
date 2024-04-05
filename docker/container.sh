@@ -176,11 +176,13 @@ case $mode in
             # source env file to get cluster login and path information
             source $SCRIPT_DIR/.env.base
             # clear old exports
-            sudo rm -r -f /$SCRIPT_DIR/exports
+            rm -rf /$SCRIPT_DIR/exports
             mkdir -p /$SCRIPT_DIR/exports
             # create singularity image
+            # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
+            # issues, remove the --fakeroot flag and open an issue on the orbit repository.
             cd /$SCRIPT_DIR/exports
-            APPTAINER_NOHTTPS=1 apptainer build --sandbox orbit.sif docker-daemon://orbit:latest
+            APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot orbit.sif docker-daemon://orbit:latest
             # tar image and send to cluster
             tar -cvf /$SCRIPT_DIR/exports/orbit.tar orbit.sif
             scp /$SCRIPT_DIR/exports/orbit.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit.tar
