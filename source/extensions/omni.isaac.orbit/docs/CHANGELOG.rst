@@ -1,12 +1,24 @@
 Changelog
 ---------
 
+0.15.9 (2024-04-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed assignment of individual termination terms inside the :class:`omni.isaac.orbit.managers.TerminationManager`
+  class. Earlier, the terms were being assigned their values through an OR operation which resulted in incorrect
+  values. This regression was introduced in version 0.15.1.
+
+
 0.15.8 (2024-04-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
-* Adds option to define ordering of points for the mesh-grid generation in the
+
+* Added option to define ordering of points for the mesh-grid generation in the
   :func:`omni.isaac.orbit.sensors.ray_caster.patterns.grid_pattern`. This parameter defaults to 'xy'
   for backward compatibility.
 
@@ -62,7 +74,8 @@ Added
 Fixed
 ^^^^^
 
-* Fixed the NonHolonomicActionCfg variable naming from joint_vel to _joint_vel_command to match the initialized variable in the init() function.
+* Fixed the :class:`omni.isaac.orbit.envs.mdp.actions.NonHolonomicActionCfg` class to use
+  the correct variable when applying actions.
 
 
 0.15.3 (2024-03-21)

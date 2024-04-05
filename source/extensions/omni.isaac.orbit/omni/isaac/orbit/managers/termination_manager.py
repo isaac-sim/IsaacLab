@@ -163,7 +163,7 @@ class TerminationManager(ManagerBase):
             else:
                 self._terminated_buf |= value
             # add to episode dones
-            self._term_dones[name] |= value
+            self._term_dones[name][:] = value
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 
