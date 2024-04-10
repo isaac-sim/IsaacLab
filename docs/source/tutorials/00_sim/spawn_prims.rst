@@ -155,6 +155,23 @@ reflected in the scene in a non-destructive manner. For example, we can change t
 actually modifying the underlying file for the table asset directly. Only the changes are stored in the USD stage.
 
 
+Spawning assembly of shapes
+---------------------------
+
+Sometimes we want to abstract a robot as a rigid body, manually set its mass, inertia, collision properties, and generate
+its appearance according to parameters instead of using fixed appearance loaded from files. So we provide the
+:mod:`sim.spawners.assemblies` sub-module that hosts configurations and spawner functions for such robots. It includes an
+example for spawning racing quadcopters.
+
+Simular to spawning the third cone ``ConeRigid``, the exemplar rigid racing quadcopter can be spawned using the following code.
+All customizable properties are defined in the :class:`~sim.spawners.assemblies.RaceQuadcopterCfg` class.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+   :language: python
+   :start-at: # spawn an assembly of shapes with collision and inertia properties
+   :end-at: cfg_assembly.func("/World/Objects/Quad", cfg_assembly, translation=(-0.5, 0.0, 1.05))
+
+
 Executing the Script
 ~~~~~~~~~~~~~~~~~~~~
 
