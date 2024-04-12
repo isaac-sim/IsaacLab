@@ -193,10 +193,12 @@ class RobomimicDataCollector:
         if self._h5_file_stream is None or self._h5_data_group is None:
             carb.log_error("No file stream has been opened. Please call reset before flushing data.")
             return
+
         # iterate over each environment and add their data
         for index in env_ids:
             # data corresponding to demo
             env_dataset = self._dataset[f"env_{index}"]
+
             # create episode group based on demo count
             h5_episode_group = self._h5_data_group.create_group(f"demo_{self._demo_count}")
             # store number of steps taken
@@ -213,17 +215,23 @@ class RobomimicDataCollector:
                     h5_episode_group.create_dataset(key, data=np.array(value))
             # increment total step counts
             self._h5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
+
             # increment total demo counts
             self._demo_count += 1
             # reset buffer for environment
             self._dataset[f"env_{index}"] = dict()
+
             # dump at desired frequency
             if self._demo_count % self._flush_freq == 0:
                 self._h5_file_stream.flush()
                 print(f">>> Flushing data to disk. Collected demos: {self._demo_count} / {self._num_demos}")
-        # if demos collected then stop
-        if self._demo_count >= self._num_demos:
-            self.close()
+
+            # if demos collected then stop
+            if self._demo_count >= self._num_demos:
+                print(f">>> Desired number of demonstrations collected: {self._demo_count} >= {self._num_demos}.")
+                self.close()
+                # break out of loop
+                break
 
     def close(self):
         """Stop recording and save the file at its current state."""
@@ -266,6 +274,8 @@ class RobomimicDataCollector:
         if self._env_config is None:
             self._env_config = dict()
         # -- add info
-        self._h5_data_group.attrs["env_args"] = json.dumps(
-            {"env_name": self._env_name, "type": env_type, "env_kwargs": self._env_config}
-        )
+        self._h5_data_group.attrs["env_args"] = json.dumps({
+            "env_name": self._env_name,
+            "type": env_type,
+            "env_kwargs": self._env_config,
+        })

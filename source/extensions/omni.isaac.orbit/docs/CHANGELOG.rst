@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.15.10 (2024-04-11)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed sharing of the same memory address between returned tensors from observation terms
+  in the :class:`omni.isaac.orbit.managers.ObservationManager` class. Earlier, the returned
+  tensors could map to the same memory address, causing issues when the tensors were modified
+  during scaling, clipping or other operations.
+
+
 0.15.9 (2024-04-04)
 ~~~~~~~~~~~~~~~~~~~
 

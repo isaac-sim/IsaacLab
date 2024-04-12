@@ -10,8 +10,7 @@ from __future__ import annotations
 from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
-config = {"headless": True}
-simulation_app = AppLauncher(config).app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -71,11 +70,32 @@ class non_callable_complex_function_class(ManagerTermBase):
         return torch.ones(env.num_envs, 2, device=env.device) * self._cost
 
 
+class MyDataClass:
+
+    def __init__(self, num_envs: int, device: str):
+        self.pos_w = torch.rand((num_envs, 3), device=device)
+        self.lin_vel_w = torch.rand((num_envs, 3), device=device)
+
+
+def pos_w_data(env) -> torch.Tensor:
+    return env.data.pos_w
+
+
+def lin_vel_w_data(env) -> torch.Tensor:
+    return env.data.lin_vel_w
+
+
 class TestObservationManager(unittest.TestCase):
     """Test cases for various situations with observation manager."""
 
     def setUp(self) -> None:
-        self.env = namedtuple("BaseEnv", ["num_envs", "device"])(20, "cpu")
+        # set up the environment
+        self.num_envs = 20
+        self.device = "cuda:0"
+        # create dummy environment
+        self.env = namedtuple("BaseEnv", ["num_envs", "device", "data"])(
+            self.num_envs, self.device, MyDataClass(self.num_envs, self.device)
+        )
 
     def test_str(self):
         """Test the string representation of the observation manager."""
@@ -203,16 +223,39 @@ class TestObservationManager(unittest.TestCase):
 
                 term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
                 term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
+                term_3 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
+
+            @configclass
+            class CriticCfg(ObservationGroupCfg):
+                term_1 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_2 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
+                term_3 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+                term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
             policy: ObservationGroupCfg = PolicyCfg()
+            critic: ObservationGroupCfg = CriticCfg()
 
         # create observation manager
         cfg = MyObservationManagerCfg()
         self.obs_man = ObservationManager(cfg, self.env)
         # compute observation using manager
         observations = self.obs_man.compute()
+
+        # obtain the group observations
+        obs_policy: torch.Tensor = observations["policy"]
+        obs_critic: torch.Tensor = observations["critic"]
+
         # check the observation shape
-        self.assertEqual((self.env.num_envs, 5), observations["policy"].shape)
+        self.assertEqual((self.env.num_envs, 11), obs_policy.shape)
+        self.assertEqual((self.env.num_envs, 12), obs_critic.shape)
+        # make sure that the data are the same for same terms
+        # -- within group
+        torch.testing.assert_close(obs_critic[:, 0:3], obs_critic[:, 6:9])
+        torch.testing.assert_close(obs_critic[:, 3:6], obs_critic[:, 9:12])
+        # -- between groups
+        torch.testing.assert_close(obs_policy[:, 5:8], obs_critic[:, 0:3])
+        torch.testing.assert_close(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
     def test_invalid_observation_config(self):
         """Test the invalid observation config."""
