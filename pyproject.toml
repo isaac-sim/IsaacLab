@@ -49,9 +49,8 @@ known_third_party = [
 ]
 # Imports from this repository
 known_first_party = "omni.isaac.orbit"
-known_assets_firstparty = "omni.isaac.assets"
+known_assets_firstparty = "omni.isaac.orbit_assets"
 known_extra_firstparty = [
-    "omni.isaac.contrib_tasks",
     "omni.isaac.orbit_tasks"
 ]
 # Imports from the local folder

@@ -19,7 +19,7 @@ in robotics research (such as RL, learning from demonstrations, and motion plann
 simulation capabilities for photo-realistic scenes and fast and accurate simulation.
 
 Please refer to our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the
-installation steps, features, and tutorials.
+installation steps, features, tutorials, and how to setup your own project with Orbit.
 
 ## 🎉 Announcement (22.12.2023)
 

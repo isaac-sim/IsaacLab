@@ -24,7 +24,6 @@ import omni.usd
 
 from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.utils import parse_env_cfg
 

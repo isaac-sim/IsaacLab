@@ -42,7 +42,6 @@ from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
 from omni.isaac.orbit.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 from omni.isaac.orbit_tasks.manipulation.lift import mdp
 from omni.isaac.orbit_tasks.utils.data_collector import RobomimicDataCollector

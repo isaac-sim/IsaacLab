@@ -94,7 +94,6 @@ The ``orbit`` repository is structured as follows:
    │   ├── extensions
    │   │   ├── omni.isaac.orbit
    │   │   └── omni.isaac.orbit_tasks
-   │   │   └── omni.isaac.contrib_tasks
    │   ├── standalone
    │   │   ├── demos
    │   │   ├── environments

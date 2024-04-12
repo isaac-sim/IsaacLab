@@ -57,6 +57,7 @@ Table of Contents
    source/setup/installation
    source/setup/developer
    source/setup/sample
+   source/setup/template
    source/setup/faq
 
 .. toctree::

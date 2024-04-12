@@ -278,7 +278,7 @@ in docker-compose.yaml.
 .. _`NGC API key`: https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key
 .. _`several streaming clients`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html
 .. _`known issue`: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916
-.. _`Docker compose profile`: https://docs.docker.com/compose/compose-file/15-profiles/
+.. _`profile`: https://docs.docker.com/compose/compose-file/15-profiles/
 .. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
 .. _`various middleware`: https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html
 .. _`tuned`: https://docs.ros.org/en/foxy/How-To-Guides/DDS-tuning.html
