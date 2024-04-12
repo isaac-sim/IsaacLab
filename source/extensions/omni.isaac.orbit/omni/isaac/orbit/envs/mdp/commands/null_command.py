@@ -59,11 +59,11 @@ class NullCommand(CommandTerm):
     Implementation specific functions.
     """
 
+    def _update_metrics(self):
+        pass
+
     def _resample_command(self, env_ids: Sequence[int]):
         pass
 
     def _update_command(self):
-        pass
-
-    def _update_metrics(self):
         pass

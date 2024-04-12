@@ -187,6 +187,11 @@ class CommandTerm(ManagerTermBase):
     """
 
     @abstractmethod
+    def _update_metrics(self):
+        """Update the metrics based on the current state."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample the command for the specified environments."""
         raise NotImplementedError
@@ -194,11 +199,6 @@ class CommandTerm(ManagerTermBase):
     @abstractmethod
     def _update_command(self):
         """Update the command based on the current state."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def _update_metrics(self):
-        """Update the metrics based on the current state."""
         raise NotImplementedError
 
     def _set_debug_vis_impl(self, debug_vis: bool):
