@@ -309,11 +309,9 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(output["rgb"].shape, hw_3c_shape)
         self.assertEqual(output["distance_to_image_plane"].shape, hw_1c_shape)
         self.assertEqual(output["normals"].shape, hw_3c_shape)
-        # FIXME: No idea why it does not work here. The raw buffers are of type int64 than int32 -> need to investigate
-        #   It works fine when run_usd_camera.py tutorial is run.
-        # self.assertEqual(output["semantic_segmentation"].shape, hw_3c_shape)
-        # self.assertEqual(output["instance_segmentation_fast"].shape, hw_3c_shape)
-        # self.assertEqual(output["instance_id_segmentation_fast"].shape, hw_3c_shape)
+        self.assertEqual(output["semantic_segmentation"].shape, hw_3c_shape)
+        self.assertEqual(output["instance_segmentation_fast"].shape, hw_3c_shape)
+        self.assertEqual(output["instance_id_segmentation_fast"].shape, hw_3c_shape)
 
         # access image data and compare dtype
         output = camera.data.output
@@ -368,11 +366,9 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(output["rgb"].dtype, torch.uint8)
         self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
         self.assertEqual(output["normals"].dtype, torch.float)
-        # FIXME: No idea why it does not work here. The raw buffers are of type int64 than int32 -> need to investigate
-        #   It works fine when run_usd_camera.py tutorial is run.
-        # self.assertEqual(output["semantic_segmentation"].dtype, torch.int32)
-        # self.assertEqual(output["instance_segmentation_fast"].dtype, torch.int32)
-        # self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.int32)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.int32)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.int32)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.int32)
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""

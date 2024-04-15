@@ -13,6 +13,4 @@ TESTS_TO_SKIP = [
     # orbit_tasks
     "test_data_collector.py",  # Failing
     "test_record_video.py",  # Failing
-    "test_rsl_rl_wrapper.py",  # Timing out (10 minutes)
-    "test_sb3_wrapper.py",  # Timing out (10 minutes)
 ]

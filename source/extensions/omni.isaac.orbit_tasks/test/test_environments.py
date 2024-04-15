@@ -54,12 +54,13 @@ class TestEnvironments(unittest.TestCase):
         use_gpu = True
         # iterate over all registered environments
         for task_name in self.registered_tasks:
-            print(f">>> Running test for environment: {task_name}")
-            # check environment
-            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
-            # close the environment
-            print(f">>> Closing environment: {task_name}")
-            print("-" * 80)
+            with self.subTest(task_name=task_name):
+                print(f">>> Running test for environment: {task_name}")
+                # check environment
+                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                # close the environment
+                print(f">>> Closing environment: {task_name}")
+                print("-" * 80)
 
     def test_single_instance_gpu(self):
         """Run all environments with single instance and check environments return valid signals."""
@@ -68,12 +69,13 @@ class TestEnvironments(unittest.TestCase):
         use_gpu = True
         # iterate over all registered environments
         for task_name in self.registered_tasks:
-            print(f">>> Running test for environment: {task_name}")
-            # check environment
-            self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
-            # close the environment
-            print(f">>> Closing environment: {task_name}")
-            print("-" * 80)
+            with self.subTest(task_name=task_name):
+                print(f">>> Running test for environment: {task_name}")
+                # check environment
+                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                # close the environment
+                print(f">>> Closing environment: {task_name}")
+                print("-" * 80)
 
     """
     Helper functions.
