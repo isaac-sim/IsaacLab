@@ -534,7 +534,12 @@ class AppLauncher:
         # set carb setting to indicate orbit's offscreen_render pipeline should be enabled
         # this flag is used by the SimulationContext class to enable the offscreen_render pipeline
         # when the render() method is called.
-        carb_settings_iface.set_bool("/orbit/offscreen_render/enabled", self._offscreen_render)
+        carb_settings_iface.set_bool("/orbit/render/offscreen", self._offscreen_render)
+
+        # set carb setting to indicate no RTX sensors are used
+        # this flag is set to True when an RTX-rendering related sensor is created
+        # for example: the `Camera` sensor class
+        carb_settings_iface.set_bool("/orbit/render/rtx_sensors", False)
 
         # enable extensions for off-screen rendering
         # Depending on the app file, some extensions might not be available in it.

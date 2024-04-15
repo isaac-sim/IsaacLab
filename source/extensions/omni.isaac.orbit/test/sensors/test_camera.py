@@ -92,6 +92,8 @@ class TestCamera(unittest.TestCase):
         """Test camera initialization."""
         # Create camera
         camera = Camera(self.camera_cfg)
+        # Check simulation parameter is set correctly
+        self.assertTrue(self.sim.has_rtx_sensors())
         # Play sim
         self.sim.reset()
         # Check if camera is initialized

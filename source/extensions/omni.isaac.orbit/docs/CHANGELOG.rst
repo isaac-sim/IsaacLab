@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.15.11 (2024-04-15)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the :meth:`omni.isaac.orbit.sim.SimulationContext.has_rtx_sensors` method to check if any
+  RTX-related sensors such as cameras have been created in the simulation. This is useful to determine
+  if simulation requires RTX rendering during step or not.
+
+Fixed
+^^^^^
+
+* Fixed the rendering of RTX-related sensors such as cameras inside the :class:`omni.isaac.orbit.envs.RLTaskEnv` class.
+  Earlier the rendering did not happen inside the step function, which caused the sensor data to be empty.
+
+
 0.15.10 (2024-04-11)
 ~~~~~~~~~~~~~~~~~~~~
 

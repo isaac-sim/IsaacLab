@@ -147,7 +147,7 @@ class SimulationContext(_SimulationContext):
         # read flag for whether the orbit viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
-        self._offscreen_render = bool(carb_settings_iface.get("/orbit/offscreen_render/enabled"))
+        self._offscreen_render = bool(carb_settings_iface.get("/orbit/render/offscreen"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
 
@@ -236,6 +236,21 @@ class SimulationContext(_SimulationContext):
         True if the simulation has a GUI enabled either locally or live-streamed.
         """
         return self._has_gui
+
+    def has_rtx_sensors(self) -> bool:
+        """Returns whether the simulation has any RTX-rendering related sensors.
+
+        This function returns the value of the simulation parameter ``"/orbit/render/rtx_sensors"``.
+        The parameter is set to True when instances of RTX-related sensors (cameras or LiDARs) are
+        created using Orbit's sensor classes.
+
+        True if the simulation has RTX sensors (such as USD Cameras or LiDARs).
+
+        For more information, please check `NVIDIA RTX documentation`_.
+
+        .. _NVIDIA RTX documentation: https://www.nvidia.com/design-visualization/solutions/rendering/
+        """
+        return self._settings.get_as_bool("/orbit/render/rtx_sensors")
 
     def is_fabric_enabled(self) -> bool:
         """Returns whether the fabric interface is enabled.

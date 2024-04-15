@@ -101,7 +101,9 @@ class BaseEnv:
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
-            self.sim = SimulationContext(self.cfg.sim)
+            # the type-annotation is required to avoid a type-checking error
+            # since it gets confused with Isaac Sim's SimulationContext class
+            self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
 
@@ -252,7 +254,7 @@ class BaseEnv:
         # return observations
         return self.observation_manager.compute(), self.extras
 
-    def step(self, action: torch.Tensor) -> VecEnvObs:
+    def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
         The environment steps forward at a fixed time-step, while the physics simulation is
@@ -280,7 +282,7 @@ class BaseEnv:
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
         # perform rendering if gui is enabled
-        if self.sim.has_gui():
+        if self.sim.has_gui() or self.sim.has_rtx_sensors():
             self.sim.render()
 
         # post-step: step interval event

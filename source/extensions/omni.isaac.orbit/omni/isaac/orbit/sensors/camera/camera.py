@@ -13,10 +13,10 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
+import carb
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
-from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 from pxr import UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -105,6 +105,11 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+
+        # toggle rendering of rtx sensors as True
+        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/orbit/render/rtx_sensors", True)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -355,6 +360,7 @@ class Camera(SensorBase):
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
         """
         import omni.replicator.core as rep
+        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 
         # Initialize parent class
         super()._initialize_impl()

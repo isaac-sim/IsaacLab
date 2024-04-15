@@ -173,7 +173,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
         # perform rendering if gui is enabled
-        if self.sim.has_gui():
+        if self.sim.has_gui() or self.sim.has_rtx_sensors():
             self.sim.render()
 
         # post-step:
@@ -203,7 +203,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
         # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
-    def render(self) -> np.ndarray | None:
+    def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
 
         By convention, if mode is:
@@ -211,6 +211,10 @@ class RLTaskEnv(BaseEnv, gym.Env):
         - **human**: Render to the current display and return nothing. Usually for human consumption.
         - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
           x-by-y pixel image, suitable for turning into a video.
+
+        Args:
+            recompute: Whether to force a render even if the simulator has already rendered the scene.
+                Defaults to False.
 
         Returns:
             The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
@@ -222,7 +226,9 @@ class RLTaskEnv(BaseEnv, gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        self.sim.render()
+        # if we have rtx sensors, we do not need to render again sin
+        if not self.sim.has_rtx_sensors() and not recompute:
+            self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
