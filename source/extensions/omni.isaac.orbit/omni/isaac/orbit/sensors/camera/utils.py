@@ -5,8 +5,6 @@
 
 """Helper functions to project between pointcloud and depth images."""
 
-from __future__ import annotations
-
 import math
 import numpy as np
 import torch

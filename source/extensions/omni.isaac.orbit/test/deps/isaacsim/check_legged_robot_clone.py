@@ -9,8 +9,6 @@ This script demonstrates how to use the cloner API from Isaac Sim.
 Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_cloner.html
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

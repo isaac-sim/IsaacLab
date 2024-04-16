@@ -5,8 +5,6 @@
 
 """Sub-module containing utilities for working with different array backends."""
 
-from __future__ import annotations
-
 import numpy as np
 import torch
 from typing import Union

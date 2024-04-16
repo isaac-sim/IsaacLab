@@ -16,8 +16,6 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
 """
 
-from __future__ import annotations
-
 import numpy as np
 import torch
 from dataclasses import MISSING

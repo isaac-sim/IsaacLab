@@ -12,8 +12,6 @@ fault occurs. The launched :class:`omni.isaac.kit.SimulationApp` instance is acc
 :attr:`AppLauncher.app` property.
 """
 
-from __future__ import annotations
-
 import argparse
 import faulthandler
 import os

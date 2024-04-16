@@ -10,10 +10,7 @@ we recommend using smaller number of environments. Otherwise,
 there will be significant overhead in GPU->CPU transfer.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

@@ -25,9 +25,9 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
-from omni.isaac.core.simulation_context import SimulationContext
 from pxr import Gf
 
+import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
 from omni.isaac.orbit.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from omni.isaac.orbit.sim import PinholeCameraCfg
@@ -76,7 +76,8 @@ class TestWarpCamera(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cpu")
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt)
+        self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
         # Ground-plane
         mesh = make_plane(size=(2e1, 2e1), height=0.0, center_zero=True)
         create_prim_from_mesh("/World/defaultGroundPlane", mesh)
@@ -91,7 +92,7 @@ class TestWarpCamera(unittest.TestCase):
         # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
         self.sim._timeline.stop()
         # clear the stage
-        self.sim.clear()
+        self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 
     """

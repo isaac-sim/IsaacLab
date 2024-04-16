@@ -2,9 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from __future__ import annotations
-
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 from pxr import PhysxSchema, Usd, UsdPhysics

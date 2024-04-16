@@ -5,7 +5,6 @@
 
 """Interface to collect and store data from the environment using format from `robomimic`."""
 
-from __future__ import annotations
 
 import h5py
 import json

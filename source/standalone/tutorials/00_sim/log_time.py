@@ -14,9 +14,9 @@ It accompanies the tutorial on docker usage.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
+
+
 import argparse
 import os
 

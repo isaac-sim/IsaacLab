@@ -15,7 +15,6 @@ Reference:
 
 """
 
-from __future__ import annotations
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators.actuator_cfg import ImplicitActuatorCfg

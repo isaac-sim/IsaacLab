@@ -13,9 +13,9 @@ This script demonstrates how to run IsaacSim via the AppLauncher
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
+
+
 import argparse
 
 from omni.isaac.orbit.app import AppLauncher

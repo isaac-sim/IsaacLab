@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates how to run the RL environment for the cartpole balancing task.
-"""
-
-from __future__ import annotations
+"""This script demonstrates how to run the RL environment for the cartpole balancing task."""
 
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

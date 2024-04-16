@@ -13,8 +13,6 @@ This script demonstrates how to use the ray-caster sensor.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse

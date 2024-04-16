@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import torch
 from dataclasses import dataclass
 from tensordict import TensorDict

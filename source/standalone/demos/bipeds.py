@@ -8,10 +8,7 @@ This script demonstrates how to simulate a bipedal robot.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

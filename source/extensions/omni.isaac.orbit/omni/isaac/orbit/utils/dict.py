@@ -5,8 +5,6 @@
 
 """Sub-module for utilities for working with dictionaries."""
 
-from __future__ import annotations
-
 import collections.abc
 import hashlib
 import json

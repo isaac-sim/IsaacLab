@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 from omni.isaac.orbit.markers import VisualizationMarkersCfg
 from omni.isaac.orbit.markers.config import CONTACT_SENSOR_MARKER_CFG
 from omni.isaac.orbit.utils import configclass

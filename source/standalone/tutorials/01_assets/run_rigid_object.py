@@ -13,8 +13,6 @@ This script demonstrates how to create a rigid object and interact with it.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

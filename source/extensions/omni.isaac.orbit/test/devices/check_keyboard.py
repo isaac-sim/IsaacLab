@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """
 This script shows how to use a teleoperation device with Isaac Sim.
 

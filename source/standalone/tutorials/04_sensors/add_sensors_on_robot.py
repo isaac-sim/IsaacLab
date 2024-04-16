@@ -19,10 +19,7 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

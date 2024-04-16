@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Sub-module containing converters for converting various file types to USD.
 
 In order to support direct loading of various file types into Omniverse, we provide a set of

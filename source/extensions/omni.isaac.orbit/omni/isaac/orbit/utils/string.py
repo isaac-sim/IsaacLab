@@ -5,8 +5,6 @@
 
 """Sub-module containing utilities for transforming strings and regular expressions."""
 
-from __future__ import annotations
-
 import ast
 import importlib
 import inspect

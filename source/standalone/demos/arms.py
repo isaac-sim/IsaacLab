@@ -13,10 +13,7 @@ This script demonstrates different single-arm manipulators.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

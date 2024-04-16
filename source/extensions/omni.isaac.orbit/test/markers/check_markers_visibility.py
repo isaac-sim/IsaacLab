@@ -17,8 +17,6 @@ please check: https://www.youtube.com/watch?v=vLk-f9LWj48&ab_channel=NVIDIAOmniv
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

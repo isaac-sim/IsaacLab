@@ -5,8 +5,6 @@
 
 """Tests to verify contact sensor functionality on rigid object prims."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher, run_tests

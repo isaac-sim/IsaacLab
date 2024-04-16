@@ -11,8 +11,6 @@ A locomotion policy is loaded and used to control the robot. This shows how to u
 environment with a policy.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

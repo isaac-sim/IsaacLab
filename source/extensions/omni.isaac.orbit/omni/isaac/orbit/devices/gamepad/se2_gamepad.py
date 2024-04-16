@@ -5,8 +5,6 @@
 
 """Gamepad controller for SE(2) control."""
 
-from __future__ import annotations
-
 import numpy as np
 import weakref
 from collections.abc import Callable

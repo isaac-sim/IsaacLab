@@ -14,8 +14,6 @@ This script checks if the external force is applied correctly on the robot.
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/assets/check_external_force.py --body .*_SHANK --force 100
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

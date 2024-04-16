@@ -13,10 +13,7 @@ This script demonstrates different legged robots.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

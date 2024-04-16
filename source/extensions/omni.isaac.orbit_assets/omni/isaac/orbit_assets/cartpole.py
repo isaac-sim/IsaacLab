@@ -5,7 +5,6 @@
 
 """Configuration for a simple Cartpole robot."""
 
-from __future__ import annotations
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.actuators import ImplicitActuatorCfg

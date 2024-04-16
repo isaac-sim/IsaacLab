@@ -5,7 +5,6 @@
 
 """Sub-module with utilities for parsing and loading configurations."""
 
-from __future__ import annotations
 
 import gymnasium as gym
 import importlib

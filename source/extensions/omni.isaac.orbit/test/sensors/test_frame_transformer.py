@@ -7,8 +7,6 @@
 This script checks the FrameTransformer sensor by visualizing the frames that it creates.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher, run_tests

@@ -23,8 +23,6 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 """
 
-from __future__ import annotations
-
 import copy
 import torch
 import tqdm

@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from __future__ import annotations
-
 from dataclasses import MISSING
 
 import omni.isaac.orbit.sim as sim_utils

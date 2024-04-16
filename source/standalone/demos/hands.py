@@ -13,10 +13,7 @@ This script demonstrates different dexterous hands.
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

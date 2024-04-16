@@ -7,8 +7,6 @@
 
 """Convert all mesh files to `.obj` in given folders."""
 
-from __future__ import annotations
-
 import argparse
 import os
 import shutil

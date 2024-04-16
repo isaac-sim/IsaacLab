@@ -12,8 +12,6 @@ For more information on Omniverse Nucleus:
 https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus
 """
 
-from __future__ import annotations
-
 import io
 import os
 import tempfile

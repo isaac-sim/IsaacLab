@@ -13,10 +13,7 @@ All the environments are registered in the `omni.isaac.orbit_tasks` extension. T
 with `Isaac` in their name.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 from omni.isaac.orbit.app import AppLauncher
 

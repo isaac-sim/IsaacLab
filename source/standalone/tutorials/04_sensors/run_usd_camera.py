@@ -19,8 +19,6 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse

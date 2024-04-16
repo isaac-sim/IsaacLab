@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import unittest
 
 from omni.isaac.orbit.app import AppLauncher, run_tests

@@ -5,8 +5,6 @@
 
 """Script to play a checkpoint if an RL agent from RL-Games."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse

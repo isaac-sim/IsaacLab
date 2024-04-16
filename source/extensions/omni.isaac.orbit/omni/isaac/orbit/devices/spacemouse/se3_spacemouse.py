@@ -5,8 +5,6 @@
 
 """Spacemouse controller for SE(3) control."""
 
-from __future__ import annotations
-
 import hid
 import numpy as np
 import threading

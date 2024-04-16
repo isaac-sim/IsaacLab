@@ -13,10 +13,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

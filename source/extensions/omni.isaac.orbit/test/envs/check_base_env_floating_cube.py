@@ -8,8 +8,6 @@ This script demonstrates the base environment concept that combines a scene with
 observation and event manager for a floating cube.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

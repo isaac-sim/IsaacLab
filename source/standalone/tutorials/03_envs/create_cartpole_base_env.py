@@ -8,8 +8,6 @@ This script demonstrates how to create a simple environment with a cartpole. It 
 scene, action, observation and event managers to create an environment.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

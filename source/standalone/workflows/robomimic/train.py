@@ -25,7 +25,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
 """
 The main entry point for training policies from pre-collected data.
 
@@ -40,10 +39,7 @@ This file has been modified from the original version in the following ways:
 * Added import of AppLauncher from omni.isaac.orbit.app to resolve the configuration to load for training.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 from omni.isaac.orbit.app import AppLauncher
 

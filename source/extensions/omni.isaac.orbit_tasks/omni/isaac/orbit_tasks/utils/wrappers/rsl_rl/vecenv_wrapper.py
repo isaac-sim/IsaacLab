@@ -15,7 +15,6 @@ The following example shows how to wrap an environment for RSL-RL:
 
 """
 
-from __future__ import annotations
 
 import gymnasium as gym
 import torch

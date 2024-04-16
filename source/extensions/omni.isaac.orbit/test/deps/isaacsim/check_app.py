@@ -25,8 +25,6 @@ Output:
 
 """
 
-from __future__ import annotations
-
 from omni.isaac.kit import SimulationApp
 
 if __name__ == "__main__":

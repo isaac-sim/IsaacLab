@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import os
 
 from omni.isaac.core.utils.extensions import get_extension_path_from_name

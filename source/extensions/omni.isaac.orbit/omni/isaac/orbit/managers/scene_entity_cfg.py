@@ -5,8 +5,6 @@
 
 """Configuration terms for different managers."""
 
-from __future__ import annotations
-
 from dataclasses import MISSING
 
 from omni.isaac.orbit.assets import Articulation, RigidObject

@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Configuration for the Rethink Robotics arms.
 
 The following configuration parameters are available:

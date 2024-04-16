@@ -10,8 +10,6 @@ Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples s
 a more user-friendly way.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

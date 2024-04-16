@@ -5,10 +5,7 @@
 
 """Script to collect demonstrations with Orbit environments."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

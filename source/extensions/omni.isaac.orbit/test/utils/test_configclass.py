@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 # NOTE: While we don't actually use the simulation app in this test, we still need to launch it
 #       because warp is only available in the context of a running simulation
 """Launch Isaac Sim Simulator first."""
@@ -648,7 +646,7 @@ class TestConfigClass(unittest.TestCase):
         cfg = DummyClassCfg()
 
         # since python 3.10, annotations are stored as strings
-        annotations = {k: eval(v) for k, v in cfg.__annotations__.items()}
+        annotations = {k: eval(v) if isinstance(v, str) else v for k, v in cfg.__annotations__.items()}
         # check types
         self.assertEqual(annotations["class_name_1"], type)
         self.assertEqual(annotations["class_name_2"], type[DummyClass])

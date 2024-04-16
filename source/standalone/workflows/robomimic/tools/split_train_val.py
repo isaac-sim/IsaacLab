@@ -43,8 +43,6 @@ Example usage:
     python split_train_val.py --dataset /path/to/demo.hdf5 --ratio 0.1
 """
 
-from __future__ import annotations
-
 import argparse
 import h5py
 import numpy as np

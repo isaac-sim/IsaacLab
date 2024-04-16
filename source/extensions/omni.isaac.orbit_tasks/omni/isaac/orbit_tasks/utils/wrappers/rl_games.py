@@ -31,7 +31,6 @@ for RL-Games :class:`Runner` class:
 
 """
 
-from __future__ import annotations
 
 import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
 import gymnasium

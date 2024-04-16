@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher, run_tests

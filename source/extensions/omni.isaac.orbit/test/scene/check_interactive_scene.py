@@ -8,8 +8,6 @@ This script demonstrates how to use the scene interface to quickly setup a scene
 articulated robots and sensors.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 

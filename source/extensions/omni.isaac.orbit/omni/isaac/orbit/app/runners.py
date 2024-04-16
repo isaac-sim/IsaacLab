@@ -5,8 +5,6 @@
 
 """Sub-module with runners to simplify running main via unittest."""
 
-from __future__ import annotations
-
 import unittest
 
 

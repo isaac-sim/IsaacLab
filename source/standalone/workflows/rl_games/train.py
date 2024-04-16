@@ -5,8 +5,6 @@
 
 """Script to train RL agent with RL-Games."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse

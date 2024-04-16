@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.markers.visualization_markers import VisualizationMarkersCfg
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR

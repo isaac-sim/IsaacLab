@@ -5,8 +5,6 @@
 
 """Sub-module containing utilities for various math operations."""
 
-from __future__ import annotations
-
 import numpy as np
 import torch
 import torch.nn.functional

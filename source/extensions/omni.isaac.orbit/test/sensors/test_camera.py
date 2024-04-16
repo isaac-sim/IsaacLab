@@ -6,8 +6,6 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher, run_tests
@@ -30,7 +28,6 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 from omni.isaac.core.prims import GeometryPrim, RigidPrim
-from omni.isaac.core.simulation_context import SimulationContext
 from pxr import Gf, Usd, UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -66,7 +63,8 @@ class TestCamera(unittest.TestCase):
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cpu")
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt)
+        self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
         # populate scene
         self._populate_scene()
         # load stage
@@ -80,7 +78,6 @@ class TestCamera(unittest.TestCase):
         # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
         self.sim._timeline.stop()
         # clear the stage
-        self.sim.clear()
         self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 

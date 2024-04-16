@@ -5,10 +5,7 @@
 
 """Script to an environment with random action agent."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 

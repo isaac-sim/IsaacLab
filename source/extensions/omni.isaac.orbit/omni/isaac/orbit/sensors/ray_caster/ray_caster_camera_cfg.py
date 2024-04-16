@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the ray-cast sensor."""
-
-from __future__ import annotations
+"""Configuration for the ray-cast camera sensor."""
 
 from typing import Literal
 
