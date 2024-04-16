@@ -432,6 +432,22 @@ def euler_xyz_from_quat(quat: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor,
 
 
 @torch.jit.script
+def quat_unique(q: torch.Tensor) -> torch.Tensor:
+    """Convert a unit quaternion to a standard form where the real part is non-negative.
+
+    Quaternion representations have a singularity since ``q`` and ``-q`` represent the same
+    rotation. This function ensures the real part of the quaternion is non-negative.
+
+    Args:
+        q: The quaternion orientation in (w, x, y, z). Shape is (..., 4).
+
+    Returns:
+        Standardized quaternions. Shape is (..., 4).
+    """
+    return torch.where(q[..., 0:1] < 0, -q, q)
+
+
+@torch.jit.script
 def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     """Multiply two quaternions together.
 
@@ -488,7 +504,7 @@ def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]
     im = quat_diff[:, 1:]  # imaginary part
     norm_im = torch.norm(im, dim=1)
-    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan(norm_im / re) / norm_im, torch.sign(re))
+    scale = 2.0 * torch.where(norm_im > 1.0e-7, torch.atan2(norm_im, re) / norm_im, torch.sign(re))
     return scale.unsqueeze(-1) * im
 
 
@@ -637,7 +653,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     angle = 2.0 * half_angle
     # check whether to apply Taylor approximation
     sin_half_angles_over_angles = torch.where(
-        torch.abs(angle.abs()) > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
+        angle.abs() > eps, torch.sin(half_angle) / angle, 0.5 - angle * angle / 48
     )
     return quat[..., 1:4] / sin_half_angles_over_angles.unsqueeze(-1)
 
@@ -1187,6 +1203,37 @@ def sample_uniform(
         size = (size,)
     # return tensor
     return torch.rand(*size, device=device) * (upper - lower) + lower
+
+
+def sample_log_uniform(
+    lower: torch.Tensor | float, upper: torch.Tensor | float, size: int | tuple[int, ...], device: str
+) -> torch.Tensor:
+    r"""Sample using log-uniform distribution within a range.
+
+    The log-uniform distribution is defined as a uniform distribution in the log-space. It
+    is useful for sampling values that span several orders of magnitude. The sampled values
+    are uniformly distributed in the log-space and then exponentiated to get the final values.
+
+    .. math::
+
+        x = \exp(\text{uniform}(\log(\text{lower}), \log(\text{upper})))
+
+    Args:
+        lower: Lower bound of uniform range.
+        upper: Upper bound of uniform range.
+        size: The shape of the tensor.
+        device: Device to create tensor on.
+
+    Returns:
+        Sampled tensor. Shape is based on :attr:`size`.
+    """
+    # cast to tensor if not already
+    if not isinstance(lower, torch.Tensor):
+        lower = torch.tensor(lower, dtype=torch.float, device=device)
+    if not isinstance(upper, torch.Tensor):
+        upper = torch.tensor(upper, dtype=torch.float, device=device)
+    # sample in log-space and exponentiate
+    return torch.exp(sample_uniform(torch.log(lower), torch.log(upper), size, device))
 
 
 def sample_cylinder(

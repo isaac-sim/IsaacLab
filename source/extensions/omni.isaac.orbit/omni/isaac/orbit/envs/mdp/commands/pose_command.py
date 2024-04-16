@@ -15,7 +15,7 @@ from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.managers import CommandTerm
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
-from omni.isaac.orbit.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz
+from omni.isaac.orbit.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
@@ -120,9 +120,9 @@ class UniformPoseCommand(CommandTerm):
         euler_angles[:, 0].uniform_(*self.cfg.ranges.roll)
         euler_angles[:, 1].uniform_(*self.cfg.ranges.pitch)
         euler_angles[:, 2].uniform_(*self.cfg.ranges.yaw)
-        self.pose_command_b[env_ids, 3:] = quat_from_euler_xyz(
-            euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2]
-        )
+        quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
+        # make sure the quaternion has real part as positive
+        self.pose_command_b[env_ids, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
 
     def _update_command(self):
         pass

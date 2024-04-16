@@ -59,10 +59,10 @@ def bad_orientation(
     return torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle
 
 
-def base_height(
+def root_height_below_minimum(
     env: RLTaskEnv, minimum_height: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Terminate when the asset's height is below the minimum height.
+    """Terminate when the asset's root height is below the minimum height.
 
     Note:
         This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
@@ -77,23 +77,23 @@ Joint terminations.
 """
 
 
-def joint_pos_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_pos_out_of_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute any violations
     out_of_upper_limits = torch.any(asset.data.joint_pos > asset.data.soft_joint_pos_limits[..., 1], dim=1)
     out_of_lower_limits = torch.any(asset.data.joint_pos < asset.data.soft_joint_pos_limits[..., 0], dim=1)
-    return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
+    return torch.logical_or(out_of_upper_limits[:, asset_cfg.joint_ids], out_of_lower_limits[:, asset_cfg.joint_ids])
 
 
-def joint_pos_manual_limit(
+def joint_pos_out_of_manual_limit(
     env: RLTaskEnv, bounds: tuple[float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the configured bounds.
 
     Note:
-        This function is similar to :func:`joint_pos_limit` but allows the user to specify the bounds manually.
+        This function is similar to :func:`joint_pos_out_of_limit` but allows the user to specify the bounds manually.
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -105,22 +105,39 @@ def joint_pos_manual_limit(
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_vel_limit(env: RLTaskEnv, max_velocity, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_vel_out_of_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside of the soft joint limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    # TODO read max velocities per joint from robot
-    return torch.any(torch.abs(asset.data.joint_vel) > max_velocity, dim=1)
+    # compute any violations
+    limits = asset.data.soft_joint_vel_limits
+    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
 
 
-def joint_torque_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Terminate when torque applied on the asset's joints are are outside of the soft joint limits."""
+def joint_vel_out_of_manual_limit(
+    env: RLTaskEnv, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Terminate when the asset's joint velocities are outside the provided limits."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.any(
-        torch.isclose(asset.data.computed_torques, asset.data.applied_torque),
-        dim=1,
+    # compute any violations
+    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
+
+
+def joint_effort_out_of_limit(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Terminate when effort applied on the asset's joints are outside of the soft joint limits.
+
+    In the actuators, the applied torque are the efforts applied on the joints. These are computed by clipping
+    the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
+    torques.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # check if any joint effort is out of limit
+    out_of_limits = torch.isclose(
+        asset.data.computed_torque[:, asset_cfg.joint_ids], asset.data.applied_torque[:, asset_cfg.joint_ids]
     )
+    return torch.any(out_of_limits, dim=1)
 
 
 """

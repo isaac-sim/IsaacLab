@@ -146,7 +146,7 @@ class ObservationsCfg:
         base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
         base_up_proj = ObsTerm(func=mdp.base_up_proj)
         base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
-        joint_pos_norm = ObsTerm(func=mdp.joint_pos_norm)
+        joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
         feet_body_forces = ObsTerm(
             func=mdp.body_incoming_wrench,
@@ -245,7 +245,7 @@ class TerminationsCfg:
     # (1) Terminate if the episode length is exceeded
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     # (2) Terminate if the robot falls
-    torso_height = DoneTerm(func=mdp.base_height, params={"minimum_height": 0.8})
+    torso_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.8})
 
 
 @configclass

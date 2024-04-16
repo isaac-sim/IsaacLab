@@ -66,11 +66,13 @@ class TestMathUtilities(unittest.TestCase):
 
         for quat, angle in zip(quats, angles):
             with self.subTest(quat=quat, angle=angle):
-                self.assertTrue(torch.allclose(math_utils.axis_angle_from_quat(quat), angle, atol=1e-7))
+                torch.testing.assert_close(math_utils.axis_angle_from_quat(quat), angle)
 
     def test_axis_angle_from_quat_approximation(self):
-        """Test Taylor approximation from axis_angle_from_quat method
-        for unstable conversions where theta is very small."""
+        """Test the Taylor approximation from axis_angle_from_quat method.
+
+        This test checks for unstable conversions where theta is very small.
+        """
         # Generate a small rotation quaternion
         # Small angle
         theta = torch.Tensor([0.0000001])
@@ -88,12 +90,13 @@ class TestMathUtilities(unittest.TestCase):
         axis_angle_expected = torch.tensor([theta * d for d in axis], dtype=torch.float32)
 
         # Assert that the computed values are close to the expected values
-        self.assertTrue(torch.allclose(axis_angle_computed, axis_angle_expected, atol=1e-7))
+        torch.testing.assert_close(axis_angle_computed, axis_angle_expected)
 
     def test_quat_error_magnitude(self):
+        """Test quat_error_magnitude method."""
         # Define test cases
+        # Each tuple contains: q1, q2, expected error
         test_cases = [
-            # q1, q2, expected error
             # No rotation
             (torch.Tensor([1, 0, 0, 0]), torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.0])),
             # PI/2 rotation
@@ -101,12 +104,91 @@ class TestMathUtilities(unittest.TestCase):
             # PI rotation
             (torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0]), torch.Tensor([PI])),
         ]
-        # Test higher dimension
-        test_cases += tuple([(torch.stack(tensors) for tensors in zip(*test_cases))])
+        # Test higher dimension (batched) inputs
+        q1_list = torch.stack([t[0] for t in test_cases], dim=0)
+        q2_list = torch.stack([t[1] for t in test_cases], dim=0)
+        expected_diff_list = torch.stack([t[2] for t in test_cases], dim=0).flatten()
+        test_cases += [(q1_list, q2_list, expected_diff_list)]
+
+        # Iterate over test cases
         for q1, q2, expected_diff in test_cases:
             with self.subTest(q1=q1, q2=q2):
+                # Compute the error
                 q12_diff = math_utils.quat_error_magnitude(q1, q2)
-                self.assertTrue(torch.allclose(q12_diff, torch.flatten(expected_diff), atol=1e-7))
+
+                # Check that the error is close to the expected value
+                if len(q1.shape) > 1:
+                    torch.testing.assert_close(q12_diff, expected_diff)
+                else:
+                    self.assertAlmostEqual(q12_diff.item(), expected_diff.item(), places=5)
+
+    def test_quat_unique(self):
+        """Test quat_unique method."""
+        # Define test cases
+        quats = math_utils.random_orientation(num=1024, device="cpu")
+
+        # Test positive real quaternion
+        pos_real_quats = math_utils.quat_unique(quats)
+
+        # Test that the real part is positive
+        self.assertTrue(torch.all(pos_real_quats[:, 0] > 0).item())
+
+        non_pos_indices = quats[:, 0] < 0
+        # Check imaginary part have sign flipped if real part is negative
+        torch.testing.assert_close(pos_real_quats[non_pos_indices], -quats[non_pos_indices])
+        torch.testing.assert_close(pos_real_quats[~non_pos_indices], quats[~non_pos_indices])
+
+    def test_quat_mul_with_quat_unique(self):
+        """Test quat_mul method with different quaternions.
+
+        This test checks that the quaternion multiplication is consistent when using positive real quaternions
+        and regular quaternions. It makes sure that the result is the same regardless of the input quaternion sign
+        (i.e. q and -q are same quaternion in the context of rotations).
+        """
+
+        quats_1 = math_utils.random_orientation(num=1024, device="cpu")
+        quats_2 = math_utils.random_orientation(num=1024, device="cpu")
+        # Make quats positive real
+        quats_1_pos_real = math_utils.quat_unique(quats_1)
+        quats_2_pos_real = math_utils.quat_unique(quats_2)
+
+        # Option 1: Direct computation on quaternions
+        quat_result_1 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2))
+        quat_result_1 = math_utils.quat_unique(quat_result_1)
+
+        # Option 2: Computation on positive real quaternions
+        quat_result_2 = math_utils.quat_mul(quats_1_pos_real, math_utils.quat_conjugate(quats_2_pos_real))
+        quat_result_2 = math_utils.quat_unique(quat_result_2)
+
+        # Option 3: Mixed computation
+        quat_result_3 = math_utils.quat_mul(quats_1, math_utils.quat_conjugate(quats_2_pos_real))
+        quat_result_3 = math_utils.quat_unique(quat_result_3)
+
+        # Check that the result is close to the expected value
+        torch.testing.assert_close(quat_result_1, quat_result_2)
+        torch.testing.assert_close(quat_result_2, quat_result_3)
+        torch.testing.assert_close(quat_result_3, quat_result_1)
+
+    def test_quat_error_mag_with_quat_unique(self):
+        """Test quat_error_magnitude method with positive real quaternions."""
+
+        quats_1 = math_utils.random_orientation(num=1024, device="cpu")
+        quats_2 = math_utils.random_orientation(num=1024, device="cpu")
+        # Make quats positive real
+        quats_1_pos_real = math_utils.quat_unique(quats_1)
+        quats_2_pos_real = math_utils.quat_unique(quats_2)
+
+        # Compute the error
+        error_1 = math_utils.quat_error_magnitude(quats_1, quats_2)
+        error_2 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2_pos_real)
+        error_3 = math_utils.quat_error_magnitude(quats_1, quats_2_pos_real)
+        error_4 = math_utils.quat_error_magnitude(quats_1_pos_real, quats_2)
+
+        # Check that the error is close to the expected value
+        torch.testing.assert_close(error_1, error_2)
+        torch.testing.assert_close(error_2, error_3)
+        torch.testing.assert_close(error_3, error_4)
+        torch.testing.assert_close(error_4, error_1)
 
 
 if __name__ == "__main__":

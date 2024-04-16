@@ -161,8 +161,8 @@ class AppLauncher:
 
           If provided as an empty string, the experience file is determined based on the headless flag:
 
-            * If headless is True, the experience file is set to ``orbit.python.headless.kit``.
-            * If headless is False, the experience file is set to ``orbit.python.kit``.
+          * If headless is True, the experience file is set to ``orbit.python.headless.kit``.
+          * If headless is False, the experience file is set to ``orbit.python.kit``.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.

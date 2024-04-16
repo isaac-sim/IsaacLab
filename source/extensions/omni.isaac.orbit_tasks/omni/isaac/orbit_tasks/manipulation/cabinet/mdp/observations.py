@@ -8,6 +8,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
+import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import ArticulationData
 from omni.isaac.orbit.sensors import FrameTransformerData
 
@@ -47,11 +48,12 @@ def ee_pos(env: RLTaskEnv) -> torch.Tensor:
     return ee_pos
 
 
-def ee_quat(env: RLTaskEnv) -> torch.Tensor:
-    """The orientation of the end-effector in the environment frame."""
+def ee_quat(env: RLTaskEnv, make_quat_unique: bool = True) -> torch.Tensor:
+    """The orientation of the end-effector in the environment frame.
+
+    If :attr:`make_quat_unique` is True, the quaternion is made unique by ensuring the real part is positive.
+    """
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     ee_quat = ee_tf_data.target_quat_w[..., 0, :]
     # make first element of quaternion positive
-    ee_quat[ee_quat[:, 0] < 0] *= -1
-
-    return ee_quat
+    return math_utils.quat_unique(ee_quat) if make_quat_unique else ee_quat

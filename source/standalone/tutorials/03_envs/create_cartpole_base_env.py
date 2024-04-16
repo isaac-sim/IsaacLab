@@ -77,11 +77,12 @@ class EventCfg:
 
     # on startup
     add_pole_mass = EventTerm(
-        func=mdp.add_body_mass,
+        func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
             "mass_range": (0.1, 0.5),
+            "operation": "add",
         },
     )
 

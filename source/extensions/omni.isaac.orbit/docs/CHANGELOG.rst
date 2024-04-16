@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+0.16.0 (2024-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the function :meth:`omni.isaac.orbit.utils.math.quat_unique` to standardize quaternion representations,
+  i.e. always have a non-negative real part.
+* Added events terms for randomizing mass by scale, simulation joint properties (stiffness, damping, armature,
+  and friction)
+
+Fixed
+^^^^^
+
+* Added clamping of joint positions and velocities in event terms for resetting joints. The simulation does not
+  throw an error if the set values are out of their range. Hence, users are expected to clamp them before setting.
+* Fixed :class:`omni.isaac.orbit.envs.mdp.EMAJointPositionToLimitsActionCfg` to smoothen the actions
+  at environment frequency instead of simulation frequency.
+
+* Renamed the following functions in :meth:`omni.isaac.orbit.envs.mdp` to avoid confusions:
+
+  * Observation: :meth:`joint_pos_norm` -> :meth:`joint_pos_limit_normalized`
+  * Action: :class:`ExponentialMovingAverageJointPositionAction` -> :class:`EMAJointPositionToLimitsAction`
+  * Termination: :meth:`base_height` -> :meth:`root_height_below_minimum`
+  * Termination: :meth:`joint_pos_limit` -> :meth:`joint_pos_out_of_limit`
+  * Termination: :meth:`joint_pos_manual_limit` -> :meth:`joint_pos_out_of_manual_limit`
+  * Termination: :meth:`joint_vel_limit` -> :meth:`joint_vel_out_of_limit`
+  * Termination: :meth:`joint_vel_manual_limit` -> :meth:`joint_vel_out_of_manual_limit`
+  * Termination: :meth:`joint_torque_limit` -> :meth:`joint_effort_out_of_limit`
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the function :meth:`omni.isaac.orbit.envs.mdp.add_body_mass` in favor of
+  :meth:`omni.isaac.orbit.envs.mdp.randomize_rigid_body_mass`. This supports randomizing the mass based on different
+  operations (add, scale, or set) and sampling distributions.
+
+
 0.15.12 (2024-04-16)
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -216,7 +254,7 @@ Added
 ^^^^^
 
 * Added support for the following data types inside the :class:`omni.isaac.orbit.sensors.Camera` class:
-  ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``. These are are GPU-supported annotations
+  ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``. These are GPU-supported annotations
   and are faster than the regular annotations.
 
 Fixed

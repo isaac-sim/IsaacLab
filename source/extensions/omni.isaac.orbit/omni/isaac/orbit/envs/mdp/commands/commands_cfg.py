@@ -105,6 +105,12 @@ class UniformPoseCommandCfg(CommandTermCfg):
     body_name: str = MISSING
     """Name of the body in the asset for which the commands are generated."""
 
+    make_quat_unique: bool = False
+    """Whether to make the quaternion unique or not. Defaults to False.
+
+    If True, the quaternion is made unique by ensuring the real part is positive.
+    """
+
     @configclass
     class Ranges:
         """Uniform distribution ranges for the pose commands."""

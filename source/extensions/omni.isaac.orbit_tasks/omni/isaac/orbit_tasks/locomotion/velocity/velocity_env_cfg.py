@@ -163,9 +163,9 @@ class EventCfg:
     )
 
     add_base_mass = EventTerm(
-        func=mdp.add_body_mass,
+        func=mdp.randomize_rigid_body_mass,
         mode="startup",
-        params={"asset_cfg": SceneEntityCfg("robot", body_names="base"), "mass_range": (-5.0, 5.0)},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="base"), "mass_range": (-5.0, 5.0), "operation": "add"},
     )
 
     # reset
