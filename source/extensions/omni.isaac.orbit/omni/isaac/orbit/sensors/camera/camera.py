@@ -220,10 +220,13 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # convert matrices to numpy tensors
+        if isinstance(matrices, torch.Tensor):
+            matrices = matrices.cpu().numpy()
+        else:
+            matrices = np.asarray(matrices, dtype=float)
         # iterate over env_ids
-        for i, matrix in zip(env_ids, matrices):
-            # convert to numpy for sanity
-            intrinsic_matrix = np.asarray(matrix, dtype=float)
+        for i, intrinsic_matrix in zip(env_ids, matrices):
             # extract parameters from matrix
             f_x = intrinsic_matrix[0, 0]
             c_x = intrinsic_matrix[0, 2]

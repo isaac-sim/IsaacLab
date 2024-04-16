@@ -113,15 +113,15 @@ class TestWarpCamera(unittest.TestCase):
         for _ in range(5):
             self.sim.step()
         # Check buffers that exists and have correct shapes
-        self.assertTrue(camera.data.pos_w.shape == (1, 3))
-        self.assertTrue(camera.data.quat_w_ros.shape == (1, 4))
-        self.assertTrue(camera.data.quat_w_world.shape == (1, 4))
-        self.assertTrue(camera.data.quat_w_opengl.shape == (1, 4))
-        self.assertTrue(camera.data.intrinsic_matrices.shape == (1, 3, 3))
-        self.assertTrue(
-            camera.data.image_shape == (self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
+        self.assertEqual(camera.data.pos_w.shape, (1, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (1, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (1, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (1, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (1, 3, 3))
+        self.assertEqual(
+            camera.data.image_shape, (self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
         )
-        self.assertTrue(camera.data.info == [{self.camera_cfg.data_types[0]: None}])
+        self.assertEqual(camera.data.info, [{self.camera_cfg.data_types[0]: None}])
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -130,8 +130,8 @@ class TestWarpCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for im_data in camera.data.output.to_dict().values():
-                self.assertTrue(
-                    im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
+                self.assertEqual(
+                    im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
                 )
 
     def test_camera_resolution(self):
@@ -193,15 +193,15 @@ class TestWarpCamera(unittest.TestCase):
         camera_ros.update(self.dt)
 
         # check that all transforms are set correctly
-        np.testing.assert_allclose(camera_ros.data.pos_w[0].numpy(), cam_cfg_offset_ros.offset.pos)
-        np.testing.assert_allclose(camera_opengl.data.pos_w[0].numpy(), cam_cfg_offset_opengl.offset.pos)
-        np.testing.assert_allclose(camera_world.data.pos_w[0].numpy(), cam_cfg_offset_world.offset.pos)
+        np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos)
+        np.testing.assert_allclose(camera_opengl.data.pos_w[0].cpu().numpy(), cam_cfg_offset_opengl.offset.pos)
+        np.testing.assert_allclose(camera_world.data.pos_w[0].cpu().numpy(), cam_cfg_offset_world.offset.pos)
 
         # check if transform correctly set in output
-        np.testing.assert_allclose(camera_ros.data.pos_w[0], cam_cfg_offset_ros.offset.pos, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_ros[0], QUAT_ROS, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
@@ -223,6 +223,7 @@ class TestWarpCamera(unittest.TestCase):
 
         # play sim
         self.sim.reset()
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -238,8 +239,8 @@ class TestWarpCamera(unittest.TestCase):
             # check image data
             for cam in [cam_1, cam_2]:
                 for im_data in cam.data.output.to_dict().values():
-                    self.assertTrue(
-                        im_data.shape == (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
+                    self.assertEqual(
+                        im_data.shape, (1, self.camera_cfg.pattern_cfg.height, self.camera_cfg.pattern_cfg.width)
                     )
 
     def test_camera_set_world_poses(self):
@@ -247,20 +248,33 @@ class TestWarpCamera(unittest.TestCase):
         camera = RayCasterCamera(self.camera_cfg)
         # play sim
         self.sim.reset()
+
+        # convert to torch tensors
+        position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        orientation = torch.tensor([QUAT_WORLD], dtype=torch.float32, device=camera.device)
         # set new pose
-        camera.set_world_poses(torch.tensor([POSITION]), torch.tensor([QUAT_WORLD]), convention="world")
-        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
-        np.testing.assert_allclose(camera.data.quat_w_world, [QUAT_WORLD], rtol=1e-5)
+        camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(camera.data.pos_w, position)
+        torch.testing.assert_close(camera.data.quat_w_world, orientation)
 
     def test_camera_set_world_poses_from_view(self):
         """Test camera function to set specific world pose from view."""
         camera = RayCasterCamera(self.camera_cfg)
         # play sim
         self.sim.reset()
+
+        # convert to torch tensors
+        eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
         # set new pose
-        camera.set_world_poses_from_view(torch.tensor([POSITION]), torch.tensor([[0.0, 0.0, 0.0]]))
-        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
-        np.testing.assert_allclose(camera.data.quat_w_ros, [QUAT_ROS], rtol=1e-5)
+        camera.set_world_poses_from_view(eyes.clone(), targets.clone())
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(camera.data.pos_w, eyes)
+        torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
 
     def test_intrinsic_matrix(self):
         """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
@@ -272,9 +286,9 @@ class TestWarpCamera(unittest.TestCase):
         self.sim.reset()
         # Desired properties (obtained from realsense camera at 320x240 resolution)
         rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
-        rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix).reshape(3, 3).unsqueeze(0)
+        rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
         # Set matrix into simulator
-        camera.set_intrinsic_matrices(rs_intrinsic_matrix)
+        camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -287,12 +301,11 @@ class TestWarpCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # Check that matrix is correct
-            K = camera.data.intrinsic_matrices[0].numpy()
             # TODO: This is not correctly setting all values in the matrix since the
             #       vertical aperture and aperture offsets are not being set correctly
             #       This is a bug in the simulator.
-            self.assertAlmostEqual(rs_intrinsic_matrix[0, 0, 0].numpy(), K[0, 0], 4)
-            # self.assertAlmostEqual(rs_intrinsic_matrix[1, 1], K[1, 1], 4)
+            torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
+            # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
@@ -307,10 +320,15 @@ class TestWarpCamera(unittest.TestCase):
         camera_cfg.pattern_cfg.height = 480
         camera_cfg.pattern_cfg.width = 640
         camera = RayCasterCamera(camera_cfg)
+
         # Play simulator
         self.sim.reset()
+
         # Set camera pose
-        camera.set_world_poses_from_view(torch.tensor([[2.5, 2.5, 2.5]]), torch.tensor([[0.0, 0.0, 0.0]]))
+        eyes = torch.tensor([[2.5, 2.5, 2.5]], dtype=torch.float32, device=camera.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes, targets)
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -339,7 +357,7 @@ class TestWarpCamera(unittest.TestCase):
             print("----------------------------------------")
             # Check image data
             for im_data in camera.data.output.values():
-                self.assertTrue(im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width))
+                self.assertEqual(im_data.shape, (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width))
 
     def test_output_equal_to_usdcamera(self):
         camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
@@ -378,9 +396,12 @@ class TestWarpCamera(unittest.TestCase):
         self.sim.reset()
         self.sim.play()
 
+        # convert to torch tensors
+        eyes = torch.tensor([[2.5, 2.5, 4.5]], dtype=torch.float32, device=camera_warp.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera_warp.device)
         # set views
-        camera_warp.set_world_poses_from_view(torch.tensor([[2.5, 2.5, 4.5]]), torch.tensor([[0.0, 0.0, 0.0]]))
-        camera_usd.set_world_poses_from_view(torch.tensor([[2.5, 2.5, 4.5]]), torch.tensor([[0.0, 0.0, 0.0]]))
+        camera_warp.set_world_poses_from_view(eyes, targets)
+        camera_usd.set_world_poses_from_view(eyes, targets)
 
         # perform steps
         for _ in range(5):
@@ -391,19 +412,21 @@ class TestWarpCamera(unittest.TestCase):
         camera_warp.update(self.dt)
 
         # check image data
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_image_plane"].numpy(),
-            camera_warp.data.output["distance_to_image_plane"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_image_plane"],
+            camera_warp.data.output["distance_to_image_plane"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_camera"].numpy(),
-            camera_warp.data.output["distance_to_camera"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_camera"],
+            camera_warp.data.output["distance_to_camera"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["normals"].numpy()[..., :3],
-            camera_warp.data.output["normals"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["normals"][..., :3],
+            camera_warp.data.output["normals"],
             rtol=1e-5,
             atol=1e-4,
         )
@@ -457,19 +480,21 @@ class TestWarpCamera(unittest.TestCase):
         camera_warp.update(self.dt)
 
         # check image data
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_image_plane"].numpy(),
-            camera_warp.data.output["distance_to_image_plane"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_image_plane"],
+            camera_warp.data.output["distance_to_image_plane"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_camera"].numpy(),
-            camera_warp.data.output["distance_to_camera"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_camera"],
+            camera_warp.data.output["distance_to_camera"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["normals"].numpy()[..., :3],
-            camera_warp.data.output["normals"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["normals"][..., :3],
+            camera_warp.data.output["normals"],
             rtol=1e-5,
             atol=1e-4,
         )
@@ -538,25 +563,25 @@ class TestWarpCamera(unittest.TestCase):
         camera_warp.update(self.dt)
 
         # check if pos and orientation are correct
-        np.testing.assert_allclose(camera_warp.data.pos_w[0].numpy(), camera_usd.data.pos_w[0].numpy(), rtol=1e-5)
-        np.testing.assert_allclose(
-            camera_warp.data.quat_w_ros[0].numpy(), camera_usd.data.quat_w_ros[0].numpy(), rtol=1e-5
-        )
+        torch.testing.assert_close(camera_warp.data.pos_w[0], camera_usd.data.pos_w[0])
+        torch.testing.assert_close(camera_warp.data.quat_w_ros[0], camera_usd.data.quat_w_ros[0])
 
         # check image data
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_image_plane"].numpy(),
-            camera_warp.data.output["distance_to_image_plane"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_image_plane"],
+            camera_warp.data.output["distance_to_image_plane"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["distance_to_camera"].numpy(),
-            camera_warp.data.output["distance_to_camera"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["distance_to_camera"],
+            camera_warp.data.output["distance_to_camera"],
             rtol=5e-3,
+            atol=1e-4,
         )
-        np.testing.assert_allclose(
-            camera_usd.data.output["normals"].numpy()[..., :3],
-            camera_warp.data.output["normals"].numpy(),
+        torch.testing.assert_close(
+            camera_usd.data.output["normals"][..., :3],
+            camera_warp.data.output["normals"],
             rtol=1e-5,
             atol=1e-4,
         )
