@@ -17,7 +17,7 @@ This guide is accompanied by a sample script ``markers.py`` in the ``orbit/sourc
 
    .. literalinclude:: ../../../source/standalone/demos/markers.py
       :language: python
-      :emphasize-lines: 49-97, 112-113, 142-148
+      :emphasize-lines: 45-90, 106-107, 136-142
       :linenos:
 
 
@@ -43,7 +43,7 @@ configured from USD files.
 
 .. literalinclude:: ../../../source/standalone/demos/markers.py
    :language: python
-   :lines: 49-97
+   :lines: 45-90
    :dedent:
 
 
@@ -55,7 +55,7 @@ as arguments the pose of the markers and the corresponding marker prototypes to 
 
 .. literalinclude:: ../../../source/standalone/demos/markers.py
    :language: python
-   :lines: 142-148
+   :lines: 136-142
    :dedent:
 
 

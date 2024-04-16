@@ -49,7 +49,7 @@ The script for running the environment ``run_cartpole_rl_env.py`` is present in 
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
-      :emphasize-lines: 43-47, 61-62
+      :emphasize-lines: 38-42, 56-57
       :linenos:
 
 

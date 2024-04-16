@@ -2,6 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+# needed to import for allowing type-hinting: Usd.Stage | None
+from __future__ import annotations
+
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 from pxr import PhysxSchema, Usd, UsdPhysics

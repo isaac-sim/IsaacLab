@@ -23,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 60-71, 93-106, 110-113, 118-119
+      :emphasize-lines: 58-69, 91-104, 108-111, 116-117
       :linenos:
 
 

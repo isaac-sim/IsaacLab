@@ -37,7 +37,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../../source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 74-97, 145-155, 169-170
+      :emphasize-lines: 72-95, 143-153, 167-168
       :linenos:
 
 

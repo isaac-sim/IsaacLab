@@ -5,6 +5,9 @@
 
 """Helper functions to project between pointcloud and depth images."""
 
+# needed to import for allowing type-hinting: torch.device | str | None
+from __future__ import annotations
+
 import math
 import numpy as np
 import torch

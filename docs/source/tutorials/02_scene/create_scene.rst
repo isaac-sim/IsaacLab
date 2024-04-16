@@ -40,7 +40,7 @@ This tutorial corresponds to the ``create_scene.py`` script within
 
    .. literalinclude:: ../../../../source/standalone/tutorials/02_scene/create_scene.py
       :language: python
-      :emphasize-lines: 52-65, 70-72, 93-94, 101-102, 107-108, 118-120
+      :emphasize-lines: 50-63, 68-70, 91-92, 99-100, 105-106, 116-118
       :linenos:
 
 

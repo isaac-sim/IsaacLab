@@ -23,6 +23,9 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 """
 
+# needed to import for type hinting: Agent | list[Agent]
+from __future__ import annotations
+
 import copy
 import torch
 import tqdm

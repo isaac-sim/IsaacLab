@@ -5,6 +5,8 @@
 
 """Interface to collect and store data from the environment using format from `robomimic`."""
 
+# needed to import for allowing type-hinting: np.ndarray | torch.Tensor
+from __future__ import annotations
 
 import h5py
 import json

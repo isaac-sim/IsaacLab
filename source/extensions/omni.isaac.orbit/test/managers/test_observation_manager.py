@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# needed to import for allowing type-hinting: torch.Tensor | None
+from __future__ import annotations
+
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.orbit.app import AppLauncher, run_tests

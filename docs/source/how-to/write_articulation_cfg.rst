@@ -46,7 +46,7 @@ The last two parameters are optional. If not specified, they are kept at their d
 
 .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
    :language: python
-   :lines: 17-33
+   :lines: 15-31
    :dedent:
 
 To import articulation from a URDF file instead of a USD file, you can replace the
@@ -74,7 +74,7 @@ Meanwhile, the joint positions and velocities are set to 0.0.
 
 .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
    :language: python
-   :lines: 34-36
+   :lines: 32-34
    :dedent:
 
 Defining the actuator configuration
@@ -96,7 +96,7 @@ to combine them into a single actuator model.
 
    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
       :language: python
-      :lines: 37-47
+      :lines: 35-45
       :dedent:
 
 

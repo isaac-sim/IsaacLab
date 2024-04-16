@@ -26,7 +26,7 @@ the :meth:`gymnasium.make` function.
 
    .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
       :language: python
-      :lines: 40-51
+      :lines: 36-47
 
 
 The Code
@@ -39,7 +39,7 @@ The tutorial corresponds to the ``random_agent.py`` script in the ``orbit/source
 
    .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
       :language: python
-      :emphasize-lines: 39-41, 46-51
+      :emphasize-lines: 36-37, 42-47
       :linenos:
 
 

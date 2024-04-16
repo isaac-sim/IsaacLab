@@ -32,7 +32,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
-      :emphasize-lines: 49-53, 56-73, 76-109, 112-131, 136-140, 145, 149, 154-155, 161-162
+      :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
       :linenos:
 
 

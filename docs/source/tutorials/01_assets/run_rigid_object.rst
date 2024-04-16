@@ -20,7 +20,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``orbit/so
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_rigid_object.py
       :language: python
-      :emphasize-lines: 57-76, 78-80, 100-110, 113-114, 120-121, 134-136, 141-142
+      :emphasize-lines: 55-74, 76-78, 98-108, 111-112, 118-119, 132-134, 139-140
       :linenos:
 
 

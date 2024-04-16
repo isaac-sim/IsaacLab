@@ -15,6 +15,8 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 """
 
+# needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
+from __future__ import annotations
 
 import gymnasium as gym
 import numpy as np
