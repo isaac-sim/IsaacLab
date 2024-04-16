@@ -8,8 +8,9 @@
 By default, we use the Isaac Sim Nucleus Server for hosting assets and resources. This makes
 distribution of the assets easier and makes the repository smaller in size code-wise.
 
-For more information on Omniverse Nucleus:
-https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus
+For more information, please check information on `Omniverse Nucleus`_.
+
+.. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
 import io
@@ -21,8 +22,22 @@ import carb
 import omni.client
 import omni.isaac.core.utils.nucleus as nucleus_utils
 
+# get assets root path
+# note: we check only once at the start of the module to prevent multiple checks on the Nucleus Server
+NUCLEUS_ASSET_ROOT_DIR = nucleus_utils.get_assets_root_path()
+"""Path to the root directory on the Nucleus Server.
+
+This is resolved using Isaac Sim's Nucleus API. If the Nucleus Server is not running, then this
+will be set to None. The path is resolved using the following steps:
+
+1. Based on simulation parameter: ``/persistent/isaac/asset_root/default``.
+2. Iterating over all the connected Nucleus Servers and checking for the first server that has the
+   the connected status.
+3. Based on simulation parameter: ``/persistent/isaac/asset_root/cloud``.
+"""
+
 # check nucleus connection
-if nucleus_utils.get_assets_root_path() is None:
+if NUCLEUS_ASSET_ROOT_DIR is None:
     msg = (
         "Unable to perform Nucleus login on Omniverse. Assets root path is not set.\n"
         "\tPlease check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus"
@@ -30,14 +45,14 @@ if nucleus_utils.get_assets_root_path() is None:
     carb.log_error(msg)
     raise RuntimeError(msg)
 
-NVIDIA_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/NVIDIA"
+NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
 
-ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
-"""Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
+ISAAC_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
+"""Path to the ``Isaac`` directory on the NVIDIA Nucleus Server."""
 
 ISAAC_ORBIT_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/Samples/Orbit"
-"""Path to the `Isaac/Samples/Orbit` directory on the NVIDIA Nucleus Server."""
+"""Path to the ``Isaac/Samples/Orbit`` directory on the NVIDIA Nucleus Server."""
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -47,11 +62,11 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
         path: The path to the file.
 
     Returns:
-        The status of the file. Possible values are:
+        The status of the file. Possible values are listed below.
 
-            * :obj:`0` if the file does not exist
-            * :obj:`1` if the file exists locally
-            * :obj:`2` if the file exists on the Nucleus Server
+        * :obj:`0` if the file does not exist
+        * :obj:`1` if the file exists locally
+        * :obj:`2` if the file exists on the Nucleus Server
     """
     if os.path.isfile(path):
         return 1

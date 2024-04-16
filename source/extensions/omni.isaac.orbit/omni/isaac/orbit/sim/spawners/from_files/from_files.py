@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.isaac.core.utils.prims as prim_utils
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import converters, schemas
 from omni.isaac.orbit.sim.utils import bind_physics_material, bind_visual_material, clone
-from omni.isaac.orbit.utils.assets import check_file_path
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -203,6 +203,7 @@ def _spawn_from_usd_file(
     Args:
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
             then the asset is spawned at all the matching prim paths.
+        usd_path: The path to the USD file to spawn the asset from.
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which
             case the translation specified in the generated USD file is used.
@@ -216,7 +217,8 @@ def _spawn_from_usd_file(
         FileNotFoundError: If the USD file does not exist at the given path.
     """
     # check file path exists
-    if not check_file_path(usd_path):
+    stage: Usd.Stage = stage_utils.get_current_stage()
+    if not stage.ResolveIdentifierToEditTarget(usd_path):
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.15.12 (2024-04-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced calls to the ``check_file_path`` function in the :mod:`omni.isaac.orbit.sim.spawners.from_files`
+  with the USD stage resolve identifier function. This helps speed up the loading of assets from file paths
+  by avoiding Nucleus server calls.
+
+
 0.15.11 (2024-04-15)
 ~~~~~~~~~~~~~~~~~~~~
 

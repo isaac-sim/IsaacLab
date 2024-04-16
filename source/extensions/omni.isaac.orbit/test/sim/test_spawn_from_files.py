@@ -59,6 +59,14 @@ class TestSpawningFromFiles(unittest.TestCase):
         self.assertTrue(prim_utils.is_prim_path_valid("/World/Franka"))
         self.assertEqual(prim.GetPrimTypeInfo().GetTypeName(), "Xform")
 
+    def test_spawn_usd_fails(self):
+        """Test loading prim from Usd file fails when asset usd path is invalid."""
+        # Spawn cone
+        cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda2_instanceable.usd")
+
+        with self.assertRaises(FileNotFoundError):
+            cfg.func("/World/Franka", cfg)
+
     def test_spawn_urdf(self):
         """Test loading prim from URDF file."""
         # retrieve path to urdf importer extension
