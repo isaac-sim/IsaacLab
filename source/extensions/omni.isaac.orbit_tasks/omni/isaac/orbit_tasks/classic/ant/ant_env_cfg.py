@@ -65,7 +65,13 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
-            joint_pos={".*": 0.0},
+            joint_pos={
+                ".*_leg": 0.0,
+                "front_left_foot": 0.785398,  # 45 degrees
+                "front_right_foot": -0.785398,
+                "left_back_foot": -0.785398,
+                "right_back_foot": 0.785398,
+            },
         ),
         actuators={
             "body": ImplicitActuatorCfg(
