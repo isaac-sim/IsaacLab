@@ -35,12 +35,13 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.math import default_orientation, random_orientation
 
 
-def generate_cubes_scene(num_cubes: int = 1, height=1.0) -> tuple[RigidObject, torch.Tensor]:
+def generate_cubes_scene(num_cubes: int = 1, height=1.0, has_api: bool = True) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
+        has_api: Whether the cubes have a rigid body API on them.
 
     Returns:
         RigidObject: The rigid object representing the cubes.
@@ -52,10 +53,21 @@ def generate_cubes_scene(num_cubes: int = 1, height=1.0) -> tuple[RigidObject, t
     for i, origin in enumerate(origins):
         prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
+    # Resolve spawn configuration
+    if has_api:
+        spawn_cfg = sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        )
+    else:
+        # since no rigid body properties defined, this is just a static collider
+        spawn_cfg = sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        )
     # Create rigid object
     cube_object_cfg = RigidObjectCfg(
         prim_path="/World/Table_.*/Object",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd"),
+        spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
     cube_object = RigidObject(cfg=cube_object_cfg)
@@ -98,6 +110,23 @@ class TestRigidObject(unittest.TestCase):
                             sim.step()
                             # update object
                             cube_object.update(sim.cfg.dt)
+
+    def test_initialization_with_no_rigid_body(self):
+        """Test that initialization fails when no rigid body is found at the provided prim path."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
+
+                        # Check that boundedness of rigid object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+
+                        # Play sim
+                        sim.reset()
+
+                        # Check if object is initialized
+                        self.assertFalse(cube_object._is_initialized)
 
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the object.

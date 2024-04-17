@@ -546,15 +546,23 @@ class Articulation(RigidObject):
         if template_prim is None:
             raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
         template_prim_path = template_prim.GetPath().pathString
+
         # find articulation root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
         )
-        if len(root_prims) != 1:
+        if len(root_prims) == 0:
             raise RuntimeError(
-                f"Failed to find a single articulation root when resolving '{self.cfg.prim_path}'."
-                f" Found roots '{root_prims}' under '{template_prim_path}'."
+                f"Failed to find an articulation when resolving '{self.cfg.prim_path}'."
+                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
             )
+        if len(root_prims) > 1:
+            raise RuntimeError(
+                f"Failed to find a single articulation when resolving '{self.cfg.prim_path}'."
+                f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one articulation in the prim path tree."
+            )
+
         # resolve articulation root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
