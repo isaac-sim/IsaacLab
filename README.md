@@ -19,17 +19,17 @@ in robotics research (such as RL, learning from demonstrations, and motion plann
 simulation capabilities for photo-realistic scenes and fast and accurate simulation.
 
 Please refer to our [documentation page](https://isaac-orbit.github.io/orbit) to learn more about the
-installation steps, features, tutorials, and how to setup your own project with Orbit.
+installation steps, features, tutorials, and how to set up your project with Orbit.
 
-## 🎉 Announcement (22.12.2023)
+## Announcements
 
-We're excited to announce merging of our latest development branch into the main branch! This update introduces
-several improvements and fixes to enhance the modularity and user-friendliness of the framework. We have added
-several new environments, especially for legged locomotion, and are in the process of adding new environments.
+* [17.04.2024] [**v0.3.0**](https://github.com/NVIDIA-Omniverse/orbit/releases/tag/v0.3.0):
+  Several improvements and bug fixes to the framework. Includes cabinet opening and dexterous manipulation environments,
+  terrain-aware patch sampling, and animation recording.
 
-Feel free to explore the latest changes and updates. We appreciate your ongoing support and contributions!
-
-For more details, please check the post here: [#106](https://github.com/NVIDIA-Omniverse/Orbit/discussions/106)
+* [22.12.2023] [**v0.2.0**](https://github.com/NVIDIA-Omniverse/orbit/releases/tag/v0.2.0):
+  Significant breaking updates to enhance the modularity and user-friendliness of the framework. Also includes
+  procedural terrain generation, warp-based custom ray-casters, and legged-locomotion environments.
 
 ## Contributing to Orbit
 

@@ -29,7 +29,7 @@ project = "orbit"
 copyright = "2022-2024, The ORBIT Project Developers."
 author = "The ORBIT Project Developers."
 
-version = "0.2.0"
+version = "0.3.0"
 
 # -- General configuration ---------------------------------------------------
 
@@ -203,7 +203,7 @@ html_css_files = ["custom.css"]
 html_theme_options = {
     "collapse_navigation": True,
     "repository_url": "https://github.com/NVIDIA-Omniverse/Orbit",
-    "announcement": "We have now released v0.2.0! Please use the latest version for the best experience.",
+    "announcement": "We have now released v0.3.0! Please use the latest version for the best experience.",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,

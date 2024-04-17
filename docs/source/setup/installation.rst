@@ -20,8 +20,8 @@ Installing Isaac Sim
 
 .. caution::
 
-   We have dropped support for Isaac Sim versions 2022.2 and below. We recommend using the latest Isaac Sim
-   2023.1 releases (``2023.1.0-hotfix.1`` or ``2023.1.1``).
+   We have dropped support for Isaac Sim versions 2023.1.0 and below. We recommend using the latest
+   Isaac Sim 2023.1.1 release.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`__.
@@ -37,7 +37,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-	We have tested Orbit with Isaac Sim 2023.1.0-hotfix.1 release on Ubuntu
+	We have tested Orbit with Isaac Sim 2023.1.1 release on Ubuntu
 	20.04LTS with NVIDIA driver 525.147.
 
 Configuring the environment variables
@@ -178,6 +178,9 @@ utilities to manage extensions:
 
 Setting up the environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. attention::
+   This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
 
 The executable ``orbit.sh`` automatically fetches the python bundled with Isaac
 Sim, using ``./orbit.sh -p`` command (unless inside a virtual environment). This executable
