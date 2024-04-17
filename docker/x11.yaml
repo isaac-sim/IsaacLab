@@ -1,0 +1,36 @@
+services:
+  orbit-base:
+    environment:
+      - DISPLAY
+      - TERM
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=${__ORBIT_TMP_XAUTH}
+    volumes:
+    - type: bind
+      source: ${__ORBIT_TMP_XAUTH}
+      target: ${__ORBIT_TMP_XAUTH}
+    - type: bind
+      source: /tmp/.X11-unix
+      target: /tmp/.X11-unix
+    - type: bind
+      source: /etc/localtime
+      target: /etc/localtime
+      read_only: true
+
+  orbit-ros2:
+    environment:
+      - DISPLAY
+      - TERM
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=${__ORBIT_TMP_XAUTH}
+    volumes:
+    - type: bind
+      source: ${__ORBIT_TMP_XAUTH}
+      target: ${__ORBIT_TMP_XAUTH}
+    - type: bind
+      source: /tmp/.X11-unix
+      target: /tmp/.X11-unix
+    - type: bind
+      source: /etc/localtime
+      target: /etc/localtime
+      read_only: true

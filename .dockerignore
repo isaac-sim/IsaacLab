@@ -13,6 +13,9 @@ docs/
 *.tmp
 # ignore docker
 docker/exports/
+docker/.container.yaml
+# ignore recordings
+recordings/
 # ignore __pycache__
 **/__pycache__/
 **/*.egg-info/

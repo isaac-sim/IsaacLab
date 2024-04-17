@@ -2,85 +2,76 @@
 # be re-used between services to an
 # extension field
 # https://docs.docker.com/compose/compose-file/compose-file-v3/#extension-fields
-x-default-orbit-volumes:
-  &default-orbit-volumes
-    # These volumes follow from this page
-    # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
-    - type: volume
-      source: isaac-cache-kit
-      target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache
-    - type: volume
-      source: isaac-cache-ov
-      target: ${DOCKER_USER_HOME}/.cache/ov
-    - type: volume
-      source: isaac-cache-pip
-      target: ${DOCKER_USER_HOME}/.cache/pip
-    - type: volume
-      source: isaac-cache-gl
-      target: ${DOCKER_USER_HOME}/.cache/nvidia/GLCache
-    - type: volume
-      source: isaac-cache-compute
-      target: ${DOCKER_USER_HOME}/.nv/ComputeCache
-    - type: volume
-      source: isaac-logs
-      target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
-    - type: volume
-      source: isaac-carb-logs
-      target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/logs/Kit/Isaac-Sim
-    - type: volume
-      source: isaac-data
-      target: ${DOCKER_USER_HOME}/.local/share/ov/data
-    - type: volume
-      source: isaac-docs
-      target: ${DOCKER_USER_HOME}/Documents
-      # These volumes allow X11 Forwarding
-      # We currently comment these out because they can
-      # cause bugs and warnings for people uninterested in
-      # X11 Forwarding from within the docker. We keep them
-      # as comments as a convenience for those seeking X11
-      # forwarding until a scripted solution is developed
-    # - type: bind
-    #   source: /tmp/.X11-unix
-    #   target: /tmp/.X11-unix
-    # - type: bind
-    #   source: ${HOME}/.Xauthority
-    #   target: ${DOCKER_USER_HOME}/.Xauthority
-      # This overlay allows changes on the local files to
-      # be reflected within the container immediately
-    - type: bind
-      source: ../source
-      target: /workspace/orbit/source
-    - type: bind
-      source: ../docs
-      target: /workspace/orbit/docs
-      # The effect of these volumes is twofold:
-      # 1. Prevent root-owned files from flooding the _build and logs dir
-      #    on the host machine
-      # 2. Preserve the artifacts in persistent volumes for later copying
-      #    to the host machine
-    - type: volume
-      source: orbit-docs
-      target: /workspace/orbit/docs/_build
-    - type: volume
-      source: orbit-logs
-      target: /workspace/orbit/logs
-    - type: volume
-      source: orbit-data
-      target: /workspace/orbit/data_storage
+x-default-orbit-volumes: &default-orbit-volumes
+  # These volumes follow from this page
+  # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
+  - type: volume
+    source: isaac-cache-kit
+    target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache
+  - type: volume
+    source: isaac-cache-ov
+    target: ${DOCKER_USER_HOME}/.cache/ov
+  - type: volume
+    source: isaac-cache-pip
+    target: ${DOCKER_USER_HOME}/.cache/pip
+  - type: volume
+    source: isaac-cache-gl
+    target: ${DOCKER_USER_HOME}/.cache/nvidia/GLCache
+  - type: volume
+    source: isaac-cache-compute
+    target: ${DOCKER_USER_HOME}/.nv/ComputeCache
+  - type: volume
+    source: isaac-logs
+    target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
+  - type: volume
+    source: isaac-carb-logs
+    target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/logs/Kit/Isaac-Sim
+  - type: volume
+    source: isaac-data
+    target: ${DOCKER_USER_HOME}/.local/share/ov/data
+  - type: volume
+    source: isaac-docs
+    target: ${DOCKER_USER_HOME}/Documents
+    # This overlay allows changes on the local files to
+    # be reflected within the container immediately
+  - type: bind
+    source: ../source
+    target: /workspace/orbit/source
+  - type: bind
+    source: ../docs
+    target: /workspace/orbit/docs
+    # The effect of these volumes is twofold:
+    # 1. Prevent root-owned files from flooding the _build and logs dir
+    #    on the host machine
+    # 2. Preserve the artifacts in persistent volumes for later copying
+    #    to the host machine
+  - type: volume
+    source: orbit-docs
+    target: /workspace/orbit/docs/_build
+  - type: volume
+    source: orbit-logs
+    target: /workspace/orbit/logs
+  - type: volume
+    source: orbit-data
+    target: /workspace/orbit/data_storage
 
-x-default-orbit-deploy:
-  &default-orbit-deploy
-    resources:
-      reservations:
-        devices:
-          - driver: nvidia
-            count: all
-            capabilities: [ gpu ]
+x-default-orbit-environment: &default-orbit-environment
+  - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
+  - ORBIT_PATH=${DOCKER_ORBIT_PATH}
+  - OMNI_KIT_ALLOW_ROOT=1
+
+x-default-orbit-deploy: &default-orbit-deploy
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: all
+          capabilities: [ gpu ]
 
 services:
   # This service is the base Orbit image
   orbit-base:
-    profiles: ["base"]
+    profiles: [ "base" ]
     env_file: .env.base
     build:
       context: ../
@@ -92,13 +83,7 @@ services:
         - DOCKER_USER_HOME=${DOCKER_USER_HOME}
     image: orbit-base
     container_name: orbit-base
-    environment:
-      # We can't just define this in the .env file because shell envars take precedence
-      # https://docs.docker.com/compose/environment-variables/envvars-precedence/
-      - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
-      - ORBIT_PATH=${DOCKER_ORBIT_PATH}
-      # This should also be enabled for X11 forwarding
-      # - DISPLAY=${DISPLAY}
+    environment: *default-orbit-environment
     volumes: *default-orbit-volumes
     network_mode: host
     deploy: *default-orbit-deploy
@@ -110,7 +95,7 @@ services:
   # This service adds a ROS2 Humble
   # installation on top of the base image
   orbit-ros2:
-    profiles: ["ros2"]
+    profiles: [ "ros2" ]
     env_file:
       - .env.base
       - .env.ros2
@@ -118,16 +103,14 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.ros2
       args:
-          # ROS2_APT_PACKAGE will default to NONE. This is to
-          # avoid a warning message when building only the base profile
-          # with the .env.base file
+        # ROS2_APT_PACKAGE will default to NONE. This is to
+        # avoid a warning message when building only the base profile
+        # with the .env.base file
         - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
         - DOCKER_USER_HOME=${DOCKER_USER_HOME}
     image: orbit-ros2
     container_name: orbit-ros2
-    environment:
-      - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
-      - ORBIT_PATH=${DOCKER_ORBIT_PATH}
+    environment: *default-orbit-environment
     volumes: *default-orbit-volumes
     network_mode: host
     deploy: *default-orbit-deploy
