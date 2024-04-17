@@ -98,11 +98,13 @@ class TestCamera(unittest.TestCase):
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[0].GetPath().pathString, self.camera_cfg.prim_path)
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
         for _ in range(5):
             self.sim.step()
+
         # Check buffers that exists and have correct shapes
         self.assertEqual(camera.data.pos_w.shape, (1, 3))
         self.assertEqual(camera.data.quat_w_ros.shape, (1, 4))
@@ -111,6 +113,7 @@ class TestCamera(unittest.TestCase):
         self.assertEqual(camera.data.intrinsic_matrices.shape, (1, 3, 3))
         self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
         self.assertEqual(camera.data.info, [{self.camera_cfg.data_types[0]: None}])
+
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -183,6 +186,12 @@ class TestCamera(unittest.TestCase):
             cam_cfg_offset_opengl.offset.rot,
             rtol=1e-5,
         )
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
 
         # check if transform correctly set in output
         np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
