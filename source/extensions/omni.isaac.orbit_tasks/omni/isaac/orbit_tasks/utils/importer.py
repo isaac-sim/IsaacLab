@@ -12,7 +12,7 @@ import pkgutil
 import sys
 
 
-def import_packages(package_name: str, blacklist_pkgs: list[str] = None):
+def import_packages(package_name: str, blacklist_pkgs: list[str] | None = None):
     """Import all sub-packages in a package recursively.
 
     It is easier to use this function to import all sub-packages in a package recursively

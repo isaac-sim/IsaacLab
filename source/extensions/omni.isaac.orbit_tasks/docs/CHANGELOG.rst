@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.6.1 (2024-04-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new environment ``Isaac-Repose-Cube-Allegro-v0`` and ``Isaac-Repose-Allegro-Cube-NoVelObs-v0``
+  for the Allegro hand to reorient a cube. It is based on the IsaacGymEnvs Allegro hand environment.
+
+
 0.6.0 (2024-03-10)
 ~~~~~~~~~~~~~~~~~~
 
