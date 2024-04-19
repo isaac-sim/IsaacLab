@@ -197,7 +197,7 @@ x11_check() {
     if [ "$__ORBIT_X11_FORWARDING_ENABLED" = "null" ]; then
         echo "[INFO] X11 forwarding from the Orbit container is off by default."
         echo "[INFO] It will fail if there is no display, or this script is being run via ssh without proper configuration."
-=        read -p "Would you like to enable it? (y/N) " x11_answer
+        read -p "Would you like to enable it? (y/N) " x11_answer
         if [ "$x11_answer" != "${x11_answer#[Yy]}" ]; then
             __ORBIT_X11_FORWARDING_ENABLED=1
             set_statefile_variable __ORBIT_X11_FORWARDING_ENABLED 1
