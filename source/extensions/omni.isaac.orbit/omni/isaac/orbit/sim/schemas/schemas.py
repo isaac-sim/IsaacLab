@@ -10,7 +10,7 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
-from ..utils import apply_nested, safe_set_attribute_on_usd_schema
+from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema
 from . import schemas_cfg
 
 """
@@ -99,6 +99,24 @@ def modify_articulation_root_properties(
 
     # convert to dict
     cfg = cfg.to_dict()
+
+    # extract non-USD properties
+    fix_root_link = cfg.pop("fix_root_link", None)
+    # fix root link based on input
+    if fix_root_link is not None:
+        # check if a global fixed joint exists under the root prim
+        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+        # if we found a fixed joint, enable/disable it based on the input
+        if existing_fixed_joint_prim is not None:
+            existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
+        elif fix_root_link:
+            # create a fixed joint between the root link and the world frame
+            joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/rootJoint")
+            joint_prim.GetJointEnabledAttr().Set(fix_root_link)
+            joint_prim.GetBody1Rel().SetTargets([prim_path])
+            # apply phyx joint api
+            PhysxSchema.PhysxJointAPI.Apply(joint_prim.GetPrim())
+
     # set into physx api
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value, camel_case=True)

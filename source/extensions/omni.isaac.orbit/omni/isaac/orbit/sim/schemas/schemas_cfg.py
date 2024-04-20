@@ -31,6 +31,18 @@ class ArticulationRootPropertiesCfg:
     """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
     stabilization_threshold: float | None = None
     """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
+    fix_root_link: bool | None = None
+    """Whether to fix the root link of the articulation.
+
+    * If set to None, the root link is not modified.
+    * If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
+    * If the articulation does not have a fixed root link, this flag will create a fixed joint between the world
+      frame and the root link. The joint is created with the name "rootJoint".
+
+    .. note::
+        This is a non-USD schema property. It is handled by the :meth:`modify_articulation_root_properties` function.
+
+    """
 
 
 @configclass

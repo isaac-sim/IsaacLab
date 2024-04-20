@@ -20,6 +20,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from pxr import UsdPhysics
 
 import omni.isaac.orbit.sim.schemas as schemas
+from omni.isaac.orbit.sim.utils import find_global_fixed_joint_prim
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.string import to_camel_case
 
@@ -43,6 +44,7 @@ class TestPhysicsSchema(unittest.TestCase):
             solver_velocity_iteration_count=1,
             sleep_threshold=1.0,
             stabilization_threshold=5.0,
+            fix_root_link=False,
         )
         self.rigid_cfg = schemas.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
@@ -110,10 +112,16 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.modify_mass_properties("/World/asset_instanced", self.mass_cfg)
         schemas.modify_joint_drive_properties("/World/asset_instanced", self.joint_cfg)
         # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset_instanced")
+        self._validate_articulation_properties_on_prim("/World/asset_instanced", has_default_fixed_root=False)
         self._validate_rigid_body_properties_on_prim("/World/asset_instanced")
         self._validate_mass_properties_on_prim("/World/asset_instanced")
         self._validate_joint_drive_properties_on_prim("/World/asset_instanced")
+
+        # make a fixed joint
+        self.arti_cfg.fix_root_link = True
+        schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
+        # validate the properties
+        self._validate_articulation_properties_on_prim("/World/asset_instanced", has_default_fixed_root=False)
 
     def test_modify_properties_on_articulation_usd(self):
         """Test setting properties on articulation usd."""
@@ -128,11 +136,17 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.modify_mass_properties("/World/asset", self.mass_cfg)
         schemas.modify_joint_drive_properties("/World/asset", self.joint_cfg)
         # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset")
+        self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
         self._validate_rigid_body_properties_on_prim("/World/asset")
         self._validate_collision_properties_on_prim("/World/asset")
         self._validate_mass_properties_on_prim("/World/asset")
         self._validate_joint_drive_properties_on_prim("/World/asset")
+
+        # make a fixed joint
+        self.arti_cfg.fix_root_link = True
+        schemas.modify_articulation_root_properties("/World/asset", self.arti_cfg)
+        # validate the properties
+        self._validate_articulation_properties_on_prim("/World/asset", has_default_fixed_root=True)
 
     def test_defining_rigid_body_properties_on_prim(self):
         """Test defining rigid body properties on a prim."""
@@ -169,7 +183,7 @@ class TestPhysicsSchema(unittest.TestCase):
         prim_utils.create_prim("/World/parent", prim_type="Xform")
         schemas.define_articulation_root_properties("/World/parent", self.arti_cfg)
         # validate the properties
-        self._validate_articulation_properties_on_prim("/World/parent")
+        self._validate_articulation_properties_on_prim("/World/parent", has_default_fixed_root=False)
 
         # create a child articulation
         prim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
@@ -185,14 +199,38 @@ class TestPhysicsSchema(unittest.TestCase):
     Helper functions.
     """
 
-    def _validate_articulation_properties_on_prim(self, prim_path: str, verbose: bool = False):
-        """Validate the articulation properties on the prim."""
+    def _validate_articulation_properties_on_prim(
+        self, prim_path: str, has_default_fixed_root: False, verbose: bool = False
+    ):
+        """Validate the articulation properties on the prim.
+
+        If :attr:`has_default_fixed_root` is True, then the asset already has a fixed root link. This is used to check the
+        expected behavior of the fixed root link configuration.
+        """
         # the root prim
         root_prim = prim_utils.get_prim_at_path(prim_path)
         # check articulation properties are set correctly
         for attr_name, attr_value in self.arti_cfg.__dict__.items():
             # skip names we know are not present
             if attr_name == "func":
+                continue
+            # handle fixed root link
+            if attr_name == "fix_root_link" and attr_value is not None:
+                # obtain the fixed joint prim
+                fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+                # if asset does not have a fixed root link then check if the joint is created
+                if not has_default_fixed_root:
+                    if attr_value:
+                        self.assertIsNotNone(fixed_joint_prim)
+                    else:
+                        self.assertIsNone(fixed_joint_prim)
+                else:
+                    # check a joint exists
+                    self.assertIsNotNone(fixed_joint_prim)
+                    # check if the joint is enabled or disabled
+                    is_enabled = fixed_joint_prim.GetJointEnabledAttr().Get()
+                    self.assertEqual(is_enabled, attr_value)
+                # skip the rest of the checks
                 continue
             # convert attribute name in prim to cfg name
             prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
