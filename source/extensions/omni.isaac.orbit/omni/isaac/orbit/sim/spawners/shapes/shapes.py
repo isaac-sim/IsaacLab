@@ -221,7 +221,7 @@ Helper functions.
 
 def _spawn_geom_from_prim_type(
     prim_path: str,
-    cfg: shapes_cfg.GeometryCfg,
+    cfg: shapes_cfg.ShapeCfg,
     prim_type: str,
     attributes: dict,
     translation: tuple[float, float, float] | None = None,
