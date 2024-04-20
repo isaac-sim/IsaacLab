@@ -721,8 +721,8 @@ def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = Non
 
 
 def find_global_fixed_joint_prim(
-    prim_path: str | Sdf.Path, stage: Usd.Stage | None = None
-) -> UsdPhysics.FixedJoint | None:
+    prim_path: str | Sdf.Path, check_enabled_only: bool = False, stage: Usd.Stage | None = None
+) -> UsdPhysics.Joint | None:
     """Find the fixed joint prim under the specified prim path that connects the target to the simulation world.
 
     A joint is a connection between two bodies. A fixed joint is a joint that does not allow relative motion
@@ -734,6 +734,8 @@ def find_global_fixed_joint_prim(
 
     Args:
         prim_path: The prim path to search for the fixed joint prim.
+        check_enabled_only: Whether to consider only enabled fixed joints. Defaults to False.
+            If False, then all joints (enabled or disabled) are considered.
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
 
     Returns:
@@ -762,7 +764,10 @@ def find_global_fixed_joint_prim(
         # note: ideally checking if it is FixedJoint would have been enough, but some assets use "Joint" as the
         # schema name which makes it difficult to distinguish between the two.
         joint_prim = UsdPhysics.Joint(prim)
-        if joint_prim and joint_prim.GetJointEnabledAttr().Get():
+        if joint_prim:
+            # if check_enabled_only is True, we only consider enabled joints
+            if check_enabled_only and not joint_prim.GetJointEnabledAttr().Get():
+                continue
             # check body 0 and body 1 exist
             body_0_exist = joint_prim.GetBody0Rel().GetTargets() != []
             body_1_exist = joint_prim.GetBody1Rel().GetTargets() != []

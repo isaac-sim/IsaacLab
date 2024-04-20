@@ -100,6 +100,12 @@ class TestUtilities(unittest.TestCase):
         self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
         self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac"))
 
+        # make fixed joint disabled manually
+        joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")
+        joint_prim.GetJointEnabledAttr().Set(False)
+        self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
+        self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True))
+
 
 if __name__ == "__main__":
     run_tests()
