@@ -20,7 +20,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
 
 
 class TestUtilities(unittest.TestCase):
@@ -93,10 +93,12 @@ class TestUtilities(unittest.TestCase):
         prim_utils.create_prim(
             "/World/Franka", usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
         )
+        prim_utils.create_prim("/World/Franka_Isaac", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd")
 
         # test
         self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/ANYmal"))
         self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
+        self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac"))
 
 
 if __name__ == "__main__":

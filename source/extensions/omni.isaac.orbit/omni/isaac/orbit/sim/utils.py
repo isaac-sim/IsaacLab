@@ -759,7 +759,9 @@ def find_global_fixed_joint_prim(
     # we check all joints under the root prim and classify the asset as fixed base if there exists
     # a fixed joint that has only one target (i.e. the root link).
     for prim in Usd.PrimRange(prim):
-        joint_prim = UsdPhysics.FixedJoint(prim)
+        # note: ideally checking if it is FixedJoint would have been enough, but some assets use "Joint" as the
+        # schema name which makes it difficult to distinguish between the two.
+        joint_prim = UsdPhysics.Joint(prim)
         if joint_prim and joint_prim.GetJointEnabledAttr().Get():
             # check body 0 and body 1 exist
             body_0_exist = joint_prim.GetBody0Rel().GetTargets() != []
