@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
-from pxr import PhysxSchema, Usd, UsdPhysics
+from pxr import PhysxSchema, Sdf, Usd, UsdPhysics
 
 from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema
 from . import schemas_cfg
@@ -114,9 +114,8 @@ def modify_articulation_root_properties(
             # create a fixed joint between the root link and the world frame
             joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/rootJoint")
             joint_prim.GetJointEnabledAttr().Set(fix_root_link)
-            joint_prim.GetBody1Rel().SetTargets([prim_path])
-            # apply physx joint api
-            PhysxSchema.PhysxJointAPI.Apply(joint_prim.GetPrim())
+            joint_prim.CreateBody0Rel().SetTargets([])
+            joint_prim.CreateBody1Rel().SetTargets([Sdf.Path(prim_path)])
 
     # set into physx api
     for attr_name, value in cfg.items():
