@@ -110,11 +110,12 @@ def modify_articulation_root_properties(
         if existing_fixed_joint_prim is not None:
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
+            carb.log_info(f"Creating a fixed joint for the articulation root prim: '{prim_path}'.")
             # create a fixed joint between the root link and the world frame
             joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/rootJoint")
             joint_prim.GetJointEnabledAttr().Set(fix_root_link)
             joint_prim.GetBody1Rel().SetTargets([prim_path])
-            # apply phyx joint api
+            # apply physx joint api
             PhysxSchema.PhysxJointAPI.Apply(joint_prim.GetPrim())
 
     # set into physx api
