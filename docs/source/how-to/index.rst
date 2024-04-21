@@ -15,6 +15,7 @@ use Orbit. If you are new to Orbit, we recommend you start with the tutorials.
 
     import_new_asset
     write_articulation_cfg
+    make_static_prim
     save_camera_output
     draw_markers
     wrap_rl_env
