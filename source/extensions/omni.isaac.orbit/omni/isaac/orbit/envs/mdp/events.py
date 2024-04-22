@@ -584,8 +584,8 @@ def reset_joints_by_offset(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # select which joints to update
-    joint_pos = joint_pos[:, asset_cfg.joint_ids]
-    joint_vel = joint_vel[:, asset_cfg.joint_ids]
+    joint_pos = joint_pos[:, asset_cfg.joint_ids][0]
+    joint_vel = joint_vel[:, asset_cfg.joint_ids][0]
 
     # set into the physics simulation
     asset.write_joint_state_to_sim(joint_pos, joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
