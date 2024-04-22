@@ -39,6 +39,7 @@ Guidelines for modifications:
 * Jia Lin Yuan
 * Jingzhou Liu
 * Kourosh Darvish
+* Özhan Özen
 * Qinxi Yu
 * René Zurbrügg
 * Ritvik Singh
