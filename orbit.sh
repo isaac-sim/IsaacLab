@@ -145,7 +145,7 @@ setup_conda_env() {
     printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for orbit' \
         'unalias orbit &>/dev/null' \
-        'unalias ORBIT_PATH &>/dev/null' \
+        'unset ORBIT_PATH' \
         '' \
         '# for isaac-sim' \
         'unset CARB_APP_PATH' \
