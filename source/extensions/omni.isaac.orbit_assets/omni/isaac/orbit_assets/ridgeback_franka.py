@@ -20,6 +20,7 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Clearpath/RidgebackFranka/ridgeback_franka.usd",
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
