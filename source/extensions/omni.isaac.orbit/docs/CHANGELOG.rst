@@ -5,7 +5,7 @@ Changelog
 * Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
   sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
   :class:`omni.isaac.orbit.sensors.IMUData`.
-  
+
 0.16.0 (2024-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
