@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,17 +12,14 @@ This script shows how to use the ray caster from the Orbit framework.
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_ray_caster.py --headless
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
     "--terrain_type",
@@ -30,20 +27,20 @@ parser.add_argument(
     default="generator",
     help="Type of terrain to import. Can be 'generator' or 'usd' or 'plane'.",
 )
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
 
-
 import torch
-import traceback
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import RigidPrimView
@@ -155,7 +152,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=False)
             continue
         # Reset the scene
         if step_count % 500 == 0:
@@ -180,13 +177,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

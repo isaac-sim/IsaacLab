@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -19,29 +19,28 @@ Usage:
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 import argparse
 
 # omni-isaac-orbit
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
     description="This script shows how to use replicator to randomly change the textures of a USD scene."
 )
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
-
 
 import numpy as np
 import torch
@@ -143,7 +142,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step()
             continue
         # Reset the scene
         if step_count % 500 == 0:
@@ -159,7 +158,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # Runs the main function
+    # run the main function
     main()
-    # Close the simulator
+    # close sim app
     simulation_app.close()

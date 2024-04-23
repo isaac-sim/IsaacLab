@@ -1,13 +1,13 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import torch
 import torch.utils.benchmark as benchmark
 import unittest
+
+from omni.isaac.orbit.app import run_tests
 
 
 class TestTorchOperations(unittest.TestCase):
@@ -151,4 +151,4 @@ class TestTorchOperations(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    run_tests()

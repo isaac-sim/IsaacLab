@@ -1,23 +1,19 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
@@ -73,6 +69,7 @@ class TestPhysicsSchema(unittest.TestCase):
             torsional_patch_radius=1.0,
         )
         self.mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
+        self.joint_cfg = schemas.JointDrivePropertiesCfg(drive_type="acceleration")
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
@@ -87,7 +84,7 @@ class TestPhysicsSchema(unittest.TestCase):
 
         This is to ensure that we check that all the properties of the schema are set.
         """
-        for cfg in [self.arti_cfg, self.rigid_cfg, self.collision_cfg, self.mass_cfg]:
+        for cfg in [self.arti_cfg, self.rigid_cfg, self.collision_cfg, self.mass_cfg, self.joint_cfg]:
             # check nothing is none
             for k, v in cfg.__dict__.items():
                 self.assertIsNotNone(v, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid.")
@@ -111,10 +108,12 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
         schemas.modify_rigid_body_properties("/World/asset_instanced", self.rigid_cfg)
         schemas.modify_mass_properties("/World/asset_instanced", self.mass_cfg)
+        schemas.modify_joint_drive_properties("/World/asset_instanced", self.joint_cfg)
         # validate the properties
-        self._validate_properties_on_prim(
-            "/World/asset_instanced", ["PhysxArticulationRootAPI", "PhysxRigidBodyAPI", "PhysicsMassAPI"]
-        )
+        self._validate_articulation_properties_on_prim("/World/asset_instanced")
+        self._validate_rigid_body_properties_on_prim("/World/asset_instanced")
+        self._validate_mass_properties_on_prim("/World/asset_instanced")
+        self._validate_joint_drive_properties_on_prim("/World/asset_instanced")
 
     def test_modify_properties_on_articulation_usd(self):
         """Test setting properties on articulation usd."""
@@ -127,10 +126,13 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.modify_rigid_body_properties("/World/asset", self.rigid_cfg)
         schemas.modify_collision_properties("/World/asset", self.collision_cfg)
         schemas.modify_mass_properties("/World/asset", self.mass_cfg)
+        schemas.modify_joint_drive_properties("/World/asset", self.joint_cfg)
         # validate the properties
-        self._validate_properties_on_prim(
-            "/World/asset", ["PhysxArticulationAPI", "PhysxRigidBodyAPI", "PhysxCollisionAPI", "PhysicsMassAPI"]
-        )
+        self._validate_articulation_properties_on_prim("/World/asset")
+        self._validate_rigid_body_properties_on_prim("/World/asset")
+        self._validate_collision_properties_on_prim("/World/asset")
+        self._validate_mass_properties_on_prim("/World/asset")
+        self._validate_joint_drive_properties_on_prim("/World/asset")
 
     def test_defining_rigid_body_properties_on_prim(self):
         """Test defining rigid body properties on a prim."""
@@ -143,7 +145,9 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.define_collision_properties("/World/cube1", self.collision_cfg)
         schemas.define_mass_properties("/World/cube1", self.mass_cfg)
         # validate the properties
-        self._validate_properties_on_prim("/World/cube1", ["PhysxRigidBodyAPI", "PhysxCollisionAPI", "PhysicsMassAPI"])
+        self._validate_rigid_body_properties_on_prim("/World/cube1")
+        self._validate_collision_properties_on_prim("/World/cube1")
+        self._validate_mass_properties_on_prim("/World/cube1")
 
         # spawn another prim
         prim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 1.0, 0.62))
@@ -151,7 +155,8 @@ class TestPhysicsSchema(unittest.TestCase):
         schemas.define_rigid_body_properties("/World/cube2", self.rigid_cfg)
         schemas.define_collision_properties("/World/cube2", self.collision_cfg)
         # validate the properties
-        self._validate_properties_on_prim("/World/cube2", ["PhysxRigidBodyAPI", "PhysxCollisionAPI"])
+        self._validate_rigid_body_properties_on_prim("/World/cube2")
+        self._validate_collision_properties_on_prim("/World/cube2")
 
         # check if we can play
         self.sim.reset()
@@ -164,7 +169,8 @@ class TestPhysicsSchema(unittest.TestCase):
         prim_utils.create_prim("/World/parent", prim_type="Xform")
         schemas.define_articulation_root_properties("/World/parent", self.arti_cfg)
         # validate the properties
-        self._validate_properties_on_prim("/World/parent", ["PhysxArticulationRootAPI"])
+        self._validate_articulation_properties_on_prim("/World/parent")
+
         # create a child articulation
         prim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
         schemas.define_rigid_body_properties("/World/parent/child", self.rigid_cfg)
@@ -179,105 +185,144 @@ class TestPhysicsSchema(unittest.TestCase):
     Helper functions.
     """
 
-    def _validate_properties_on_prim(self, prim_path: str, schema_names: list[str], verbose: bool = False):
-        """Validate the properties on the prim.
-
-        Note:
-            Right now this function exploits the hierarchy in the asset to check the properties. This is not a
-            fool-proof way of checking the properties. We should ideally check the properties on the prim itself
-            and all its children.
-
-        Args:
-            prim_path: The prim name.
-            schema_names: The list of schema names to validate.
-            verbose: Whether to print verbose logs. Defaults to False.
-        """
+    def _validate_articulation_properties_on_prim(self, prim_path: str, verbose: bool = False):
+        """Validate the articulation properties on the prim."""
         # the root prim
         root_prim = prim_utils.get_prim_at_path(prim_path)
         # check articulation properties are set correctly
-        if "PhysxArticulationRootAPI" in schema_names:
-            for attr_name, attr_value in self.arti_cfg.__dict__.items():
-                # skip names we know are not present
-                if attr_name in ["func"]:
-                    continue
-                # convert attribute name in prim to cfg name
-                prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
-                # validate the values
-                self.assertAlmostEqual(
-                    root_prim.GetAttribute(prim_prop_name).Get(),
-                    attr_value,
-                    places=5,
-                    msg=f"Failed setting for {prim_prop_name}",
-                )
+        for attr_name, attr_value in self.arti_cfg.__dict__.items():
+            # skip names we know are not present
+            if attr_name == "func":
+                continue
+            # convert attribute name in prim to cfg name
+            prim_prop_name = f"physxArticulation:{to_camel_case(attr_name, to='cC')}"
+            # validate the values
+            self.assertAlmostEqual(
+                root_prim.GetAttribute(prim_prop_name).Get(),
+                attr_value,
+                places=5,
+                msg=f"Failed setting for {prim_prop_name}",
+            )
+
+    def _validate_rigid_body_properties_on_prim(self, prim_path: str, verbose: bool = False):
+        """Validate the rigid body properties on the prim.
+
+        Note:
+            Right now this function exploits the hierarchy in the asset to check the properties. This is not a
+            fool-proof way of checking the properties.
+        """
+        # the root prim
+        root_prim = prim_utils.get_prim_at_path(prim_path)
         # check rigid body properties are set correctly
-        if "PhysxRigidBodyAPI" in schema_names:
-            for link_prim in root_prim.GetChildren():
-                if UsdPhysics.RigidBodyAPI(link_prim):
-                    for attr_name, attr_value in self.rigid_cfg.__dict__.items():
+        for link_prim in root_prim.GetChildren():
+            if UsdPhysics.RigidBodyAPI(link_prim):
+                for attr_name, attr_value in self.rigid_cfg.__dict__.items():
+                    # skip names we know are not present
+                    if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled"]:
+                        continue
+                    # convert attribute name in prim to cfg name
+                    prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
+                    # validate the values
+                    self.assertAlmostEqual(
+                        link_prim.GetAttribute(prim_prop_name).Get(),
+                        attr_value,
+                        places=5,
+                        msg=f"Failed setting for {prim_prop_name}",
+                    )
+            elif verbose:
+                print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a rigid body.")
+
+    def _validate_collision_properties_on_prim(self, prim_path: str, verbose: bool = False):
+        """Validate the collision properties on the prim.
+
+        Note:
+            Right now this function exploits the hierarchy in the asset to check the properties. This is not a
+            fool-proof way of checking the properties.
+        """
+        # the root prim
+        root_prim = prim_utils.get_prim_at_path(prim_path)
+        # check collision properties are set correctly
+        for link_prim in root_prim.GetChildren():
+            for mesh_prim in link_prim.GetChildren():
+                if UsdPhysics.CollisionAPI(mesh_prim):
+                    for attr_name, attr_value in self.collision_cfg.__dict__.items():
                         # skip names we know are not present
-                        if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled"]:
+                        if attr_name in ["func", "collision_enabled"]:
                             continue
                         # convert attribute name in prim to cfg name
-                        prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
+                        prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"
                         # validate the values
                         self.assertAlmostEqual(
-                            link_prim.GetAttribute(prim_prop_name).Get(),
+                            mesh_prim.GetAttribute(prim_prop_name).Get(),
                             attr_value,
                             places=5,
                             msg=f"Failed setting for {prim_prop_name}",
                         )
                 elif verbose:
-                    print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a rigid body.")
-        # check collision properties are set correctly
-        # note: we exploit the hierarchy in the asset to check
-        if "PhysxCollisionAPI" in schema_names:
-            for link_prim in root_prim.GetChildren():
-                for mesh_prim in link_prim.GetChildren():
-                    if UsdPhysics.CollisionAPI(mesh_prim):
-                        for attr_name, attr_value in self.collision_cfg.__dict__.items():
-                            # skip names we know are not present
-                            if attr_name in ["func", "collision_enabled"]:
-                                continue
-                            # convert attribute name in prim to cfg name
-                            prim_prop_name = f"physxCollision:{to_camel_case(attr_name, to='cC')}"
-                            # validate the values
-                            self.assertAlmostEqual(
-                                mesh_prim.GetAttribute(prim_prop_name).Get(),
-                                attr_value,
-                                places=5,
-                                msg=f"Failed setting for {prim_prop_name}",
-                            )
-                    elif verbose:
-                        print(f"Skipping prim {mesh_prim.GetPrimPath()} as it is not a collision mesh.")
+                    print(f"Skipping prim {mesh_prim.GetPrimPath()} as it is not a collision mesh.")
+
+    def _validate_mass_properties_on_prim(self, prim_path: str, verbose: bool = False):
+        """Validate the mass properties on the prim.
+
+        Note:
+            Right now this function exploits the hierarchy in the asset to check the properties. This is not a
+            fool-proof way of checking the properties.
+        """
+        # the root prim
+        root_prim = prim_utils.get_prim_at_path(prim_path)
         # check rigid body mass properties are set correctly
-        # note: we exploit the hierarchy in the asset to check
-        if "PhysicsMassAPI" in schema_names:
-            for link_prim in root_prim.GetChildren():
-                if UsdPhysics.MassAPI(link_prim):
-                    for attr_name, attr_value in self.mass_cfg.__dict__.items():
+        for link_prim in root_prim.GetChildren():
+            if UsdPhysics.MassAPI(link_prim):
+                for attr_name, attr_value in self.mass_cfg.__dict__.items():
+                    # skip names we know are not present
+                    if attr_name in ["func"]:
+                        continue
+                    # print(link_prim.GetProperties())
+                    prim_prop_name = f"physics:{to_camel_case(attr_name, to='cC')}"
+                    # validate the values
+                    self.assertAlmostEqual(
+                        link_prim.GetAttribute(prim_prop_name).Get(),
+                        attr_value,
+                        places=5,
+                        msg=f"Failed setting for {prim_prop_name}",
+                    )
+            elif verbose:
+                print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a mass api.")
+
+    def _validate_joint_drive_properties_on_prim(self, prim_path: str, verbose: bool = False):
+        """Validate the mass properties on the prim.
+
+        Note:
+            Right now this function exploits the hierarchy in the asset to check the properties. This is not a
+            fool-proof way of checking the properties.
+        """
+        # the root prim
+        root_prim = prim_utils.get_prim_at_path(prim_path)
+        # check joint drive properties are set correctly
+        for link_prim in root_prim.GetAllChildren():
+            for joint_prim in link_prim.GetChildren():
+                if joint_prim.IsA(UsdPhysics.PrismaticJoint) or joint_prim.IsA(UsdPhysics.RevoluteJoint):
+                    # check it has drive API
+                    self.assertTrue(joint_prim.HasAPI(UsdPhysics.DriveAPI))
+                    # iterate over the joint properties
+                    for attr_name, attr_value in self.joint_cfg.__dict__.items():
                         # skip names we know are not present
-                        if attr_name in ["func"]:
+                        if attr_name == "func":
                             continue
-                        # print(link_prim.GetProperties())
-                        prim_prop_name = f"physics:{to_camel_case(attr_name, to='cC')}"
-                        # validate the values
-                        self.assertAlmostEqual(
-                            link_prim.GetAttribute(prim_prop_name).Get(),
-                            attr_value,
-                            places=5,
-                            msg=f"Failed setting for {prim_prop_name}",
-                        )
+                        # manually check joint type
+                        if attr_name == "drive_type":
+                            if joint_prim.IsA(UsdPhysics.PrismaticJoint):
+                                prim_attr_name = "drive:linear:physics:type"
+                            elif joint_prim.IsA(UsdPhysics.RevoluteJoint):
+                                prim_attr_name = "drive:angular:physics:type"
+                            else:
+                                raise ValueError(f"Unknown joint type for prim {joint_prim.GetPrimPath()}")
+                            # check the value
+                            self.assertEqual(attr_value, joint_prim.GetAttribute(prim_attr_name).Get())
+                            continue
                 elif verbose:
-                    print(f"Skipping prim {link_prim.GetPrimPath()} as it is not a mass api.")
+                    print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    run_tests()

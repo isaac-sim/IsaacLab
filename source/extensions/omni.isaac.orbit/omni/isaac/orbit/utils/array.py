@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-module containing utilities for working with different array backends."""
 
+# needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
 import numpy as np
@@ -75,7 +76,7 @@ def convert_to_torch(
         tensor = array
     elif isinstance(array, np.ndarray):
         if array.dtype == np.uint32:
-            array = array.astype(np.int64)
+            array = array.astype(np.int32)
         # need to deal with object arrays (np.void) separately
         tensor = torch.from_numpy(array)
     elif isinstance(array, wp.array):

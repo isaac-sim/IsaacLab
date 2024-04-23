@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,6 @@ import os
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from omni.isaac.version import get_version
 from pxr import Usd
 
 from .asset_converter_base import AssetConverterBase
@@ -86,12 +85,20 @@ class UrdfConverter(AssetConverterBase):
         )
         # fix the issue that material paths are not relative
         if self.cfg.make_instanceable:
-            usd_path = os.path.join(self.usd_dir, self.usd_instanceable_meshes_path)
-            stage = Usd.Stage.Open(usd_path)
+            instanced_usd_path = os.path.join(self.usd_dir, self.usd_instanceable_meshes_path)
+            stage = Usd.Stage.Open(instanced_usd_path)
             # resolve all paths relative to layer path
             source_layer = stage.GetRootLayer()
             omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
             stage.Save()
+
+        # fix the issue that material paths are not relative
+        # note: This issue seems to have popped up in Isaac Sim 2023.1.1
+        stage = Usd.Stage.Open(self.usd_path)
+        # resolve all paths relative to layer path
+        source_layer = stage.GetRootLayer()
+        omni.usd.resolve_paths(source_layer.identifier, source_layer.identifier)
+        stage.Save()
 
     """
     Helper methods.
@@ -106,17 +113,10 @@ class UrdfConverter(AssetConverterBase):
         Returns:
             The constructed ``ImportConfig`` object containing the desired settings.
         """
-        # check if the urdf importer extension is available
-        # note: the urdf importer's name changed in 2023.1 onwards
-        isaacsim_version = get_version()
-        if int(isaacsim_version[2]) == 2022:
-            enable_extension("omni.isaac.urdf")
+        # Enable urdf extension
+        enable_extension("omni.importer.urdf")
 
-            from omni.isaac.urdf import _urdf as omni_urdf
-        else:
-            enable_extension("omni.importer.urdf")
-
-            from omni.importer.urdf import _urdf as omni_urdf
+        from omni.importer.urdf import _urdf as omni_urdf
 
         import_config = omni_urdf.ImportConfig()
 

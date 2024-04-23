@@ -1,24 +1,26 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import builtins
 import torch
-from typing import Any, Dict, Sequence, Union
+import warnings
+from collections.abc import Sequence
+from typing import Any, Dict
 
+import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.orbit.managers import ActionManager, ObservationManager, RandomizationManager
+from omni.isaac.orbit.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.orbit.scene import InteractiveScene
 from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils.timer import Timer
 
 from .base_env_cfg import BaseEnvCfg
+from .ui import ViewportCameraController
 
-VecEnvObs = Dict[str, Union[torch.Tensor, Dict[str, torch.Tensor]]]
+VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]
 """Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.
@@ -62,10 +64,10 @@ class BaseEnv:
       raw actions at different levels of abstraction. For example, in case of a robotic arm, the raw actions
       can be joint torques, joint positions, or end-effector poses. Similarly for a mobile base, it can be
       the joint torques, or the desired velocity of the floating base.
-    * **Randomization Manager**: The randomization manager that randomizes different elements in the scene.
-      This includes resetting the scene to a default state or randomize the scene at different intervals
-      of time. The randomization manager can be configured to randomize different elements of the scene
-      such as the masses of objects, friction coefficients, or apply random pushes to the robot.
+    * **Event Manager**: The event manager orchestrates operations triggered based on simulation events.
+      This includes resetting the scene to a default state, applying random pushes to the robot at different intervals
+      of time, or randomizing properties such as mass and friction coefficients. This is useful for training
+      and evaluating the robot in a variety of scenarios.
 
     The environment provides a unified interface for interacting with the simulation. However, it does not
     include task-specific quantities such as the reward function, or the termination conditions. These
@@ -97,13 +99,11 @@ class BaseEnv:
 
         # create a simulation context to control the simulator
         if SimulationContext.instance() is None:
-            self.sim = SimulationContext(self.cfg.sim)
+            # the type-annotation is required to avoid a type-checking error
+            # since it gets confused with Isaac Sim's SimulationContext class
+            self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
-        # set camera view for "/OmniverseKit_Persp" camera
-        # viewport is not available in other rendering modes so the function will throw a warning
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
-            self.sim.set_camera_view(eye=self.cfg.viewer.eye, target=self.cfg.viewer.lookat)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -118,6 +118,15 @@ class BaseEnv:
         with Timer("[INFO]: Time taken for scene creation"):
             self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
+
+        # set up camera viewport controller
+        # viewport is not available in other rendering modes so the function will throw a warning
+        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
+        # non-rendering modes.
+        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
+        else:
+            self.viewport_camera_controller = None
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -183,7 +192,7 @@ class BaseEnv:
         """Load the managers for the environment.
 
         This function is responsible for creating the various managers (action, observation,
-        randomization, etc.) for the environment. Since the managers require access to physics handles,
+        events, etc.) for the environment. Since the managers require access to physics handles,
         they can only be created after the simulator is reset (i.e. played for the first time).
 
         .. note::
@@ -195,6 +204,17 @@ class BaseEnv:
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
+        # check the configs
+        if self.cfg.randomization is not None:
+            msg = (
+                "The 'randomization' attribute is deprecated and will be removed in a future release. "
+                "Please use the 'events' attribute to configure the randomization settings."
+            )
+            warnings.warn(msg, category=DeprecationWarning)
+            carb.log_warn(msg)
+            # set the randomization as events (for backward compatibility)
+            self.cfg.events = self.cfg.randomization
+
         # prepare the managers
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
@@ -202,9 +222,9 @@ class BaseEnv:
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
-        # -- randomization manager
-        self.randomization_manager = RandomizationManager(self.cfg.randomization, self)
-        print("[INFO] Randomization Manager: ", self.randomization_manager)
+        # -- event manager
+        self.event_manager = EventManager(self.cfg.events, self)
+        print("[INFO] Event Manager: ", self.event_manager)
 
     """
     Operations - MDP.
@@ -232,7 +252,7 @@ class BaseEnv:
         # return observations
         return self.observation_manager.compute(), self.extras
 
-    def step(self, action: torch.Tensor) -> VecEnvObs:
+    def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
         The environment steps forward at a fixed time-step, while the physics simulation is
@@ -260,12 +280,12 @@ class BaseEnv:
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
         # perform rendering if gui is enabled
-        if self.sim.has_gui():
+        if self.sim.has_gui() or self.sim.has_rtx_sensors():
             self.sim.render()
 
-        # post-step: step interval randomization
-        if "interval" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(mode="interval", dt=self.step_dt)
+        # post-step: step interval event
+        if "interval" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # return observations and extras
         return self.observation_manager.compute(), self.extras
@@ -296,8 +316,9 @@ class BaseEnv:
             # destructor is order-sensitive
             del self.action_manager
             del self.observation_manager
-            del self.randomization_manager
+            del self.event_manager
             del self.scene
+            del self.viewport_camera_controller
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
@@ -319,9 +340,9 @@ class BaseEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
-        # randomize the MDP for environments that need a reset
-        if "reset" in self.randomization_manager.available_modes:
-            self.randomization_manager.randomize(env_ids=env_ids, mode="reset")
+        # apply events such as randomizations for environments that need a reset
+        if "reset" in self.event_manager.available_modes:
+            self.event_manager.apply(env_ids=env_ids, mode="reset")
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
@@ -333,6 +354,6 @@ class BaseEnv:
         # -- action manager
         info = self.action_manager.reset(env_ids)
         self.extras["log"].update(info)
-        # -- randomization manager
-        info = self.randomization_manager.reset(env_ids)
+        # -- event manager
+        info = self.event_manager.reset(env_ids)
         self.extras["log"].update(info)

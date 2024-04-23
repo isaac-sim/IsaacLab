@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,11 +8,12 @@
 from .commands_cfg import (
     NormalVelocityCommandCfg,
     NullCommandCfg,
-    TerrainBasedPositionCommandCfg,
+    TerrainBasedPose2dCommandCfg,
+    UniformPose2dCommandCfg,
     UniformPoseCommandCfg,
     UniformVelocityCommandCfg,
 )
 from .null_command import NullCommand
+from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
 from .pose_command import UniformPoseCommand
-from .position_command import TerrainBasedPositionCommand
 from .velocity_command import NormalVelocityCommand, UniformVelocityCommand

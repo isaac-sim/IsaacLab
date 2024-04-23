@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,10 +13,7 @@ All the environments are registered in the `omni.isaac.orbit_tasks` extension. T
 with `Isaac` in their name.
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -30,7 +27,6 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 from prettytable import PrettyTable
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
 
 

@@ -1,10 +1,11 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
+# needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np

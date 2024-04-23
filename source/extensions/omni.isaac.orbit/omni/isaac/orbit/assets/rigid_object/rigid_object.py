@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+import warnings
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -32,10 +34,7 @@ class RigidObject(AssetBase):
     For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
     applied to it. This API is used to define the simulation properties of the rigid body. On playing the
     simulation, the physics engine will automatically register the rigid body and create a corresponding
-    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` and :attr:`body_physx_view`
-    attributes. For a single rigid body asset, the :attr:`root_physx_view` and :attr:`body_physx_view` attributes
-    are the same. However, these are different for articulated assets as explained in the :class:`Articulation`
-    class.
+    rigid body handle. This handle can be accessed using the :attr:`root_physx_view` attribute.
 
     .. note::
 
@@ -80,7 +79,7 @@ class RigidObject(AssetBase):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
-        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
+        prim_paths = self.root_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
     @property
@@ -94,12 +93,17 @@ class RigidObject(AssetBase):
 
     @property
     def body_physx_view(self) -> physx.RigidBodyView:
-        """View for the bodies in the asset (PhysX).
+        """Rigid body view for the asset (PhysX).
 
-        Note:
-            Use this view with caution. It requires handling of tensors in a specific way.
+        .. deprecated:: v0.3.0
+
+            The attribute 'body_physx_view' will be removed in v0.4.0. Please use :attr:`root_physx_view` instead.
+
         """
-        return self._body_physx_view
+        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
+        warnings.warn(dep_msg, DeprecationWarning)
+        carb.log_error(dep_msg)
+        return self.root_physx_view
 
     """
     Operations.
@@ -124,7 +128,7 @@ class RigidObject(AssetBase):
         """
         # write external wrench
         if self.has_external_wrench:
-            self.body_physx_view.apply_forces_and_torques_at_position(
+            self.root_physx_view.apply_forces_and_torques_at_position(
                 force_data=self._external_force_b.view(-1, 3),
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
@@ -137,10 +141,14 @@ class RigidObject(AssetBase):
         self._data.root_state_w[:, :7] = self.root_physx_view.get_transforms()
         self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
         self._data.root_state_w[:, 7:] = self.root_physx_view.get_velocities()
+
+        # -- body-state (note: for rigid objects, we only have one body so we just copy the root state)
+        self._data.body_state_w[:] = self._data.root_state_w.view(-1, self.num_bodies, 13)
+
         # -- update common data
         self._update_common_data(dt)
 
-    def find_bodies(self, name_keys: str | Sequence[str]) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
         Please check the :meth:`omni.isaac.orbit.utils.string_utils.resolve_matching_names` function for more
@@ -148,11 +156,12 @@ class RigidObject(AssetBase):
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return string_utils.resolve_matching_names(name_keys, self.body_names)
+        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     """
     Operations - Write to simulation.
@@ -221,7 +230,7 @@ class RigidObject(AssetBase):
         self,
         forces: torch.Tensor,
         torques: torch.Tensor,
-        body_ids: Sequence[int] | None = None,
+        body_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Set external force and torque to apply on the asset's bodies in their local frame.
@@ -241,7 +250,8 @@ class RigidObject(AssetBase):
 
         .. note::
             This function does not apply the external wrench to the simulation. It only fills the buffers with
-            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function.
+            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
+            right before the simulation step.
 
         Args:
             forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
@@ -260,14 +270,15 @@ class RigidObject(AssetBase):
             # -- body_ids
             if body_ids is None:
                 body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+            elif isinstance(body_ids, slice):
+                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
             elif not isinstance(body_ids, torch.Tensor):
                 body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
 
             # note: we need to do this complicated indexing since torch doesn't support multi-indexing
             # create global body indices from env_ids and env_body_ids
             # (env_id * total_bodies_per_env) + body_id
-            total_bodies_per_env = self.body_physx_view.count // self.root_physx_view.count
-            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * total_bodies_per_env
+            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
             indices = indices.view(-1)
             # set into internal buffers
             # note: these are applied in the write_to_sim function
@@ -289,26 +300,35 @@ class RigidObject(AssetBase):
         if template_prim is None:
             raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
         template_prim_path = template_prim.GetPath().pathString
+
         # find rigid root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI)
         )
-        if len(root_prims) != 1:
+        if len(root_prims) == 0:
+            raise RuntimeError(
+                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
+                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
+            )
+        if len(root_prims) > 1:
             raise RuntimeError(
                 f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
                 f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one rigid body in the prim path tree."
             )
+
         # resolve root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- object view
         self._root_physx_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
-        self._body_physx_view = self._root_physx_view
+
         # log information about the articulation
         carb.log_info(f"Rigid body initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
         carb.log_info(f"Body names: {self.body_names}")
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -318,7 +338,9 @@ class RigidObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES = torch.arange(self.body_physx_view.count, dtype=torch.long, device=self.device)
+        self._ALL_BODY_INDICES = torch.arange(
+            self.root_physx_view.count * self.num_bodies, dtype=torch.long, device=self.device
+        )
         self.GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.num_instances, 1)
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, 1)
         # external forces and torques
@@ -331,9 +353,12 @@ class RigidObject(AssetBase):
         self._data.body_names = self.body_names
         # -- root states
         self._data.root_state_w = torch.zeros(self.num_instances, 13, device=self.device)
+        self._data.root_state_w[:, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
         self._data.default_root_state = torch.zeros_like(self._data.root_state_w)
+        self._data.default_root_state[:, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
         # -- body states
         self._data.body_state_w = torch.zeros(self.num_instances, self.num_bodies, 13, device=self.device)
+        self._data.body_state_w[:, :, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
         # -- post-computed
         self._data.root_vel_b = torch.zeros(self.num_instances, 6, device=self.device)
         self._data.projected_gravity_b = torch.zeros(self.num_instances, 3, device=self.device)
@@ -365,10 +390,6 @@ class RigidObject(AssetBase):
             This has been separated from the update function to allow for the child classes to
             override the update function without having to worry about updating the common data.
         """
-        # -- body-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.body_state_w[..., :7] = self.body_physx_view.get_transforms().view(-1, self.num_bodies, 7)
-        self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
-        self._data.body_state_w[..., 7:] = self.body_physx_view.get_velocities().view(-1, self.num_bodies, 6)
         # -- body acceleration
         self._data.body_acc_w[:] = (self._data.body_state_w[..., 7:] - self._last_body_vel_w) / dt
         self._last_body_vel_w[:] = self._data.body_state_w[..., 7:]
@@ -395,4 +416,3 @@ class RigidObject(AssetBase):
         # set all existing views to None to invalidate them
         self._physics_sim_view = None
         self._root_physx_view = None
-        self._body_physx_view = None

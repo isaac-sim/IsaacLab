@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,8 +12,6 @@ This script demonstrates how to use the ray-caster sensor.
     ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
 
 """
-
-from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
@@ -33,11 +31,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import torch
-import traceback
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.orbit.sim as sim_utils
@@ -149,13 +144,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -42,8 +42,6 @@ Args:
 Example usage:
     python split_train_val.py --dataset /path/to/demo.hdf5 --ratio 0.1
 """
-
-from __future__ import annotations
 
 import argparse
 import h5py

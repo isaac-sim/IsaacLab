@@ -1,17 +1,15 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Spacemouse controller for SE(2) control."""
 
-from __future__ import annotations
-
 import hid
 import numpy as np
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from ..device_base import DeviceBase
 from .utils import convert_buffer

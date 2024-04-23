@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.unitree import UNITREE_A1_CFG  # isort: skip
+from omni.isaac.orbit_assets.unitree import UNITREE_A1_CFG  # isort: skip
 
 
 @configclass
@@ -29,13 +29,13 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # reduce action scale
         self.actions.joint_pos.scale = 0.25
 
-        # randomization
-        self.randomization.push_robot = None
-        self.randomization.add_base_mass.params["mass_range"] = (-1.0, 3.0)
-        self.randomization.add_base_mass.params["asset_cfg"].body_names = "trunk"
-        self.randomization.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
-        self.randomization.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.randomization.reset_base.params = {
+        # event
+        self.events.push_robot = None
+        self.events.add_base_mass.params["mass_range"] = (-1.0, 3.0)
+        self.events.add_base_mass.params["asset_cfg"].body_names = "trunk"
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        self.events.reset_base.params = {
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (0.0, 0.0),
@@ -79,6 +79,6 @@ class UnitreeA1RoughEnvCfg_PLAY(UnitreeA1RoughEnvCfg):
 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
-        self.randomization.base_external_force_torque = None
-        self.randomization.push_robot = None
+        # remove random pushing event
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

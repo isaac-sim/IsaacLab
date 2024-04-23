@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,33 +11,31 @@ This script demonstrates how to use the contact sensor sensor in Orbit.
     ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_contact_sensor.py --num_robots 2
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 
 import argparse
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Contact Sensor Test Script")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_robots", type=int, default=64, help="Number of robots to spawn.")
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
-simulation_app = SimulationApp(config)
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
 
-
 import torch
-import traceback
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
@@ -46,8 +44,13 @@ from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.sensors.contact_sensor import ContactSensor, ContactSensorCfg
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
+
 
 """
 Helpers
@@ -130,7 +133,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=False)
             continue
         # reset
         if count % 1000 == 0:
@@ -148,7 +151,7 @@ def main():
             # write commands to sim
             robot.write_data_to_sim()
             # perform step
-            sim.step(render=not args_cli.headless)
+            sim.step()
             # fetch data
             robot.update(physics_dt)
         # update sim-time
@@ -164,13 +167,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Run the main function
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

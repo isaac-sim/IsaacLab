@@ -1,12 +1,12 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Callable
 
 from omni.isaac.orbit.sim import converters, schemas
 from omni.isaac.orbit.sim.spawners import materials
@@ -31,6 +31,12 @@ class FileCfg(RigidObjectSpawnerCfg):
 
     articulation_props: schemas.ArticulationPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
+
+    fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
+    """Properties to apply to the fixed tendons (if any)."""
+
+    joint_drive_props: schemas.JointDrivePropertiesCfg | None = None
+    """Properties to apply to a joint."""
 
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".

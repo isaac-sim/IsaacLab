@@ -49,7 +49,7 @@ The script for running the environment ``run_cartpole_rl_env.py`` is present in 
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
-      :emphasize-lines: 46-50, 64-65
+      :emphasize-lines: 38-42, 56-57
       :linenos:
 
 
@@ -57,7 +57,7 @@ The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
 We already went through parts of the above in the :ref:`tutorial-create-base-env` tutorial to learn
-about how to specify the scene, observations, actions and randomizations. Thus, in this tutorial, we
+about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.
 
 In Orbit, we provide various implementations of different terms in the :mod:`envs.mdp` module. We will use
@@ -86,8 +86,6 @@ For the cartpole task, we will use the following reward terms:
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: RewardsCfg
-   :linenos:
-   :lineno-start: 124
 
 Defining termination criteria
 -----------------------------
@@ -111,8 +109,6 @@ or terminated term. These are used to indicate the two types of terminations as 
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: TerminationsCfg
-   :linenos:
-   :lineno-start: 152
 
 Defining commands
 -----------------
@@ -128,8 +124,6 @@ locomotion or manipulation tasks.
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CommandsCfg
-   :linenos:
-   :lineno-start: 63
 
 Defining curriculum
 -------------------
@@ -145,8 +139,6 @@ We use a simple pass-through curriculum to define a curriculum manager that does
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CurriculumCfg
-   :linenos:
-   :lineno-start: 165
 
 Tying it all together
 ---------------------
@@ -158,8 +150,6 @@ only with the added RL components explained in the above sections.
 .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CartpoleEnvCfg
-   :linenos:
-   :lineno-start: 177
 
 Running the simulation loop
 ---------------------------
@@ -173,8 +163,6 @@ such as the reward contribution from individual terms, the termination status of
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
    :language: python
    :pyobject: main
-   :linenos:
-   :lineno-start: 44
 
 
 The Code Execution

@@ -1,14 +1,12 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
 This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of
-scene, action, observation and randomization managers to create an environment.
+scene, action, observation and event managers to create an environment.
 """
-
-from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
@@ -31,17 +29,15 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import math
 import torch
-import traceback
-
-import carb
 
 import omni.isaac.orbit.envs.mdp as mdp
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.orbit.managers import EventTermCfg as EventTerm
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.utils import configclass
 
@@ -76,21 +72,22 @@ class ObservationsCfg:
 
 
 @configclass
-class RandomizationCfg:
-    """Configuration for randomization."""
+class EventCfg:
+    """Configuration for events."""
 
     # on startup
-    add_pole_mass = RandTerm(
-        func=mdp.add_body_mass,
+    add_pole_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
             "mass_range": (0.1, 0.5),
+            "operation": "add",
         },
     )
 
     # on reset
-    reset_cart_position = RandTerm(
+    reset_cart_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
@@ -100,7 +97,7 @@ class RandomizationCfg:
         },
     )
 
-    reset_pole_position = RandTerm(
+    reset_pole_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
@@ -120,7 +117,7 @@ class CartpoleEnvCfg(BaseEnvCfg):
     # Basic settings
     observations = ObservationsCfg()
     actions = ActionsCfg()
-    randomization = RandomizationCfg()
+    events = EventCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -165,13 +162,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

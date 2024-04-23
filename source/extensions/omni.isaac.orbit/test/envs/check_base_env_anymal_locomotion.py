@@ -1,17 +1,15 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
 This script demonstrates the environment concept that combines a scene with an action,
-observation and randomization manager for a quadruped robot.
+observation and event manager for a quadruped robot.
 
 A locomotion policy is loaded and used to control the robot. This shows how to use the
 environment with a policy.
 """
-
-from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
@@ -34,20 +32,17 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
 import os
 import torch
-import traceback
-
-import carb
 
 import omni.isaac.orbit.envs.mdp as mdp
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.orbit.managers import EventTermCfg as EventTerm
 from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.orbit.managers import SceneEntityCfg
 from omni.isaac.orbit.scene import InteractiveSceneCfg
 from omni.isaac.orbit.sensors import RayCasterCfg, patterns
@@ -60,6 +55,7 @@ from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
 # Pre-defined configs
 ##
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 ##
@@ -157,10 +153,10 @@ class ObservationsCfg:
 
 
 @configclass
-class RandomizationCfg:
-    """Configuration for randomization."""
+class EventCfg:
+    """Configuration for events."""
 
-    reset_base = RandTerm(
+    reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
@@ -191,7 +187,7 @@ class QuadrupedEnvCfg(BaseEnvCfg):
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
-    randomization: RandomizationCfg = RandomizationCfg()
+    events: EventCfg = EventCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -244,13 +240,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

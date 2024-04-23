@@ -12,7 +12,8 @@ class.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
-      :lines: 39-50
+      :start-at: # create environment configuration
+      :end-at: env = RLTaskEnv(cfg=env_cfg)
 
 While straightforward, this approach is not scalable as we have a large suite of environments.
 In this tutorial, we will show how to use the :meth:`gymnasium.register` method to register
@@ -25,7 +26,7 @@ the :meth:`gymnasium.make` function.
 
    .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
       :language: python
-      :lines: 40-50
+      :lines: 36-47
 
 
 The Code
@@ -38,7 +39,7 @@ The tutorial corresponds to the ``random_agent.py`` script in the ``orbit/source
 
    .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
       :language: python
-      :emphasize-lines: 40-42, 47-50
+      :emphasize-lines: 36-37, 42-47
       :linenos:
 
 
@@ -96,9 +97,8 @@ file which iterates over all the sub-packages and registers their respective env
 
 .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
    :language: python
-   :lines: 40-41
-   :linenos:
-   :lineno-start: 40
+   :start-at: import omni.isaac.orbit_tasks  # noqa: F401
+   :end-at: import omni.isaac.orbit_tasks  # noqa: F401
 
 In this tutorial, the task name is read from the command line. The task name is used to parse
 the default configuration as well as to create the environment instance. In addition, other
@@ -107,9 +107,8 @@ and whether to render, are used to override the default configuration.
 
 .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
    :language: python
-   :lines: 47-50
-   :linenos:
-   :lineno-start: 47
+   :start-at: # create environment configuration
+   :end-at: env = gym.make(args_cli.task, cfg=env_cfg)
 
 Once creating the environment, the rest of the execution follows the standard resetting and stepping.
 

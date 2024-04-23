@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_B_CFG  # isort: skip
+from omni.isaac.orbit_assets import ANYMAL_B_CFG  # isort: skip
 
 
 @configclass
@@ -41,6 +41,6 @@ class AnymalBRoughEnvCfg_PLAY(AnymalBRoughEnvCfg):
 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
-        self.randomization.base_external_force_torque = None
-        self.randomization.push_robot = None
+        # remove random pushing event
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

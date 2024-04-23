@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,9 @@ import inspect
 import torch
 import weakref
 from abc import abstractmethod
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import omni.kit.app
 
@@ -186,6 +187,11 @@ class CommandTerm(ManagerTermBase):
     """
 
     @abstractmethod
+    def _update_metrics(self):
+        """Update the metrics based on the current state."""
+        raise NotImplementedError
+
+    @abstractmethod
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample the command for the specified environments."""
         raise NotImplementedError
@@ -193,11 +199,6 @@ class CommandTerm(ManagerTermBase):
     @abstractmethod
     def _update_command(self):
         """Update the command based on the current state."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def _update_metrics(self):
-        """Update the metrics based on the current state."""
         raise NotImplementedError
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -352,6 +353,17 @@ class CommandManager(ManagerBase):
             The command tensor of the specified command term.
         """
         return self._terms[name].command
+
+    def get_term(self, name: str) -> CommandTerm:
+        """Returns the command term with the specified name.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command term with the specified name.
+        """
+        return self._terms[name]
 
     """
     Helper functions.

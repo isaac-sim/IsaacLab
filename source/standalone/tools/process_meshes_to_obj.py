@@ -1,13 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Convert all mesh files to `.obj` in given folders."""
-
-from __future__ import annotations
 
 import argparse
 import os

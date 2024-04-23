@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,8 +11,6 @@
     ./orbit.sh -p source/standalone/tutorials/03_scene/create_scene.py --num_envs 32
 
 """
-
-from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
@@ -36,16 +34,17 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import traceback
-
-import carb
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.assets.config import CARTPOLE_CFG
 from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.orbit.sim import SimulationContext
 from omni.isaac.orbit.utils import configclass
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets import CARTPOLE_CFG  # isort:skip
 
 
 @configclass
@@ -126,13 +125,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

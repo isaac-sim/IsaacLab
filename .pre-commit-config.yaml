@@ -1,11 +1,11 @@
 repos:
   - repo: https://github.com/python/black
-    rev: 23.10.1
+    rev: 24.3.0
     hooks:
       - id: black
-        args: ["--line-length", "120", "--preview"]
+        args: ["--line-length", "120", "--unstable"]
   - repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
+    rev: 7.0.0
     hooks:
       - id: flake8
         additional_dependencies: [flake8-simplify, flake8-return]
@@ -15,6 +15,8 @@ repos:
       - id: trailing-whitespace
       - id: check-symlinks
       - id: destroyed-symlinks
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
       - id: check-merge-conflict
       - id: check-case-conflict
@@ -25,16 +27,18 @@ repos:
       - id: detect-private-key
       - id: debug-statements
   - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+    rev: 5.13.2
     hooks:
       - id: isort
         name: isort (python)
         args: ["--profile", "black", "--filter-files"]
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
+    rev: v3.15.1
     hooks:
       - id: pyupgrade
-        args: ["--py37-plus"]
+        args: ["--py310-plus"]
+        # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
+        exclude: "source/extensions/omni.isaac.orbit/omni/isaac/orbit/envs/base_env.py"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:

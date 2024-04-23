@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
@@ -54,9 +55,9 @@ class TerminationManager(ManagerBase):
         """
         super().__init__(cfg, env)
         # prepare extra info to store individual termination term information
-        self._episode_dones = dict()
+        self._term_dones = dict()
         for term_name in self._term_names:
-            self._episode_dones[term_name] = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+            self._term_dones[term_name] = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         # create buffer for managing termination per environment
         self._truncated_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self._terminated_buf = torch.zeros_like(self._truncated_buf)
@@ -132,11 +133,9 @@ class TerminationManager(ManagerBase):
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        for key in self._episode_dones.keys():
+        for key in self._term_dones.keys():
             # store information
-            extras["Episode Termination/" + key] = torch.count_nonzero(self._episode_dones[key][env_ids]).item()
-            # reset episode dones
-            self._episode_dones[key][env_ids] = False
+            extras["Episode Termination/" + key] = torch.count_nonzero(self._term_dones[key][env_ids]).item()
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
@@ -164,9 +163,20 @@ class TerminationManager(ManagerBase):
             else:
                 self._terminated_buf |= value
             # add to episode dones
-            self._episode_dones[name] |= value
+            self._term_dones[name][:] = value
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
+
+    def get_term(self, name: str) -> torch.Tensor:
+        """Returns the termination term with the specified name.
+
+        Args:
+            name: The name of the termination term.
+
+        Returns:
+            The corresponding termination term value. Shape is (num_envs,).
+        """
+        return self._term_dones[name]
 
     """
     Operations - Term settings.

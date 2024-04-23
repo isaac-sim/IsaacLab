@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import Articulation, RigidObject
 from omni.isaac.orbit.managers import SceneEntityCfg
+from omni.isaac.orbit.managers.manager_base import ManagerTermBase
+from omni.isaac.orbit.managers.manager_term_cfg import RewardTermCfg
 from omni.isaac.orbit.sensors import ContactSensor
 
 if TYPE_CHECKING:
@@ -34,6 +36,36 @@ def is_alive(env: RLTaskEnv) -> torch.Tensor:
 def is_terminated(env: RLTaskEnv) -> torch.Tensor:
     """Penalize terminated episodes that don't correspond to episodic timeouts."""
     return env.termination_manager.terminated.float()
+
+
+class is_terminated_term(ManagerTermBase):
+    """Penalize termination for specific terms that don't correspond to episodic timeouts.
+
+    The parameters are as follows:
+
+    * attr:`term_keys`: The termination terms to penalize. This can be a string, a list of strings
+      or regular expressions. Default is ".*" which penalizes all terminations.
+
+    The reward is computed as the sum of the termination terms that are not episodic timeouts.
+    This means that the reward is 0 if the episode is terminated due to an episodic timeout. Otherwise,
+    if two termination terms are active, the reward is 2.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: RLTaskEnv):
+        # initialize the base class
+        super().__init__(cfg, env)
+        # find and store the termination terms
+        term_keys = cfg.params.get("term_keys", ".*")
+        self._term_names = env.termination_manager.find_terms(term_keys)
+
+    def __call__(self, env: RLTaskEnv, term_keys: str | list[str] = ".*") -> torch.Tensor:
+        # Return the unweighted reward for the termination terms
+        reset_buf = torch.zeros(env.num_envs, device=env.device)
+        for term in self._term_names:
+            # Sums over terminations term values to account for multiple terminations in the same step
+            reset_buf += env.termination_manager.get_term(term)
+
+        return (reset_buf * (~env.termination_manager.time_outs)).float()
 
 
 """
@@ -91,10 +123,13 @@ Joint penalties.
 
 
 def joint_torques_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint torques applied on the articulation using L2-kernel."""
+    """Penalize joint torques applied on the articulation using L2-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint torques contribute to the L2 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.applied_torque), dim=1)
+    return torch.sum(torch.square(asset.data.applied_torque[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_vel_l1(env: RLTaskEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -105,17 +140,23 @@ def joint_vel_l1(env: RLTaskEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 
 
 def joint_vel_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint velocities on the articulation using L2-kernel."""
+    """Penalize joint velocities on the articulation using L1-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint velocities contribute to the L1 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_vel), dim=1)
+    return torch.sum(torch.square(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_acc_l2(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize joint accelerations on the articulation using L2-kernel."""
+    """Penalize joint accelerations on the articulation using L2-kernel.
+
+    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint accelerations contribute to the L2 norm.
+    """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.joint_acc), dim=1)
+    return torch.sum(torch.square(asset.data.joint_acc[:, asset_cfg.joint_ids]), dim=1)
 
 
 def joint_deviation_l1(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -157,7 +198,10 @@ def joint_vel_limits(
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
-    out_of_limits = torch.abs(asset.data.joint_vel) - asset.data.soft_joint_vel_limits * soft_ratio
+    out_of_limits = (
+        torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids])
+        - asset.data.soft_joint_vel_limits[:, asset_cfg.joint_ids] * soft_ratio
+    )
     # clip to max error = 1 rad/s per joint to avoid huge penalties
     out_of_limits = out_of_limits.clip_(min=0.0, max=1.0)
     return torch.sum(out_of_limits, dim=1)
@@ -181,7 +225,9 @@ def applied_torque_limits(env: RLTaskEnv, asset_cfg: SceneEntityCfg = SceneEntit
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     # TODO: We need to fix this to support implicit joints.
-    out_of_limits = torch.abs(asset.data.applied_torque - asset.data.computed_torque)
+    out_of_limits = torch.abs(
+        asset.data.applied_torque[:, asset_cfg.joint_ids] - asset.data.computed_torque[:, asset_cfg.joint_ids]
+    )
     return torch.sum(out_of_limits, dim=1)
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -24,6 +24,9 @@ from omni.isaac.orbit.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument(
+    "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
+)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -38,10 +41,8 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym
 import torch
-import traceback
-from typing import Sequence
+from collections.abc import Sequence
 
-import carb
 import warp as wp
 
 from omni.isaac.orbit.assets.rigid_object.rigid_object_data import RigidObjectData
@@ -107,9 +108,7 @@ def infer_state_machine(
             sm_state[tid] = PickSmState.APPROACH_ABOVE_OBJECT
             sm_wait_time[tid] = 0.0
     elif state == PickSmState.APPROACH_ABOVE_OBJECT:
-        des_ee_pose[tid] = object_pose[tid]
-        # TODO: This is causing issues.
-        # des_ee_pose[tid] = wp.transform_multiply(des_ee_pose[tid], offset[tid])
+        des_ee_pose[tid] = wp.transform_multiply(offset[tid], object_pose[tid])
         gripper_state[tid] = GripperState.OPEN
         # TODO: error between current and desired ee pose below threshold
         # wait for a while
@@ -178,12 +177,16 @@ class PickAndLiftSm:
         self.sm_dt = torch.full((self.num_envs,), self.dt, device=self.device)
         self.sm_state = torch.full((self.num_envs,), 0, dtype=torch.int32, device=self.device)
         self.sm_wait_time = torch.zeros((self.num_envs,), device=self.device)
+
         # desired state
         self.des_ee_pose = torch.zeros((self.num_envs, 7), device=self.device)
         self.des_gripper_state = torch.full((self.num_envs,), 0.0, device=self.device)
+
         # approach above object offset
         self.offset = torch.zeros((self.num_envs, 7), device=self.device)
         self.offset[:, 2] = 0.1
+        self.offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
+
         # convert to warp
         self.sm_dt_wp = wp.from_torch(self.sm_dt, wp.float32)
         self.sm_state_wp = wp.from_torch(self.sm_state, wp.int32)
@@ -201,12 +204,17 @@ class PickAndLiftSm:
 
     def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
+        # convert all transformations from (w, x, y, z) to (x, y, z, w)
+        ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
+        object_pose = object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
+        des_object_pose = des_object_pose[:, [0, 1, 2, 4, 5, 6, 3]]
+
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
         object_pose_wp = wp.from_torch(object_pose.contiguous(), wp.transform)
         des_object_pose_wp = wp.from_torch(des_object_pose.contiguous(), wp.transform)
-        # run state machine
 
+        # run state machine
         wp.launch(
             kernel=infer_state_machine,
             dim=self.num_envs,
@@ -221,16 +229,22 @@ class PickAndLiftSm:
                 self.des_gripper_state_wp,
                 self.offset_wp,
             ],
+            device=self.device,
         )
 
+        # convert transformations back to (w, x, y, z)
+        des_ee_pose = self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
         # convert to torch
-        return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
+        return torch.cat([des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
 def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
-        "Isaac-Lift-Cube-Franka-IK-Abs-v0", use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs
+        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        use_gpu=not args_cli.cpu,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
     )
     # create environment
     env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
@@ -256,7 +270,7 @@ def main():
             # -- end-effector frame
             ee_frame_sensor = env.unwrapped.scene["ee_frame"]
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            tcp_rest_orientation = ee_frame_sensor.data.target_rot_w[..., 0, :].clone()
+            tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
             # -- object frame
             object_data: RigidObjectData = env.unwrapped.scene["object"].data
             object_position = object_data.root_pos_w - env.unwrapped.scene.env_origins
@@ -279,13 +293,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

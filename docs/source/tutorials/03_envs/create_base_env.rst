@@ -7,7 +7,7 @@ Creating a Base Environment
 .. currentmodule:: omni.isaac.orbit
 
 Environments bring together different aspects of the simulation such as
-the scene, observations and actions spaces, randomizations, etc. to create a
+the scene, observations and actions spaces, reset events etc. to create a
 coherent interface for various applications. In Orbit, environments are
 implemented as :class:`envs.BaseEnv` and :class:`envs.RLTaskEnv` classes.
 The two classes are very similar, but :class:`envs.RLTaskEnv` is useful for
@@ -32,7 +32,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
-      :emphasize-lines: 51-55, 58-75, 78-111, 114-133, 138-142, 147, 151, 156-157, 163-164
+      :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
       :linenos:
 
 
@@ -46,7 +46,8 @@ is composed of the following components:
 * :class:`scene.InteractiveScene` - The scene that is used for the simulation.
 * :class:`managers.ActionManager` - The manager that handles actions.
 * :class:`managers.ObservationManager` - The manager that handles observations.
-* :class:`managers.RandomizationManager` - The manager that handles randomizations.
+* :class:`managers.EventManager` - The manager that schedules operations (such as domain randomization)
+  at specified simulation events. For instance, at startup, on resets, or periodic intervals.
 
 By configuring these components, the user can create different variations of the same environment
 with minimal effort. In this tutorial, we will go through the different components of the
@@ -79,8 +80,6 @@ Thus, we will create an action term that controls the force applied to the cart.
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ActionsCfg
-   :linenos:
-   :lineno-start: 51
 
 Defining observations
 ---------------------
@@ -111,45 +110,43 @@ default values for this tutorial.
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: ObservationsCfg
-   :linenos:
-   :lineno-start: 58
 
-Defining randomizations
------------------------
+Defining events
+---------------
 
 At this point, we have defined the scene, actions and observations for the cartpole environment.
 The general idea for all these components is to define the configuration classes and then
-pass them to the corresponding managers. The randomization manager is no different.
+pass them to the corresponding managers. The event manager is no different.
 
-The :class:`managers.RandomizationManager` class is responsible for randomizing everything related
-to the simulation state. This includes randomizing (or resetting) the scene, randomizing physical
-properties (such as mass, friction, etc.), and visual properties (such as colors, textures, etc.).
-Each of these are specified through the :class:`managers.RandomizationTermCfg` class, which
-takes in the :attr:`managers.RandomizationTermCfg.func` that specifies the function or callable
-class that performs the randomization. Additionally, it expects the **mode** of randomization.
-The mode specifies when the randomization term should be applied. It is possible to specify
-your own mode, but Orbit provides three modes out of the box:
+The :class:`managers.EventManager` class is responsible for events corresponding to changes
+in the simulation state. This includes resetting (or randomizing) the scene, randomizing physical
+properties (such as mass, friction, etc.), and varying visual properties (such as colors, textures, etc.).
+Each of these are specified through the :class:`managers.EventTermCfg` class, which
+takes in the :attr:`managers.EventTermCfg.func` that specifies the function or callable
+class that performs the event.
 
-* ``"startup"`` - Randomize only once at environment startup.
-* ``"reset"`` - Randomize on every call to an environment's reset.
-* ``"interval"`` - Randomize at a given fixed interval.
+Additionally, it expects the **mode** of the event. The mode specifies when the event term should be applied.
+It is possible to specify your own mode. For this, you'll need to adapt the :class:`~envs.BaseEnv` class.
+However, out of the box, Orbit provides three commonly used modes:
 
-For this example, we randomize the pole's mass on startup. This is done only once since this operation
-is expensive and we don't want to do it on every reset. We also randomize the initial joint state of
-the cartpole and the pole at every reset.
+* ``"startup"`` - Event that takes place only once at environment startup.
+* ``"reset"`` - Event that occurs on environment termination and reset.
+* ``"interval"`` - Event that are executed at a given interval, i.e., periodically after a certain number of steps.
+
+For this example, we define events that randomize the pole's mass on startup. This is done only once since this
+operation is expensive and we don't want to do it on every reset. We also create an event to randomize the initial
+joint state of the cartpole and the pole at every reset.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
-   :pyobject: RandomizationCfg
-   :linenos:
-   :lineno-start: 78
+   :pyobject: EventCfg
 
 Tying it all together
 ---------------------
 
 Having defined the scene and manager configurations, we can now define the environment configuration
 through the :class:`envs.BaseEnvCfg` class. This class takes in the scene, action, observation and
-randomization configurations.
+event configurations.
 
 In addition to these, it also takes in the :attr:`envs.BaseEnvCfg.sim` which defines the simulation
 parameters such as the timestep, gravity, etc. This is initialized to the default values, but can
@@ -159,8 +156,6 @@ be modified as needed. We recommend doing so by defining the :meth:`__post_init_
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: CartpoleEnvCfg
-   :linenos:
-   :lineno-start: 114
 
 Running the simulation
 ----------------------
@@ -179,8 +174,6 @@ for the environment. In this tutorial, we reset the simulation at regular interv
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
    :pyobject: main
-   :linenos:
-   :lineno-start: 136
 
 An important thing to note above is that the entire simulation loop is wrapped inside the
 :meth:`torch.inference_mode` context manager. This is because the environment uses PyTorch
@@ -209,7 +202,7 @@ started the simulation.
 
 In this tutorial, we learned about the different managers that help define a base environment. We
 include more examples of defining the base environment in the ``orbit/source/standalone/tutorials/03_envs``
-directory. For completion, they can be run using the following commands:
+directory. For completeness, they can be run using the following commands:
 
 .. code-block:: bash
 

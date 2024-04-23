@@ -1,18 +1,19 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Helper functions to project between pointcloud and depth images."""
 
+# needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
 import math
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Sequence
-from typing_extensions import Literal
+from collections.abc import Sequence
+from typing import Literal
 
 import omni.isaac.core.utils.stage as stage_utils
 import warp as wp
@@ -144,9 +145,11 @@ def create_pointcloud_from_depth(
     depth_cloud = math_utils.unproject_depth(depth, intrinsic_matrix)
     # convert 3D points to world frame
     depth_cloud = math_utils.transform_points(depth_cloud, position, orientation)
-    # keep only valid entries
-    pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(depth_cloud), ~torch.isinf(depth_cloud)), dim=1)
-    depth_cloud = depth_cloud[pts_idx_to_keep, ...]
+
+    # keep only valid entries if flag is set
+    if not keep_invalid:
+        pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(depth_cloud), ~torch.isinf(depth_cloud)), dim=1)
+        depth_cloud = depth_cloud[pts_idx_to_keep, ...]
 
     # return everything according to input type
     if is_numpy:

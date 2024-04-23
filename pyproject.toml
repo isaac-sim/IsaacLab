@@ -1,6 +1,6 @@
 [tool.isort]
 
-py_version = 37
+py_version = 310
 line_length = 120
 group_by_package = true
 
@@ -36,7 +36,6 @@ extra_standard_library = [
     "toml",
     "trimesh",
     "tqdm",
-    "typing_extensions",
 ]
 # Imports from Isaac Sim and Omniverse
 known_third_party = [
@@ -50,9 +49,8 @@ known_third_party = [
 ]
 # Imports from this repository
 known_first_party = "omni.isaac.orbit"
-known_assets_firstparty = "omni.isaac.assets"
+known_assets_firstparty = "omni.isaac.orbit_assets"
 known_extra_firstparty = [
-    "omni.isaac.contrib_tasks",
     "omni.isaac.orbit_tasks"
 ]
 # Imports from the local folder
@@ -71,7 +69,7 @@ exclude = [
 ]
 
 typeCheckingMode = "basic"
-pythonVersion = "3.7"
+pythonVersion = "3.10"
 pythonPlatform = "Linux"
 enableTypeIgnoreComments = true
 

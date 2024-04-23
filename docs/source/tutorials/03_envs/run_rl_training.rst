@@ -40,7 +40,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 
     .. literalinclude:: ../../../../source/standalone/workflows/sb3/train.py
       :language: python
-      :emphasize-lines: 61, 69, 74-76, 96-110, 125-126, 114-123
+      :emphasize-lines: 57, 66, 68-70, 81, 90-98, 100, 105-113, 115-116, 121-126, 133-136
       :linenos:
 
 The Code Explained

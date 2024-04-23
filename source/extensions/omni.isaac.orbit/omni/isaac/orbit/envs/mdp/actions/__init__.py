@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,4 +8,5 @@
 from .actions_cfg import *
 from .binary_joint_actions import *
 from .joint_actions import *
+from .joint_actions_to_limits import *
 from .non_holonomic_actions import *

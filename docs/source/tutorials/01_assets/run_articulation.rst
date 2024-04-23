@@ -1,6 +1,5 @@
 .. _tutorial-interact-articulation:
 
-
 Interacting with an articulation
 ================================
 
@@ -24,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 58-69, 92-103, 103-105, 111, 125-127, 133
+      :emphasize-lines: 58-69, 91-104, 108-111, 116-117
       :linenos:
 
 
@@ -50,9 +49,8 @@ an instance of the :class:`assets.Articulation` class by passing the configurati
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 58-69
-   :linenos:
-   :lineno-start: 58
+   :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
+   :end-at: cartpole = Articulation(cfg=cartpole_cfg)
 
 
 Running the simulation loop
@@ -74,9 +72,8 @@ Finally, we call the :meth:`Articulation.reset` method to reset any internal buf
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 92-103
-   :linenos:
-   :lineno-start: 92
+   :start-at: # reset the scene entities
+   :end-at: robot.reset()
 
 Stepping the simulation
 """""""""""""""""""""""
@@ -98,9 +95,8 @@ the simulation.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 108-112
-   :linenos:
-   :lineno-start: 108
+   :start-at: # Apply random action
+   :end-at: robot.write_data_to_sim()
 
 
 Updating the state
@@ -109,11 +105,10 @@ Updating the state
 Every articulation class contains a :class:`assets.ArticulationData` object. This stores the state of the
 articulation. To update the state inside the buffer, we call the :meth:`assets.Articulation.update` method.
 
-.. literalinclude:: ../../../../source/standalone/demos/arms.py
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_articulation.py
    :language: python
-   :lines: 116-117
-   :linenos:
-   :lineno-start: 116
+   :start-at: # Update buffers
+   :end-at: robot.update(sim_dt)
 
 
 The Code Execution

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,10 +13,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 
@@ -38,14 +35,20 @@ simulation_app = app_launcher.app
 import math
 import torch
 
+import omni.isaac.debug_draw._debug_draw as omni_debug_draw
+
 import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.utils.math as math_utils
 from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
 from omni.isaac.orbit.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
 from omni.isaac.orbit.sim import SimulationContext
+
+##
+# Pre-defined configs
+##
+from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def define_sensor() -> FrameTransformer:
@@ -61,7 +64,7 @@ def define_sensor() -> FrameTransformer:
             FrameTransformerCfg.FrameCfg(prim_path="/World/Robot/.*"),
             FrameTransformerCfg.FrameCfg(
                 prim_path="/World/Robot/LF_SHANK",
-                name="LF_FOOT",
+                name="LF_FOOT_USER",
                 offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
             ),
         ],
@@ -109,8 +112,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameVisualizerFromScript")
         cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         transform_visualizer = VisualizationMarkers(cfg)
+        # debug drawing for lines connecting the frame
+        draw_interface = omni_debug_draw.acquire_debug_draw_interface()
     else:
         transform_visualizer = None
+        draw_interface = None
 
     frame_index = 0
     # Simulate physics
@@ -139,9 +145,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                 frame_index = frame_index % len(frame_names)
 
             # visualize frame
-            pos = frame_transformer.data.target_pos_w[:, frame_index]
-            rot = frame_transformer.data.target_rot_w[:, frame_index]
-            transform_visualizer.visualize(pos, rot)
+            source_pos = frame_transformer.data.source_pos_w
+            source_quat = frame_transformer.data.source_quat_w
+            target_pos = frame_transformer.data.target_pos_w[:, frame_index]
+            target_quat = frame_transformer.data.target_quat_w[:, frame_index]
+            # draw the frames
+            transform_visualizer.visualize(
+                torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)
+            )
+            # draw the line connecting the frames
+            draw_interface.clear_lines()
+            # plain color for lines
+            lines_colors = [[1.0, 1.0, 0.0, 1.0]] * source_pos.shape[0]
+            line_thicknesses = [5.0] * source_pos.shape[0]
+            draw_interface.draw_lines(source_pos.tolist(), target_pos.tolist(), lines_colors, line_thicknesses)
 
 
 def main():

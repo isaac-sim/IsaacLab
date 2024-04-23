@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -167,7 +168,7 @@ class ObservationManager(ManagerBase):
         # evaluate terms: compute, add noise, clip, scale.
         for name, term_cfg in obs_terms:
             # compute term's value
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
+            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
             # apply post-processing
             if term_cfg.noise:
                 obs = term_cfg.noise.func(obs, term_cfg.noise)

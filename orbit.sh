@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -107,7 +107,7 @@ setup_conda_env() {
         build_path=${ORBIT_PATH}/_isaac_sim
     fi
     # check if the environment exists
-    if { conda env list | grep ${env_name}; } >/dev/null 2>&1; then
+    if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
@@ -127,11 +127,12 @@ setup_conda_env() {
     mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
     # add variables to environment during activation
     local isaacsim_setup_conda_env_script=${ORBIT_PATH}/_isaac_sim/setup_conda_env.sh
-    printf '%s\n' '#!/bin/bash' '' \
+    printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for isaac-sim' \
         'source '${isaacsim_setup_conda_env_script}'' \
         '' \
         '# for orbit' \
+        'export ORBIT_PATH='${ORBIT_PATH}'' \
         'alias orbit='${ORBIT_PATH}'/orbit.sh' \
         '' \
         '# show icon if not runninng headless' \
@@ -141,9 +142,10 @@ setup_conda_env() {
     # needed because deactivate complains about orbit alias since it otherwise doesn't exist
     conda activate ${env_name}
     # remove variables from environment during deactivation
-    printf '%s\n' '#!/bin/bash' '' \
+    printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for orbit' \
         'unalias orbit &>/dev/null' \
+        'unset ORBIT_PATH' \
         '' \
         '# for isaac-sim' \
         'unset CARB_APP_PATH' \
@@ -188,14 +190,15 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install        Install the extensions inside Orbit."
-    echo -e "\t-e, --extra          Install extra dependencies such as the learning frameworks."
+    echo -e "\t-e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
-    echo -e "\t-p, --python         Run the python executable (python.sh) provided by Isaac Sim."
+    echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
+    echo -e "\t-t, --test           Run all python unittest tests."
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
@@ -307,6 +310,14 @@ while [[ $# -gt 0 ]]; do
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
             ${isaacsim_exe} --ext-folder ${ORBIT_PATH}/source/extensions $@
+            # exit neatly
+            break
+            ;;
+        -t|--test)
+            # run the python provided by isaacsim
+            python_exe=$(extract_python_exe)
+            shift # past argument
+            ${python_exe} ${ORBIT_PATH}/tools/run_all_tests.py $@
             # exit neatly
             break
             ;;

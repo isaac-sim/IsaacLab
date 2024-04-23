@@ -1,14 +1,11 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Script to collect demonstrations with Orbit environments."""
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 import argparse
 
@@ -33,20 +30,17 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-
 import contextlib
 import gymnasium as gym
 import os
 import torch
-import traceback
-
-import carb
 
 from omni.isaac.orbit.devices import Se3Keyboard, Se3SpaceMouse
+from omni.isaac.orbit.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.orbit.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.contrib_tasks  # noqa: F401
 import omni.isaac.orbit_tasks  # noqa: F401
+from omni.isaac.orbit_tasks.manipulation.lift import mdp
 from omni.isaac.orbit_tasks.utils.data_collector import RobomimicDataCollector
 from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -68,21 +62,30 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 
 def main():
     """Collect demonstrations from the environment using teleop interfaces."""
+    assert (
+        args_cli.task == "Isaac-Lift-Cube-Franka-IK-Rel-v0"
+    ), "Only 'Isaac-Lift-Cube-Franka-IK-Rel-v0' is supported currently."
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
-    # modify configuration
-    env_cfg.control.control_type = "inverse_kinematics"
-    env_cfg.control.inverse_kinematics.command_type = "pose_rel"
-    env_cfg.terminations.episode_timeout = False
-    env_cfg.terminations.is_success = True
-    env_cfg.observations.return_dict_obs_in_group = True
+
+    # modify configuration such that the environment runs indefinitely
+    # until goal is reached
+    env_cfg.terminations.time_out = None
+    # set the resampling time range to large number to avoid resampling
+    env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
+    # we want to have the terms in the observations returned as a dictionary
+    # rather than a concatenated tensor
+    env_cfg.observations.policy.concatenate_terms = False
+
+    # add termination condition for reaching the goal otherwise the environment won't reset
+    env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
     # create controller
     if args_cli.device.lower() == "keyboard":
-        teleop_interface = Se3Keyboard(pos_sensitivity=0.4, rot_sensitivity=0.8)
+        teleop_interface = Se3Keyboard(pos_sensitivity=0.04, rot_sensitivity=0.08)
     elif args_cli.device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(pos_sensitivity=0.05, rot_sensitivity=0.005)
     else:
@@ -109,9 +112,8 @@ def main():
     )
 
     # reset environment
-    obs_dict = env.reset()
-    # robomimic only cares about policy observations
-    obs = obs_dict["policy"]
+    obs_dict, _ = env.reset()
+
     # reset interfaces
     teleop_interface.reset()
     collector_interface.reset()
@@ -130,37 +132,38 @@ def main():
             #   The observations need to be recollected.
             # store signals before stepping
             # -- obs
-            for key, value in obs.items():
+            for key, value in obs_dict["policy"].items():
                 collector_interface.add(f"obs/{key}", value)
             # -- actions
             collector_interface.add("actions", actions)
+
             # perform action on environment
             obs_dict, rewards, terminated, truncated, info = env.step(actions)
             dones = terminated | truncated
             # check that simulation is stopped or not
             if env.unwrapped.sim.is_stopped():
                 break
+
             # robomimic only cares about policy observations
-            obs = obs_dict["policy"]
             # store signals from the environment
             # -- next_obs
-            for key, value in obs.items():
-                collector_interface.add(f"next_obs/{key}", value.cpu().numpy())
+            for key, value in obs_dict["policy"].items():
+                collector_interface.add(f"next_obs/{key}", value)
             # -- rewards
             collector_interface.add("rewards", rewards)
             # -- dones
             collector_interface.add("dones", dones)
-            # -- is-success label
-            try:
-                collector_interface.add("success", info["is_success"])
-            except KeyError:
-                raise RuntimeError(
-                    "Only goal-conditioned environment supported. No attribute named"
-                    f" 'is_success' found in {list(info.keys())}."
-                )
+
+            # -- is success label
+            collector_interface.add("success", env.termination_manager.get_term("object_reached_goal"))
+
             # flush data from collector for successful environments
             reset_env_ids = dones.nonzero(as_tuple=False).squeeze(-1)
             collector_interface.flush(reset_env_ids)
+
+            # check if enough data is collected
+            if collector_interface.is_stopped():
+                break
 
     # close the simulator
     collector_interface.close()
@@ -168,13 +171,7 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main execution
-        main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

@@ -1,27 +1,22 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from omni.isaac.core.simulation_context import SimulationContext
-from omni.isaac.version import get_version
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.sim.spawners.sensors.sensors import (
@@ -44,8 +39,6 @@ class TestSpawningSensors(unittest.TestCase):
         self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="numpy")
         # Wait for spawning
         stage_utils.update_stage()
-        # obtain isaac sim version
-        self.isaac_sim_version = int(get_version()[2])
 
     def tearDown(self) -> None:
         """Stops simulator after each test."""
@@ -125,12 +118,4 @@ class TestSpawningSensors(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    run_tests()

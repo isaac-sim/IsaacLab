@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,7 +16,7 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
 
         # override rewards
         self.rewards.flat_orientation_l2.weight = -2.5
-        self.rewards.feet_air_time.weight = 1.0
+        self.rewards.feet_air_time.weight = 0.25
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
@@ -38,6 +38,6 @@ class UnitreeA1FlatEnvCfg_PLAY(UnitreeA1FlatEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing
-        self.randomization.base_external_force_torque = None
-        self.randomization.push_robot = None
+        # remove random pushing event
+        self.events.base_external_force_torque = None
+        self.events.push_robot = None

@@ -22,7 +22,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 43-82, 95
+      :emphasize-lines: 40-79, 91-92
       :linenos:
 
 
@@ -33,9 +33,9 @@ Scene designing in Omniverse is built around a software system and file format c
 It allows describing 3D scenes in a hierarchical manner, similar to a file system. Since USD is a comprehensive framework,
 we recommend reading the `USD documentation`_ to learn more about it.
 
-For completion, we introduce the must know concepts of USD in this tutorial.
+For completeness, we introduce the must know concepts of USD in this tutorial.
 
-* **Primitives (Prims)**: These are the basic building block of a USD scene. They can be thought of as nodes in a scene
+* **Primitives (Prims)**: These are the basic building blocks of a USD scene. They can be thought of as nodes in a scene
   graph. Each node can be a mesh, a light, a camera, or a transform. It can also be a group of other prims under it.
 * **Attributes**: These are the properties of a prim. They can be thought of as key-value pairs. For example, a prim can
   have an attribute called ``color`` with a value of ``red``.
@@ -82,14 +82,13 @@ information on the available spawners, please refer to the :mod:`sim.spawners` m
 Spawning a ground plane
 -----------------------
 
-The :class:`sim.spawners.GroundPlaneCfg` configures a grid-like ground plane with modifiable properties such as its
-appearance and size.
+The :class:`~sim.spawners.from_files.GroundPlaneCfg` configures a grid-like ground plane with
+modifiable properties such as its appearance and size.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 45-47
-   :linenos:
-   :lineno-start: 45
+   :start-at: # Ground-plane
+   :end-at: cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
 
 
 Spawning lights
@@ -101,9 +100,8 @@ from the scene and shines in a single direction.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 49-54
-   :linenos:
-   :lineno-start: 49
+   :start-at: # spawn distant light
+   :end-at: cfg_light_distant.func("/World/lightDistant", cfg_light_distant, translation=(1, 0, 10))
 
 
 Spawning primitive shapes
@@ -115,21 +113,19 @@ Here we make an Xform prim to group all the primitive shapes under it.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 56-57
-   :linenos:
-   :lineno-start: 56
+   :start-at: # create a new xform prim for all objects to be spawned under
+   :end-at: prim_utils.create_prim("/World/Objects", "Xform")
 
-
-Next, we spawn a cone using the :class:`sim.spawners.ConeCfg` class. It is possible to specify the radius, height,
-physics properties, and material properties of the cone. By default, the physics and material properties are disabled.
+Next, we spawn a cone using the :class:`~sim.spawners.shapes.ConeCfg` class. It is possible to specify
+the radius, height, physics properties, and material properties of the cone. By default, the physics and material
+properties are disabled.
 
 The first two cones we spawn ``Cone1`` and ``Cone2`` are visual elements and do not have physics enabled.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 58-65
-   :linenos:
-   :lineno-start: 58
+   :start-at: # spawn a red cone
+   :end-at: cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-1.0, -1.0, 1.0))
 
 For the third cone ``ConeRigid``, we add rigid body physics to it by setting the attributes for that in the configuration
 class. Through these attributes, we can specify the mass, friction, and restitution of the cone. If unspecified, they
@@ -137,9 +133,8 @@ default to the default values set by USD Physics.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 67-78
-   :linenos:
-   :lineno-start: 67
+   :start-at: # spawn a green cone with colliders and rigid body
+   :end-before: # spawn a usd file of a table into the scene
 
 
 Spawning from another file
@@ -151,9 +146,8 @@ All of this information is stored in its USD file.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
-   :lines: 80-82
-   :linenos:
-   :lineno-start: 80
+   :start-at: # spawn a usd file of a table into the scene
+   :end-at: cfg.func("/World/Objects/Table", cfg, translation=(0.0, 0.0, 1.05))
 
 The table above is added as a reference to the scene. In layman terms, this means that the table is not actually added
 to the scene, but a ``pointer`` to the table asset is added. This allows us to modify the table asset and have the changes

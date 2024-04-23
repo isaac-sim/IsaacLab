@@ -1,9 +1,9 @@
 Installation Guide
 ===================
 
-.. image:: https://img.shields.io/badge/IsaacSim-2023.1.0--hotfix.1-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: IsaacSim 2023.1.0
+   :alt: IsaacSim 2023.1.1
 
 .. image:: https://img.shields.io/badge/python-3.10-blue.svg
    :target: https://www.python.org/downloads/release/python-31013/
@@ -20,9 +20,8 @@ Installing Isaac Sim
 
 .. caution::
 
-   While the framework contains backwards compatibility for Isaac Sim 2022.2.1, we recommend using
-   the latest Isaac Sim 2023.1.0-hotfix.1 release. This release contains various improvements on the
-   simulation side, and is the recommended version to use with Orbit.
+   We have dropped support for Isaac Sim versions 2023.1.0 and below. We recommend using the latest
+   Isaac Sim 2023.1.1 release.
 
    For more information, please refer to the
    `Isaac Sim release notes <https://docs.omniverse.nvidia.com/isaacsim/latest/release_notes.html>`__.
@@ -38,7 +37,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-	We have tested Orbit with Isaac Sim 2023.1.0 release on Ubuntu
+	We have tested Orbit with Isaac Sim 2023.1.1 release on Ubuntu
 	20.04LTS with NVIDIA driver 525.147.
 
 Configuring the environment variables
@@ -141,7 +140,7 @@ Organizing the workspace
       # Option 1: With SSH
       git clone git@github.com:NVIDIA-Omniverse/orbit.git
       # Option 2: With HTTPS
-      git clone https://github.com/NVIDIA-Omniverse/Orbit.git
+      git clone https://github.com/NVIDIA-Omniverse/orbit.git
 
 -  Set up a symbolic link between the installed Isaac Sim root folder
    and ``_isaac_sim`` in the ``orbit``` directory. This makes it convenient
@@ -162,45 +161,26 @@ utilities to manage extensions:
 
    ./orbit.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-o] [-v] [-d] [-c] -- Utility to manage extensions in Orbit.
+   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit.
 
    optional arguments:
       -h, --help           Display the help content.
-      -i, --install        Install the extensions inside Isaac Orbit.
+      -i, --install        Install the extensions inside Orbit.
       -e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'.
       -f, --format         Run pre-commit to format the code and check lints.
-      -p, --python         Run the python executable (python.sh) provided by Isaac Sim.
+      -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
       -s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim.
+      -t, --test           Run all python unittest tests.
       -o, --docker         Run the docker container helper script (docker/container.sh).
       -v, --vscode         Generate the VSCode settings file from template.
       -d, --docs           Build the documentation from source using sphinx.
       -c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'.
 
-To not restrict running commands only from the top of this repository
-(where the README.md is located), we recommend adding the executable to your environment
-variables in your ``.bashrc`` or ``.zshrc`` file as an alias command. This can be achieved
-running the following on your terminal:
-
-.. code:: bash
-
-   # note: execute the command from where the "orbit.sh" executable exists
-   # option1: for bash users
-   echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.bashrc
-   # option2: for zshell users
-   echo -e "alias orbit=$(pwd)/orbit.sh" >> ${HOME}/.zshrc
-
-After running the above command, don't forget to source your ``.bashrc`` or ``.zshrc`` file:
-
-.. code:: bash
-
-   # option1: for bash users
-   source ${HOME}/.bashrc
-   # option2: for zshell users
-   source ${HOME}/.zshrc
-
-
 Setting up the environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. attention::
+   This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
 
 The executable ``orbit.sh`` automatically fetches the python bundled with Isaac
 Sim, using ``./orbit.sh -p`` command (unless inside a virtual environment). This executable
@@ -274,9 +254,10 @@ top of the repository:
 
    # Option 1: Using the orbit.sh executable
    # note: this works for both the bundled python and the virtual environment
-   ./orbit.sh -p source/standalone/demo/00_sim/empty.py
+   ./orbit.sh -p source/standalone/tutorials/00_sim/create_empty.py
+
    # Option 2: Using python in your virtual environment
-   python source/standalone/demo/00_sim/empty.py
+   python source/standalone/tutorials/00_sim/create_empty.py
 
 The above command should launch the simulator and display a window with a black
 ground plane. You can exit the script by pressing ``Ctrl+C`` on your terminal or

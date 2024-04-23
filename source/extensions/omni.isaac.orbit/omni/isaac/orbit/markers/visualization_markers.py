@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,6 +16,7 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
 """
 
+# needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np

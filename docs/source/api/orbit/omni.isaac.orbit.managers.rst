@@ -17,8 +17,8 @@
     ActionManager
     ActionTerm
     ActionTermCfg
-    RandomizationManager
-    RandomizationTermCfg
+    EventManager
+    EventTermCfg
     CommandManager
     CommandTerm
     CommandTermCfg
@@ -82,8 +82,24 @@ Action Manager
     :members:
     :exclude-members: __init__
 
+Event Manager
+-------------
+
+.. autoclass:: EventManager
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: EventTermCfg
+    :members:
+    :exclude-members: __init__
+
 Randomization Manager
 ---------------------
+
+.. deprecated:: v0.3
+    The Randomization Manager is deprecated and will be removed in v0.4.
+    Please use the :class:`EventManager` class instead.
 
 .. autoclass:: RandomizationManager
     :members:

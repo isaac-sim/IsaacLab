@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,7 @@ This module defines the general configuration of the environment. It includes pa
 configuring the environment instances, viewer settings, and simulation parameters.
 """
 
-from __future__ import annotations
-
-from typing_extensions import Literal
+from typing import Literal
 
 from omni.isaac.orbit.utils import configclass
 
@@ -59,10 +57,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
-
-    .. versionchanged:: 2022.2
-
-        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
     """
 
     max_position_iteration_count: int = 255
@@ -73,10 +67,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_position_iteration_count, max_position_iteration_count]``.
-
-    .. versionchanged:: 2022.2
-
-        In Isaac Sim 2022.2.0, this parameter is used for setting both position and velocity iterations count.
     """
 
     min_velocity_iteration_count: int = 0
@@ -87,10 +77,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-
-    .. versionadded:: 2023.1
-
-        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`min_position_iteration_count`.
     """
 
     max_velocity_iteration_count: int = 255
@@ -101,10 +87,6 @@ class PhysxCfg:
         Each physics actor in Omniverse specifies its own solver iteration count. The solver takes
         the number of iterations specified by the actor with the highest iteration and clamps it to
         the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.
-
-    .. versionadded:: 2023.1
-
-        This parameter is introduced in 2023.1.0. For older versions, please use :obj:`max_position_iteration_count`.
     """
 
     enable_ccd: bool = False
@@ -113,6 +95,14 @@ class PhysxCfg:
 
     enable_stabilization: bool = True
     """Enable/disable additional stabilization pass in solver. Default is True."""
+
+    enable_enhanced_determinism: bool = False
+    """Enable/disable improved determinism at the expense of performance. Defaults to False.
+
+    For more information on PhysX determinism, please check `here`_.
+
+    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/RigidBodyDynamics.html#enhanced-determinism
+    """
 
     bounce_threshold_velocity: float = 0.5
     """Relative velocity threshold for contacts to bounce (in m/s). Default is 0.5 m/s."""
@@ -182,7 +172,10 @@ class SimulationCfg:
     """The number of physics simulation steps per rendering step. Default is 1."""
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)
-    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81)."""
+    """The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81).
+
+    If set to (0.0, 0.0, 0.0), gravity is disabled.
+    """
 
     enable_scene_query_support: bool = False
     """Enable/disable scene query support for collision shapes. Default is False.
@@ -212,18 +205,6 @@ class SimulationCfg:
     Note:
         When enabled, the GUI will not update the physics parameters in real-time. To enable real-time
         updates, please set this flag to :obj:`False`.
-
-    .. versionadded:: 2023.1
-
-        This flag is introduced in 2023.1.0. For older versions, please use :obj:`use_flatcache` instead.
-    """
-
-    use_flatcache: bool = True
-    """Enable/disable reading of physics buffers directly. Default is True.
-
-    .. deprecated:: 2023.1
-
-        This flag is deprecated and will be removed in the future. Please use :obj:`use_fabric` instead.
     """
 
     disable_contact_processing: bool = False
@@ -245,7 +226,7 @@ class SimulationCfg:
     """
 
     device: str = "cuda:0"
-    """The device for running the simulation/environment. Default is "cuda:0"."""
+    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
 
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""

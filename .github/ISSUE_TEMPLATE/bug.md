@@ -45,3 +45,10 @@ Add any other context about the problem here.
 
 - [ ] I have checked that there is no similar issue in the repo (**required**)
 - [ ] I have checked that the issue is not in running Isaac Sim itself and is related to the repo
+
+### Acceptance Criteria
+
+Add the criteria for which this task is considered **done**. If not known at issue creation time, you can add this once the issue is assigned.
+
+- [ ] Criteria 1
+- [ ] Criteria 2

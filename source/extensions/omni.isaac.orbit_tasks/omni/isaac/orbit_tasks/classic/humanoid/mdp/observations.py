@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,10 +13,10 @@ from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from ..humanoid_env import HumanoidEnv
+    from omni.isaac.orbit.envs import BaseEnv
 
 
-def base_yaw_roll(env: HumanoidEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_yaw_roll(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Yaw and roll of the base in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -29,7 +29,7 @@ def base_yaw_roll(env: HumanoidEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     return torch.cat((yaw.unsqueeze(-1), roll.unsqueeze(-1)), dim=-1)
 
 
-def base_up_proj(env: HumanoidEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_up_proj(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Projection of the base up vector onto the world up vector."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
@@ -40,7 +40,7 @@ def base_up_proj(env: HumanoidEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("r
 
 
 def base_heading_proj(
-    env: HumanoidEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: BaseEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Projection of the base forward vector onto the world forward vector."""
     # extract the used quantities (to enable type-hinting)
@@ -58,7 +58,7 @@ def base_heading_proj(
 
 
 def base_angle_to_target(
-    env: HumanoidEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: BaseEnv, target_pos: tuple[float, float, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Angle between the base forward vector and the vector to the target."""
     # extract the used quantities (to enable type-hinting)

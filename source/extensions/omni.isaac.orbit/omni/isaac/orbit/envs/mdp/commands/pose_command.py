@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,13 +8,14 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.assets import Articulation
 from omni.isaac.orbit.managers import CommandTerm
 from omni.isaac.orbit.markers import VisualizationMarkers
 from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
-from omni.isaac.orbit.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz
+from omni.isaac.orbit.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
     from omni.isaac.orbit.envs import BaseEnv
@@ -89,25 +90,6 @@ class UniformPoseCommand(CommandTerm):
     Implementation specific functions.
     """
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        # sample new pose targets
-        # -- position
-        r = torch.empty(len(env_ids), device=self.device)
-        self.pose_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.pos_x)
-        self.pose_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.pos_y)
-        self.pose_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.pos_z)
-        # -- orientation
-        euler_angles = torch.zeros_like(self.pose_command_b[env_ids, :3])
-        euler_angles[:, 0].uniform_(*self.cfg.ranges.roll)
-        euler_angles[:, 1].uniform_(*self.cfg.ranges.pitch)
-        euler_angles[:, 2].uniform_(*self.cfg.ranges.yaw)
-        self.pose_command_b[env_ids, 3:] = quat_from_euler_xyz(
-            euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2]
-        )
-
-    def _update_command(self):
-        pass
-
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
@@ -125,6 +107,25 @@ class UniformPoseCommand(CommandTerm):
         )
         self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+
+    def _resample_command(self, env_ids: Sequence[int]):
+        # sample new pose targets
+        # -- position
+        r = torch.empty(len(env_ids), device=self.device)
+        self.pose_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.pos_x)
+        self.pose_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.pos_y)
+        self.pose_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.pos_z)
+        # -- orientation
+        euler_angles = torch.zeros_like(self.pose_command_b[env_ids, :3])
+        euler_angles[:, 0].uniform_(*self.cfg.ranges.roll)
+        euler_angles[:, 1].uniform_(*self.cfg.ranges.pitch)
+        euler_angles[:, 2].uniform_(*self.cfg.ranges.yaw)
+        quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
+        # make sure the quaternion has real part as positive
+        self.pose_command_b[env_ids, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
+
+    def _update_command(self):
+        pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # create markers if necessary for the first tome

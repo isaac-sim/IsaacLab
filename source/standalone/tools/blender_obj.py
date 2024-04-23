@@ -1,6 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,8 +18,6 @@ For more information: https://docs.blender.org/api/current/index.html
 
 The script was tested on Blender 3.2 on Ubuntu 20.04LTS.
 """
-
-from __future__ import annotations
 
 import bpy
 import os

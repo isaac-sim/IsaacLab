@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,14 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True)
+app_launcher = AppLauncher(headless=True, offscreen_render=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -24,15 +22,12 @@ import os
 import random
 import scipy.spatial.transform as tf
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.replicator.core as rep
 from omni.isaac.core.prims import GeometryPrim, RigidPrim
-from omni.isaac.core.simulation_context import SimulationContext
 from pxr import Gf, Usd, UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
@@ -62,14 +57,14 @@ class TestCamera(unittest.TestCase):
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            colorize=False,
         )
         # Create a new stage
         stage_utils.create_new_stage()
         # Simulation time-step
         self.dt = 0.01
         # Load kit helper
-        self.sim = SimulationContext(physics_dt=self.dt, rendering_dt=self.dt, backend="torch", device="cpu")
+        sim_cfg = sim_utils.SimulationCfg(dt=self.dt)
+        self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
         # populate scene
         self._populate_scene()
         # load stage
@@ -83,7 +78,6 @@ class TestCamera(unittest.TestCase):
         # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
         self.sim._timeline.stop()
         # clear the stage
-        self.sim.clear()
         self.sim.clear_all_callbacks()
         self.sim.clear_instance()
 
@@ -95,26 +89,31 @@ class TestCamera(unittest.TestCase):
         """Test camera initialization."""
         # Create camera
         camera = Camera(self.camera_cfg)
+        # Check simulation parameter is set correctly
+        self.assertTrue(self.sim.has_rtx_sensors())
         # Play sim
         self.sim.reset()
         # Check if camera is initialized
         self.assertTrue(camera._is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
-        self.assertTrue(camera._sensor_prims[0].GetPath().pathString == self.camera_cfg.prim_path)
-        self.assertTrue(isinstance(camera._sensor_prims[0], UsdGeom.Camera))
+        self.assertEqual(camera._sensor_prims[0].GetPath().pathString, self.camera_cfg.prim_path)
+        self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
         for _ in range(5):
             self.sim.step()
+
         # Check buffers that exists and have correct shapes
-        self.assertTrue(camera.data.pos_w.shape == (1, 3))
-        self.assertTrue(camera.data.quat_w_ros.shape == (1, 4))
-        self.assertTrue(camera.data.quat_w_world.shape == (1, 4))
-        self.assertTrue(camera.data.quat_w_opengl.shape == (1, 4))
-        self.assertTrue(camera.data.intrinsic_matrices.shape == (1, 3, 3))
-        self.assertTrue(camera.data.image_shape == (self.camera_cfg.height, self.camera_cfg.width))
-        self.assertTrue(camera.data.info == [{self.camera_cfg.data_types[0]: None}])
+        self.assertEqual(camera.data.pos_w.shape, (1, 3))
+        self.assertEqual(camera.data.quat_w_ros.shape, (1, 4))
+        self.assertEqual(camera.data.quat_w_world.shape, (1, 4))
+        self.assertEqual(camera.data.quat_w_opengl.shape, (1, 4))
+        self.assertEqual(camera.data.intrinsic_matrices.shape, (1, 3, 3))
+        self.assertEqual(camera.data.image_shape, (self.camera_cfg.height, self.camera_cfg.width))
+        self.assertEqual(camera.data.info, [{self.camera_cfg.data_types[0]: None}])
+
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -123,23 +122,7 @@ class TestCamera(unittest.TestCase):
             camera.update(self.dt)
             # check image data
             for im_data in camera.data.output.to_dict().values():
-                self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
-
-    def test_camera_resolution(self):
-        """Test camera resolution is correctly set."""
-        # Create camera
-        camera = Camera(self.camera_cfg)
-        # Play sim
-        self.sim.reset()
-        # Simulate for a few steps
-        # note: This is a workaround to ensure that the textures are loaded.
-        #   Check "Known Issues" section in the documentation for more details.
-        for _ in range(5):
-            self.sim.step()
-        camera.update(self.dt)
-        # access image data and compare shapes
-        for im_data in camera.data.output.to_dict().values():
-            self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
+                self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
     def test_camera_init_offset(self):
         """Test camera initialization with offset using different conventions."""
@@ -175,11 +158,11 @@ class TestCamera(unittest.TestCase):
         # play sim
         self.sim.reset()
 
-        # retrieve camera pose
+        # retrieve camera pose using USD API
         prim_tf_ros = camera_ros._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         prim_tf_opengl = camera_opengl._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         prim_tf_world = camera_world._sensor_prims[0].ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-
+        # convert them from column-major to row-major
         prim_tf_ros = np.transpose(prim_tf_ros)
         prim_tf_opengl = np.transpose(prim_tf_opengl)
         prim_tf_world = np.transpose(prim_tf_world)
@@ -204,11 +187,17 @@ class TestCamera(unittest.TestCase):
             rtol=1e-5,
         )
 
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
         # check if transform correctly set in output
-        np.testing.assert_allclose(camera_ros.data.pos_w[0], cam_cfg_offset_ros.offset.pos, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_ros[0], QUAT_ROS, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0], QUAT_OPENGL, rtol=1e-5)
-        np.testing.assert_allclose(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
+        np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
@@ -224,6 +213,7 @@ class TestCamera(unittest.TestCase):
 
         # play sim
         self.sim.reset()
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -239,27 +229,52 @@ class TestCamera(unittest.TestCase):
             # check image data
             for cam in [cam_1, cam_2]:
                 for im_data in cam.data.output.to_dict().values():
-                    self.assertTrue(im_data.shape == (1, self.camera_cfg.height, self.camera_cfg.width))
+                    self.assertEqual(im_data.shape, (1, self.camera_cfg.height, self.camera_cfg.width))
 
     def test_camera_set_world_poses(self):
         """Test camera function to set specific world pose."""
         camera = Camera(self.camera_cfg)
         # play sim
         self.sim.reset()
+
+        # convert to torch tensors
+        position = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        orientation = torch.tensor([QUAT_WORLD], dtype=torch.float32, device=camera.device)
         # set new pose
-        camera.set_world_poses(torch.tensor([POSITION]), torch.tensor([QUAT_WORLD]), convention="world")
-        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
-        np.testing.assert_allclose(camera.data.quat_w_world, [QUAT_WORLD], rtol=1e-5)
+        camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(camera.data.pos_w, position)
+        torch.testing.assert_close(camera.data.quat_w_world, orientation)
 
     def test_camera_set_world_poses_from_view(self):
         """Test camera function to set specific world pose from view."""
         camera = Camera(self.camera_cfg)
         # play sim
         self.sim.reset()
+
+        # convert to torch tensors
+        eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
         # set new pose
-        camera.set_world_poses_from_view(torch.tensor([POSITION]), torch.tensor([[0.0, 0.0, 0.0]]))
-        np.testing.assert_allclose(camera.data.pos_w, [POSITION], rtol=1e-5)
-        np.testing.assert_allclose(camera.data.quat_w_ros, [QUAT_ROS], rtol=1e-5)
+        camera.set_world_poses_from_view(eyes.clone(), targets.clone())
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+
+        # check if transform correctly set in output
+        torch.testing.assert_close(camera.data.pos_w, eyes)
+        torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
 
     def test_intrinsic_matrix(self):
         """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
@@ -271,14 +286,16 @@ class TestCamera(unittest.TestCase):
         self.sim.reset()
         # Desired properties (obtained from realsense camera at 320x240 resolution)
         rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
-        rs_intrinsic_matrix = np.array(rs_intrinsic_matrix).reshape(3, 3)
+        rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
         # Set matrix into simulator
-        camera.set_intrinsic_matrices([rs_intrinsic_matrix])
+        camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
         for _ in range(5):
             self.sim.step()
+
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -286,12 +303,108 @@ class TestCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # Check that matrix is correct
-            K = camera.data.intrinsic_matrices[0].numpy()
             # TODO: This is not correctly setting all values in the matrix since the
             #       vertical aperture and aperture offsets are not being set correctly
             #       This is a bug in the simulator.
-            self.assertAlmostEqual(rs_intrinsic_matrix[0, 0], K[0, 0], 4)
-            # self.assertAlmostEqual(rs_intrinsic_matrix[1, 1], K[1, 1], 4)
+            torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
+            # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+
+    def test_camera_resolution_all_colorize(self):
+        """Test camera resolution is correctly set for all types with colorization enabled."""
+        # Add all types
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.data_types = [
+            "rgb",
+            "distance_to_image_plane",
+            "normals",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+        camera_cfg.colorize_instance_id_segmentation = True
+        camera_cfg.colorize_instance_segmentation = True
+        camera_cfg.colorize_semantic_segmentation = True
+        # Create camera
+        camera = Camera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(5):
+            self.sim.step()
+        camera.update(self.dt)
+
+        # expected sizes
+        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+        hw_1c_shape = (1, camera_cfg.height, camera_cfg.width)
+        # access image data and compare shapes
+        output = camera.data.output
+        self.assertEqual(output["rgb"].shape, hw_3c_shape)
+        self.assertEqual(output["distance_to_image_plane"].shape, hw_1c_shape)
+        self.assertEqual(output["normals"].shape, hw_3c_shape)
+        self.assertEqual(output["semantic_segmentation"].shape, hw_3c_shape)
+        self.assertEqual(output["instance_segmentation_fast"].shape, hw_3c_shape)
+        self.assertEqual(output["instance_id_segmentation_fast"].shape, hw_3c_shape)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.uint8)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.uint8)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.uint8)
+
+    def test_camera_resolution_no_colorize(self):
+        """Test camera resolution is correctly set for all types with no colorization enabled."""
+        # Add all types
+        camera_cfg = copy.deepcopy(self.camera_cfg)
+        camera_cfg.data_types = [
+            "rgb",
+            "distance_to_image_plane",
+            "normals",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        ]
+        camera_cfg.colorize_instance_id_segmentation = False
+        camera_cfg.colorize_instance_segmentation = False
+        camera_cfg.colorize_semantic_segmentation = False
+        # Create camera
+        camera = Camera(camera_cfg)
+
+        # Play sim
+        self.sim.reset()
+        # Simulate for a few steps
+        # note: This is a workaround to ensure that the textures are loaded.
+        #   Check "Known Issues" section in the documentation for more details.
+        for _ in range(12):
+            self.sim.step()
+        camera.update(self.dt)
+
+        # expected sizes
+        hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
+        hw_1c_shape = (1, camera_cfg.height, camera_cfg.width)
+        # access image data and compare shapes
+        output = camera.data.output
+        self.assertEqual(output["rgb"].shape, hw_3c_shape)
+        self.assertEqual(output["distance_to_image_plane"].shape, hw_1c_shape)
+        self.assertEqual(output["normals"].shape, hw_3c_shape)
+        self.assertEqual(output["semantic_segmentation"].shape, hw_1c_shape)
+        self.assertEqual(output["instance_segmentation_fast"].shape, hw_1c_shape)
+        self.assertEqual(output["instance_id_segmentation_fast"].shape, hw_1c_shape)
+
+        # access image data and compare dtype
+        output = camera.data.output
+        self.assertEqual(output["rgb"].dtype, torch.uint8)
+        self.assertEqual(output["distance_to_image_plane"].dtype, torch.float)
+        self.assertEqual(output["normals"].dtype, torch.float)
+        self.assertEqual(output["semantic_segmentation"].dtype, torch.int32)
+        self.assertEqual(output["instance_segmentation_fast"].dtype, torch.int32)
+        self.assertEqual(output["instance_id_segmentation_fast"].dtype, torch.int32)
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
@@ -306,10 +419,15 @@ class TestCamera(unittest.TestCase):
         camera_cfg.height = 480
         camera_cfg.width = 640
         camera = Camera(camera_cfg)
+
         # Play simulator
         self.sim.reset()
+
         # Set camera pose
-        camera.set_world_poses_from_view(torch.tensor([[2.5, 2.5, 2.5]]), torch.tensor([[0.0, 0.0, 0.0]]))
+        eyes = torch.tensor([[2.5, 2.5, 2.5]], dtype=torch.float32, device=camera.device)
+        targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes, targets)
+
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
@@ -338,7 +456,7 @@ class TestCamera(unittest.TestCase):
             print("----------------------------------------")
             # Check image data
             for im_data in camera.data.output.values():
-                self.assertTrue(im_data.shape == (1, camera_cfg.height, camera_cfg.width))
+                self.assertEqual(im_data.shape, (1, camera_cfg.height, camera_cfg.width))
 
     """
     Helper functions.
@@ -356,7 +474,7 @@ class TestCamera(unittest.TestCase):
         cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
         # Random objects
         random.seed(0)
-        for i in range(8):
+        for i in range(10):
             # sample random position
             position = np.random.rand(3) - np.asarray([0.05, 0.05, -1.0])
             position *= np.asarray([1.5, 1.5, 0.5])
@@ -381,12 +499,4 @@ class TestCamera(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    run_tests()

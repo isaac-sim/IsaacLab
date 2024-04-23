@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -29,7 +29,6 @@ positional arguments:
 
 optional arguments:
   -h, --help                    Show this help message and exit
-  --headless                    Force display off at all times. (default: False)
   --make-instanceable,          Make the asset instanceable for efficient cloning. (default: False)
   --collision-approximation     The method used for approximating collision mesh. Defaults to convexDecomposition.
                                 Set to \"none\" to not add a collision mesh to the converted mesh. (default: convexDecomposition)
@@ -41,7 +40,6 @@ optional arguments:
 
 
 import argparse
-import contextlib
 
 from omni.isaac.orbit.app import AppLauncher
 
@@ -49,7 +47,6 @@ from omni.isaac.orbit.app import AppLauncher
 parser = argparse.ArgumentParser(description="Utility to convert a mesh file into USD format.")
 parser.add_argument("input", type=str, help="The path to the input mesh file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument(
     "--make-instanceable",
     action="store_true",
@@ -72,16 +69,21 @@ parser.add_argument(
     default=None,
     help="The mass (in kg) to assign to the converted asset. If not provided, then no mass is added.",
 )
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=args_cli.headless).app
-
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import contextlib
 import os
 
+import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
 
@@ -149,28 +151,29 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
+    # Determine if there is a GUI to update:
+    # acquire settings interface
+    carb_settings_iface = carb.settings.get_settings()
+    # read flag for whether a local GUI is enabled
+    local_gui = carb_settings_iface.get("/app/window/enabled")
+    # read flag for whether livestreaming GUI is enabled
+    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+
     # Simulate scene (if not headless)
-    if not args_cli.headless:
+    if local_gui or livestream_gui:
         # Open the stage with USD
         stage_utils.open_stage(mesh_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation
         with contextlib.suppress(KeyboardInterrupt):
-            while True:
+            while app.is_running():
                 # perform step
                 app.update()
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        import traceback
-
-        import carb
-
-        carb.log_error(traceback.format_exc())
-        carb.log_error(e)
-    finally:
-        simulation_app.close()
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()

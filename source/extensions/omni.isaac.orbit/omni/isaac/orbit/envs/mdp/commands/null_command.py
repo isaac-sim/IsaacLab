@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from omni.isaac.orbit.managers import CommandTerm
 
@@ -58,11 +59,11 @@ class NullCommand(CommandTerm):
     Implementation specific functions.
     """
 
+    def _update_metrics(self):
+        pass
+
     def _resample_command(self, env_ids: Sequence[int]):
         pass
 
     def _update_command(self):
-        pass
-
-    def _update_metrics(self):
         pass

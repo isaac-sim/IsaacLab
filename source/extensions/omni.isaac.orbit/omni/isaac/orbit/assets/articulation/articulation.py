@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,8 +9,10 @@
 from __future__ import annotations
 
 import torch
+import warnings
+from collections.abc import Sequence
 from prettytable import PrettyTable
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
@@ -49,8 +51,7 @@ class Articulation(RigidObject):
     The articulation class is a subclass of the :class:`RigidObject` class. Therefore, it inherits
     all the functionality of the rigid object class. In case of an articulation, the :attr:`root_physx_view`
     attribute corresponds to the articulation root view and can be used to access the articulation
-    related data. The :attr:`body_physx_view` attribute corresponds to the rigid body view of the articulated
-    links and can be used to access the rigid body related data.
+    related data.
 
     The articulation class also provides the functionality to augment the simulation of an articulated
     system with custom actuator models. These models can either be explicit or implicit, as detailed in
@@ -114,12 +115,17 @@ class Articulation(RigidObject):
     @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
-        return self.root_physx_view.max_dofs
+        return self.root_physx_view.shared_metatype.dof_count
+
+    @property
+    def num_fixed_tendons(self) -> int:
+        """Number of fixed tendons in articulation."""
+        return self.root_physx_view.max_fixed_tendons
 
     @property
     def num_bodies(self) -> int:
         """Number of bodies in articulation."""
-        return self.root_physx_view.max_links
+        return self.root_physx_view.shared_metatype.link_count
 
     @property
     def joint_names(self) -> list[str]:
@@ -127,11 +133,36 @@ class Articulation(RigidObject):
         return self.root_physx_view.shared_metatype.dof_names
 
     @property
+    def body_names(self) -> list[str]:
+        """Ordered names of bodies in articulation."""
+        return self.root_physx_view.shared_metatype.link_names
+
+    @property
     def root_physx_view(self) -> physx.ArticulationView:
+        """Articulation view for the asset (PhysX).
+
+        Note:
+            Use this view with caution. It requires handling of tensors in a specific way.
+        """
         return self._root_physx_view
 
     @property
     def body_physx_view(self) -> physx.RigidBodyView:
+        """Rigid body view for the asset (PhysX).
+
+        .. deprecated:: v0.3.0
+
+            In previous versions, this attribute returned the rigid body view over all the links of the articulation.
+            However, this led to confusion with the link ordering as they were not ordered in the same way as the
+            articulation view.
+
+            Therefore, this attribute will be removed in v0.4.0. Please use the :attr:`root_physx_view` attribute
+            instead.
+
+        """
+        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
+        warnings.warn(dep_msg, DeprecationWarning)
+        carb.log_error(dep_msg)
         return self._body_physx_view
 
     """
@@ -153,33 +184,51 @@ class Articulation(RigidObject):
         If any explicit actuators are present, then the actuator models are used to compute the
         joint commands. Otherwise, the joint commands are directly set into the simulation.
         """
-        super().write_data_to_sim()
-        # write commands
+        # write external wrench
+        if self.has_external_wrench:
+            # apply external forces and torques
+            self._body_physx_view.apply_forces_and_torques_at_position(
+                force_data=self._external_force_body_view_b.view(-1, 3),
+                torque_data=self._external_torque_body_view_b.view(-1, 3),
+                position_data=None,
+                indices=self._ALL_BODY_INDICES,
+                is_global=False,
+            )
+
+        # apply actuator models
         self._apply_actuator_model()
-        # apply actions into simulation
+        # write actions into simulation
         self.root_physx_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
             self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
-    def update(self, dt: float | None = None):
+    def update(self, dt: float):
         # -- root state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
         self._data.root_state_w[:, :7] = self.root_physx_view.get_root_transforms()
         self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
         self._data.root_state_w[:, 7:] = self.root_physx_view.get_root_velocities()
+
+        # -- body-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
+        self._data.body_state_w[..., :7] = self.root_physx_view.get_link_transforms()
+        self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
+        self._data.body_state_w[..., 7:] = self.root_physx_view.get_link_velocities()
+
         # -- joint states
         self._data.joint_pos[:] = self.root_physx_view.get_dof_positions()
         self._data.joint_vel[:] = self.root_physx_view.get_dof_velocities()
         self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
+
         # -- update common data
         # note: these are computed in the base class
         self._update_common_data(dt)
+
         # -- update history buffers
         self._previous_joint_vel[:] = self._data.joint_vel[:]
 
     def find_joints(
-        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None
+        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
 
@@ -190,6 +239,7 @@ class Articulation(RigidObject):
             name_keys: A regular expression or a list of regular expressions to match the joint names.
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the joint indices and names.
@@ -197,7 +247,25 @@ class Articulation(RigidObject):
         if joint_subset is None:
             joint_subset = self.joint_names
         # find joints
-        return string_utils.resolve_matching_names(name_keys, joint_subset)
+        return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
+
+    """
+    Operations - Setters.
+    """
+
+    def set_external_force_and_torque(
+        self,
+        forces: torch.Tensor,
+        torques: torch.Tensor,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        # call parent to set the external forces and torques into buffers
+        super().set_external_force_and_torque(forces, torques, body_ids, env_ids)
+        # reordering of the external forces and torques to match the body view ordering
+        if self.has_external_wrench:
+            self._external_force_body_view_b = self._external_force_b[:, self._body_view_ordering]
+            self._external_torque_body_view_b = self._external_torque_b[:, self._body_view_ordering]
 
     """
     Operations - Writers.
@@ -234,8 +302,8 @@ class Articulation(RigidObject):
         self,
         position: torch.Tensor,
         velocity: torch.Tensor,
-        joint_ids: Sequence[int] | None = None,
-        env_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | slice | None = None,
     ):
         """Write joint positions and velocities to the simulation.
 
@@ -264,7 +332,7 @@ class Articulation(RigidObject):
     def write_joint_stiffness_to_sim(
         self,
         stiffness: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint stiffness into the simulation.
@@ -290,7 +358,7 @@ class Articulation(RigidObject):
     def write_joint_damping_to_sim(
         self,
         damping: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint damping into the simulation.
@@ -318,7 +386,7 @@ class Articulation(RigidObject):
     def write_joint_effort_limit_to_sim(
         self,
         limits: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint effort limits into the simulation.
@@ -348,7 +416,7 @@ class Articulation(RigidObject):
     def write_joint_armature_to_sim(
         self,
         armature: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint armature into the simulation.
@@ -373,7 +441,7 @@ class Articulation(RigidObject):
     def write_joint_friction_to_sim(
         self,
         joint_friction: torch.Tensor | float,
-        joint_ids: Sequence[int] | None = None,
+        joint_ids: Sequence[int] | slice | None = None,
         env_ids: Sequence[int] | None = None,
     ):
         """Write joint friction into the simulation.
@@ -400,7 +468,7 @@ class Articulation(RigidObject):
     """
 
     def set_joint_position_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint position targets into internal buffers.
 
@@ -422,7 +490,7 @@ class Articulation(RigidObject):
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
     def set_joint_velocity_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint velocity targets into internal buffers.
 
@@ -444,7 +512,7 @@ class Articulation(RigidObject):
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
     def set_joint_effort_target(
-        self, target: torch.Tensor, joint_ids: Sequence[int] | None = None, env_ids: Sequence[int] | None = None
+        self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
     ):
         """Set joint efforts into internal buffers.
 
@@ -478,15 +546,23 @@ class Articulation(RigidObject):
         if template_prim is None:
             raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
         template_prim_path = template_prim.GetPath().pathString
+
         # find articulation root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
         )
-        if len(root_prims) != 1:
+        if len(root_prims) == 0:
             raise RuntimeError(
-                f"Failed to find a single articulation root when resolving '{self.cfg.prim_path}'."
-                f" Found roots '{root_prims}' under '{template_prim_path}'."
+                f"Failed to find an articulation when resolving '{self.cfg.prim_path}'."
+                " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
             )
+        if len(root_prims) > 1:
+            raise RuntimeError(
+                f"Failed to find a single articulation when resolving '{self.cfg.prim_path}'."
+                f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one articulation in the prim path tree."
+            )
+
         # resolve articulation root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
@@ -500,6 +576,17 @@ class Articulation(RigidObject):
         body_names_regex = f"{self.cfg.prim_path}/{body_names_regex}"
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex.replace(".*", "*"))
 
+        # create ordering from articulation view to body view for body names
+        # note: we need to do this since the body view is not ordered in the same way as the articulation view
+        # -- root view
+        root_view_body_names = self.body_names
+        # -- body view
+        prim_paths = self._body_physx_view.prim_paths[: self.num_bodies]
+        body_view_body_names = [path.split("/")[-1] for path in prim_paths]
+        # -- mapping from articulation view to body view
+        self._body_view_ordering = [body_view_body_names.index(name) for name in root_view_body_names]
+        self._body_view_ordering = torch.tensor(self._body_view_ordering, dtype=torch.long, device=self.device)
+
         # log information about the articulation
         carb.log_info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Is fixed root: {self.is_fixed_base}")
@@ -507,14 +594,18 @@ class Articulation(RigidObject):
         carb.log_info(f"Body names: {self.body_names}")
         carb.log_info(f"Number of joints: {self.num_joints}")
         carb.log_info(f"Joint names: {self.joint_names}")
+        carb.log_info(f"Number of fixed tendons: {self.num_fixed_tendons}")
         # -- assert that parsing was successful
         if set(physx_body_names) != set(self.body_names):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
+
         # create buffers
         self._create_buffers()
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
+        # validate configuration
+        self._validate_cfg()
         # log joint information
         self._log_articulation_joint_info()
 
@@ -649,7 +740,7 @@ class Articulation(RigidObject):
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
-        if total_act_joints != self.num_joints:
+        if total_act_joints != (self.num_joints - self.num_fixed_tendons):
             carb.log_warn(
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
                 f" joints available: {total_act_joints} != {self.num_joints}."
@@ -685,38 +776,72 @@ class Articulation(RigidObject):
             if control_action.joint_efforts is not None:
                 self._joint_effort_target_sim[:, actuator.joint_indices] = control_action.joint_efforts
             # update state of the actuator model
-            if isinstance(actuator, ImplicitActuator):
-                # TODO read torque from simulation (#127)
-                pass
-                # self._data.computed_torques[:, actuator.joint_indices] = ???
-                # self._data.applied_torques[:, actuator.joint_indices] = ???
-            else:
-                # -- torques
-                self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
-                self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
-                # -- actuator data
-                self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
-                # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
-                if hasattr(actuator, "gear_ratio"):
-                    self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
+            # -- torques
+            self._data.computed_torque[:, actuator.joint_indices] = actuator.computed_effort
+            self._data.applied_torque[:, actuator.joint_indices] = actuator.applied_effort
+            # -- actuator data
+            self._data.soft_joint_vel_limits[:, actuator.joint_indices] = actuator.velocity_limit
+            # TODO: find a cleaner way to handle gear ratio. Only needed for variable gear ratio actuators.
+            if hasattr(actuator, "gear_ratio"):
+                self._data.gear_ratio[:, actuator.joint_indices] = actuator.gear_ratio
 
     """
     Internal helpers -- Debugging.
     """
 
+    def _validate_cfg(self):
+        """Validate the configuration after processing.
+
+        Note:
+            This function should be called only after the configuration has been processed and the buffers have been
+            created. Otherwise, some settings that are altered during processing may not be validated.
+            For instance, the actuator models may change the joint max velocity limits.
+        """
+        # check that the default values are within the limits
+        joint_pos_limits = self.root_physx_view.get_dof_limits()[0].to(self.device)
+        out_of_range = self._data.default_joint_pos[0] < joint_pos_limits[:, 0]
+        out_of_range |= self._data.default_joint_pos[0] > joint_pos_limits[:, 1]
+        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
+        # throw error if any of the default joint positions are out of the limits
+        if len(violated_indices) > 0:
+            # prepare message for violated joints
+            msg = "The following joints have default positions out of the limits: \n"
+            for idx in violated_indices:
+                joint_name = self.data.joint_names[idx]
+                joint_limits = joint_pos_limits[idx]
+                joint_pos = self.data.default_joint_pos[0, idx]
+                # add to message
+                msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+            raise ValueError(msg)
+
+        # check that the default joint velocities are within the limits
+        joint_max_vel = self.root_physx_view.get_dof_max_velocities()[0].to(self.device)
+        out_of_range = torch.abs(self._data.default_joint_vel[0]) > joint_max_vel
+        violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
+        if len(violated_indices) > 0:
+            # prepare message for violated joints
+            msg = "The following joints have default velocities out of the limits: \n"
+            for idx in violated_indices:
+                joint_name = self.data.joint_names[idx]
+                joint_limits = [-joint_max_vel[idx], joint_max_vel[idx]]
+                joint_vel = self.data.default_joint_vel[0, idx]
+                # add to message
+                msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limits[0]:.3f}, {joint_limits[1]:.3f}]\n"
+            raise ValueError(msg)
+
     def _log_articulation_joint_info(self):
         """Log information about the articulation's simulated joints."""
         # read out all joint parameters from simulation
         # -- gains
-        stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].squeeze(0).tolist()
-        dampings = self.root_physx_view.get_dof_dampings()[0].squeeze(0).tolist()
+        stiffnesses = self.root_physx_view.get_dof_stiffnesses()[0].tolist()
+        dampings = self.root_physx_view.get_dof_dampings()[0].tolist()
         # -- properties
-        armatures = self.root_physx_view.get_dof_armatures()[0].squeeze(0).tolist()
-        frictions = self.root_physx_view.get_dof_friction_coefficients()[0].squeeze(0).tolist()
+        armatures = self.root_physx_view.get_dof_armatures()[0].tolist()
+        frictions = self.root_physx_view.get_dof_friction_coefficients()[0].tolist()
         # -- limits
-        position_limits = self.root_physx_view.get_dof_limits()[0].squeeze(0).tolist()
-        velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].squeeze(0).tolist()
-        effort_limits = self.root_physx_view.get_dof_max_forces()[0].squeeze(0).tolist()
+        position_limits = self.root_physx_view.get_dof_limits()[0].tolist()
+        velocity_limits = self.root_physx_view.get_dof_max_velocities()[0].tolist()
+        effort_limits = self.root_physx_view.get_dof_max_forces()[0].tolist()
         # create table for term information
         table = PrettyTable(float_format=".3f")
         table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -735,18 +860,52 @@ class Articulation(RigidObject):
         table.align["Name"] = "l"
         # add info on each term
         for index, name in enumerate(self.joint_names):
-            table.add_row(
-                [
-                    index,
-                    name,
-                    stiffnesses[index],
-                    dampings[index],
-                    armatures[index],
-                    frictions[index],
-                    position_limits[index],
-                    velocity_limits[index],
-                    effort_limits[index],
-                ]
-            )
+            table.add_row([
+                index,
+                name,
+                stiffnesses[index],
+                dampings[index],
+                armatures[index],
+                frictions[index],
+                position_limits[index],
+                velocity_limits[index],
+                effort_limits[index],
+            ])
         # convert table to string
         carb.log_info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + table.get_string())
+
+        # read out all tendon parameters from simulation
+        if self.num_fixed_tendons > 0:
+            # -- gains
+            ft_stiffnesses = self.root_physx_view.get_fixed_tendon_stiffnesses()[0].tolist()
+            ft_dampings = self.root_physx_view.get_fixed_tendon_dampings()[0].tolist()
+            # -- limits
+            ft_limit_stiffnesses = self.root_physx_view.get_fixed_tendon_limit_stiffnesses()[0].tolist()
+            ft_limits = self.root_physx_view.get_fixed_tendon_limits()[0].tolist()
+            ft_rest_lengths = self.root_physx_view.get_fixed_tendon_rest_lengths()[0].tolist()
+            ft_offsets = self.root_physx_view.get_fixed_tendon_offsets()[0].tolist()
+            # create table for term information
+            tendon_table = PrettyTable(float_format=".3f")
+            tendon_table.title = f"Simulation Tendon Information (Prim path: {self.cfg.prim_path})"
+            tendon_table.field_names = [
+                "Index",
+                "Stiffness",
+                "Damping",
+                "Limit Stiffness",
+                "Limit",
+                "Rest Length",
+                "Offset",
+            ]
+            # add info on each term
+            for index in range(self.num_fixed_tendons):
+                tendon_table.add_row([
+                    index,
+                    ft_stiffnesses[index],
+                    ft_dampings[index],
+                    ft_limit_stiffnesses[index],
+                    ft_limits[index],
+                    ft_rest_lengths[index],
+                    ft_offsets[index],
+                ])
+            # convert table to string
+            carb.log_info(f"Simulation parameters for tendons in {self.cfg.prim_path}:\n" + tendon_table.get_string())

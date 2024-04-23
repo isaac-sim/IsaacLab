@@ -1,9 +1,7 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from __future__ import annotations
 
 from dataclasses import MISSING
 
@@ -11,7 +9,7 @@ from omni.isaac.orbit.controllers import DifferentialIKControllerCfg
 from omni.isaac.orbit.managers.action_manager import ActionTerm, ActionTermCfg
 from omni.isaac.orbit.utils import configclass
 
-from . import binary_joint_actions, joint_actions, non_holonomic_actions, task_space_actions
+from . import binary_joint_actions, joint_actions, joint_actions_to_limits, non_holonomic_actions, task_space_actions
 
 ##
 # Joint actions.
@@ -46,7 +44,24 @@ class JointPositionActionCfg(JointActionCfg):
     """Whether to use default joint positions configured in the articulation asset as offset.
     Defaults to True.
 
-    This overrides the settings from :attr:`offset` if set to True.
+    If True, this flag results in overwriting the values of :attr:`offset` to the default joint positions
+    from the articulation asset.
+    """
+
+
+@configclass
+class RelativeJointPositionActionCfg(JointActionCfg):
+    """Configuration for the relative joint position action term.
+
+    See :class:`RelativeJointPositionAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions.RelativeJointPositionAction
+
+    use_zero_offset: bool = True
+    """Whether to ignore the offset defined in articulation asset. Defaults to True.
+
+    If True, this flag results in overwriting the values of :attr:`offset` to zero.
     """
 
 
@@ -75,6 +90,53 @@ class JointEffortActionCfg(JointActionCfg):
     """
 
     class_type: type[ActionTerm] = joint_actions.JointEffortAction
+
+
+##
+# Joint actions rescaled to limits.
+##
+
+
+@configclass
+class JointPositionToLimitsActionCfg(ActionTermCfg):
+    """Configuration for the bounded joint position action term.
+
+    See :class:`JointPositionWithinLimitsAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions_to_limits.JointPositionToLimitsAction
+
+    joint_names: list[str] = MISSING
+    """List of joint names or regex expressions that the action will be mapped to."""
+
+    scale: float | dict[str, float] = 1.0
+    """Scale factor for the action (float or dict of regex expressions). Defaults to 1.0."""
+
+    rescale_to_limits: bool = True
+    """Whether to rescale the action to the joint limits. Defaults to True.
+
+    If True, the input actions are rescaled to the joint limits, i.e., the action value in
+    the range [-1, 1] corresponds to the joint lower and upper limits respectively.
+
+    Note:
+        This operation is performed after applying the scale factor.
+    """
+
+
+@configclass
+class EMAJointPositionToLimitsActionCfg(JointPositionToLimitsActionCfg):
+    """Configuration for the exponential moving average (EMA) joint position action term.
+
+    See :class:`EMAJointPositionToLimitsAction` for more details.
+    """
+
+    class_type: type[ActionTerm] = joint_actions_to_limits.EMAJointPositionToLimitsAction
+
+    alpha: float | dict[str, float] = 1.0
+    """The weight for the moving average (float or dict of regex expressions). Defaults to 1.0.
+
+    If set to 1.0, the processed action is applied directly without any moving average window.
+    """
 
 
 ##

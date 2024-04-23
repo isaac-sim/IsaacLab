@@ -1,19 +1,17 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 import builtins
 import torch
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import carb
 import omni.usd
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import XFormPrimView
-from omni.isaac.version import get_version
 from pxr import PhysxSchema
 
 import omni.isaac.orbit.sim as sim_utils
@@ -36,9 +34,10 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        from omni.isaac.orbit.assets.config.anymal import ANYMAL_C_CFG
         from omni.isaac.orbit.scene import InteractiveSceneCfg
         from omni.isaac.orbit.utils import configclass
+
+        from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
@@ -68,49 +67,20 @@ class InteractiveScene:
         for more details.
     """
 
-    terrain: TerrainImporter | None = None
-    """The terrain in the scene. If None, then the scene has no terrain.
-
-    Note:
-        We treat terrain separate from :attr:`extras` since terrains define environment origins and are
-        handled differently from other miscellaneous entities.
-    """
-    articulations: dict[str, Articulation] = dict()
-    """A dictionary of articulations in the scene."""
-    rigid_objects: dict[str, RigidObject] = dict()
-    """A dictionary of rigid objects in the scene."""
-    sensors: dict[str, SensorBase] = dict()
-    """A dictionary of the sensors in the scene, such as cameras and contact reporters."""
-    extras: dict[str, XFormPrimView] = dict()
-    """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
-
-    The keys are the names of the miscellaneous objects, and the values are the `XFormPrimView`_
-    of the corresponding prims.
-
-    As an example, lights or other props in the scene that do not have any attributes or properties that you
-    want to alter at runtime can be added to this dictionary.
-
-    Note:
-        These are not reset or updated by the scene. They are mainly other prims that are not necessarily
-        handled by the interactive scene, but are useful to be accessed by the user.
-
-    .. _XFormPrimView: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.XFormPrimView
-
-    """
-
     def __init__(self, cfg: InteractiveSceneCfg):
         """Initializes the scene.
-
-        .. note::
-            In Isaac Sim 2022.2, we do not have a way to copy the prim from source. It is always inherited.
-            Thus, it is not possible to have a scene with multiple environments with different assets (or
-            as we call heterogeneous environments). This limitation is fixed in Isaac Sim 2023.1.
 
         Args:
             cfg: The configuration class for the scene.
         """
         # store inputs
         self.cfg = cfg
+        # initialize scene elements
+        self._terrain = None
+        self._articulations = dict()
+        self._rigid_objects = dict()
+        self._sensors = dict()
+        self._extras = dict()
         # obtain the current stage
         self.stage = omni.usd.get_context().get_stage()
         # prepare cloner for environment replication
@@ -119,44 +89,25 @@ class InteractiveScene:
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # obtain major isaac sim version
-        isaac_major_version = int(get_version()[2])
         # clone the env xform
-        # in isaac sim 2022.2, we do not have a way to copy the prim from source. it is always inherited.
-        if isaac_major_version == 2022:
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-            )
-        else:
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=False,
-                copy_from_source=True,
-            )
+        env_origins = self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=False,
+            copy_from_source=True,
+        )
         self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         # add entities from config
         self._add_entities_from_cfg()
         # replicate physics if we have more than one environment
         # this is done to make scene initialization faster at play time
-        if self.cfg.replicate_physics:
-            # in isaac sim 2022.2, this function is private
-            if isaac_major_version == 2022:
-                self.cloner._replicate_physics(  # pyright: ignore [reportPrivateUsage]
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                )
-            else:
-                self.cloner.replicate_physics(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    base_env_path=self.env_ns,
-                    root_path=self.env_regex_ns.replace(".*", ""),
-                )
+        if self.cfg.replicate_physics and self.cfg.num_envs > 1:
+            self.cloner.replicate_physics(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                base_env_path=self.env_ns,
+                root_path=self.env_regex_ns.replace(".*", ""),
+            )
         # obtain the current physics scene
         physics_scene_prim_path = None
         for prim in self.stage.Traverse():
@@ -218,10 +169,54 @@ class InteractiveScene:
     @property
     def env_origins(self) -> torch.Tensor:
         """The origins of the environments in the scene. Shape is (num_envs, 3)."""
-        if self.terrain is not None:
-            return self.terrain.env_origins
+        if self._terrain is not None:
+            return self._terrain.env_origins
         else:
             return self._default_env_origins
+
+    @property
+    def terrain(self) -> TerrainImporter | None:
+        """The terrain in the scene. If None, then the scene has no terrain.
+
+        Note:
+            We treat terrain separate from :attr:`extras` since terrains define environment origins and are
+            handled differently from other miscellaneous entities.
+        """
+        return self._terrain
+
+    @property
+    def articulations(self) -> dict[str, Articulation]:
+        """A dictionary of articulations in the scene."""
+        return self._articulations
+
+    @property
+    def rigid_objects(self) -> dict[str, RigidObject]:
+        """A dictionary of rigid objects in the scene."""
+        return self._rigid_objects
+
+    @property
+    def sensors(self) -> dict[str, SensorBase]:
+        """A dictionary of the sensors in the scene, such as cameras and contact reporters."""
+        return self._sensors
+
+    @property
+    def extras(self) -> dict[str, XFormPrimView]:
+        """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
+
+        The keys are the names of the miscellaneous objects, and the values are the `XFormPrimView`_
+        of the corresponding prims.
+
+        As an example, lights or other props in the scene that do not have any attributes or properties that you
+        want to alter at runtime can be added to this dictionary.
+
+        Note:
+            These are not reset or updated by the scene. They are mainly other prims that are not necessarily
+            handled by the interactive scene, but are useful to be accessed by the user.
+
+        .. _XFormPrimView: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.XFormPrimView
+
+        """
+        return self._extras
 
     """
     Operations.
@@ -235,12 +230,12 @@ class InteractiveScene:
                 Defaults to None (all instances).
         """
         # -- assets
-        for articulation in self.articulations.values():
+        for articulation in self._articulations.values():
             articulation.reset(env_ids)
-        for rigid_object in self.rigid_objects.values():
+        for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors
-        for sensor in self.sensors.values():
+        for sensor in self._sensors.values():
             sensor.reset(env_ids)
         # -- flush physics sim view if called in extension mode
         # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
@@ -253,9 +248,9 @@ class InteractiveScene:
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
         # -- assets
-        for articulation in self.articulations.values():
+        for articulation in self._articulations.values():
             articulation.write_data_to_sim()
-        for rigid_object in self.rigid_objects.values():
+        for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
         # -- flush physics sim view if called in extension mode
         # this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying
@@ -272,12 +267,12 @@ class InteractiveScene:
             dt: The amount of time passed from last :meth:`update` call.
         """
         # -- assets
-        for articulation in self.articulations.values():
+        for articulation in self._articulations.values():
             articulation.update(dt)
-        for rigid_object in self.rigid_objects.values():
+        for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
-        for sensor in self.sensors.values():
+        for sensor in self._sensors.values():
             sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
 
     """
@@ -291,7 +286,7 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self.articulations, self.rigid_objects, self.sensors, self.extras]:
+        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -306,11 +301,11 @@ class InteractiveScene:
         """
         # check if it is a terrain
         if key == "terrain":
-            return self.terrain
+            return self._terrain
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self.articulations, self.rigid_objects, self.sensors, self.extras]:
+        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:
@@ -340,11 +335,11 @@ class InteractiveScene:
                 # terrains are special entities since they define environment origins
                 asset_cfg.num_envs = self.cfg.num_envs
                 asset_cfg.env_spacing = self.cfg.env_spacing
-                self.terrain = asset_cfg.class_type(asset_cfg)
+                self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
-                self.articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
-                self.rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
@@ -354,7 +349,7 @@ class InteractiveScene:
                         updated_target_frames.append(target_frame)
                     asset_cfg.target_frames = updated_target_frames
 
-                self.sensors[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
                 # manually spawn asset
                 if asset_cfg.spawn is not None:
@@ -366,7 +361,7 @@ class InteractiveScene:
                     )
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
-                self.extras[asset_name] = XFormPrimView(asset_cfg.prim_path, reset_xform_properties=False)
+                self._extras[asset_name] = XFormPrimView(asset_cfg.prim_path, reset_xform_properties=False)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
             # store global collision paths

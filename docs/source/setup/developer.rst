@@ -94,7 +94,6 @@ The ``orbit`` repository is structured as follows:
    │   ├── extensions
    │   │   ├── omni.isaac.orbit
    │   │   └── omni.isaac.orbit_tasks
-   │   │   └── omni.isaac.contrib_tasks
    │   ├── standalone
    │   │   ├── demos
    │   │   ├── environments
@@ -197,43 +196,47 @@ enabled that load the python module and run the python application. While this i
 workflow, it is not always possible to use this workflow. For example, for robot learning, it is
 essential to have complete control over simulation stepping and all the other functionalities
 instead of asynchronously waiting for the simulator to step. In such cases, it is necessary to
-write a standalone application that launches the simulator using
-`SimulationApp <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html>`__
-and allows complete control over the simulation through the
-`SimulationContext <https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html?highlight=simulation%20context#module-omni.isaac.core.simulation_context>`__
+write a standalone application that launches the simulator using :class:`~omni.isaac.orbit.app.AppLauncher`
+and allows complete control over the simulation through the :class:`~omni.isaac.orbit.sim.SimulationContext`
 class.
 
 .. code:: python
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.kit import SimulationApp
+   from omni.isaac.orbit.app import AppLauncher
 
    # launch omniverse app
-   config = {"headless": False}
-   simulation_app = SimulationApp(config)
+   app_launcher = AppLauncher(headless=False)
+   simulation_app = app_launcher.app
 
 
    """Rest everything follows."""
 
-   from omni.isaac.core.simulation_context import SimulationContext
+   from omni.isaac.orbit.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
       simulation_context = SimulationContext()
-      # rest and play simulation
+      # reset and play simulation
       simulation_context.reset()
       # step simulation
       simulation_context.step()
       # stop simulation
       simulation_context.stop()
 
+      # close the simulation
+      simulation_app.close()
+
 
 The ``source/standalone`` directory contains various standalone applications designed using the extensions
 provided by ``orbit``. These applications are written in python and are structured as follows:
 
-* **demo**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
+* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
 * **environments**: Contains applications for running environments defined in ``omni.isaac.orbit_tasks`` with different agents.
   These include a random policy, zero-action policy, teleoperation or scripted state machines.
+* **tools**: Contains applications for using the tools provided by the framework. These include converting assets, generating
+  datasets, etc.
+* **tutorials**: Contains step-by-step tutorials for using the APIs provided by the framework.
 * **workflows**: Contains applications for using environments with various learning-based frameworks. These include different
   reinforcement learning or imitation learning libraries.

@@ -19,10 +19,10 @@ Actions
     :show-inheritance:
     :exclude-members: __init__, class_type
 
-Randomization
--------------
+Events
+------
 
-.. automodule:: omni.isaac.orbit.envs.mdp.randomizations
+.. automodule:: omni.isaac.orbit.envs.mdp.events
     :members:
 
 Commands

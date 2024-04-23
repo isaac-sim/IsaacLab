@@ -1,23 +1,24 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-from __future__ import annotations
 
 import numpy as np
 import os
 import torch
 import trimesh
 
+import carb
+
 from omni.isaac.orbit.utils.dict import dict_to_md5_hash
 from omni.isaac.orbit.utils.io import dump_yaml
 from omni.isaac.orbit.utils.timer import Timer
+from omni.isaac.orbit.utils.warp import convert_to_warp_mesh
 
 from .height_field import HfTerrainBaseCfg
-from .terrain_generator_cfg import SubTerrainBaseCfg, TerrainGeneratorCfg
+from .terrain_generator_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg, TerrainGeneratorCfg
 from .trimesh.utils import make_border
-from .utils import color_meshes_by_height
+from .utils import color_meshes_by_height, find_flat_patches
 
 
 class TerrainGenerator:
@@ -41,6 +42,11 @@ class TerrainGenerator:
     The difficulty is varied linearly over the number of rows (i.e. along x). If a curriculum
     is not used, the terrains are generated randomly.
 
+    If the :obj:`cfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
+    on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
+    in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the
+    value is a tensor containing the flat patches for each sub-terrain.
+
     If the flag :obj:`cfg.use_cache` is set to True, the terrains are cached based on their
     sub-terrain configurations. This means that if the same sub-terrain configuration is used
     multiple times, the terrain is only generated once and then reused. This is useful when
@@ -53,18 +59,32 @@ class TerrainGenerator:
     """List of trimesh.Trimesh objects for all the generated sub-terrains."""
     terrain_origins: np.ndarray
     """The origin of each sub-terrain. Shape is (num_rows, num_cols, 3)."""
+    flat_patches: dict[str, torch.Tensor]
+    """A dictionary of sampled valid (flat) patches for each sub-terrain.
 
-    def __init__(self, cfg: TerrainGeneratorCfg):
+    The dictionary keys are the names of the flat patch sampling configurations. This maps to a
+    tensor containing the flat patches for each sub-terrain. The shape of the tensor is
+    (num_rows, num_cols, num_patches, 3).
+
+    For instance, the key "root_spawn" maps to a tensor containing the flat patches for spawning an asset.
+    Similarly, the key "target_spawn" maps to a tensor containing the flat patches for setting targets.
+    """
+
+    def __init__(self, cfg: TerrainGeneratorCfg, device: str = "cpu"):
         """Initialize the terrain generator.
 
         Args:
             cfg: Configuration for the terrain generator.
+            device: The device to use for the flat patches tensor.
         """
         # check inputs
         if len(cfg.sub_terrains) == 0:
             raise ValueError("No sub-terrains specified! Please add at least one sub-terrain.")
         # store inputs
         self.cfg = cfg
+        self.device = device
+        # -- valid patches
+        self.flat_patches = {}
         # set common values to all sub-terrains config
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
@@ -82,6 +102,7 @@ class TerrainGenerator:
         # create a list of all sub-terrains
         self.terrain_meshes = list()
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
+
         # parse configuration and add sub-terrains
         # create terrains based on curriculum or randomly
         if self.cfg.curriculum:
@@ -94,6 +115,7 @@ class TerrainGenerator:
         self._add_terrain_border()
         # combine all the sub-terrains into a single mesh
         self.terrain_mesh = trimesh.util.concatenate(self.terrain_meshes)
+
         # color the terrain mesh
         if self.cfg.color_scheme == "height":
             self.terrain_mesh = color_meshes_by_height(self.terrain_mesh)
@@ -105,6 +127,7 @@ class TerrainGenerator:
             pass
         else:
             raise ValueError(f"Invalid color scheme: {self.cfg.color_scheme}.")
+
         # offset the entire terrain and origins so that it is centered
         # -- terrain mesh
         transform = np.eye(4)
@@ -112,6 +135,10 @@ class TerrainGenerator:
         self.terrain_mesh.apply_transform(transform)
         # -- terrain origins
         self.terrain_origins += transform[:3, -1]
+        # -- valid patches
+        terrain_origins_torch = torch.tensor(self.terrain_origins, dtype=torch.float, device=self.device).unsqueeze(2)
+        for name, value in self.flat_patches.items():
+            self.flat_patches[name] = value + terrain_origins_torch
 
     """
     Terrain generator functions.
@@ -132,11 +159,11 @@ class TerrainGenerator:
             # randomly sample terrain index
             sub_index = np.random.choice(len(proportions), p=proportions)
             # randomly sample difficulty parameter
-            difficulty = np.random.choice(self.cfg.difficulty_choices)
+            difficulty = np.random.uniform(*self.cfg.difficulty_range)
             # generate terrain
             mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_index])
             # add to sub-terrains
-            self._add_sub_terrain(mesh, origin, sub_row, sub_col)
+            self._add_sub_terrain(mesh, origin, sub_row, sub_col, sub_terrains_cfgs[sub_index])
 
     def _generate_curriculum_terrains(self):
         """Add terrains based on the difficulty parameter."""
@@ -157,12 +184,14 @@ class TerrainGenerator:
         # curriculum-based sub-terrains
         for sub_col in range(self.cfg.num_cols):
             for sub_row in range(self.cfg.num_rows):
-                # vary the difficulty parameter
-                difficulty = sub_row / self.cfg.num_rows
+                # vary the difficulty parameter linearly over the number of rows
+                lower, upper = self.cfg.difficulty_range
+                difficulty = (sub_row + np.random.uniform()) / self.cfg.num_rows
+                difficulty = lower + (upper - lower) * difficulty
                 # generate terrain
                 mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_indices[sub_col]])
                 # add to sub-terrains
-                self._add_sub_terrain(mesh, origin, sub_row, sub_col)
+                self._add_sub_terrain(mesh, origin, sub_row, sub_col, sub_terrains_cfgs[sub_indices[sub_col]])
 
     """
     Internal helper functions.
@@ -186,8 +215,13 @@ class TerrainGenerator:
         # add the border to the list of meshes
         self.terrain_meshes.append(border)
 
-    def _add_sub_terrain(self, mesh: trimesh.Trimesh, origin: np.ndarray, row: int, col: int):
-        """Add input sub-terrain to the list of sub-terrains meshes and origins.
+    def _add_sub_terrain(
+        self, mesh: trimesh.Trimesh, origin: np.ndarray, row: int, col: int, sub_terrain_cfg: SubTerrainBaseCfg
+    ):
+        """Add input sub-terrain to the list of sub-terrains.
+
+        This function adds the input sub-terrain mesh to the list of sub-terrains and updates the origin
+        of the sub-terrain in the list of origins. It also samples flat patches if specified.
 
         Args:
             mesh: The mesh of the sub-terrain.
@@ -195,6 +229,32 @@ class TerrainGenerator:
             row: The row index of the sub-terrain.
             col: The column index of the sub-terrain.
         """
+        # sample flat patches if specified
+        if sub_terrain_cfg.flat_patch_sampling is not None:
+            carb.log_info(f"Sampling flat patches for sub-terrain at (row, col):  ({row}, {col})")
+            # convert the mesh to warp mesh
+            wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
+            # sample flat patches based on each patch configuration for that sub-terrain
+            for name, patch_cfg in sub_terrain_cfg.flat_patch_sampling.items():
+                patch_cfg: FlatPatchSamplingCfg
+                # create the flat patches tensor (if not already created)
+                if name not in self.flat_patches:
+                    self.flat_patches[name] = torch.zeros(
+                        (self.cfg.num_rows, self.cfg.num_cols, patch_cfg.num_patches, 3), device=self.device
+                    )
+                # add the flat patches to the tensor
+                self.flat_patches[name][row, col] = find_flat_patches(
+                    wp_mesh=wp_mesh,
+                    origin=origin,
+                    num_patches=patch_cfg.num_patches,
+                    patch_radius=patch_cfg.patch_radius,
+                    x_range=patch_cfg.x_range,
+                    y_range=patch_cfg.y_range,
+                    z_range=patch_cfg.z_range,
+                    max_height_diff=patch_cfg.max_height_diff,
+                )
+
+        # transform the mesh to the correct position
         transform = np.eye(4)
         transform[0:2, -1] = (row + 0.5) * self.cfg.size[0], (col + 0.5) * self.cfg.size[1]
         mesh.apply_transform(transform)

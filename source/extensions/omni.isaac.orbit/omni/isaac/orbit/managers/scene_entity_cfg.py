@@ -1,11 +1,9 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration terms for different managers."""
-
-from __future__ import annotations
 
 from dataclasses import MISSING
 
@@ -38,8 +36,9 @@ class SceneEntityCfg:
     function as a list of joint indices under :attr:`joint_ids`.
     """
 
-    joint_ids: list[int] | None = None
-    """The indices of the joints from the asset required by the term. Defaults to None.
+    joint_ids: list[int] | slice = slice(None)
+    """The indices of the joints from the asset required by the term. Defaults to slice(None), which means
+    all the joints in the asset (if present).
 
     If :attr:`joint_names` is specified, this is filled in automatically on initialization of the
     manager.
@@ -54,11 +53,25 @@ class SceneEntityCfg:
     function as a list of body indices under :attr:`body_ids`.
     """
 
-    body_ids: list[int] | None = None
-    """The indices of the bodies from the asset required by the term. Defaults to None.
+    body_ids: list[int] | slice = slice(None)
+    """The indices of the bodies from the asset required by the term. Defaults to slice(None), which means
+    all the bodies in the asset.
 
     If :attr:`body_names` is specified, this is filled in automatically on initialization of the
     manager.
+    """
+
+    preserve_order: bool = False
+    """Whether to preserve indices ordering to match with that in the specified joint or body names. Defaults to False.
+
+    If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity's joints
+    or bodies). Otherwise, the indices are preserved in the order of the specified joint and body names.
+
+    For more details, see the :meth:`omni.isaac.orbit.utils.string.resolve_matching_names` function.
+
+    .. note::
+        This attribute is only used when :attr:`joint_names` or :attr:`body_names` are specified.
+
     """
 
     def resolve(self, scene: InteractiveScene):
@@ -79,16 +92,17 @@ class SceneEntityCfg:
         # check if the entity is valid
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
+
         # convert joint names to indices based on regex
-        if self.joint_names is not None or self.joint_ids is not None:
+        if self.joint_names is not None or self.joint_ids != slice(None):
             entity: Articulation = scene[self.name]
-            # -- if both are not None, check if they are valid
-            if self.joint_names is not None and self.joint_ids is not None:
+            # -- if both are not their default values, check if they are valid
+            if self.joint_names is not None and self.joint_ids != slice(None):
                 if isinstance(self.joint_names, str):
                     self.joint_names = [self.joint_names]
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
-                joint_ids, _ = entity.find_joints(self.joint_names)
+                joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
                 joint_names = [entity.joint_names[i] for i in self.joint_ids]
                 if joint_ids != self.joint_ids or joint_names != self.joint_names:
                     raise ValueError(
@@ -101,22 +115,27 @@ class SceneEntityCfg:
             elif self.joint_names is not None:
                 if isinstance(self.joint_names, str):
                     self.joint_names = [self.joint_names]
-                self.joint_ids, _ = entity.find_joints(self.joint_names)
+                self.joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
+                # performance optimization (slice offers faster indexing than list of indices)
+                # only all joint in the entity order are selected
+                if len(self.joint_ids) == entity.num_joints and self.joint_names == entity.joint_names:
+                    self.joint_ids = slice(None)
             # -- from joint indices to joint names
-            elif self.joint_ids is not None:
+            elif self.joint_ids != slice(None):
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
                 self.joint_names = [entity.joint_names[i] for i in self.joint_ids]
+
         # convert body names to indices based on regex
-        if self.body_names is not None or self.body_ids is not None:
+        if self.body_names is not None or self.body_ids != slice(None):
             entity: RigidObject = scene[self.name]
-            # -- if both are not None, check if they are valid
-            if self.body_names is not None and self.body_ids is not None:
+            # -- if both are not their default values, check if they are valid
+            if self.body_names is not None and self.body_ids != slice(None):
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                body_ids, _ = entity.find_bodies(self.body_names)
+                body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
                 body_names = [entity.body_names[i] for i in self.body_ids]
                 if body_ids != self.body_ids or body_names != self.body_names:
                     raise ValueError(
@@ -129,9 +148,13 @@ class SceneEntityCfg:
             elif self.body_names is not None:
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
-                self.body_ids, _ = entity.find_bodies(self.body_names)
+                self.body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
+                # performance optimization (slice offers faster indexing than list of indices)
+                # only all bodies in the entity order are selected
+                if len(self.body_ids) == entity.num_bodies and self.body_names == entity.body_names:
+                    self.body_ids = slice(None)
             # -- from body indices to body names
-            elif self.body_ids is not None:
+            elif self.body_ids != slice(None):
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
                 self.body_names = [entity.body_names[i] for i in self.body_ids]

@@ -1,25 +1,21 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.kit import SimulationApp
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch omniverse app
 config = {"headless": True}
-simulation_app = SimulationApp(config)
+simulation_app = AppLauncher(config).app
 
 """Rest everything follows."""
 
 import numpy as np
-import traceback
 import unittest
 
-import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 
@@ -53,6 +49,10 @@ class TestUtilities(unittest.TestCase):
         orbit_result = sim_utils.get_all_matching_child_prims("/World")
         self.assertListEqual(isaac_sim_result, orbit_result)
 
+        # test valid path
+        with self.assertRaises(ValueError):
+            sim_utils.get_all_matching_child_prims("World/Room")
+
     def test_find_matching_prim_paths(self):
         """Test find_matching_prim_paths() function."""
         # create scene
@@ -78,14 +78,10 @@ class TestUtilities(unittest.TestCase):
         orbit_result = sim_utils.find_matching_prim_paths("/World/Floor_.*/Sphere/childSphere.*")
         self.assertListEqual(isaac_sim_result, orbit_result)
 
+        # test valid path
+        with self.assertRaises(ValueError):
+            sim_utils.get_all_matching_child_prims("World/Floor_.*")
+
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    run_tests()

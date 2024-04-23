@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,7 @@ from omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg import Locomoti
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.assets.config.cassie import CASSIE_CFG  # isort: skip
+from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort: skip
 
 
 @configclass
@@ -21,7 +21,7 @@ class CassieRewardsCfg(RewardsCfg):
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
-        weight=10.0,
+        weight=2.5,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
             "command_name": "base_velocity",
@@ -61,12 +61,12 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # actions
         self.actions.joint_pos.scale = 0.5
 
-        # randomizations
-        self.randomization.push_robot = None
-        self.randomization.add_base_mass = None
-        self.randomization.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.randomization.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
-        self.randomization.reset_base.params = {
+        # events
+        self.events.push_robot = None
+        self.events.add_base_mass = None
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = [".*pelvis"]
+        self.events.reset_base.params = {
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (0.0, 0.0),

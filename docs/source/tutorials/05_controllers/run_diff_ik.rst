@@ -16,7 +16,8 @@ end-effector pose command.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``run_diff_ik.py`` script in the ``orbit/source/standalone/demo`` directory.
+The tutorial corresponds to the ``run_diff_ik.py`` script in the
+``orbit/source/standalone/tutorials/05_controllers`` directory.
 
 
 .. dropdown:: Code for run_diff_ik.py
@@ -24,7 +25,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the ``orbit/source/
 
    .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 99-101, 122-137, 156-158, 162-172
+      :emphasize-lines: 98-100, 121-136, 155-157, 161-171
       :linenos:
 
 
@@ -66,9 +67,8 @@ will use the absolute pose command mode.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 99-101
-   :linenos:
-   :lineno-start: 99
+   :start-at: # Create controller
+   :end-at: diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
 
 Obtaining the robot's joint and body indices
 --------------------------------------------
@@ -96,9 +96,8 @@ this class.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 122-137
-   :linenos:
-   :lineno-start: 122
+   :start-at: # Specify robot-specific parameters
+   :end-before: # Define simulation stepping
 
 
 Computing robot command
@@ -114,9 +113,8 @@ the robot's base frame.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 156-158
-   :linenos:
-   :lineno-start: 156
+   :start-at: # reset controller
+   :end-at: diff_ik_controller.set_command(ik_commands)
 
 We can then compute the desired joint positions using the
 :meth:`~controllers.DifferentialIKController.compute` method.
@@ -127,18 +125,16 @@ its value computed from the physics engine.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 162-172
-   :linenos:
-   :lineno-start: 162
+   :start-at: # obtain quantities from simulation
+   :end-at: joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
 
 The computed joint position targets can then be applied on the robot, as done in the
 previous tutorials.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/05_controllers/run_diff_ik.py
    :language: python
-   :lines: 174-176
-   :linenos:
-   :lineno-start: 174
+   :start-at: # apply actions
+   :end-at: scene.write_data_to_sim()
 
 
 The Code Execution

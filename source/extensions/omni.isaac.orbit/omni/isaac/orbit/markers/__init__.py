@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -20,8 +20,6 @@ Currently, the sub-package provides the following classes:
     .. _omni.isaac.debug_drawing: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/ext_omni_isaac_debug_drawing.html
 
 """
-
-from __future__ import annotations
 
 from .config import *  # noqa: F401, F403
 from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg

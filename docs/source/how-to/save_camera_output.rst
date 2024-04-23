@@ -14,7 +14,7 @@ directory.
 
    .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
       :language: python
-      :emphasize-lines: 137-139, 172-196, 200-204, 214-232
+      :emphasize-lines: 171-179, 229-247, 251-264
       :linenos:
 
 
@@ -27,8 +27,8 @@ images in a numpy format. For more information on the basic writer, please check
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :lines: 137-139
-   :dedent:
+   :start-at: rep_writer = rep.BasicWriter(
+   :end-before: # Camera positions, targets, orientations
 
 While stepping the simulator, the images can be saved to the defined folder. Since the BasicWriter only supports
 saving data using NumPy format, we first need to convert the PyTorch sensors to NumPy arrays before packing
@@ -36,15 +36,15 @@ them in a dictionary.
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :lines: 172-192
-   :dedent:
+   :start-at: # Save images from camera at camera_index
+   :end-at: single_cam_info = camera.data.info[camera_index]
 
 After this step, we can save the images using the BasicWriter.
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :lines: 193-196
-   :dedent:
+   :start-at: # Pack data back into replicator format to save them using its writer
+   :end-at: rep_writer.write(rep_output)
 
 
 Projection into 3D Space
@@ -53,18 +53,32 @@ Projection into 3D Space
 We include utilities to project the depth image into 3D Space. The re-projection operations are done using
 PyTorch operations which allows faster computation.
 
+.. code-block:: python
+
+   from omni.isaac.orbit.utils.math import transform_points, unproject_depth
+
+   # Pointcloud in world frame
+   points_3d_cam = unproject_depth(
+      camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices
+   )
+
+   points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
+
+Alternately, we can use the :meth:`omni.isaac.orbit.sensors.camera.utils.create_pointcloud_from_depth` function
+to create a point cloud from the depth image and transform it to the world frame.
+
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :lines: 200-204
-   :dedent:
+   :start-at: # Derive pointcloud from camera at camera_index
+   :end-before: # In the first few steps, things are still being instanced and Camera.data
 
 The resulting point cloud can be visualized using the :mod:`omni.isaac.debug_draw` extension from Isaac Sim.
 This makes it easy to visualize the point cloud in the 3D space.
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :lines: 214-232
-   :dedent:
+   :start-at: # In the first few steps, things are still being instanced and Camera.data
+   :end-at: pc_markers.visualize(translations=pointcloud)
 
 
 Executing the script
@@ -74,7 +88,11 @@ To run the accompanying script, execute the following command:
 
 .. code-block:: bash
 
-  ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw
+   # Usage with saving and drawing
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw
+
+   # Usage with saving only in headless mode
+   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --headless --offscreen_render
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created

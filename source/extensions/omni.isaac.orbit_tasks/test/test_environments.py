@@ -1,31 +1,23 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
-import os
-
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.orbit.app import AppLauncher, run_tests
 
 # launch the simulator
-app_experience = f"{os.environ['EXP_PATH']}/omni.isaac.sim.python.gym.headless.kit"
-app_launcher = AppLauncher(headless=True, experience=app_experience)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
 
-
 import gymnasium as gym
 import torch
-import traceback
 import unittest
 
-import carb
 import omni.usd
 
 from omni.isaac.orbit.envs import RLTaskEnv, RLTaskEnvCfg
@@ -49,46 +41,70 @@ class TestEnvironments(unittest.TestCase):
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
-    def setUp(self) -> None:
+    """
+    Test fixtures.
+    """
+
+    def test_multiple_instances_gpu(self):
+        """Run all environments with multiple instances and check environments return valid signals."""
         # common parameters
-        self.num_envs = 64
-        self.use_gpu = True
-
-    def test_random_actions(self):
-        """Run random actions and check environments return valid signals."""
+        num_envs = 32
+        use_gpu = True
+        # iterate over all registered environments
         for task_name in self.registered_tasks:
-            print(f">>> Running test for environment: {task_name}")
-            # create a new stage
-            omni.usd.get_context().new_stage()
-            # parse configuration
-            env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+            with self.subTest(task_name=task_name):
+                print(f">>> Running test for environment: {task_name}")
+                # check environment
+                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                # close the environment
+                print(f">>> Closing environment: {task_name}")
+                print("-" * 80)
 
-            # create environment
-            env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
-
-            # reset environment
-            obs, _ = env.reset()
-            # check signal
-            self.assertTrue(self._check_valid_tensor(obs))
-
-            # simulate environment for 1000 steps
-            with torch.inference_mode():
-                for _ in range(1000):
-                    # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-                    # apply actions
-                    transition = env.step(actions)
-                    # check signals
-                    for data in transition:
-                        self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
-
-            # close the environment
-            print(f">>> Closing environment: {task_name}")
-            env.close()
+    def test_single_instance_gpu(self):
+        """Run all environments with single instance and check environments return valid signals."""
+        # common parameters
+        num_envs = 1
+        use_gpu = True
+        # iterate over all registered environments
+        for task_name in self.registered_tasks:
+            with self.subTest(task_name=task_name):
+                print(f">>> Running test for environment: {task_name}")
+                # check environment
+                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                # close the environment
+                print(f">>> Closing environment: {task_name}")
+                print("-" * 80)
 
     """
     Helper functions.
     """
+
+    def _check_random_actions(self, task_name: str, use_gpu: bool, num_envs: int, num_steps: int = 1000):
+        """Run random actions and check environments return valid signals."""
+        # create a new stage
+        omni.usd.get_context().new_stage()
+        # parse configuration
+        env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=use_gpu, num_envs=num_envs)
+        # create environment
+        env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+
+        # reset environment
+        obs, _ = env.reset()
+        # check signal
+        self.assertTrue(self._check_valid_tensor(obs))
+        # simulate environment for num_steps steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions from -1 to 1
+                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition:
+                    self.assertTrue(self._check_valid_tensor(data), msg=f"Invalid data: {data}")
+
+        # close the environment
+        env.close()
 
     @staticmethod
     def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
@@ -115,12 +131,4 @@ class TestEnvironments(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    except Exception as err:
-        carb.log_error(err)
-        carb.log_error(traceback.format_exc())
-        raise
-    finally:
-        # close sim app
-        simulation_app.close()
+    run_tests()

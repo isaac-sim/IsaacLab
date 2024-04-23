@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +12,7 @@ import pkgutil
 import sys
 
 
-def import_packages(package_name: str, blacklist_pkgs: list[str] = None):
+def import_packages(package_name: str, blacklist_pkgs: list[str] | None = None):
     """Import all sub-packages in a package recursively.
 
     It is easier to use this function to import all sub-packages in a package recursively
