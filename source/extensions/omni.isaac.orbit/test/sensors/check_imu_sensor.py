@@ -1,15 +1,10 @@
-# Copyright (c) 2022-2023, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script shows how to use the ray caster from the Orbit framework.
-
-.. code-block:: bash
-
-    # Usage
-    ./orbit.sh -p source/extensions/omni.isaac.orbit/test/sensors/test_ray_caster.py --headless
+Visual test script for the imu sensor from the Orbit framework.
 """
 
 from __future__ import annotations
@@ -21,7 +16,7 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Ray Caster Test Script")
+parser = argparse.ArgumentParser(description="IMU Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
@@ -43,13 +38,15 @@ import torch
 import traceback
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
+import omni
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
+from pxr import PhysxSchema
 
 import omni.isaac.orbit.sim as sim_utils
 import omni.isaac.orbit.terrains as terrain_gen
+from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
 from omni.isaac.orbit.sensors.imu import IMU, IMUCfg
 from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
@@ -57,34 +54,60 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.timer import Timer
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048):
+def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     """Design the scene."""
+    # Handler for terrains importing
+    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type=args_cli.terrain_type,
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+        max_init_terrain_level=None,
+        num_envs=1,
+    )
+    _ = TerrainImporter(terrain_importer_cfg)
+    # obtain the current stage
+    stage = omni.usd.get_context().get_stage()
     # Create interface to clone the scene
     cloner = GridCloner(spacing=2.0)
     cloner.define_base_env("/World/envs")
-    # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
+    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
+    # create source prim
+    stage.DefinePrim(envs_prim_paths[0], "Xform")
+    # clone the env xform
+    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
     cfg.func("/World/light", cfg)
     # -- Balls
-    cfg = sim_utils.SphereCfg(
-        radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+    cfg = RigidObjectCfg(
+        spawn=sim_utils.SphereCfg(
+            radius=0.25,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
+        prim_path="/World/envs/env_.*/ball",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
-    cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
+    balls = RigidObject(cfg)
     # Clone the scene
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
-    physics_scene_path = sim.get_physics_context().prim_path
+    # obtain the current physics scene
+    physics_scene_prim_path = None
+    for prim in stage.Traverse():
+        if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+            physics_scene_prim_path = prim.GetPrimPath()
+            carb.log_info(f"Physics scene prim path: {physics_scene_prim_path}")
+            break
+    # filter collisions within each environment instance
     cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+        physics_scene_prim_path,
+        "/World/collisions",
+        envs_prim_paths,
     )
+    return balls
 
 
 def main():
@@ -107,17 +130,7 @@ def main():
     # Parameters
     num_envs = args_cli.num_envs
     # Design the scene
-    design_scene(sim=sim, num_envs=num_envs)
-    # Handler for terrains importing
-    terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type=args_cli.terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
-        max_init_terrain_level=None,
-        num_envs=1,
-    )
-    _ = TerrainImporter(terrain_importer_cfg)
+    balls = design_scene(sim=sim, num_envs=num_envs)
 
     # Create a ray-caster sensor
     imu_cfg = IMUCfg(
@@ -126,18 +139,17 @@ def main():
     )
     imu = IMU(cfg=imu_cfg)
 
-    # Play simulator
+    # Play simulator and init the IMU
     sim.reset()
 
-    # Get the ball initial positions
-    imu.update(dt=1e-6, force_recompute=True)
-    ball_initial_positions = imu.data.pos_w.clone()
-    ball_initial_orientations = imu.data.quat_w.clone()
-
-    # init pose buffer (used to reset imu position and orientation)
-    _pose_buf = sim._backend_utils.create_zeros_tensor(shape=[imu.num_instances, 7], dtype="float32", device=sim.device)
     # Print the sensor information
     print(imu)
+
+    # Get the ball initial positions
+    sim.step(render=not args_cli.headless)
+    balls.update(sim.get_physics_dt())
+    ball_initial_positions = balls.data.root_pos_w.clone()
+    ball_initial_orientations = balls.data.root_quat_w.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -152,15 +164,9 @@ def main():
             continue
         # Reset the scene
         if step_count % 500 == 0:
-            # reset the balls (here we have a physx.RigidBodyView, for other view classes this command might change)
-            indices = sim._backend_utils.resolve_indices(torch.arange(num_envs), imu.num_instances, sim.device)
-            current_positions, current_orientations = imu.data.pos_w, imu.data.quat_w
-            positions = sim._backend_utils.move_data(ball_initial_positions, sim.device)
-            orientations = sim._backend_utils.move_data(ball_initial_orientations, sim.device)
-            pose = sim._backend_utils.assign_pose(
-                current_positions, current_orientations, positions, orientations, indices, sim.device, _pose_buf
-            )
-            imu._view.set_transforms(pose, indices=indices)
+            # reset ball positions
+            balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
+            balls.reset()
             # reset the sensor
             imu.reset()
             # reset the counter
