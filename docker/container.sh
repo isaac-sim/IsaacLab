@@ -179,7 +179,7 @@ configure_x11() {
     fi
     load_statefile_variable __ORBIT_TMP_XAUTH
     # Create temp .xauth file to be mounted in the container
-    if [ "$__ORBIT_TMP_XAUTH" = "null" ]; then
+    if [ "$__ORBIT_TMP_XAUTH" = "null" ] || [ ! -f "$__ORBIT_TMP_XAUTH" ]; then
         __ORBIT_TMP_XAUTH=$(mktemp --suffix=".xauth")
         set_statefile_variable __ORBIT_TMP_XAUTH $__ORBIT_TMP_XAUTH
         # Extract MIT-MAGIC-COOKIE for current display | Change the 'connection family' to FamilyWild (ffff) | merge into tmp .xauth file
