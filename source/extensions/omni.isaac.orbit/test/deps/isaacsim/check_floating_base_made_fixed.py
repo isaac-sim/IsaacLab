@@ -33,6 +33,8 @@ import omni.isaac.core.utils.nucleus as nucleus_utils
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 from pxr import Sdf, UsdPhysics
+import omni.physx
+import omni.kit.commands
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.utils.viewports import set_camera_view
@@ -62,9 +64,33 @@ Main
 
 def main():
     """Spawns the ANYmal robot and makes it fixed."""
+    # -- Robot
+    # resolve asset
+    usd_path = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+    root_prim_path = "/World/Robot/base"
+    # add asset
+    print("Loading robot from: ", usd_path)
+    prim_utils.create_prim(
+        "/World/Robot",
+        usd_path=usd_path,
+        translation=(0.0, 0.0, 0.6),
+    )
+    # create fixed joint
+    if args_cli.fix_base:
+        stage = stage_utils.get_current_stage()
+        root_prim = stage.GetPrimAtPath("/World/Robot/base")
+
+        # create fixed joint
+        omni.kit.commands.execute(
+            "CreateJointCommand", stage=stage, joint_type="Fixed", from_prim=None, to_prim=root_prim
+        )
+        # joint_prim = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/rootJoint")
+        # joint_prim.GetJointEnabledAttr().Set(True)
+        # # joint_prim.CreateBody0Rel().SetTargets([])
+        # joint_prim.CreateBody1Rel().SetTargets([root_prim_path])
 
     # Load kit helper
-    world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+    world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")
     # Set main camera
     set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
@@ -80,24 +106,7 @@ def main():
     # Lights-2
     prim_utils.create_prim("/World/Light/WhiteSphere", "SphereLight", translation=(-4.5, 3.5, 10.0))
 
-    # -- Robot
-    # resolve asset
-    usd_path = f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
-    root_prim_path = "/World/Robot/base"
-    # add asset
-    print("Loading robot from: ", usd_path)
-    prim_utils.create_prim(
-        "/World/Robot",
-        usd_path=usd_path,
-        translation=(0.0, 0.0, 0.6),
-    )
-    # create fixed joint
-    if args_cli.fix_base:
-        stage = stage_utils.get_current_stage()
-        joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{root_prim_path}/rootJoint")
-        joint_prim.GetJointEnabledAttr().Set(True)
-        joint_prim.CreateBody0Rel().SetTargets([])
-        joint_prim.CreateBody1Rel().SetTargets([Sdf.Path(root_prim_path)])
+   
 
     # Setup robot
     robot_view = ArticulationView(root_prim_path, name="ANYMAL")
