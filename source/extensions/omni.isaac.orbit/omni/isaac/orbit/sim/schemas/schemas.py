@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import carb
 import omni.isaac.core.utils.stage as stage_utils
-import omni.kit.commands
+import omni.physx.scripts.utils as physx_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
 from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema
@@ -68,6 +68,11 @@ def modify_articulation_root_properties(
     and velocity iteration counts, sleep threshold, stabilization threshold) take precedence over those specified
     in the rigid body schemas for all the rigid bodies in the articulation.
 
+    .. caution::
+        When the attribute :attr:`schemas_cfg.ArticulationRootPropertiesCfg` is set to True, a fixed joint is
+        created between the root link and the world frame (if it does not already exist). However, to deal with
+        physics parser limitations, the articulation root schema needs to be applied to the parent of the root link.
+
     .. note::
         This function is decorated with :func:`apply_nested` that set the properties to all the prims
         (that have the schema applied on them) under the input prim path.
@@ -84,6 +89,9 @@ def modify_articulation_root_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    Raises:
+        NotImplementedError: When the root prim is not a rigid body and a fixed joint is to be created.
     """
     # obtain stage
     if stage is None:
@@ -100,30 +108,66 @@ def modify_articulation_root_properties(
 
     # convert to dict
     cfg = cfg.to_dict()
-
     # extract non-USD properties
     fix_root_link = cfg.pop("fix_root_link", None)
-    # fix root link based on input
-    if fix_root_link is not None:
-        # check if a global fixed joint exists under the root prim
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
-        # if we found a fixed joint, enable/disable it based on the input
-        if existing_fixed_joint_prim is not None:
-            existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
-        elif fix_root_link:
-            carb.log_info(f"Creating a fixed joint for the articulation root prim: '{prim_path}'.")
-            # create a fixed joint between the root link and the world frame
-            omni.kit.commands.execute(
-                "CreateJointCommand", stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim
-            )
-            # joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{prim_path}/rootJoint")
-            # joint_prim.GetJointEnabledAttr().Set(fix_root_link)
-            # joint_prim.CreateBody0Rel().SetTargets([])
-            # joint_prim.CreateBody1Rel().SetTargets([prim_path])
 
     # set into physx api
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_schema(physx_articulation_api, attr_name, value, camel_case=True)
+
+    # fix root link based on input
+    # we do the fixed joint processing later to not interfere with setting other properties
+    if fix_root_link is not None:
+        # check if a global fixed joint exists under the root prim
+        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+
+        # if we found a fixed joint, enable/disable it based on the input
+        if existing_fixed_joint_prim is not None:
+            carb.log_info(
+                f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
+            )
+            existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
+        elif fix_root_link:
+            carb.log_info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
+
+            # note: we have to assume that the root prim is a rigid body,
+            #   i.e. we can't handle the case where the root prim is not a rigid body but has articulation api.
+            # there is no obvious way to get first rigid body link in an articulation tree
+            if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                raise NotImplementedError(
+                    "The root prim does not have the RigidBodyAPI applied. To create a fixed joint,"
+                    " we need to determine the first rigid body link in the articulation tree."
+                    " However, this is not implemented yet."
+                )
+
+            # create a fixed joint between the root link and the world frame
+            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+
+            # move the root to the parent if this is a rigid body
+            # having a fixed joint on a rigid body makes physx treat it as a part of the maximal coordinate tree
+            # if we put to joint on the parent, physx parser treats it as a fixed base articulation
+            # get parent prim
+            parent_prim = articulation_prim.GetParent()
+            # apply api to parent
+            UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
+            PhysxSchema.PhysxArticulationAPI.Apply(parent_prim)
+
+            # copy the attributes
+            # -- usd attributes
+            usd_articulation_api = UsdPhysics.ArticulationRootAPI(articulation_prim)
+            for attr_name in usd_articulation_api.GetSchemaAttributeNames():
+                attr = articulation_prim.GetAttribute(attr_name)
+                parent_prim.GetAttribute(attr_name).Set(attr.Get())
+            # -- physx attributes
+            physx_articulation_api = PhysxSchema.PhysxArticulationAPI(articulation_prim)
+            for attr_name in physx_articulation_api.GetSchemaAttributeNames():
+                attr = articulation_prim.GetAttribute(attr_name)
+                parent_prim.GetAttribute(attr_name).Set(attr.Get())
+
+            # remove api from root
+            articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            articulation_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
+
     # success
     return True
 
