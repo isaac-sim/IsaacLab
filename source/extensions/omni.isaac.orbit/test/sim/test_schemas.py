@@ -118,10 +118,10 @@ class TestPhysicsSchema(unittest.TestCase):
         self._validate_joint_drive_properties_on_prim("/World/asset_instanced")
 
         # make a fixed joint
+        # note: for this asset, it doesn't work because the root is not a rigid body
         self.arti_cfg.fix_root_link = True
-        schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
-        # validate the properties
-        self._validate_articulation_properties_on_prim("/World/asset_instanced", has_default_fixed_root=False)
+        with self.assertRaises(NotImplementedError):
+            schemas.modify_articulation_root_properties("/World/asset_instanced", self.arti_cfg)
 
     def test_modify_properties_on_articulation_usd(self):
         """Test setting properties on articulation usd."""
