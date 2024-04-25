@@ -122,6 +122,7 @@ def modify_articulation_root_properties(
         existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
 
         # if we found a fixed joint, enable/disable it based on the input
+        # otherwise, create a fixed joint between the world and the root link
         if existing_fixed_joint_prim is not None:
             carb.log_info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
@@ -131,8 +132,8 @@ def modify_articulation_root_properties(
             carb.log_info(f"Creating a fixed joint for the articulation: '{prim_path}'.")
 
             # note: we have to assume that the root prim is a rigid body,
-            #   i.e. we can't handle the case where the root prim is not a rigid body but has articulation api.
-            # there is no obvious way to get first rigid body link in an articulation tree
+            #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
+            # Currently, there is no obvious way to get first rigid body link identified by the PhysX parser
             if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise NotImplementedError(
                     f"The articulation prim '{prim_path}' does not have the RigidBodyAPI applied."
@@ -143,9 +144,9 @@ def modify_articulation_root_properties(
             # create a fixed joint between the root link and the world frame
             physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
 
-            # move the root to the parent if this is a rigid body
-            # having a fixed joint on a rigid body makes physx treat it as a part of the maximal coordinate tree
-            # if we put to joint on the parent, physx parser treats it as a fixed base articulation
+            # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
+            # instead, it is treated as a part of the maximal coordinate tree.
+            # Moving the articulation root to the parent solves this issue. This is a limitation of the PhysX parser.
             # get parent prim
             parent_prim = articulation_prim.GetParent()
             # apply api to parent
