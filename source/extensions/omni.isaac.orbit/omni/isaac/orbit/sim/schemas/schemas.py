@@ -135,9 +135,9 @@ def modify_articulation_root_properties(
             # there is no obvious way to get first rigid body link in an articulation tree
             if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 raise NotImplementedError(
-                    "The root prim does not have the RigidBodyAPI applied. To create a fixed joint,"
-                    " we need to determine the first rigid body link in the articulation tree."
-                    " However, this is not implemented yet."
+                    f"The articulation prim '{prim_path}' does not have the RigidBodyAPI applied."
+                    " To create a fixed joint, we need to determine the first rigid body link in"
+                    " the articulation tree. However, this is not implemented yet."
                 )
 
             # create a fixed joint between the root link and the world frame
