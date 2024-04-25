@@ -11,7 +11,6 @@ import carb
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
-from omni.isaac.core.prims.xform_prim import XFormPrim
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import converters, schemas
@@ -224,7 +223,13 @@ def _spawn_from_usd_file(
     # spawn asset if it doesn't exist.
     if not prim_utils.is_prim_path_valid(prim_path):
         # add prim as reference to stage
-        stage_utils.add_reference_to_stage(usd_path, prim_path)
+        prim_utils.create_prim(
+            prim_path,
+            usd_path=usd_path,
+            translation=translation,
+            orientation=orientation,
+            scale=cfg.scale,
+        )
     else:
         carb.log_warn(f"A prim already exists at prim path: '{prim_path}'.")
 
@@ -260,9 +265,6 @@ def _spawn_from_usd_file(
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
         bind_visual_material(prim_path, material_path)
-
-    # apply translation and orientation
-    XFormPrim(prim_path=prim_path, translation=translation, orientation=orientation, scale=cfg.scale)
 
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
