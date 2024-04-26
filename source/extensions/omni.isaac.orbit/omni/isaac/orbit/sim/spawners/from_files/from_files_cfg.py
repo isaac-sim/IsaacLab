@@ -29,7 +29,7 @@ class FileCfg(RigidObjectSpawnerCfg):
     scale: tuple[float, float, float] | None = None
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
-    articulation_props: schemas.ArticulationPropertiesCfg | None = None
+    articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
 
     fixed_tendons_props: schemas.FixedTendonsPropertiesCfg | None = None
