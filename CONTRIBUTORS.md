@@ -38,6 +38,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Jia Lin Yuan
 * Jingzhou Liu
+* Muhong Guo
 * Kourosh Darvish
 * Özhan Özen
 * Qinxi Yu
