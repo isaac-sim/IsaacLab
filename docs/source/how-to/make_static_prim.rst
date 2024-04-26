@@ -39,9 +39,14 @@ For instance, to spawn a cone static in the simulation world, the following code
 Articulation
 ------------
 
-Making an articulation static requires adding a fixed joint to the root link of the articulation.
+Making an articulation static requires having a fixed joint to the root rigid body link of the articulation.
 This can be achieved by setting the parameter :attr:`sim.schemas.ArticulationRootPropertiesCfg.fix_root_link`
-as True.
+as True. Based on the value of this parameter, the following cases are possible:
+
+* If set to :obj:`None`, the root link is not modified.
+* If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
+* If the articulation does not have a fixed root link, this flag will create a fixed joint between the world
+  frame and the root link. The joint is created with the name "FixedJoint".
 
 For instance, to spawn an ANYmal robot and make it static in the simulation world, the following code can be used:
 
@@ -70,5 +75,28 @@ For instance, to spawn an ANYmal robot and make it static in the simulation worl
         ),
     )
     anymal_spawn_cfg.func(
-        "/World/ANYmalFixed", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(1.0, 0.0, 0.0, 0.0)
+        "/World/ANYmal", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(1.0, 0.0, 0.0, 0.0)
     )
+
+
+This will create a fixed joint between the world frame and the root link of the ANYmal robot
+at the prim path ``"/World/ANYmal/base/FixedJoint"`` since the root link is at the path ``"/World/ANYmal/base"``.
+
+
+Further notes
+-------------
+
+For floating base articulations, the root prim usually has both the rigid body and the articulation
+root properties. However, directly connecting this prim to the world frame will cause the simulation
+to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
+considering the articulation as a fixed-base system.
+
+Internally, when the parameter :attr:`sim.schemas.ArticulationRootPropertiesCfg.fix_root_link` is set to True
+and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
+the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
+fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to
+its parent prim instead.
+
+Note:
+    In future release of Isaac Sim, an explicit flag will be added to the articulation root schema from PhysX
+    to toggle between fixed-base and floating-base systems. This will resolve the need of the above workaround.
