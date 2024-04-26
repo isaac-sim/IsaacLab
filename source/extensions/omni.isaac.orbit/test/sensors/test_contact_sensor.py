@@ -70,6 +70,18 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     contact_sensor: ContactSensorCfg = MISSING
     """Contact sensor configuration."""
 
+    shape_2: TestContactSensorRigidObjectCfg = None
+    """RigidObject contact prim configuration. Defaults to None, i.e. not included in the scene.
+
+    This is a second prim used for testing contact filtering.
+    """
+
+    contact_sensor_2: ContactSensorCfg = None
+    """Contact sensor configuration. Defaults to None, i.e. not included in the scene.
+
+    This is a second contact sensor used for testing contact filtering.
+    """
+
 
 ##
 # Scene entity configurations.
@@ -223,6 +235,62 @@ class TestContactSensor(unittest.TestCase):
         """Checks contact sensor values for contact time and air time for a sphere collision primitive."""
         self._run_contact_sensor_test(shape_cfg=SPHERE_CFG)
 
+    def test_cube_stack_contact_filtering(self):
+        """Checks contact sensor reporting for filtering stacked cube prims."""
+        for device in self.devices:
+            for num_envs in [1, 6, 24]:
+                with self.subTest(device=device, num_envs=num_envs):
+                    with build_simulation_context(device=device, dt=self.sim_dt, add_lighting=True) as sim:
+                        # Instance new scene for the current terrain and contact prim.
+                        scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
+                        scene_cfg.terrain = FLAT_TERRAIN_CFG
+                        # -- cube 1
+                        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+                        scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
+                        # -- cube 2 (on top of cube 1)
+                        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+                        scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
+                        # -- contact sensor 1
+                        scene_cfg.contact_sensor = ContactSensorCfg(
+                            prim_path="{ENV_REGEX_NS}/Cube_1",
+                            track_pose=True,
+                            debug_vis=False,
+                            update_period=0.0,
+                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
+                        )
+                        # -- contact sensor 2
+                        scene_cfg.contact_sensor_2 = ContactSensorCfg(
+                            prim_path="{ENV_REGEX_NS}/Cube_2",
+                            track_pose=True,
+                            debug_vis=False,
+                            update_period=0.0,
+                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_1"],
+                        )
+                        scene = InteractiveScene(scene_cfg)
+
+                        # Set variables internally for reference
+                        self.sim = sim
+                        self.scene = scene
+
+                        # Play the simulation
+                        self.sim.reset()
+                        # Reset the contact sensors
+                        self.scene.reset()
+                        # Let the scene come to a rest
+                        for _ in range(20):
+                            self._perform_sim_step()
+
+                        # Extract from scene for type hinting
+                        contact_sensor: ContactSensor = self.scene["contact_sensor"]
+                        contact_sensor_2: ContactSensor = self.scene["contact_sensor_2"]
+                        # Check values for cube 2
+                        torch.testing.assert_close(
+                            contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w
+                        )
+                        torch.testing.assert_close(
+                            contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor.data.force_matrix_w[:, :, 0]
+                        )
+
     """
     Internal helpers.
     """
@@ -289,7 +357,7 @@ class TestContactSensor(unittest.TestCase):
             sensor: The sensor reporting data to be verified by the contact sensor test.
             mode: The contact test mode: either contact with ground plane or air time.
         """
-        # reset tge test state
+        # reset the test state
         sensor.reset()
         expected_last_test_contact_time = 0
         expected_last_reset_contact_time = 0
