@@ -37,7 +37,7 @@ class ArticulationRootPropertiesCfg:
     * If set to None, the root link is not modified.
     * If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
     * If the articulation does not have a fixed root link, this flag will create a fixed joint between the world
-      frame and the root link. The joint is created with the name "FixedJoint".
+      frame and the root link. The joint is created with the name "FixedJoint" under the articulation prim.
 
     .. note::
         This is a non-USD schema property. It is handled by the :meth:`modify_articulation_root_properties` function.

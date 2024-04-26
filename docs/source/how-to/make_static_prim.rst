@@ -46,7 +46,7 @@ as True. Based on the value of this parameter, the following cases are possible:
 * If set to :obj:`None`, the root link is not modified.
 * If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
 * If the articulation does not have a fixed root link, this flag will create a fixed joint between the world
-  frame and the root link. The joint is created with the name "FixedJoint".
+  frame and the root link. The joint is created with the name "FixedJoint" under the root link.
 
 For instance, to spawn an ANYmal robot and make it static in the simulation world, the following code can be used:
 
