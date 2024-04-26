@@ -256,7 +256,7 @@ class TestContactSensor(unittest.TestCase):
                             track_pose=True,
                             debug_vis=False,
                             update_period=0.0,
-                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2", "/World/ground"],
+                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
                         )
                         # -- contact sensor 2
                         scene_cfg.contact_sensor_2 = ContactSensorCfg(
