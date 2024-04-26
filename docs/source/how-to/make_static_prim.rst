@@ -32,7 +32,7 @@ For instance, to spawn a cone static in the simulation world, the following code
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     cone_spawn_cfg.func(
-        "/World/ConeKinematicRigid", cone_spawn_cfg, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
+        "/World/Cone", cone_spawn_cfg, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
     )
 
 
