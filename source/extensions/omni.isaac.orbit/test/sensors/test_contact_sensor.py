@@ -243,7 +243,7 @@ class TestContactSensor(unittest.TestCase):
                     with build_simulation_context(device=device, dt=self.sim_dt, add_lighting=True) as sim:
                         # Instance new scene for the current terrain and contact prim.
                         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-                        scene_cfg.terrain = FLAT_TERRAIN_CFG
+                        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
                         # -- cube 1
                         scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
                         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
@@ -256,7 +256,7 @@ class TestContactSensor(unittest.TestCase):
                             track_pose=True,
                             debug_vis=False,
                             update_period=0.0,
-                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2"],
+                            filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube_2", "/World/ground"],
                         )
                         # -- contact sensor 2
                         scene_cfg.contact_sensor_2 = ContactSensorCfg(
@@ -274,15 +274,20 @@ class TestContactSensor(unittest.TestCase):
 
                         # Play the simulation
                         self.sim.reset()
+
+                        # Extract from scene for type hinting
+                        contact_sensor: ContactSensor = self.scene["contact_sensor"]
+                        contact_sensor_2: ContactSensor = self.scene["contact_sensor_2"]
+                        # Check buffers have the right size
+                        self.assertEqual(contact_sensor.contact_physx_view.filter_count, 1)
+                        self.assertEqual(contact_sensor_2.contact_physx_view.filter_count, 1)
+
                         # Reset the contact sensors
                         self.scene.reset()
                         # Let the scene come to a rest
                         for _ in range(20):
                             self._perform_sim_step()
 
-                        # Extract from scene for type hinting
-                        contact_sensor: ContactSensor = self.scene["contact_sensor"]
-                        contact_sensor_2: ContactSensor = self.scene["contact_sensor_2"]
                         # Check values for cube 2
                         torch.testing.assert_close(
                             contact_sensor_2.data.force_matrix_w[:, :, 0], contact_sensor_2.data.net_forces_w
