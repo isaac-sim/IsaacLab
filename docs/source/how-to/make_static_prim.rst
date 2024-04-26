@@ -97,6 +97,7 @@ the root rigid body link of the articulation. However, to make the PhysX parser 
 fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to
 its parent prim instead.
 
-Note:
+.. note::
+
     In future release of Isaac Sim, an explicit flag will be added to the articulation root schema from PhysX
     to toggle between fixed-base and floating-base systems. This will resolve the need of the above workaround.
