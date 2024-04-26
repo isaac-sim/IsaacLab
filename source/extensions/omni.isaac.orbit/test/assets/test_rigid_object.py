@@ -35,20 +35,24 @@ from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.orbit.utils.math import default_orientation, random_orientation
 
 
-def generate_cubes_scene(num_cubes: int = 1, height=1.0, has_api: bool = True) -> tuple[RigidObject, torch.Tensor]:
+def generate_cubes_scene(
+    num_cubes: int = 1, height=1.0, has_api: bool = True, kinematic_enabled: bool = False, device: str = "cuda:0"
+) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
         has_api: Whether the cubes have a rigid body API on them.
+        kinematic_enabled: Whether the cubes are kinematic.
+        device: Device to use for the simulation.
 
     Returns:
         RigidObject: The rigid object representing the cubes.
         origins: The origins of the cubes.
 
     """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)])
+    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
         prim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
@@ -57,6 +61,7 @@ def generate_cubes_scene(num_cubes: int = 1, height=1.0, has_api: bool = True) -
     if has_api:
         spawn_cfg = sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
         )
     else:
         # since no rigid body properties defined, this is just a static collider
@@ -83,12 +88,12 @@ class TestRigidObject(unittest.TestCase):
     """
 
     def test_initialization(self):
-        """Test initialization for with rigid body API at the provided prim path."""
+        """Test initialization for prim with rigid body API at the provided prim path."""
         for num_cubes in (1, 2):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Check that boundedness of rigid object is correct
                         self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
@@ -111,13 +116,48 @@ class TestRigidObject(unittest.TestCase):
                             # update object
                             cube_object.update(sim.cfg.dt)
 
+    def test_initialization_with_kinematic_enabled(self):
+        """Test that initialization for prim with kinematic flag enabled."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                with self.subTest(num_cubes=num_cubes, device=device):
+                    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        cube_object, origins = generate_cubes_scene(
+                            num_cubes=num_cubes, kinematic_enabled=True, device=device
+                        )
+
+                        # Check that boundedness of rigid object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+
+                        # Play sim
+                        sim.reset()
+
+                        # Check if object is initialized
+                        self.assertTrue(cube_object._is_initialized)
+                        self.assertEqual(len(cube_object.body_names), 1)
+
+                        # Check buffers that exists and have correct shapes
+                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_quat_w.shape, (num_cubes, 4))
+
+                        # Simulate physics
+                        for _ in range(2):
+                            # perform rendering
+                            sim.step()
+                            # update object
+                            cube_object.update(sim.cfg.dt)
+                            # check that the object is kinematic
+                            default_root_state = cube_object.data.default_root_state.clone()
+                            default_root_state[:, :3] += origins
+                            torch.testing.assert_allclose(cube_object.data.root_state_w, default_root_state)
+
     def test_initialization_with_no_rigid_body(self):
         """Test that initialization fails when no rigid body is found at the provided prim path."""
         for num_cubes in (1, 2):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
                         # Check that boundedness of rigid object is correct
                         self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
@@ -139,7 +179,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-                        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes)
+                        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
                         sim.reset()
@@ -199,7 +239,7 @@ class TestRigidObject(unittest.TestCase):
                     # Turn off gravity for this test as we don't want any external forces acting on the object
                     # to ensure state remains static
                     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
                         sim.reset()
@@ -257,7 +297,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
                         sim.reset()
@@ -296,7 +336,7 @@ class TestRigidObject(unittest.TestCase):
                         device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
                         # Create rigid object(s)
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play sim
                         sim.reset()
@@ -330,7 +370,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
                         # Create ground plane with no friction
                         cfg = sim_utils.GroundPlaneCfg(
@@ -391,7 +431,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
 
                         # Create ground plane with no friction
                         cfg = sim_utils.GroundPlaneCfg(
@@ -468,7 +508,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
                         # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
                         cfg = sim_utils.GroundPlaneCfg(
@@ -557,7 +597,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
-                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
+                        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
 
                         # Play sim
                         sim.reset()

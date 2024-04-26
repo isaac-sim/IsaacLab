@@ -181,6 +181,9 @@ class TestArticulation(unittest.TestCase):
             self.sim.step()
             # update robot
             robot.update(self.dt)
+            # check that the root is at the correct state
+            default_root_state = robot.data.default_root_state.clone()
+            torch.testing.assert_close(robot.data.root_state_w, default_root_state)
 
     def test_initialization_fixed_base_single_joint(self):
         """Test initialization for fixed base articulation with a single joint."""
@@ -265,6 +268,93 @@ class TestArticulation(unittest.TestCase):
             self.sim.step()
             # update robot
             robot.update(self.dt)
+
+    def test_initialization_floating_base_made_fixed_base(self):
+        """Test initialization for a floating-base articulation made fixed-base using schema properties."""
+        # Create articulation
+        robot_cfg: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/Robot")
+        robot_cfg.spawn.articulation_props.fix_root_link = True
+        robot = Articulation(cfg=robot_cfg)
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertTrue(robot._is_initialized)
+        # Check that floating base
+        self.assertTrue(robot.is_fixed_base)
+        # Check buffers that exists and have correct shapes
+        self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
+        self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
+        self.assertTrue(robot.data.joint_pos.shape == (1, 12))
+
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Check that the body_physx_view is deprecated
+        with self.assertWarns(DeprecationWarning):
+            robot.body_physx_view
+
+        # Root state should be at the default state
+        robot.write_root_state_to_sim(robot.data.default_root_state.clone())
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update robot
+            robot.update(self.dt)
+            # check that the root is at the correct state
+            default_root_state = robot.data.default_root_state.clone()
+            torch.testing.assert_close(robot.data.root_state_w, default_root_state)
+
+    def test_initialization_fixed_base_made_floating_base(self):
+        """Test initialization for fixed base made floating-base using schema properties."""
+        # Create articulation
+        robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+        robot_cfg.spawn.articulation_props.fix_root_link = False
+        robot = Articulation(cfg=robot_cfg)
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
+        # Play sim
+        self.sim.reset()
+        # Check if robot is initialized
+        self.assertTrue(robot._is_initialized)
+        # Check that fixed base
+        self.assertFalse(robot.is_fixed_base)
+        # Check buffers that exists and have correct shapes
+        self.assertTrue(robot.data.root_pos_w.shape == (1, 3))
+        self.assertTrue(robot.data.root_quat_w.shape == (1, 4))
+        self.assertTrue(robot.data.joint_pos.shape == (1, 9))
+
+        # Check some internal physx data for debugging
+        # -- joint related
+        self.assertEqual(robot.root_physx_view.max_dofs, robot.root_physx_view.shared_metatype.dof_count)
+        # -- link related
+        self.assertEqual(robot.root_physx_view.max_links, robot.root_physx_view.shared_metatype.link_count)
+        # -- link names (check within articulation ordering is correct)
+        prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
+        self.assertListEqual(prim_path_body_names, robot.body_names)
+
+        # Simulate physics
+        for _ in range(10):
+            # perform rendering
+            self.sim.step()
+            # update robot
+            robot.update(self.dt)
+            # check that the root is at the correct state
+            default_root_state = robot.data.default_root_state.clone()
+            is_close = torch.any(torch.isclose(robot.data.root_state_w, default_root_state))
+            self.assertFalse(is_close)
 
     def test_out_of_range_default_joint_pos(self):
         """Test that the default joint position from configuration is out of range."""

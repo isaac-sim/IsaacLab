@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.16.1 (2024-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added attribute :attr:`omni.isaac.orbit.sim.ArticulationRootPropertiesCfg.fix_root_link` to fix the root link
+  of an articulation to the world frame.
+
+
 0.16.0 (2024-04-16)
 ~~~~~~~~~~~~~~~~~~~
 

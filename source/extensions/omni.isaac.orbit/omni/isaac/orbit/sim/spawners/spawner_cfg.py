@@ -83,8 +83,14 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
 
     mass_props: schemas.MassPropertiesCfg | None = None
     """Mass properties."""
+
     rigid_props: schemas.RigidBodyPropertiesCfg | None = None
-    """Rigid body properties."""
+    """Rigid body properties.
+
+    For making a rigid object static, set the :attr:`schemas.RigidBodyPropertiesCfg.kinematic_enabled`
+    as True. This will make the object static and will not be affected by gravity or other forces.
+    """
+
     collision_props: schemas.CollisionPropertiesCfg | None = None
     """Properties to apply to all collision meshes."""
 

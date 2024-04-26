@@ -20,6 +20,7 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.orbit.sim as sim_utils
+from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
 
 
 class TestUtilities(unittest.TestCase):
@@ -81,6 +82,29 @@ class TestUtilities(unittest.TestCase):
         # test valid path
         with self.assertRaises(ValueError):
             sim_utils.get_all_matching_child_prims("World/Floor_.*")
+
+    def test_find_global_fixed_joint_prim(self):
+        """Test find_global_fixed_joint_prim() function."""
+        # create scene
+        prim_utils.create_prim("/World")
+        prim_utils.create_prim(
+            "/World/ANYmal", usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+        )
+        prim_utils.create_prim(
+            "/World/Franka", usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+        )
+        prim_utils.create_prim("/World/Franka_Isaac", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd")
+
+        # test
+        self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/ANYmal"))
+        self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
+        self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac"))
+
+        # make fixed joint disabled manually
+        joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")
+        joint_prim.GetJointEnabledAttr().Set(False)
+        self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
+        self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True))
 
 
 if __name__ == "__main__":
