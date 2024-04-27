@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.16.2 (2024-04-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed parsing of filter prim path expressions in the :class:`omni.isaac.orbit.sensors.ContactSensor` class.
+  Earlier, the filter prim paths given to the physics view was not being parsed since they were specified as
+  regex expressions instead of glob expressions.
+
+
 0.16.1 (2024-04-20)
 ~~~~~~~~~~~~~~~~~~~
 

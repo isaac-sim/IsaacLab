@@ -5,7 +5,7 @@
 
 """Base class for sensors.
 
-This class defines an interface for sensors similar to how the :class:`omni.isaac.orbit.robot.robot_base.RobotBase` class works.
+This class defines an interface for sensors similar to how the :class:`omni.isaac.orbit.assets.AssetBase` class works.
 Each sensor class should inherit from this class and implement the abstract methods.
 """
 

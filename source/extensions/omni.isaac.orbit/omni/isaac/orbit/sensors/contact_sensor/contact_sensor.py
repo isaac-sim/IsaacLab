@@ -245,14 +245,18 @@ class ContactSensor(SensorBase):
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
                 "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
             )
+
         # construct regex expression for the body names
         body_names_regex = r"(" + "|".join(body_names) + r")"
         body_names_regex = f"{self.cfg.prim_path.rsplit('/', 1)[0]}/{body_names_regex}"
-        # construct a new regex expression
+        # convert regex expressions to glob expressions for PhysX
+        body_names_glob = body_names_regex.replace(".*", "*")
+        filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
+
         # create a rigid prim view for the sensor
-        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex.replace(".*", "*"))
+        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
         self._contact_physx_view = self._physics_sim_view.create_rigid_contact_view(
-            body_names_regex.replace(".*", "*"), filter_patterns=self.cfg.filter_prim_paths_expr
+            body_names_glob, filter_patterns=filter_prim_paths_glob
         )
         # resolve the true count of bodies
         self._num_bodies = self.body_physx_view.count // self._num_envs

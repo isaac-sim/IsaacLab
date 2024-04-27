@@ -31,19 +31,24 @@ class ContactSensorCfg(SensorBaseCfg):
     """
 
     filter_prim_paths_expr: list[str] = list()
-    """The list of primitive paths to filter contacts with.
+    """The list of primitive paths (or expressions) to filter contacts with. Defaults to an empty list, in which case
+    no filtering is applied.
 
-    For example, if you want to filter contacts with the ground plane, you can set this to
-    ``["/World/ground_plane"]``. In this case, the contact sensor will only report contacts
-    with the ground plane while using the :meth:`omni.isaac.core.prims.RigidContactView.get_contact_force_matrix`
-    method.
+    The contact sensor allows reporting contacts between the primitive specified with :attr:`prim_path` and
+    other primitives in the scene. For instance, in a scene containing a robot, a ground plane and an object,
+    you can obtain individual contact reports of the base of the robot with the ground plane and the object.
 
-    If an empty list is provided, then only net contact forces are reported.
+    .. note::
+        The expression in the list can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
+        will be replaced with the environment namespace.
+
+        Example: ``{ENV_REGEX_NS}/Object`` will be replaced with ``/World/envs/env_.*/Object``.
+
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
     """The configuration object for the visualization markers. Defaults to CONTACT_SENSOR_MARKER_CFG.
 
-    Note:
+    .. note::
         This attribute is only used when debug visualization is enabled.
     """

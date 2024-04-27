@@ -20,8 +20,8 @@ from .spawners.materials import RigidBodyMaterialCfg
 class PhysxCfg:
     """Configuration for PhysX solver-related parameters.
 
-    These parameters are used to configure the PhysX solver. For more information, see the PhysX 5 SDK
-    documentation.
+    These parameters are used to configure the PhysX solver. For more information, see the `PhysX 5 SDK
+    documentation`_.
 
     PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
     through the flag `use_gpu`. Unlike CPU PhysX, the GPU simulation feature is not able to dynamically
@@ -29,8 +29,8 @@ class PhysxCfg:
     for GPU features. If insufficient buffer sizes are provided, the simulation will fail with errors and
     lead to adverse behaviors. The buffer sizes can be adjusted through the `gpu_*` parameters.
 
-    References:
-        * PhysX 5 documentation: https://nvidia-omniverse.github.io/PhysX/
+    .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html
+
     """
 
     use_gpu: bool = True
