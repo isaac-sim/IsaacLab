@@ -57,7 +57,6 @@ x-default-orbit-volumes: &default-orbit-volumes
 
 x-default-orbit-environment: &default-orbit-environment
   - ISAACSIM_PATH=${DOCKER_ORBIT_PATH}/_isaac_sim
-  - ORBIT_PATH=${DOCKER_ORBIT_PATH}
   - OMNI_KIT_ALLOW_ROOT=1
 
 x-default-orbit-deploy: &default-orbit-deploy
@@ -77,10 +76,10 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.base
       args:
-        - ISAACSIM_VERSION=${ISAACSIM_VERSION}
-        - ISAACSIM_ROOT_PATH=${DOCKER_ISAACSIM_ROOT_PATH}
-        - ORBIT_PATH=${DOCKER_ORBIT_PATH}
-        - DOCKER_USER_HOME=${DOCKER_USER_HOME}
+        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION}
+        - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
+        - ORBIT_PATH_ARG=${DOCKER_ORBIT_PATH}
+        - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
     image: orbit-base
     container_name: orbit-base
     environment: *default-orbit-environment
@@ -107,7 +106,6 @@ services:
         # avoid a warning message when building only the base profile
         # with the .env.base file
         - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
-        - DOCKER_USER_HOME=${DOCKER_USER_HOME}
     image: orbit-ros2
     container_name: orbit-ros2
     environment: *default-orbit-environment

@@ -7,8 +7,9 @@
 # Please check above link for license information.
 
 # Base image
-ARG ISAACSIM_VERSION
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION} AS base
+ARG ISAACSIM_VERSION_ARG
+FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION_ARG} AS base
+ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
@@ -19,11 +20,14 @@ LABEL description="Dockerfile for building and running the Orbit framework insid
 
 # Arguments
 # Path to Isaac Sim root folder
-ARG ISAACSIM_ROOT_PATH
+ARG ISAACSIM_ROOT_PATH_ARG
+ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to orbit directory
-ARG ORBIT_PATH
+ARG ORBIT_PATH_ARG
+ENV ORBIT_PATH=${ORBIT_PATH_ARG}
 # Home dir of docker user, typically '/root'
-ARG DOCKER_USER_HOME
+ARG DOCKER_USER_HOME_ARG
+ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 
 # Set environment variables
 ENV LANG=C.UTF-8
@@ -46,8 +50,14 @@ COPY ../ ${ORBIT_PATH}
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the orbit directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ORBIT_PATH}/_isaac_sim
 
+# Install apt dependencies for extensions that declare them in their extension.toml
+RUN --mount=type=cache,target=/var/cache/apt \
+    ${ORBIT_PATH}/orbit.sh --install-deps apt && \
+    apt -y autoremove && apt clean autoclean && \
+    rm -rf /var/lib/apt/lists/*
+
 # for singularity usage, have to create the directories that will binded
-RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
+RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cachecd && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \

@@ -79,11 +79,20 @@ install_orbit_extension() {
     # retrieve the python executable
     python_exe=$(extract_python_exe)
     # if the directory contains setup.py then install the python module
-    if [ -f "$1/setup.py" ];
-    then
+    if [ -f "$1/setup.py" ]; then
         echo -e "\t module: $1"
         ${python_exe} -m pip install --editable $1
     fi
+}
+
+install_extension_deps() {
+    # retrieve the python executable
+    set -e
+    path="$1"
+    cmd="$2"
+    python_exe=$(extract_python_exe)
+    echo -e "\t Installing deps for module: $1"
+    ${python_exe} ${ORBIT_PATH}/tools/install_deps.py ${cmd} $1
 }
 
 # setup anaconda environment for orbit
@@ -195,6 +204,7 @@ print_help () {
     echo -e "\t-h, --help           Display the help content."
     echo -e "\t-i, --install        Install the extensions inside Orbit."
     echo -e "\t-e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'."
+    echo -e "\t--install-deps [dep_type] Install dependencies for extensions (apt, rosdep, all) from each extension.toml. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
@@ -252,6 +262,30 @@ while [[ $# -gt 0 ]]; do
             fi
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_tasks["${framework_name}"]
+            shift # past argument
+            ;;
+        --install-deps)
+            # install the deps for extensions in source/extensions directory
+            if [ -z "$2" ]; then
+                dep_type="all"
+            else
+                dep_type=$2
+                shift # past argument
+            fi
+            echo "[INFO] Installing ${dep_type} dependencies for extensions inside orbit repository..."
+            # recursively look into directories and install
+            # all extension dependencies
+            export -f extract_python_exe
+            export -f install_extension_deps
+            # check if dep_type is installed, if not "all"
+            if [ "$dep_type" = "all" ] || command -v "$dep_type" &>/dev/null; then
+                find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 -I {} bash -c 'install_extension_deps "$1" "$2"' _ {} "${dep_type}"
+            else
+                echo "[ERROR] Not installing ${dep_type} deps, ${dep_type} not a known command"
+                exit 1
+            fi
+            # unset local variables
+            unset install_extension_deps
             shift # past argument
             ;;
         -c|--conda)

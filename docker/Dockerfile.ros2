@@ -4,8 +4,6 @@ FROM orbit-base AS ros2
 
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
-# Home of the docker user, generally /root
-ARG DOCKER_USER_HOME
 
 # ROS2 Humble Apt installations
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -24,6 +22,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ros-humble-rmw-fastrtps-cpp \
     # This includes various dev tools including colcon
     ros-dev-tools && \
+    # Install rosdeps for extensions that declare a ros_ws in
+    # their extension.toml
+    ${ORBIT_PATH}/orbit.sh --install-deps rosdep && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     # Add sourcing of setup.bash to .bashrc
