@@ -818,5 +818,6 @@ def set_usd_variants(prim_path: str, variants: object | dict[str, str], stage: U
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
             carb.log_info(
-                f"Set variant selection '{variant_selection}' for variant set '{variant_set_name}' on prim '{prim_path}'."
+                f"Set variant selection '{variant_selection}' for variant set '{variant_set_name}' on prim"
+                f" '{prim_path}'."
             )
