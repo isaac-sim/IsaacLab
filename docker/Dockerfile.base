@@ -57,7 +57,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     rm -rf /var/lib/apt/lists/*
 
 # for singularity usage, have to create the directories that will binded
-RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cachecd && \
+RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \
