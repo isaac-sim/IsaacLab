@@ -777,3 +777,46 @@ def find_global_fixed_joint_prim(
                 break
 
     return fixed_joint_prim
+
+
+"""
+USD Variants.
+"""
+
+
+def set_usd_variants(
+    prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None
+) -> None:
+    """
+    Sets the variant selections for the specified variant sets on a USD prim.
+
+    Args:
+        prim_path (str): The path of the USD prim.
+        variants (dict[str, str]): A dictionary mapping variant set names to variant selections.
+        stage (Usd.Stage | None, optional): The USD stage. If not provided, the current stage will be used.
+
+    Returns:
+        None
+    """
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+
+    prim = stage.GetPrimAtPath(prim_path)
+
+    existing_variant_sets = prim.GetVariantSets()
+
+    # Convert do dict if we have a configclass object.
+    if variants is not isinstance(variants, dict):
+        variants = variants.__dict__
+
+    for variant_set_name, variant_selection in variants.items():
+        # Check if the variant set exists on the prim.
+        if not existing_variant_sets.HasVariantSet(variant_set_name):
+            carb.log_warn(f"Variant set '{variant_set_name}' does not exist on prim '{prim_path}'.")
+            continue
+
+        variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # Only set the variant selection if it is different from the current selection.
+        if variant_set.GetVariantSelection() != variant_selection:
+            variant_set.SetVariantSelection(variant_selection)
+            carb.log_info(f"Set variant selection '{variant_selection}' for variant set '{variant_set_name}' on prim '{prim_path}'.")

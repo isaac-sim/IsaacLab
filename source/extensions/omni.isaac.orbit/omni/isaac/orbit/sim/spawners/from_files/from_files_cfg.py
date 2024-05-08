@@ -69,6 +69,14 @@ class UsdFileCfg(FileCfg):
     usd_path: str = MISSING
     """Path to the USD file to spawn asset from."""
 
+    variants: object | dict[str, str] | None = None
+    """Variants to apply to the USD file. Defaults to None.
+
+    Can either be a configclass object, in which case each attribute is used as a variant name and value,
+    or a dictionary where the keys are the variant names and the values are the variant values.
+    If None, then no variants are applied.
+    """
+
 
 @configclass
 class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
