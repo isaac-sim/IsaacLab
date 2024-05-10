@@ -784,7 +784,7 @@ USD Variants.
 """
 
 
-def set_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None) -> None:
+def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None) -> None:
     """
     Sets the variant selections for the specified variant sets on a USD prim.
 

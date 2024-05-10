@@ -14,7 +14,7 @@ import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
 from omni.isaac.orbit.sim import converters, schemas
-from omni.isaac.orbit.sim.utils import bind_physics_material, bind_visual_material, clone, set_usd_variants
+from omni.isaac.orbit.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
 
 if TYPE_CHECKING:
     from . import from_files_cfg
@@ -235,7 +235,7 @@ def _spawn_from_usd_file(
 
     # modify variants
     if cfg.variants is not None:
-        set_usd_variants(prim_path, cfg.variants)
+        select_usd_variants(prim_path, cfg.variants)
     # modify rigid body properties
     if cfg.rigid_props is not None:
         schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
