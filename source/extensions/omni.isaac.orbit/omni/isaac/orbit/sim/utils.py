@@ -789,12 +789,23 @@ def set_usd_variants(prim_path: str, variants: object | dict[str, str], stage: U
     Sets the variant selections for the specified variant sets on a USD prim.
 
     Args:
-        prim_path (str): The path of the USD prim.
-        variants (dict[str, str]): A dictionary mapping variant set names to variant selections.
-        stage (Usd.Stage | None, optional): The USD stage. If not provided, the current stage will be used.
+        prim_path: The path of the USD prim.
+        variants: A dictionary or config class mapping variant set names to variant selections.
+                  E.g.:
+                      {
+                          "color": "red",
+                          "size": "large",
+                      }
 
-    Returns:
-        None
+                  - or -
+
+                      @configclass
+                      ConfigClass(
+                          color: Literal["blue","red"] = "red"
+                          size: Literal["small", "large] = "large"
+                      )
+        stage: The USD stage. Defaults to None, in which case, the current stage is used.
+
     """
     if stage is None:
         stage = stage_utils.get_current_stage()
@@ -804,7 +815,7 @@ def set_usd_variants(prim_path: str, variants: object | dict[str, str], stage: U
     existing_variant_sets = prim.GetVariantSets()
 
     # Convert do dict if we have a configclass object.
-    if variants is not isinstance(variants, dict):
+    if not isinstance(variants, dict):
         variants = variants.__dict__
 
     for variant_set_name, variant_selection in variants.items():
