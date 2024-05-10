@@ -804,6 +804,8 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
                           color: Literal["blue","red"] = "red"
                           size: Literal["small", "large] = "large"
                       )
+                  For more information on USD variants, see the official documentation:
+                  https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
     """

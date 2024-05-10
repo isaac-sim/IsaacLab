@@ -75,6 +75,7 @@ class UsdFileCfg(FileCfg):
     Can either be a configclass object, in which case each attribute is used as a variant name and value,
     or a dictionary where the keys are the variant names and the values are the variant values.
     If None, then no variants are applied.
+    See :meth:`select_usd_variants` for more information.
     """
 
 
