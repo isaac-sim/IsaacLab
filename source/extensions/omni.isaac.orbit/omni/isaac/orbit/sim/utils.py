@@ -787,12 +787,14 @@ USD Variants.
 def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
     """Sets the variant selections from the specified variant sets on a USD prim.
 
-    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on a single asset.
-    This can be done by modifying variations of the same prim parameters per variant option in a set.
-    This function acts as a script-based utility to set the variant selections for the specified variant sets on a USD prim.
+    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on
+    a single asset. This can be done by modifying variations of the same prim parameters per variant option in a set.
+    This function acts as a script-based utility to set the variant selections for the specified variant sets on a
+    USD prim.
 
-    The function takes a dictionary or a config class mapping variant set names to variant selections. For instance, if we have
-    a prim at ``"/World/Table"`` with two variant sets: "color" and "size", we can set the variant selections as follows:
+    The function takes a dictionary or a config class mapping variant set names to variant selections. For instance,
+    if we have a prim at ``"/World/Table"`` with two variant sets: "color" and "size", we can set the variant
+    selections as follows:
 
     .. code-block:: python
 
