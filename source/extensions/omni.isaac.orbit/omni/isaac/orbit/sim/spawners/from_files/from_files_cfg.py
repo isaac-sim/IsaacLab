@@ -69,6 +69,14 @@ class UsdFileCfg(FileCfg):
     usd_path: str = MISSING
     """Path to the USD file to spawn asset from."""
 
+    variants: object | dict[str, str] | None = None
+    """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
+
+    This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
+    or a dictionary mapping between the two. Please check the :meth:`~omni.isaac.orbit.sim.utils.select_usd_variants` function
+    for more information.
+    """
+
 
 @configclass
 class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):

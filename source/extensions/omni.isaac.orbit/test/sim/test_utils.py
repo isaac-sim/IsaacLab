@@ -18,6 +18,7 @@ import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
+from pxr import Sdf, Usd, UsdGeom
 
 import omni.isaac.orbit.sim as sim_utils
 from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
@@ -105,6 +106,24 @@ class TestUtilities(unittest.TestCase):
         joint_prim.GetJointEnabledAttr().Set(False)
         self.assertIsNotNone(sim_utils.find_global_fixed_joint_prim("/World/Franka"))
         self.assertIsNone(sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True))
+
+    def test_select_usd_variants(self):
+        """Test select_usd_variants() function."""
+        stage = stage_utils.get_current_stage()
+        prim: Usd.Prim = UsdGeom.Xform.Define(stage, Sdf.Path("/World")).GetPrim()
+        stage.SetDefaultPrim(prim)
+
+        # Create the variant set and add your variants to it.
+        variants = ["red", "blue", "green"]
+        variant_set = prim.GetVariantSets().AddVariantSet("colors")
+        for variant in variants:
+            variant_set.AddVariant(variant)
+
+        # Set the variant selection
+        sim_utils.utils.select_usd_variants("/World", {"colors": "red"}, stage)
+
+        # Check if the variant selection is correct
+        self.assertEqual(variant_set.GetVariantSelection(), "red")
 
 
 if __name__ == "__main__":

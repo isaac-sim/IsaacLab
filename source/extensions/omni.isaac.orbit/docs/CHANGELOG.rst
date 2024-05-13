@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.16.3 (2024-05-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``variants`` attribute to the :class:`omni.isaac.orbit.sim.from_files.UsdFileCfg` class to select USD
+  variants when loading assets from USD files.
+
+
 0.16.2 (2024-04-26)
 ~~~~~~~~~~~~~~~~~~~
 
