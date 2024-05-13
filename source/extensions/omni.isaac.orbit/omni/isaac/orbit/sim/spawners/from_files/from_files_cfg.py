@@ -70,12 +70,11 @@ class UsdFileCfg(FileCfg):
     """Path to the USD file to spawn asset from."""
 
     variants: object | dict[str, str] | None = None
-    """Variants to apply to the USD file. Defaults to None.
+    """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
-    Can either be a configclass object, in which case each attribute is used as a variant name and value,
-    or a dictionary where the keys are the variant names and the values are the variant values.
-    If None, then no variants are applied.
-    See :meth:`select_usd_variants` for more information.
+    This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
+    or a dictionary mapping between the two. Please check the :meth:`~omni.isaac.orbit.sim.utils.select_usd_variants` function
+    for more information.
     """
 
 

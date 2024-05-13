@@ -784,42 +784,62 @@ USD Variants.
 """
 
 
-def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None) -> None:
-    """
-    Sets the variant selections for the specified variant sets on a USD prim.
+def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
+    """Sets the variant selections from the specified variant sets on a USD prim.
+
+    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on a single asset.
+    This can be done by modifying variations of the same prim parameters per variant option in a set.
+    This function acts as a script-based utility to set the variant selections for the specified variant sets on a USD prim.
+
+    The function takes a dictionary or a config class mapping variant set names to variant selections. For instance, if we have
+    a prim at ``"/World/Table"`` with two variant sets: "color" and "size", we can set the variant selections as follows:
+
+    .. code-block:: python
+
+        select_usd_variants(
+            prim_path="/World/Table",
+            variants={
+                "color": "red",
+                "size": "large",
+            },
+        )
+
+    Alternatively, we can use a config class to define the variant selections:
+
+    .. code-block:: python
+
+        @configclass
+        class TableVariants:
+            color: Literal["blue", "red"] = "red"
+            size: Literal["small", "large"] = "large"
+
+        select_usd_variants(
+            prim_path="/World/Table",
+            variants=TableVariants(),
+        )
 
     Args:
         prim_path: The path of the USD prim.
         variants: A dictionary or config class mapping variant set names to variant selections.
-                  E.g.:
-                      {
-                          "color": "red",
-                          "size": "large",
-                      }
-
-                  - or -
-
-                      @configclass
-                      ConfigClass(
-                          color: Literal["blue","red"] = "red"
-                          size: Literal["small", "large] = "large"
-                      )
-                  For more information on USD variants, see the official documentation:
-                  https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
+    Raises:
+        ValueError: If the prim at the specified path is not valid.
+
+    .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
+    # Resolve stage
     if stage is None:
         stage = stage_utils.get_current_stage()
-
+    # Obtain prim
     prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim at path '{prim_path}' is not valid.")
+    # Convert to dict if we have a configclass object.
+    if not isinstance(variants, dict):
+        variants = variants.to_dict()
 
     existing_variant_sets = prim.GetVariantSets()
-
-    # Convert do dict if we have a configclass object.
-    if not isinstance(variants, dict):
-        variants = variants.__dict__
-
     for variant_set_name, variant_selection in variants.items():
         # Check if the variant set exists on the prim.
         if not existing_variant_sets.HasVariantSet(variant_set_name):
@@ -831,6 +851,6 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
             carb.log_info(
-                f"Set variant selection '{variant_selection}' for variant set '{variant_set_name}' on prim"
-                f" '{prim_path}'."
+                f"Setting variant selection '{variant_selection}' for variant set '{variant_set_name}' on"
+                f" prim '{prim_path}'."
             )
