@@ -234,8 +234,9 @@ def _spawn_from_usd_file(
         carb.log_warn(f"A prim already exists at prim path: '{prim_path}'.")
 
     # modify variants
-    if cfg.variants is not None:
+    if hasattr(cfg, "variants") and cfg.variants is not None:
         select_usd_variants(prim_path, cfg.variants)
+
     # modify rigid body properties
     if cfg.rigid_props is not None:
         schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
