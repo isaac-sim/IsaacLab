@@ -22,7 +22,9 @@ INSTALL_REQUIRES = [
     "numpy",
     "torch==2.0.1",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
-    "protobuf>=3.20.2",
+    # 5.26.0 introduced a breaking change, so we restricted it for now.
+    # See issue https://github.com/tensorflow/tensorboard/issues/6808 for details.
+    "protobuf >= 3.19.6, < 5.0.0",
     # data collection
     "h5py",
     # basic logger
