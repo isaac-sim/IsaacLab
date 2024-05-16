@@ -31,7 +31,13 @@ setup_directories() {
 
 
 # get script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+if [ -n "$BASH_VERSION" ]; then
+    # Bash
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+else
+    # Fallback for other shells
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+fi
 
 # load variables to set the orbit path on the cluster
 source $SCRIPT_DIR/../.env.base

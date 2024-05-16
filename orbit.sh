@@ -16,7 +16,13 @@ set -e
 tabs 4
 
 # get source directory
-export ORBIT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+if [ -n "$BASH_VERSION" ]; then
+    # Bash
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+else
+    # Fallback for other shells
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+fi
 
 #==
 # Helper functions

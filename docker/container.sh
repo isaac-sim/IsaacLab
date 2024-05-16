@@ -11,7 +11,13 @@ set -e
 tabs 4
 
 # get script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+if [ -n "$BASH_VERSION" ]; then
+    # Bash
+    SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+else
+    # Fallback for other shells
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+fi
 
 STATEFILE="${SCRIPT_DIR}/.container.yaml"
 
