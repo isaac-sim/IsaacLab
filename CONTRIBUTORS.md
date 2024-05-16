@@ -23,6 +23,7 @@ Guidelines for modifications:
 * Farbod Farshidian
 * Hunter Hansen
 * James Smith
+* James Tigue
 * **Mayank Mittal** (maintainer)
 * Nikita Rudin
 * Pascal Roth
