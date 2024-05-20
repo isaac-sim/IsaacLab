@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.16.4 (2024-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed compound classes being directly assigned in ``default_factory`` generator method :meth:`omni.isaac.orbit.utils.configclass._return_f`,
+  which resulted in shared references such that modifications to compound objects were reflected across all instances generated from the same ``default_factory`` method.
+
+
 0.16.3 (2024-05-13)
 ~~~~~~~~~~~~~~~~~~~
 

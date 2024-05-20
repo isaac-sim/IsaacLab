@@ -415,6 +415,6 @@ def _return_f(f: Any) -> Callable[[], Any]:
             else:
                 return f.default_factory
         else:
-            return f
+            return deepcopy(f)
 
     return _wrap

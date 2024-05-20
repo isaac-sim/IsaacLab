@@ -168,13 +168,14 @@ class ParentDemoCfg:
     a: int = MISSING  # add new missing field
     b = 2  # type annotation missing on purpose
     c: RobotDefaultStateCfg = MISSING  # add new missing field
+    m: RobotDefaultStateCfg = RobotDefaultStateCfg()  # Add class type with defaults
     j: list[str] = MISSING  # add new missing field
     i: list[str] = MISSING  # add new missing field
     func: Callable = MISSING  # add new missing field
 
 
 @configclass
-class ChildDemoCfg(ParentDemoCfg):
+class ChildADemoCfg(ParentDemoCfg):
     """Dummy child configuration with missing fields."""
 
     func = dummy_function1  # set default value for missing field
@@ -189,11 +190,24 @@ class ChildDemoCfg(ParentDemoCfg):
 
     def __post_init__(self):
         self.b = 3  # change value of existing field
+        self.m.rot = (2.0, 0.0, 0.0, 0.0)  # change value of default
         self.i = ["a", "b"]  # change value of existing field
 
 
 @configclass
-class ChildChildDemoCfg(ChildDemoCfg):
+class ChildBDemoCfg(ParentDemoCfg):
+    """Dummy child configuration to test inheritance across instances."""
+
+    a = 100  # set default value for missing field
+    j = ["3", "4"]  # set default value for missing field
+
+    def __post_init__(self):
+        self.b = 8  # change value of existing field
+        self.i = ["1", "2"]  # change value of existing field
+
+
+@configclass
+class ChildChildDemoCfg(ChildADemoCfg):
     """Dummy child configuration with missing fields."""
 
     func_2 = dummy_function2
@@ -613,16 +627,51 @@ class TestConfigClass(unittest.TestCase):
     def test_config_inheritance(self):
         """Tests that inheritance works properly."""
         # check variables
-        cfg = ChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+        cfg_a = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
 
-        self.assertEqual(cfg.func, dummy_function1)
-        self.assertEqual(cfg.a, 20)
-        self.assertEqual(cfg.d, 3)
-        self.assertEqual(cfg.j, ["c", "d"])
+        self.assertEqual(cfg_a.func, dummy_function1)
+        self.assertEqual(cfg_a.a, 20)
+        self.assertEqual(cfg_a.d, 3)
+        self.assertEqual(cfg_a.j, ["c", "d"])
 
         # check post init
-        self.assertEqual(cfg.b, 3)
-        self.assertEqual(cfg.i, ["a", "b"])
+        self.assertEqual(cfg_a.b, 3)
+        self.assertEqual(cfg_a.i, ["a", "b"])
+        self.assertEqual(cfg_a.m.rot, (2.0, 0.0, 0.0, 0.0))
+
+    def test_config_inheritance_independence(self):
+        """Tests that subclass instantions have fully unique members,
+        rather than references to members of the parent class"""
+        # instantiate two classes which inherit from a shared parent,
+        # but which will differently modify their members in their
+        # __init__ and  __post_init__
+        cfg_a = ChildADemoCfg()
+        cfg_b = ChildBDemoCfg()
+
+        # Test various combinations of initialization
+        # and defaults across inherited members in
+        # instances to verify independence between the subclasses
+        self.assertIsInstance(cfg_a.a, type(MISSING))
+        self.assertEqual(cfg_b.a, 100)
+        self.assertEqual(cfg_a.b, 3)
+        self.assertEqual(cfg_b.b, 8)
+        self.assertEqual(cfg_a.c, RobotDefaultStateCfg())
+        self.assertIsInstance(cfg_b.c, type(MISSING))
+        self.assertEqual(cfg_a.m.rot, (2.0, 0.0, 0.0, 0.0))
+        self.assertEqual(cfg_b.m.rot, (1.0, 0.0, 0.0, 0.0))
+        self.assertIsInstance(cfg_a.j, type(MISSING))
+        self.assertEqual(cfg_b.j, ["3", "4"])
+        self.assertEqual(cfg_a.i, ["a", "b"])
+        self.assertEqual(cfg_b.i, ["1", "2"])
+        self.assertEqual(cfg_a.func, dummy_function1)
+        self.assertIsInstance(cfg_b.func, type(MISSING))
+
+        # Explicitly assert that members are not the same object
+        # for different levels and kinds of data types
+        self.assertIsNot(cfg_a.m, cfg_b.m)
+        self.assertIsNot(cfg_a.m.rot, cfg_b.m.rot)
+        self.assertIsNot(cfg_a.i, cfg_b.i)
+        self.assertIsNot(cfg_a.b, cfg_b.b)
 
     def test_config_double_inheritance(self):
         """Tests that inheritance works properly when inheriting twice."""
@@ -682,7 +731,7 @@ class TestConfigClass(unittest.TestCase):
         filename = os.path.join(dirname, "output", "configclass", "test_config.yaml")
 
         # create config
-        cfg = ChildDemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+        cfg = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
 
         # save config
         dump_yaml(filename, cfg)
