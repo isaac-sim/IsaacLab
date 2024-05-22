@@ -1,14 +1,26 @@
 Changelog
 ---------
 
+0.16.5 (2024-05-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`omni.isaac.orbit.sensor.ContactSensor` not loading correctly in extension mode.
+  Earlier, the :attr:`omni.isaac.orbit.sensor.ContactSensor.body_physx_view` was not initialized when
+  :meth:`omni.isaac.orbit.sensor.ContactSensor._debug_vis_callback` is called which references it.
+
+
 0.16.4 (2024-05-15)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
 
-* Fixed compound classes being directly assigned in ``default_factory`` generator method :meth:`omni.isaac.orbit.utils.configclass._return_f`,
-  which resulted in shared references such that modifications to compound objects were reflected across all instances generated from the same ``default_factory`` method.
+* Fixed compound classes being directly assigned in ``default_factory`` generator method
+  :meth:`omni.isaac.orbit.utils.configclass._return_f`, which resulted in shared references such that modifications to
+  compound objects were reflected across all instances generated from the same ``default_factory`` method.
 
 
 0.16.3 (2024-05-13)

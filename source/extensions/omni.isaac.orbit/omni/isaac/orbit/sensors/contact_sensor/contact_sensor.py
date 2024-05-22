@@ -58,6 +58,8 @@ class ContactSensor(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
+        # initialize self._body_physx_view for running in extension mode
+        self._body_physx_view = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
