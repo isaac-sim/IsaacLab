@@ -78,6 +78,14 @@ def design_scene():
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
     cfg.func("/World/Objects/Table", cfg, translation=(0.0, 0.0, 1.05))
 
+    # spawn an assembly of shapes with collision and inertia properties
+    cfg_assembly = sim_utils.RaceQuadcopterCfg(
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.752),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+    cfg_assembly.func("/World/Objects/Quad", cfg_assembly, translation=(-0.5, 0.0, 1.05))
+
 
 def main():
     """Main function."""
