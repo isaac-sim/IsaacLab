@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.6.2 (2024-05-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added exporting of empirical normalization layer to ONNX and JIT when exporting the model using
+  :meth:`omni.isaac.orbit.actuators.ActuatorNetMLP.export` method. Previously, the normalization layer
+  was not exported to the ONNX and JIT models. This caused the exported model to not work properly
+  when used for inference.
+
+
 0.6.1 (2024-04-16)
 ~~~~~~~~~~~~~~~~~~
 
