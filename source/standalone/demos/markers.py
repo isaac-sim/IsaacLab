@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/demos/markers.py
+    ./isaaclab.sh -p source/standalone/demos/markers.py
 
 """
 
@@ -16,7 +16,7 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different types of markers.")
@@ -33,11 +33,11 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.markers import VisualizationMarkers, VisualizationMarkersCfg
-from omni.isaac.orbit.sim import SimulationContext
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR, ISAAC_ORBIT_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import quat_from_angle_axis
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from omni.isaac.lab.sim import SimulationContext
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import quat_from_angle_axis
 
 
 def define_markers() -> VisualizationMarkers:
@@ -82,7 +82,7 @@ def define_markers() -> VisualizationMarkers:
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.25, 0.0)),
             ),
             "robot_mesh": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
                 scale=(2.0, 2.0, 2.0),
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(0.0, 0.1, 0.0)),
             ),

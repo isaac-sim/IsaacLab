@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,10 +9,10 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Orbit environments.")
+parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Isaac Lab environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -37,12 +37,12 @@ import robomimic  # noqa: F401
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 
-import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.utils import parse_env_cfg
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import parse_env_cfg
 
 
 def main():
-    """Run a trained policy from robomimic with Orbit environment."""
+    """Run a trained policy from robomimic with Isaac Lab environment."""
     # parse configuration
     env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=1, use_fabric=not args_cli.disable_fabric)
     # we want to have the terms in the observations returned as a dictionary

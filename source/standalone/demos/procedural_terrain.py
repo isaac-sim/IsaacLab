@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,19 +11,19 @@ Example usage:
 .. code-block:: bash
 
     # Generate terrain with height color scheme
-    ./orbit.sh -p source/standalone/demos/procedural_terrain.py --color_scheme height
+    ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py --color_scheme height
 
     # Generate terrain with random color scheme
-    ./orbit.sh -p source/standalone/demos/procedural_terrain.py --color_scheme random
+    ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py --color_scheme random
 
     # Generate terrain with no color scheme
-    ./orbit.sh -p source/standalone/demos/procedural_terrain.py --color_scheme none
+    ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py --color_scheme none
 
     # Generate terrain with curriculum
-    ./orbit.sh -p source/standalone/demos/procedural_terrain.py --use_curriculum
+    ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py --use_curriculum
 
     # Generate terrain with curriculum along with flat patches
-    ./orbit.sh -p source/standalone/demos/procedural_terrain.py --use_curriculum --show_flat_patches
+    ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py --use_curriculum --show_flat_patches
 
 """
 
@@ -31,7 +31,7 @@ Example usage:
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates procedural terrain generation.")
@@ -68,15 +68,15 @@ simulation_app = app_launcher.app
 import random
 import torch
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import AssetBase
-from omni.isaac.orbit.markers import VisualizationMarkers, VisualizationMarkersCfg
-from omni.isaac.orbit.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import AssetBase
+from omni.isaac.lab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 
 
 def design_scene() -> tuple[dict, torch.Tensor]:

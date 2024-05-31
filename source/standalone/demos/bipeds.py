@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +12,7 @@ This script demonstrates how to simulate a bipedal robot.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a bipedal robot.")
@@ -27,14 +27,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.sim import SimulationContext
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
+from omni.isaac.lab.sim import SimulationContext
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort:skip
+from omni.isaac.lab_assets.cassie import CASSIE_CFG  # isort:skip
 
 
 def main():

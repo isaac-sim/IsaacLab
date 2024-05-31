@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,7 +12,7 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/05_controllers/ik_control.py
+    ./isaaclab.sh -p source/standalone/tutorials/05_controllers/ik_control.py
 
 """
 
@@ -20,7 +20,7 @@ PhysX. This helps perform parallelized computation of the inverse kinematics.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on using the differential IK controller.")
@@ -39,21 +39,21 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import AssetBaseCfg
-from omni.isaac.orbit.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
-from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import subtract_frame_transforms
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import AssetBaseCfg
+from omni.isaac.lab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.markers import VisualizationMarkers
+from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
+from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import subtract_frame_transforms
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
+from omni.isaac.lab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 
 @configclass

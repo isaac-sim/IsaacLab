@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,7 @@ scene, action, observation and event managers to create an environment.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a cartpole base environment.")
@@ -33,15 +33,15 @@ simulation_app = app_launcher.app
 import math
 import torch
 
-import omni.isaac.orbit.envs.mdp as mdp
-from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
-from omni.isaac.orbit.managers import EventTermCfg as EventTerm
-from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
-from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.utils import configclass
+import omni.isaac.lab.envs.mdp as mdp
+from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
+from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
+from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.utils import configclass
 
-from omni.isaac.orbit_tasks.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
+from omni.isaac.lab_tasks.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
 
 
 @configclass

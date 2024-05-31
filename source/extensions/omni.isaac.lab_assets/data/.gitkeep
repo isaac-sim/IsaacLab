@@ -1,0 +1,6 @@
+For Isaac Lab, we primarily store assets on the Omniverse Nucleus server. However, at times, it may be
+needed to store the assets locally (for debugging purposes). In such cases, this directory can be
+used for temporary hosting of assets.
+
+Inside the `data` directory, we recommend following the same structure as our Nucleus directory
+`Isaac/IsaacLab`. Please check the extension's README for further details.

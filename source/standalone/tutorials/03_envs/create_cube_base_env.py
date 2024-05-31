@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,7 +14,7 @@ scene entities. The rest of the environment is similar to the previous tutorials
 .. code-block:: bash
 
     # Run the script
-    ./orbit.sh -p source/standalone/tutorials/04_envs/floating_cube.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/tutorials/04_envs/floating_cube.py --num_envs 32
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a floating cube environment.")
@@ -43,18 +43,18 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.orbit.envs.mdp as mdp
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
-from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
-from omni.isaac.orbit.managers import ActionTerm, ActionTermCfg
-from omni.isaac.orbit.managers import EventTermCfg as EventTerm
-from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
-from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.scene import InteractiveSceneCfg
-from omni.isaac.orbit.terrains import TerrainImporterCfg
-from omni.isaac.orbit.utils import configclass
+import omni.isaac.lab.envs.mdp as mdp
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
+from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
+from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.terrains import TerrainImporterCfg
+from omni.isaac.lab.utils import configclass
 
 ##
 # Custom action term

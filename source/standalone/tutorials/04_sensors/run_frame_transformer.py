@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/run_frame_transformer.py
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_frame_transformer.py
 
 """
 
@@ -17,7 +17,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -37,18 +37,18 @@ import torch
 
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
 
-import omni.isaac.orbit.sim as sim_utils
-import omni.isaac.orbit.utils.math as math_utils
-from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import FRAME_MARKER_CFG
-from omni.isaac.orbit.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
-from omni.isaac.orbit.sim import SimulationContext
+import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
+from omni.isaac.lab.assets import Articulation
+from omni.isaac.lab.markers import VisualizationMarkers
+from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
+from omni.isaac.lab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
+from omni.isaac.lab.sim import SimulationContext
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def define_sensor() -> FrameTransformer:
