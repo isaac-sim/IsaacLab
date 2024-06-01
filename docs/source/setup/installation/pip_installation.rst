@@ -36,7 +36,7 @@ Installing Isaac Sim
             isaaclab\Scripts\activate
 
 
--  Next, install a CUDA-enabled PyTorch 2.2.2 build based on the CUDA version available on your system.
+-  Next, install a CUDA-enabled PyTorch 2.3.0 build based on the CUDA version available on your system.
 
    .. tabs::
 
@@ -44,13 +44,13 @@ Installing Isaac Sim
 
          .. code-block:: bash
 
-            pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu118
+            pip install torch --index-url https://download.pytorch.org/whl/cu118
 
       .. tab:: CUDA 12
 
          .. code-block:: bash
 
-            pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu121
+            pip install torch
 
 
 -  Then, install the Isaac Sim packages necessary for running Isaac Lab:

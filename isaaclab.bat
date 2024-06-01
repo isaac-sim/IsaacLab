@@ -179,7 +179,6 @@ echo [INFO] Created conda environment named '%env_name%'.
 echo.
 echo       1. To activate the environment, run:                conda activate %env_name%
 echo       2. To install Isaac Lab extensions, run:            isaaclab -i
-echo       3. To install learning-related dependencies, run:   isaaclab -e
 echo       4. To perform formatting, run:                      isaaclab -f
 echo       5. To deactivate the environment, run:              conda deactivate
 echo.
