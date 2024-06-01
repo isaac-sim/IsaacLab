@@ -7,6 +7,7 @@
 
 import itertools
 import os
+import platform
 import toml
 
 from setuptools import setup
@@ -20,11 +21,11 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy",
-    "torch==2.0.1",
+    "torch==2.2.2",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     # 5.26.0 introduced a breaking change, so we restricted it for now.
     # See issue https://github.com/tensorflow/tensorboard/issues/6808 for details.
-    "protobuf >= 3.19.6, < 5.0.0",
+    "protobuf>=3.20.2, < 5.0.0",
     # data collection
     "h5py",
     # basic logger
@@ -35,12 +36,17 @@ INSTALL_REQUIRES = [
 
 # Extra dependencies for RL agents
 EXTRAS_REQUIRE = {
-    "sb3": ["stable-baselines3>=2.0"],
+    "sb3": ["stable-baselines3>=2.1"],
     "skrl": ["skrl>=1.1.0"],
-    "rl_games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
-    "rsl_rl": ["rsl_rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
-    "robomimic": ["robomimic@git+https://github.com/ARISE-Initiative/robomimic.git"],
+    "rl-games": ["rl-games==1.6.1", "gym"],  # rl-games still needs gym :(
+    "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
+    "robomimic": [],
 }
+
+# Check if the platform is Linux and add the dependency
+if platform.system() == "Linux":
+    EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
+
 # cumulation of all extra-requires
 EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
 
@@ -62,7 +68,7 @@ setup(
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.10",
-        "Isaac Sim :: 2023.1.0-hotfix.1",
+        "Isaac Sim :: 4.0.0",
         "Isaac Sim :: 2023.1.1",
     ],
     zip_safe=False,

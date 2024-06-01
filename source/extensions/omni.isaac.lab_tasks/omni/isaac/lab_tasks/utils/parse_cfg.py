@@ -13,11 +13,11 @@ import os
 import re
 import yaml
 
-from omni.isaac.lab.envs import RLTaskEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils import update_class_from_dict, update_dict
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | RLTaskEnvCfg:
+def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | ManagerBasedRLEnvCfg:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -98,7 +98,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | RLTas
 
 def parse_env_cfg(
     task_name: str, use_gpu: bool | None = None, num_envs: int | None = None, use_fabric: bool | None = None
-) -> dict | RLTaskEnvCfg:
+) -> dict | ManagerBasedRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
@@ -178,9 +178,6 @@ def get_checkpoint_path(
 
     Returns:
         The path to the model checkpoint.
-
-    Reference:
-        https://github.com/leggedrobotics/legged_gym/blob/master/legged_gym/utils/helpers.py#L103
     """
     # check if runs present in directory
     try:

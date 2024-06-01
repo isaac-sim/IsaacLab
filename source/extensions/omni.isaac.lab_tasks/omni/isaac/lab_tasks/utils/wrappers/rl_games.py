@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`RLTaskEnv` instance to RL-Games vectorized environment.
+"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to RL-Games vectorized environment.
 
 The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games :class:`Runner` class:
@@ -41,7 +41,7 @@ import torch
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
-from omni.isaac.lab.envs import RLTaskEnv, VecEnvObs
+from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv, VecEnvObs
 
 """
 Vectorized environment wrapper.
@@ -60,7 +60,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
     observations. This dictionary contains "obs" and "states" which typically correspond
     to the actor and critic observations respectively.
 
-    To use asymmetric actor-critic, the environment observations from :class:`RLTaskEnv`
+    To use asymmetric actor-critic, the environment observations from :class:`ManagerBasedRLEnv`
     must have the key or group name "critic". The observation group is used to set the
     :attr:`num_states` (int) and :attr:`state_space` (:obj:`gym.spaces.Box`). These are
     used by the learning agent in RL-Games to allocate buffers in the trajectory memory.
@@ -79,7 +79,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
     """
 
-    def __init__(self, env: RLTaskEnv, rl_device: str, clip_obs: float, clip_actions: float):
+    def __init__(self, env: ManagerBasedRLEnv, rl_device: str, clip_obs: float, clip_actions: float):
         """Initializes the wrapper instance.
 
         Args:
@@ -89,12 +89,12 @@ class RlGamesVecEnvWrapper(IVecEnv):
             clip_actions: The clipping value for actions.
 
         Raises:
-            ValueError: The environment is not inherited from :class:`RLTaskEnv`.
+            ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv`.
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, RLTaskEnv):
-            raise ValueError(f"The environment must be inherited from RLTaskEnv. Environment type: {type(env)}")
+        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+            raise ValueError(f"The environment must be inherited from ManagerBasedRLEnv. Environment type: {type(env)}")
         # initialize the wrapper
         self.env = env
         # store provided arguments
@@ -143,7 +143,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
                 " and if you are nice, please send a merge-request."
             )
         # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
-        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        #   in ManagerBasedRLEnv we are setting action space as (-inf, inf).
         return gym.spaces.Box(-self._clip_obs, self._clip_obs, policy_obs_space.shape)
 
     @property
@@ -159,7 +159,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             )
         # return casted space in gym.spaces.Box (OpenAI Gym)
         # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
-        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        #   in ManagerBasedRLEnv we are setting action space as (-inf, inf).
         return gym.spaces.Box(-self._clip_actions, self._clip_actions, action_space.shape)
 
     @classmethod
@@ -168,7 +168,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> RLTaskEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
@@ -205,7 +205,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             )
         # return casted space in gym.spaces.Box (OpenAI Gym)
         # note: maybe should check if we are a sub-set of the actual space. don't do it right now since
-        #   in RLTaskEnv we are setting action space as (-inf, inf).
+        #   in ManagerBasedRLEnv we are setting action space as (-inf, inf).
         return gym.spaces.Box(-self._clip_obs, self._clip_obs, critic_obs_space.shape)
 
     def get_number_of_agents(self) -> int:

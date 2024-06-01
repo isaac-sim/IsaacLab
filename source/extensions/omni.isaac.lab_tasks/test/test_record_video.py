@@ -8,7 +8,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch the simulator
-app_launcher = AppLauncher(headless=True, offscreen_render=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -20,7 +20,7 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import RLTaskEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import parse_env_cfg
@@ -60,7 +60,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
                 omni.usd.get_context().new_stage()
 
                 # parse configuration
-                env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
 
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")

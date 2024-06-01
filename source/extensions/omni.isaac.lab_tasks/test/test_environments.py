@@ -8,7 +8,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch the simulator
-app_launcher = AppLauncher(headless=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 
@@ -20,7 +20,7 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import RLTaskEnv, RLTaskEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -34,7 +34,7 @@ class TestEnvironments(unittest.TestCase):
         # acquire all Isaac environments names
         cls.registered_tasks = list()
         for task_spec in gym.registry.values():
-            if "Isaac" in task_spec.id:
+            if "Isaac" in task_spec.id and not task_spec.id.endswith("Play-v0"):
                 cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
@@ -84,9 +84,9 @@ class TestEnvironments(unittest.TestCase):
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=use_gpu, num_envs=num_envs)
+        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=use_gpu, num_envs=num_envs)
         # create environment
-        env: RLTaskEnv = gym.make(task_name, cfg=env_cfg)
+        env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
 
         # reset environment
         obs, _ = env.reset()

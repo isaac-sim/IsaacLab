@@ -80,8 +80,8 @@ class RslRlOnPolicyRunnerCfg:
     seed: int = 42
     """The seed for the experiment. Default is 42."""
 
-    device: str = "cuda"
-    """The device for the rl-agent. Default is cuda."""
+    device: str = "cuda:0"
+    """The device for the rl-agent. Default is cuda:0."""
 
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""

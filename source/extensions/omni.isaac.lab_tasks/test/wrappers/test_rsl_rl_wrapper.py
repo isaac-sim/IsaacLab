@@ -8,19 +8,20 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch the simulator
-app_launcher = AppLauncher(headless=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
 
 import gymnasium as gym
+import random
 import torch
 import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import RLTaskEnvCfg
+from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
@@ -36,11 +37,13 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
         cls.registered_tasks = list()
         for task_spec in gym.registry.values():
             if "Isaac" in task_spec.id:
-                cls.registered_tasks.append(task_spec.id)
+                cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rsl_rl_cfg_entry_point")
+                if cfg_entry_point is not None:
+                    cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        # only pick the first four environments to test
-        cls.registered_tasks = cls.registered_tasks[:4]
+        # pick four environments randomly to test
+        cls.registered_tasks = random.sample(cls.registered_tasks, 4)
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
@@ -57,7 +60,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
 
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg)
@@ -93,7 +96,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: RLTaskEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
                 # change to finite horizon
                 env_cfg.is_finite_horizon = True
 
