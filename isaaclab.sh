@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -16,7 +16,7 @@ set -e
 tabs 4
 
 # get source directory
-export ORBIT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 #==
 # Helper functions
@@ -32,7 +32,7 @@ extract_python_exe() {
         build_path=${ISAACSIM_PATH}
     else
         # Use TeamCity build
-        build_path=${ORBIT_PATH}/_isaac_sim
+        build_path=${ISAACLAB_PATH}/_isaac_sim
     fi
     # check if using conda
     if ! [[ -z "${CONDA_PREFIX}" ]]; then
@@ -61,7 +61,7 @@ extract_isaacsim_exe() {
         build_path=${ISAACSIM_PATH}
     else
         # Use TeamCity build
-        build_path=${ORBIT_PATH}/_isaac_sim
+        build_path=${ISAACLAB_PATH}/_isaac_sim
     fi
     # python executable to use
     local isaacsim_exe=${build_path}/isaac-sim.sh
@@ -75,7 +75,7 @@ extract_isaacsim_exe() {
 }
 
 # check if input directory is a python extension and install the module
-install_orbit_extension() {
+install_isaaclab_extension() {
     # retrieve the python executable
     python_exe=$(extract_python_exe)
     # if the directory contains setup.py then install the python module
@@ -92,10 +92,10 @@ install_extension_deps() {
     cmd="$2"
     python_exe=$(extract_python_exe)
     echo -e "\t Installing deps for module: $1"
-    ${python_exe} ${ORBIT_PATH}/tools/install_deps.py ${cmd} $1
+    ${python_exe} ${ISAACLAB_PATH}/tools/install_deps.py ${cmd} $1
 }
 
-# setup anaconda environment for orbit
+# setup anaconda environment for Isaac Lab
 setup_conda_env() {
     # get environment name from input
     local env_name=$1
@@ -113,7 +113,7 @@ setup_conda_env() {
         build_path=${ISAACSIM_PATH}
     else
         # Use TeamCity build
-        build_path=${ORBIT_PATH}/_isaac_sim
+        build_path=${ISAACLAB_PATH}/_isaac_sim
     fi
     # check if the environment exists
     if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
@@ -131,32 +131,32 @@ setup_conda_env() {
     # activate the environment
     source $(conda info --base)/etc/profile.d/conda.sh
     conda activate ${env_name}
-    # setup directories to load isaac-sim variables
+    # setup directories to load Isaac Sim variables
     mkdir -p ${CONDA_PREFIX}/etc/conda/activate.d
     mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
     # add variables to environment during activation
-    local isaacsim_setup_conda_env_script=${ORBIT_PATH}/_isaac_sim/setup_conda_env.sh
+    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
     printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for isaac-sim' \
+        '# for Isaac Sim' \
         'source '${isaacsim_setup_conda_env_script}'' \
         '' \
-        '# for orbit' \
-        'export ORBIT_PATH='${ORBIT_PATH}'' \
-        'alias orbit='${ORBIT_PATH}'/orbit.sh' \
+        '# for Isaac Lab' \
+        'export ISAACLAB_PATH='${ISAACLAB_PATH}'' \
+        'alias isaaclab='${ISAACLAB_PATH}'/isaaclab.sh' \
         '' \
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
     # reactivate the environment to load the variables
-    # needed because deactivate complains about orbit alias since it otherwise doesn't exist
+    # needed because deactivate complains about Isaac Lab alias since it otherwise doesn't exist
     conda activate ${env_name}
     # remove variables from environment during deactivation
     printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for orbit' \
-        'unalias orbit &>/dev/null' \
-        'unset ORBIT_PATH' \
+        '# for Isaac Lab' \
+        'unalias isaaclab &>/dev/null' \
+        'unset ISAACLAB_PATH' \
         '' \
-        '# for isaac-sim' \
+        '# for Isaac Sim' \
         'unset CARB_APP_PATH' \
         'unset EXP_PATH' \
         'unset ISAAC_PATH' \
@@ -172,12 +172,12 @@ setup_conda_env() {
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
-    echo -e "[INFO] Added 'orbit' alias to conda environment for 'orbit.sh' script."
+    echo -e "[INFO] Added 'isaaclab' alias to conda environment for 'isaaclab.sh' script."
     echo -e "[INFO] Created conda environment named '${env_name}'.\n"
     echo -e "\t\t1. To activate the environment, run:                conda activate ${env_name}"
-    echo -e "\t\t2. To install orbit extensions, run:                orbit -i"
-    echo -e "\t\t3. To install learning-related dependencies, run:   orbit -e"
-    echo -e "\t\t4. To perform formatting, run:                      orbit -f"
+    echo -e "\t\t2. To install Isaac Lab extensions, run:            isaaclab -i"
+    echo -e "\t\t3. To install learning-related dependencies, run:   isaaclab -e"
+    echo -e "\t\t4. To perform formatting, run:                      isaaclab -f"
     echo -e "\t\t5. To deactivate the environment, run:              conda deactivate"
     echo -e "\n"
 }
@@ -188,7 +188,7 @@ update_vscode_settings() {
     # retrieve the python executable
     python_exe=$(extract_python_exe)
     # path to setup_vscode.py
-    setup_vscode_script="${ORBIT_PATH}/.vscode/tools/setup_vscode.py"
+    setup_vscode_script="${ISAACLAB_PATH}/.vscode/tools/setup_vscode.py"
     # check if the file exists before attempting to run it
     if [ -f "${setup_vscode_script}" ]; then
         ${python_exe} "${setup_vscode_script}"
@@ -199,10 +199,10 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
-    echo -e "\t-i, --install        Install the extensions inside Orbit."
+    echo -e "\t-i, --install        Install the extensions inside Isaac Lab."
     echo -e "\t-e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'."
     echo -e "\t--install-deps [dep_type] Install dependencies for extensions (apt, rosdep, all) from each extension.toml. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
@@ -212,7 +212,7 @@ print_help () {
     echo -e "\t-o, --docker         Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode         Generate the VSCode settings file from template."
     echo -e "\t-d, --docs           Build the documentation from source using sphinx."
-    echo -e "\t-c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'."
+    echo -e "\t-c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'."
     echo -e "\n" >&2
 }
 
@@ -233,16 +233,16 @@ while [[ $# -gt 0 ]]; do
     # read the key
     case "$1" in
         -i|--install)
-            # install the python packages in omni_isaac_orbit/source directory
-            echo "[INFO] Installing extensions inside orbit repository..."
+            # install the python packages in IsaacLab/source directory
+            echo "[INFO] Installing extensions inside the Isaac Lab repository..."
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
-            export -f install_orbit_extension
+            export -f install_isaaclab_extension
             # source directory
-            find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_orbit_extension "{}"' \;
+            find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
             # unset local variables
-            unset install_orbit_extension
+            unset install_isaaclab_extension
             # setup vscode settings
             update_vscode_settings
             shift # past argument
@@ -261,7 +261,7 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ORBIT_PATH}/source/extensions/omni.isaac.orbit_tasks["${framework_name}"]
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
             shift # past argument
             ;;
         --install-deps)
@@ -272,14 +272,14 @@ while [[ $# -gt 0 ]]; do
                 dep_type=$2
                 shift # past argument
             fi
-            echo "[INFO] Installing ${dep_type} dependencies for extensions inside orbit repository..."
+            echo "[INFO] Installing ${dep_type} dependencies for extensions inside the Isaac Lab repository..."
             # recursively look into directories and install
             # all extension dependencies
             export -f extract_python_exe
             export -f install_extension_deps
             # check if dep_type is installed, if not "all"
             if [ "$dep_type" = "all" ] || command -v "$dep_type" &>/dev/null; then
-                find -L "${ORBIT_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 -I {} bash -c 'install_extension_deps "$1" "$2"' _ {} "${dep_type}"
+                find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 -I {} bash -c 'install_extension_deps "$1" "$2"' _ {} "${dep_type}"
             else
                 echo "[ERROR] Not installing ${dep_type} deps, ${dep_type} not a known command"
                 exit 1
@@ -291,14 +291,14 @@ while [[ $# -gt 0 ]]; do
         -c|--conda)
             # use default name if not provided
             if [ -z "$2" ]; then
-                echo "[INFO] Using default conda environment name: orbit"
-                conda_env_name="orbit"
+                echo "[INFO] Using default conda environment name: isaaclab"
+                conda_env_name="isaaclab"
             else
                 echo "[INFO] Using conda environment name: $2"
                 conda_env_name=$2
                 shift # past argument
             fi
-            # setup the conda environment for orbit
+            # setup the conda environment for Isaac Lab
             setup_conda_env ${conda_env_name}
             shift # past argument
             ;;
@@ -316,9 +316,9 @@ while [[ $# -gt 0 ]]; do
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
             fi
-            # always execute inside the Orbit directory
+            # always execute inside the Isaac Lab directory
             echo "[INFO] Formatting the repository..."
-            cd ${ORBIT_PATH}
+            cd ${ISAACLAB_PATH}
             pre-commit run --all-files
             cd - > /dev/null
             # set the python path back to the original value
@@ -343,7 +343,7 @@ while [[ $# -gt 0 ]]; do
             isaacsim_exe=$(extract_isaacsim_exe)
             echo "[INFO] Running isaac-sim from: ${isaacsim_exe}"
             shift # past argument
-            ${isaacsim_exe} --ext-folder ${ORBIT_PATH}/source/extensions $@
+            ${isaacsim_exe} --ext-folder ${ISAACLAB_PATH}/source/extensions $@
             # exit neatly
             break
             ;;
@@ -351,13 +351,13 @@ while [[ $# -gt 0 ]]; do
             # run the python provided by isaacsim
             python_exe=$(extract_python_exe)
             shift # past argument
-            ${python_exe} ${ORBIT_PATH}/tools/run_all_tests.py $@
+            ${python_exe} ${ISAACLAB_PATH}/tools/run_all_tests.py $@
             # exit neatly
             break
             ;;
         -o|--docker)
             # run the docker container helper script
-            docker_script=${ORBIT_PATH}/docker/container.sh
+            docker_script=${ISAACLAB_PATH}/docker/container.sh
             echo "[INFO] Running docker utility script from: ${docker_script}"
             shift # past argument
             bash ${docker_script} $@
@@ -377,7 +377,7 @@ while [[ $# -gt 0 ]]; do
             # retrieve the python executable
             python_exe=$(extract_python_exe)
             # install pip packages
-            cd ${ORBIT_PATH}/docs
+            cd ${ISAACLAB_PATH}/docs
             ${python_exe} -m pip install -r requirements.txt > /dev/null
             # build the documentation
             ${python_exe} -m sphinx -b html -d _build/doctrees . _build/html

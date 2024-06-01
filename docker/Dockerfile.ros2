@@ -1,6 +1,6 @@
 # Everything past this stage is to install
 # ROS2 Humble
-FROM orbit-base AS ros2
+FROM isaaclab-base AS ros2
 
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ros-dev-tools && \
     # Install rosdeps for extensions that declare a ros_ws in
     # their extension.toml
-    ${ORBIT_PATH}/orbit.sh --install-deps rosdep && \
+    ${ISAACLAB_PATH}/isaaclab.sh --install-deps rosdep && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     # Add sourcing of setup.bash to .bashrc
