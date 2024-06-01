@@ -13,7 +13,7 @@ There are three main components (relevant to robotics) in Omniverse:
    GPUs for real-time physically-based rendering
 
 Of these, the first two require a deeper understanding to start working
-with Omniverse and its constituent applications (Isaac Sim and Orbit).
+with Omniverse and its constituent applications (Isaac Sim and Isaac Lab).
 
 The main things to learn:
 
@@ -88,7 +88,7 @@ Thus, to script in Omniverse, you need to understand the USD APIs.
 
 .. note::
 
-   While Isaac Sim and Orbit try to "relieve" users from understanding
+   While Isaac Sim and Isaac Lab try to "relieve" users from understanding
    the core USD concepts and APIs, understanding these basics still
    help a lot once you start diving inside the codebase and modifying
    it for your own application.

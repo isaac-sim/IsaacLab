@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/03_scene/create_scene.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/tutorials/03_scene/create_scene.py --num_envs 32
 
 """
 
@@ -17,7 +17,7 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on using the interactive scene interface.")
@@ -35,16 +35,16 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.orbit.sim import SimulationContext
-from omni.isaac.orbit.utils import configclass
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
+from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
+from omni.isaac.lab.sim import SimulationContext
+from omni.isaac.lab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets import CARTPOLE_CFG  # isort:skip
+from omni.isaac.lab_assets import CARTPOLE_CFG  # isort:skip
 
 
 @configclass

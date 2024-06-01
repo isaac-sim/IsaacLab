@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates different dexterous hands.
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/demos/hands.py
+    ./isaaclab.sh -p source/standalone/demos/hands.py
 
 """
 
@@ -17,7 +17,7 @@ This script demonstrates different dexterous hands.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different dexterous hands.")
@@ -37,14 +37,14 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.allegro import ALLEGRO_HAND_CFG  # isort:skip
-from omni.isaac.orbit_assets.shadow_hand import SHADOW_HAND_CFG  # isort:skip
+from omni.isaac.lab_assets.allegro import ALLEGRO_HAND_CFG  # isort:skip
+from omni.isaac.lab_assets.shadow_hand import SHADOW_HAND_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

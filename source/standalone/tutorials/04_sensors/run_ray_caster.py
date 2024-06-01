@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates how to use the ray-caster sensor.
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
 
 """
 
@@ -17,7 +17,7 @@ This script demonstrates how to use the ray-caster sensor.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -35,11 +35,11 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
-from omni.isaac.orbit.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.timer import Timer
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.timer import Timer
 
 
 def define_sensor() -> RayCaster:

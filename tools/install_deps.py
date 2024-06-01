@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -23,8 +23,8 @@ parser.add_argument("path", type=str, help="The path to the extension which will
 
 def install_apt_packages(path):
     """
-    A function which attempts to install apt packages for Orbit extensions.
-    It looks in {extension_root}/config/extension.toml for [orbit_settings][apt_deps]
+    A function which attempts to install apt packages for Isaac Lab extensions.
+    It looks in {extension_root}/config/extension.toml for [isaaclab_settings][apt_deps]
     and then attempts to install them. Exits on failure to stop the build process
     from continuing despite missing dependencies.
 
@@ -35,8 +35,8 @@ def install_apt_packages(path):
         if shutil.which("apt"):
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
-                if "orbit_settings" in ext_toml and "apt_deps" in ext_toml["orbit_settings"]:
-                    deps = ext_toml["orbit_settings"]["apt_deps"]
+                if "isaaclab_settings" in ext_toml and "apt_deps" in ext_toml["isaaclab_settings"]:
+                    deps = ext_toml["isaaclab_settings"]["apt_deps"]
                     print(f"[INFO] Installing the following apt packages: {deps}")
                     run_and_print(["apt-get", "update"])
                     run_and_print(["apt-get", "install", "-y"] + deps)
@@ -54,8 +54,8 @@ def install_apt_packages(path):
 
 def install_rosdep_packages(path):
     """
-    A function which attempts to install rosdep packages for Orbit extensions.
-    It looks in {extension_root}/config/extension.toml for [orbit_settings][ros_ws]
+    A function which attempts to install rosdep packages for Isaac Lab extensions.
+    It looks in {extension_root}/config/extension.toml for [isaaclab_settings][ros_ws]
     and then attempts to install all rosdeps under that workspace.
     Exits on failure to stop the build process from continuing despite missing dependencies.
 
@@ -66,8 +66,8 @@ def install_rosdep_packages(path):
         if shutil.which("rosdep"):
             with open(f"{path}/config/extension.toml") as fd:
                 ext_toml = toml.load(fd)
-                if "orbit_settings" in ext_toml and "ros_ws" in ext_toml["orbit_settings"]:
-                    ws_path = ext_toml["orbit_settings"]["ros_ws"]
+                if "isaaclab_settings" in ext_toml and "ros_ws" in ext_toml["isaaclab_settings"]:
+                    ws_path = ext_toml["isaaclab_settings"]["ros_ws"]
                     if not os.path.exists("/etc/ros/rosdep/sources.list.d/20-default.list"):
                         run_and_print(["rosdep", "init"])
                         run_and_print(["rosdep", "update", "--rosdistro=humble"])

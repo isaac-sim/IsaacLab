@@ -1,7 +1,7 @@
 Overview
 ========
 
-**Orbit** is a unified and modular framework for robot learning that aims to simplify common workflows
+**Isaac Lab** is a unified and modular framework for robot learning that aims to simplify common workflows
 in robotics research (such as RL, learning from demonstrations, and motion planning). It is built upon
 `NVIDIA Isaac Sim`_ to leverage the latest simulation capabilities for photo-realistic scenes, and fast
 and efficient simulation. The core objectives of the framework are:
@@ -17,13 +17,13 @@ For more information about the framework, please refer to the `paper <https://ar
 
 .. figure:: source/_static/tasks.jpg
    :width: 100%
-   :alt: Example tasks created using orbit
+   :alt: Example tasks created using Isaac Lab
 
 
 Citing
 ======
 
-If you use Orbit in your research, please use the following BibTeX entry:
+If you use Isaac Lab in your research, please use the following BibTeX entry:
 
 .. code:: bibtex
 
@@ -43,7 +43,7 @@ License
 =======
 
 NVIDIA Isaac Sim is provided under the NVIDIA End User License Agreement. However, the
-Orbit framework is open-sourced under the BSD-3-Clause license.
+Isaac Lab framework is open-sourced under the BSD-3-Clause license.
 Please refer to :ref:`license` for more details.
 
 
@@ -99,7 +99,7 @@ Table of Contents
     :hidden:
     :caption: Project Links
 
-    GitHub <https://github.com/NVIDIA-Omniverse/orbit>
+    GitHub <https://github.com/isaac-sim/IsaacLab>
 
 Indices and tables
 ==================

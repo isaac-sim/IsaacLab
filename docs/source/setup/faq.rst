@@ -1,8 +1,8 @@
 Frequently Asked Questions
 ==========================
 
-Where does Orbit fit in the Isaac ecosystem?
---------------------------------------------
+Where does Isaac Lab fit in the Isaac ecosystem?
+------------------------------------------------
 
 Over the years, NVIDIA has developed a number of tools for robotics and AI. These tools leverage
 the power of GPUs to accelerate the simulation both in terms of speed and realism. They show great
@@ -36,9 +36,9 @@ With the release of above two tools, NVIDIA also released an open-sourced set of
 These environments have been designed to display the capabilities of the underlying simulators and provide
 a starting point to understand what is possible with the simulators for robot learning. These environments
 can be used for benchmarking but are not designed for developing and testing custom environments and algorithms.
-This is where Orbit comes in.
+This is where Isaac Lab comes in.
 
-Orbit :cite:`mittal2023orbit` is built on top of Isaac Sim to provide a unified and flexible framework
+Isaac Lab :cite:`mittal2023orbit` is built on top of Isaac Sim to provide a unified and flexible framework
 for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
 motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
@@ -48,23 +48,8 @@ of new features that pertain to robot learning research. For example, including 
 simulation, procedural terrain generation, and support to collect data from human demonstrations.
 
 
-Where does the name come from?
-------------------------------
-
-"Orbit" suggests a sense of movement circling around a central point. For us, this symbolizes bringing
-together the different components and paradigms centered around robot learning, and making a unified
-ecosystem for it.
-
-The name further connotes modularity and flexibility. Similar to planets in a solar system at different speeds
-and positions, the framework is designed to not be rigid or inflexible. Rather, it aims to provide the users
-the ability to adjust and move around the different components to suit their needs.
-
-Finally, the name "orbit" also suggests a sense of exploration and discovery. We hope that the framework will
-provide a platform for researchers to explore and discover new ideas and paradigms in robot learning.
-
-
-Why should I use Orbit?
------------------------
+Why should I use Isaac Lab?
+---------------------------
 
 Since Isaac Sim remains closed-sourced, it is difficult for users to contribute to the simulator and build a
 common framework for research. On its current path, we see the community using the simulator will simply
@@ -72,18 +57,18 @@ develop their own frameworks that will result in scattered efforts with a lot of
 This has happened in the past with other simulators, and we believe that it is not the best way to move
 forward as a community.
 
-Orbit provides an open-sourced platform for the community to drive progress with consolidated efforts
+Isaac Lab provides an open-sourced platform for the community to drive progress with consolidated efforts
 toward designing benchmarks and robot learning systems as a joint initiative. This allows us to reuse
 existing components and algorithms, and to build on top of each other's work. Doing so not only saves
 time and effort, but also allows us to focus on the more important aspects of research. Our hope with
-Orbit is that it becomes the de-facto platform for robot learning research and an environment *zoo*
+Isaac Lab is that it becomes the de-facto platform for robot learning research and an environment *zoo*
 that leverages Isaac Sim. As the framework matures, we foresee it benefitting hugely from the latest
 simulation developments (as part of internal developments at NVIDIA and collaborating partners)
 and research in robotics.
 
-We are already working with labs in universities and research institutions to integrate their work into Orbit
+We are already working with labs in universities and research institutions to integrate their work into Isaac Lab
 and hope that others in the community will join us too in this effort. If you are interested in contributing
-to Orbit, please reach out to us at `email <mailto:mittalma@ethz.ch>`_.
+to Isaac Lab, please reach out to us.
 
 
 .. _PhysX: https://developer.nvidia.com/physx-sdk

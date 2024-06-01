@@ -4,9 +4,9 @@ Contribution Guidelines
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
 
-* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`__.
-* Code contributions: Please submit a `pull request <https://github.com/NVIDIA-Omniverse/orbit/pulls>`__.
+* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
+* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__.
+* Code contributions: Please submit a `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
 
   * Bug fixes
   * New features
@@ -16,28 +16,28 @@ and useful for everyone. These may happen in forms of:
 
 .. attention::
 
-   We prefer GitHub `discussions <https://github.com/NVIDIA-Omniverse/Orbit/discussions>`_ for discussing ideas,
+   We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
    asking questions, conversations and requests for new features.
 
    Please use the
-   `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`_ only to track executable pieces of work
+   `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
    with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
 
 
 Contributing Code
 -----------------
 
-We use `GitHub <https://github.com/NVIDIA-Omniverse/orbit>`__ for code hosting. Please
+We use `GitHub <https://github.com/isaac-sim/IsaacLab>`__ for code hosting. Please
 follow the following steps to contribute code:
 
-1. Create an issue in the `issue tracker <https://github.com/NVIDIA-Omniverse/orbit/issues>`__ to discuss
+1. Create an issue in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__ to discuss
    the changes or additions you would like to make. This helps us to avoid duplicate work and to make
    sure that the changes are aligned with the roadmap of the project.
 2. Fork the repository.
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `main branch <https://github.com/NVIDIA-Omniverse/orbit/compare>`__.
+6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
@@ -116,13 +116,13 @@ following command in the terminal:
 
 .. code:: bash
 
-   ./orbit.sh --format  # or "./orbit.sh -f"
+   ./isaaclab.sh --format  # or "./isaaclab.sh -f"
 
 Contributing Documentation
 --------------------------
 
 Contributing to the documentation is as easy as contributing to the codebase. All the source files
-for the documentation are located in the ``orbit/docs`` directory. The documentation is written in
+for the documentation are located in the ``IsaacLab/docs`` directory. The documentation is written in
 `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 
 We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
@@ -143,7 +143,7 @@ builds the documentation using the ``docs/Makefile``:
 
 .. code:: bash
 
-   ./orbit.sh --docs  # or "./orbit.sh -d"
+   ./isaaclab.sh --docs  # or "./isaaclab.sh -d"
 
 The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
 the ``index.html`` file in the ``html`` directory. This can be done by running the following command
@@ -163,7 +163,7 @@ To do a clean build, run the following command in the terminal:
 
 .. code:: bash
 
-   rm -rf docs/_build && ./orbit.sh --docs
+   rm -rf docs/_build && ./isaaclab.sh --docs
 
 
 Contributing assets

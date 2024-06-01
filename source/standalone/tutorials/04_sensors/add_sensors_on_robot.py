@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,7 +15,7 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py
 
 """
 
@@ -23,7 +23,7 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on adding sensors on a robot.")
@@ -41,16 +41,16 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.orbit.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
-from omni.isaac.orbit.utils import configclass
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
+from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
+from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, RayCasterCfg, patterns
+from omni.isaac.lab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

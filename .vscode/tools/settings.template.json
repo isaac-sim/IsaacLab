@@ -80,6 +80,6 @@
         "editor.tabSize": 2
     },
     // Python extra paths
-    // Note: this is filled up when "./orbit.sh -i" is run
+    // Note: this is filled up when "./isaaclab.sh -i" is run
     "python.analysis.extraPaths": []
 }

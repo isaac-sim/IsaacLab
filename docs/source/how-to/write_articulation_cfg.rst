@@ -4,11 +4,11 @@
 Writing an Asset Configuration
 ==============================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 This guide walks through the process of creating an :class:`~assets.ArticulationCfg`.
 The :class:`~assets.ArticulationCfg` is a configuration object that defines the
-properties of an :class:`~assets.Articulation` in Orbit.
+properties of an :class:`~assets.Articulation` in Isaac Lab.
 
 .. note::
 
@@ -22,7 +22,7 @@ is free to move along a rail, and the pole is free to rotate about the cart.
 .. dropdown:: Code for Cartpole configuration
    :icon: code
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/cartpole.py
       :language: python
       :linenos:
 
@@ -44,7 +44,7 @@ This configuration object takes in the following parameters:
 
 The last two parameters are optional. If not specified, they are kept at their default values in the USD file.
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
+.. literalinclude:: ../../../source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/cartpole.py
    :language: python
    :lines: 15-31
    :dedent:
@@ -72,7 +72,7 @@ initial state of the root of the articulation and the initial state of all its j
 example, we will spawn the Cartpole at the origin of the XY plane at a Z height of 2.0 meters.
 Meanwhile, the joint positions and velocities are set to 0.0.
 
-.. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
+.. literalinclude:: ../../../source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/cartpole.py
    :language: python
    :lines: 32-34
    :dedent:
@@ -94,7 +94,7 @@ to combine them into a single actuator model.
 .. dropdown:: Actuator model configuration with separate actuator models
    :icon: code
 
-   .. literalinclude:: ../../../source/extensions/omni.isaac.orbit_assets/omni/isaac/orbit_assets/cartpole.py
+   .. literalinclude:: ../../../source/extensions/omni.isaac.lab_assets/omni/isaac/lab_assets/cartpole.py
       :language: python
       :lines: 35-45
       :dedent:

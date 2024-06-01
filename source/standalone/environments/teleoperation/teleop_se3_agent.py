@@ -1,18 +1,18 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to run a keyboard teleoperation with Orbit manipulation environments."""
+"""Script to run a keyboard teleoperation with Isaac Lab manipulation environments."""
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Keyboard teleoperation for Orbit environments.")
+parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
 parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -38,10 +38,10 @@ import torch
 
 import carb
 
-from omni.isaac.orbit.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
+from omni.isaac.lab.devices import Se3Gamepad, Se3Keyboard, Se3SpaceMouse
 
-import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.utils import parse_env_cfg
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import parse_env_cfg
 
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:
@@ -60,7 +60,7 @@ def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torc
 
 
 def main():
-    """Running keyboard teleoperation with Orbit manipulation environment."""
+    """Running keyboard teleoperation with Isaac Lab manipulation environment."""
     # parse configuration
     env_cfg = parse_env_cfg(
         args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric

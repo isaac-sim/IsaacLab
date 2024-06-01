@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,7 +41,7 @@ optional arguments:
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Utility to convert a mesh file into USD format.")
@@ -87,10 +87,10 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
 
-from omni.isaac.orbit.sim.converters import MeshConverter, MeshConverterCfg
-from omni.isaac.orbit.sim.schemas import schemas_cfg
-from omni.isaac.orbit.utils.assets import check_file_path
-from omni.isaac.orbit.utils.dict import print_dict
+from omni.isaac.lab.sim.converters import MeshConverter, MeshConverterCfg
+from omni.isaac.lab.sim.schemas import schemas_cfg
+from omni.isaac.lab.utils.assets import check_file_path
+from omni.isaac.lab.utils.dict import print_dict
 
 
 def main():

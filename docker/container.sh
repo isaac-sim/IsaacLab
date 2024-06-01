@@ -25,11 +25,11 @@ fi
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Orbit."
+    echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help                  Display the help content."
     echo -e "\tstart [profile]             Build the docker image and create the container in detached mode."
-    echo -e "\tenter [profile]             Begin a new bash process within an existing orbit container."
+    echo -e "\tenter [profile]             Begin a new bash process within an existing Isaac Lab container."
     echo -e "\tcopy [profile]              Copy build and logs artifacts from the container to the host machine."
     echo -e "\tstop [profile]              Stop the docker container and remove it."
     echo -e "\tpush [profile]              Push the docker image to the cluster."
@@ -104,8 +104,8 @@ resolve_image_extension() {
     # check if the second argument has to be a profile or can be a job argument instead
     necessary_profile=${2:-true}
 
-    # We also default to 'base' if "orbit" is passed
-    if [ "$1" == "orbit" ]; then
+    # We also default to 'base' if "isaaclab" is passed
+    if [ "$1" == "isaaclab" ]; then
         container_profile="base"
     fi
 
@@ -177,56 +177,56 @@ configure_x11() {
     if ! command -v xauth &> /dev/null; then
         install_xauth
     fi
-    load_statefile_variable __ORBIT_TMP_XAUTH
+    load_statefile_variable __ISAACLAB_TMP_XAUTH
     # Create temp .xauth file to be mounted in the container
-    if [ "$__ORBIT_TMP_XAUTH" = "null" ] || [ ! -f "$__ORBIT_TMP_XAUTH" ]; then
-        __ORBIT_TMP_XAUTH=$(mktemp --suffix=".xauth")
-        set_statefile_variable __ORBIT_TMP_XAUTH $__ORBIT_TMP_XAUTH
+    if [ "$__ISAACLAB_TMP_XAUTH" = "null" ] || [ ! -f "$__ISAACLAB_TMP_XAUTH" ]; then
+        __ISAACLAB_TMP_XAUTH=$(mktemp --suffix=".xauth")
+        set_statefile_variable __ISAACLAB_TMP_XAUTH $__ISAACLAB_TMP_XAUTH
         # Extract MIT-MAGIC-COOKIE for current display | Change the 'connection family' to FamilyWild (ffff) | merge into tmp .xauth file
         # https://www.x.org/archive/X11R6.8.1/doc/Xsecurity.7.html#toc3
-        xauth_cookie= xauth nlist ${DISPLAY} | sed -e s/^..../ffff/ | xauth -f $__ORBIT_TMP_XAUTH nmerge -
+        xauth_cookie= xauth nlist ${DISPLAY} | sed -e s/^..../ffff/ | xauth -f $__ISAACLAB_TMP_XAUTH nmerge -
     fi
     # Export here so it's an envvar for the called Docker commands
-    export __ORBIT_TMP_XAUTH
+    export __ISAACLAB_TMP_XAUTH
     add_yamls="$add_yamls --file x11.yaml "
     # TODO: Add check to make sure Xauth file is correct
 }
 
 x11_check() {
-    load_statefile_variable __ORBIT_X11_FORWARDING_ENABLED
-    if [ "$__ORBIT_X11_FORWARDING_ENABLED" = "null" ]; then
-        echo "[INFO] X11 forwarding from the Orbit container is off by default."
+    load_statefile_variable __ISAACLAB_X11_FORWARDING_ENABLED
+    if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "null" ]; then
+        echo "[INFO] X11 forwarding from the Isaac Lab container is off by default."
         echo "[INFO] It will fail if there is no display, or this script is being run via ssh without proper configuration."
         read -p "Would you like to enable it? (y/N) " x11_answer
         if [ "$x11_answer" != "${x11_answer#[Yy]}" ]; then
-            __ORBIT_X11_FORWARDING_ENABLED=1
-            set_statefile_variable __ORBIT_X11_FORWARDING_ENABLED 1
+            __ISAACLAB_X11_FORWARDING_ENABLED=1
+            set_statefile_variable __ISAACLAB_X11_FORWARDING_ENABLED 1
             echo "[INFO] X11 forwarding is enabled from the container."
         else
-            __ORBIT_X11_FORWARDING_ENABLED=0
-            set_statefile_variable __ORBIT_X11_FORWARDING_ENABLED 0
+            __ISAACLAB_X11_FORWARDING_ENABLED=0
+            set_statefile_variable __ISAACLAB_X11_FORWARDING_ENABLED 0
             echo "[INFO] X11 forwarding is disabled from the container."
         fi
     else
-        echo "[INFO] X11 Forwarding is configured as $__ORBIT_X11_FORWARDING_ENABLED in .container.yaml"
-        if [ "$__ORBIT_X11_FORWARDING_ENABLED" = "1" ]; then
-            echo "[INFO] To disable X11 forwarding, set __ORBIT_X11_FORWARDING_ENABLED=0 in .container.yaml"
+        echo "[INFO] X11 Forwarding is configured as $__ISAACLAB_X11_FORWARDING_ENABLED in .container.yaml"
+        if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
+            echo "[INFO] To disable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=0 in .container.yaml"
         else
-            echo "[INFO] To enable X11 forwarding, set __ORBIT_X11_FORWARDING_ENABLED=1 in .container.yaml"
+            echo "[INFO] To enable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=1 in .container.yaml"
         fi
     fi
 
-    if [ "$__ORBIT_X11_FORWARDING_ENABLED" = "1" ]; then
+    if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
         configure_x11
     fi
 }
 
 x11_cleanup() {
-    load_statefile_variable __ORBIT_TMP_XAUTH
-    if ! [ "$__ORBIT_TMP_XAUTH" = "null" ] && [ -f "$__ORBIT_TMP_XAUTH" ]; then
-        echo "[INFO] Removing temporary Orbit .xauth file $__ORBIT_TMP_XAUTH."
-        rm $__ORBIT_TMP_XAUTH
-        delete_statefile_variable __ORBIT_TMP_XAUTH
+    load_statefile_variable __ISAACLAB_TMP_XAUTH
+    if ! [ "$__ISAACLAB_TMP_XAUTH" = "null" ] && [ -f "$__ISAACLAB_TMP_XAUTH" ]; then
+        echo "[INFO] Removing temporary Isaac Lab .xauth file $__ISAACLAB_TMP_XAUTH."
+        rm $__ISAACLAB_TMP_XAUTH
+        delete_statefile_variable __ISAACLAB_TMP_XAUTH
     fi
 }
 
@@ -277,32 +277,32 @@ echo "[INFO] Using container profile: $container_profile"
 # resolve mode
 case $mode in
     start)
-        echo "[INFO] Building the docker image and starting the container orbit-$container_profile in the background..."
+        echo "[INFO] Building the docker image and starting the container isaac-lab-$container_profile in the background..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # Determine if we want x11 forwarding enabled
         x11_check
         # We have to build the base image as a separate step,
         # in case we are building a profile which depends
         # upon
-        docker compose --file docker-compose.yaml --env-file .env.base build orbit-base
+        docker compose --file docker-compose.yaml --env-file .env.base build isaac-lab-base
         docker compose $add_yamls $add_profiles $add_envs up --detach --build --remove-orphans
         popd > /dev/null 2>&1
         ;;
     enter)
         # Check that desired container is running, exit if it isn't
-        is_container_running orbit-$container_profile
-        echo "[INFO] Entering the existing 'orbit-$container_profile' container in a bash session..."
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Entering the existing 'isaac-lab-$container_profile' container in a bash session..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker exec --interactive --tty orbit-$container_profile bash
+        docker exec --interactive --tty isaac-lab-$container_profile bash
         popd > /dev/null 2>&1
         ;;
     copy)
         # Check that desired container is running, exit if it isn't
-        is_container_running orbit-$container_profile
-        echo "[INFO] Copying artifacts from the 'orbit-$container_profile' container..."
-        echo -e "\t - /workspace/orbit/logs -> ${SCRIPT_DIR}/artifacts/logs"
-        echo -e "\t - /workspace/orbit/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
-        echo -e "\t - /workspace/orbit/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Copying artifacts from the 'isaac-lab-$container_profile' container..."
+        echo -e "\t - /workspace/isaaclab/logs -> ${SCRIPT_DIR}/artifacts/logs"
+        echo -e "\t - /workspace/isaaclab/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
+        echo -e "\t - /workspace/isaaclab/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
         # enter the script directory
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # We have to remove before copying because repeated copying without deletion
@@ -315,16 +315,16 @@ case $mode in
         mkdir -p ./artifacts/docs
 
         # copy the artifacts
-        docker cp orbit-$container_profile:/workspace/orbit/logs ./artifacts/logs
-        docker cp orbit-$container_profile:/workspace/orbit/docs/_build ./artifacts/docs/_build
-        docker cp orbit-$container_profile:/workspace/orbit/data_storage ./artifacts/data_storage
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/logs ./artifacts/logs
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/docs/_build ./artifacts/docs/_build
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/data_storage ./artifacts/data_storage
         echo -e "\n[INFO] Finished copying the artifacts from the container."
         popd > /dev/null 2>&1
         ;;
     stop)
         # Check that desired container is running, exit if it isn't
-        is_container_running orbit-$container_profile
-        echo "[INFO] Stopping the launched docker container orbit-$container_profile..."
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Stopping the launched docker container isaac-lab-$container_profile..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         docker compose --file docker-compose.yaml $add_profiles $add_envs down
         x11_cleanup
@@ -335,7 +335,7 @@ case $mode in
             install_apptainer
         fi
         # Check if Docker image exists
-        check_image_exists orbit-$container_profile:latest
+        check_image_exists isaac-lab-$container_profile:latest
         # Check if Docker version is greater than 25
         check_docker_version
         # source env file to get cluster login and path information
@@ -343,39 +343,39 @@ case $mode in
         # make sure exports directory exists
         mkdir -p /$SCRIPT_DIR/exports
         # clear old exports for selected profile
-        rm -rf /$SCRIPT_DIR/exports/orbit-$container_profile*
+        rm -rf /$SCRIPT_DIR/exports/isaac-lab-$container_profile*
         # create singularity image
         # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
-        # issues, remove the --fakeroot flag and open an issue on the orbit repository.
+        # issues, remove the --fakeroot flag and open an issue on the IsaacLab repository.
         cd /$SCRIPT_DIR/exports
-        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot orbit-$container_profile.sif docker-daemon://orbit-$container_profile:latest
+        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaac-lab-$container_profile.sif docker-daemon://isaac-lab-$container_profile:latest
         # tar image (faster to send single file as opposed to directory with many files)
-        tar -cvf /$SCRIPT_DIR/exports/orbit-$container_profile.tar orbit-$container_profile.sif
+        tar -cvf /$SCRIPT_DIR/exports/isaac-lab-$container_profile.tar isaac-lab-$container_profile.sif
         # make sure target directory exists
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_SIF_PATH"
         # send image to cluster
-        scp $SCRIPT_DIR/exports/orbit-$container_profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/orbit-$container_profile.tar
+        scp $SCRIPT_DIR/exports/isaac-lab-$container_profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$container_profile.tar
         ;;
     job)
         source $SCRIPT_DIR/.env.base
         # Check if singularity image exists on the remote host
-        check_singularity_image_exists orbit-$container_profile
+        check_singularity_image_exists isaac-lab-$container_profile
         # make sure target directory exists
-        ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ORBIT_DIR"
-        # Sync orbit code
-        echo "[INFO] Syncing orbit code..."
-        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ORBIT_DIR
+        ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ISAACLAB_DIR"
+        # Sync Isaac Lab code
+        echo "[INFO] Syncing ISaac Lab code..."
+        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
         # execute job script
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument
         if [ "$profile_arg" == "$container_profile" ] ; then
             # if the second argument is a profile, we have to shift the arguments
             echo "[INFO] Arguments passed to job script ${@:3}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "orbit-$container_profile" "${@:3}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:3}"
         else
             # if the second argument is a job argument, we have to shift only one argument
             echo "[INFO] Arguments passed to job script ${@:2}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ORBIT_DIR && sbatch $CLUSTER_ORBIT_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ORBIT_DIR" "orbit-$container_profile" "${@:2}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:2}"
         fi
         ;;
     *)

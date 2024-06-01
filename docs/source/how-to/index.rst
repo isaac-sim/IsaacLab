@@ -1,14 +1,14 @@
 How-to Guides
 =============
 
-This section includes guides that help you use Orbit. These are intended for users who
+This section includes guides that help you use Isaac Lab. These are intended for users who
 have already worked through the tutorials and are looking for more information on how to
-use Orbit. If you are new to Orbit, we recommend you start with the tutorials.
+use Isaac Lab. If you are new to Isaac Lab, we recommend you start with the tutorials.
 
 .. note::
 
     This section is a work in progress. If you have a question that is not answered here,
-    please open an issue on our `GitHub page <https://github.com/NVIDIA-Omniverse/Orbit>`_.
+    please open an issue on our `GitHub page <https://github.com/isaac-sim/IsaacLab>`_.
 
 .. toctree::
     :maxdepth: 1

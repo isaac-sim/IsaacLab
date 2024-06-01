@@ -1,7 +1,7 @@
 Registering an Environment
 ==========================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 In the previous tutorial, we learned how to create a custom cartpole environment. We manually
 created an instance of the environment by importing the environment class and its configuration
@@ -32,7 +32,7 @@ the :meth:`gymnasium.make` function.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``random_agent.py`` script in the ``orbit/source/standalone/environments`` directory.
+The tutorial corresponds to the ``random_agent.py`` script in the ``source/standalone/environments`` directory.
 
 .. dropdown:: Code for random_agent.py
    :icon: code
@@ -58,9 +58,9 @@ Using the gym registry
 To register an environment, we use the :meth:`gymnasium.register` method. This method takes
 in the environment name, the entry point to the environment class, and the entry point to the
 environment configuration class. For the cartpole environment, the following shows the registration
-call in the ``omni.isaac.orbit_tasks.classic.cartpole`` sub-package:
+call in the ``omni.isaac.lab_tasks.classic.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/__init__.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/classic/cartpole/__init__.py
    :language: python
    :lines: 10-
    :emphasize-lines: 11, 12, 15
@@ -75,11 +75,11 @@ and difficult to read.
 
 The ``entry_point`` argument is the entry point to the environment class. The entry point is a string
 of the form ``<module>:<class>``. In the case of the cartpole environment, the entry point is
-``omni.isaac.orbit.envs:RLTaskEnv``. The entry point is used to import the environment class
+``omni.isaac.lab.envs:RLTaskEnv``. The entry point is used to import the environment class
 when creating the environment instance.
 
 The ``env_cfg_entry_point`` argument specifies the default configuration for the environment. The default
-configuration is loaded using the :meth:`omni.isaac.orbit_tasks.utils.parse_env_cfg` function.
+configuration is loaded using the :meth:`omni.isaac.lab_tasks.utils.parse_env_cfg` function.
 It is then passed to the :meth:`gymnasium.make` function to create the environment instance.
 The configuration entry point can be both a YAML file or a python configuration class.
 
@@ -91,14 +91,14 @@ The configuration entry point can be both a YAML file or a python configuration 
 Creating the environment
 ------------------------
 
-To inform the ``gym`` registry with all the environments provided by the ``omni.isaac.orbit_tasks``
+To inform the ``gym`` registry with all the environments provided by the ``omni.isaac.lab_tasks``
 extension, we must import the module at the start of the script. This will execute the ``__init__.py``
 file which iterates over all the sub-packages and registers their respective environments.
 
 .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
    :language: python
-   :start-at: import omni.isaac.orbit_tasks  # noqa: F401
-   :end-at: import omni.isaac.orbit_tasks  # noqa: F401
+   :start-at: import omni.isaac.lab_tasks  # noqa: F401
+   :end-at: import omni.isaac.lab_tasks  # noqa: F401
 
 In this tutorial, the task name is read from the command line. The task name is used to parse
 the default configuration as well as to create the environment instance. In addition, other
@@ -120,7 +120,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+   ./isaaclab.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 
 This should open a stage with everything similar to the previous :ref:`tutorial-create-rl-env` tutorial.
@@ -130,7 +130,7 @@ In addition, you can also change the simulation device from GPU to CPU by adding
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --cpu
+   ./isaaclab.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32 --cpu
 
 With the ``--cpu`` flag, the simulation will run on the CPU. This is useful for debugging the simulation.
 However, the simulation will run much slower than on the GPU.
