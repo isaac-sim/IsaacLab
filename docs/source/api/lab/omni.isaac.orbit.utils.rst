@@ -1,7 +1,7 @@
-﻿orbit.utils
-===========
+﻿omni.isaac.lab.utils
+====================
 
-.. automodule:: omni.isaac.orbit.utils
+.. automodule:: omni.isaac.lab.utils
 
    .. Rubric:: Submodules
 
@@ -26,14 +26,14 @@
 Configuration class
 ~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.configclass
+.. automodule:: omni.isaac.lab.utils.configclass
    :members:
    :show-inheritance:
 
 IO operations
 ~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.io
+.. automodule:: omni.isaac.lab.utils.io
    :members:
    :imported-members:
    :show-inheritance:
@@ -41,28 +41,28 @@ IO operations
 Array operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.array
+.. automodule:: omni.isaac.lab.utils.array
    :members:
    :show-inheritance:
 
 Asset operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.assets
+.. automodule:: omni.isaac.lab.utils.assets
    :members:
    :show-inheritance:
 
 Dictionary operations
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.dict
+.. automodule:: omni.isaac.lab.utils.dict
    :members:
    :show-inheritance:
 
 Math operations
 ~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.math
+.. automodule:: omni.isaac.lab.utils.math
    :members:
    :inherited-members:
    :show-inheritance:
@@ -70,7 +70,7 @@ Math operations
 Noise operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.noise
+.. automodule:: omni.isaac.lab.utils.noise
    :members:
    :imported-members:
    :inherited-members:
@@ -80,21 +80,21 @@ Noise operations
 String operations
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.string
+.. automodule:: omni.isaac.lab.utils.string
    :members:
    :show-inheritance:
 
 Timer operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.timer
+.. automodule:: omni.isaac.lab.utils.timer
    :members:
    :show-inheritance:
 
 Warp operations
 ~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.orbit.utils.warp
+.. automodule:: omni.isaac.lab.utils.warp
    :members:
    :imported-members:
    :show-inheritance:

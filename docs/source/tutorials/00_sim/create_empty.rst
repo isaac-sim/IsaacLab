@@ -1,10 +1,10 @@
 Creating an empty scene
 =======================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
-empty scene in Orbit and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
+empty scene in Isaac Lab and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
 :class:`sim.SimulationContext`.
 
 Please review `Isaac Sim Interface`_ and `Isaac Sim Workflows`_ prior to beginning this tutorial to get
@@ -14,7 +14,7 @@ an initial understanding of working with the simulator.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``create_empty.py`` script in the ``orbit/source/standalone/tutorials/00_sim`` directory.
+The tutorial corresponds to the ``create_empty.py`` script in the ``source/standalone/tutorials/00_sim`` directory.
 
 .. dropdown:: Code for create_empty.py
    :icon: code
@@ -56,12 +56,12 @@ Importing python modules
 Once the simulation app is running, it is possible to import different Python modules from
 Isaac Sim and other libraries. Here we import the following module:
 
-* :mod:`omni.isaac.orbit.sim`: A sub-package in Orbit for all the core simulator-related operations.
+* :mod:`omni.isaac.lab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :start-at: from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
-   :end-at: from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
+   :start-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+   :end-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
 
 
 Configuring the simulation context
@@ -72,7 +72,7 @@ pausing and stepping the simulator. All these operations are handled through the
 context**. It takes care of various timeline events and also configures the `physics scene`_ for
 simulation.
 
-In Orbit, the :class:`sim.SimulationContext` class inherits from Isaac Sim's
+In Isaac Lab, the :class:`sim.SimulationContext` class inherits from Isaac Sim's
 :class:`omni.isaac.core.simulation_context.SimulationContext` to allow configuring the simulation
 through Python's ``dataclass`` object and handle certain intricacies of the simulation stepping.
 
@@ -139,7 +139,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/00_sim/create_empty.py
+   ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
 
 
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
@@ -151,7 +151,7 @@ following:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless
+   ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py --headless
 
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the

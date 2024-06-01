@@ -1,7 +1,7 @@
-﻿orbit.envs
-==========
+﻿omni.isaac.lab.envs
+===================
 
-.. automodule:: omni.isaac.orbit.envs
+.. automodule:: omni.isaac.lab.envs
 
   .. rubric:: Submodules
 

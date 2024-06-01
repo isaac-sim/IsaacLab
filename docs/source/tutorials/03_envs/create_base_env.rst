@@ -4,11 +4,11 @@
 Creating a Base Environment
 ===========================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a
-coherent interface for various applications. In Orbit, environments are
+coherent interface for various applications. In Isaac Lab, environments are
 implemented as :class:`envs.BaseEnv` and :class:`envs.RLTaskEnv` classes.
 The two classes are very similar, but :class:`envs.RLTaskEnv` is useful for
 reinforcement learning tasks and contains rewards, terminations, curriculum
@@ -24,7 +24,7 @@ in creating a new :class:`envs.BaseEnv` environment.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``create_cartpole_base_env`` script  in the ``orbit/source/standalone/tutorials/03_envs``
+The tutorial corresponds to the ``create_cartpole_base_env`` script  in the ``source/standalone/tutorials/03_envs``
 directory.
 
 .. dropdown:: Code for create_cartpole_base_env.py
@@ -86,7 +86,7 @@ Defining observations
 
 While the scene defines the state of the environment, the observations define the states
 that are observable by the agent. These observations are used by the agent to make decisions
-on what actions to take. In Orbit, the observations are computed by the
+on what actions to take. In Isaac Lab, the observations are computed by the
 :class:`managers.ObservationManager` class.
 
 Similar to the action manager, the observation manager can comprise of multiple observation terms.
@@ -96,7 +96,7 @@ two observation groups -- one for the low level controller and the other for the
 controller. It is assumed that all the observation terms in a group have the same dimensions.
 
 For this tutorial, we will only define one observation group named ``"policy"``. While not completely
-prescriptive, this group is a necessary requirement for various wrappers in Orbit.
+prescriptive, this group is a necessary requirement for various wrappers in Isaac Lab.
 We define a group by inheriting from the :class:`managers.ObservationGroupCfg` class. This class
 collects different observation terms and help define common properties for the group, such
 as enabling noise corruption or concatenating the observations into a single tensor.
@@ -127,7 +127,7 @@ class that performs the event.
 
 Additionally, it expects the **mode** of the event. The mode specifies when the event term should be applied.
 It is possible to specify your own mode. For this, you'll need to adapt the :class:`~envs.BaseEnv` class.
-However, out of the box, Orbit provides three commonly used modes:
+However, out of the box, Isaac Lab provides three commonly used modes:
 
 * ``"startup"`` - Event that takes place only once at environment startup.
 * ``"reset"`` - Event that occurs on environment termination and reset.
@@ -189,28 +189,28 @@ To run the base environment made in this tutorial, you can use the following com
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
 
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
-right corner of the screen named ``"Orbit"``. This window contains different UI elements that
+right corner of the screen named ``"Isaac Lab"``. This window contains different UI elements that
 can be used for debugging and visualization.
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal where you
 started the simulation.
 
 In this tutorial, we learned about the different managers that help define a base environment. We
-include more examples of defining the base environment in the ``orbit/source/standalone/tutorials/03_envs``
+include more examples of defining the base environment in the ``source/standalone/tutorials/03_envs``
 directory. For completeness, they can be run using the following commands:
 
 .. code-block:: bash
 
    # Floating cube environment with custom action term for PD control
-   ./orbit.sh -p source/standalone/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
    # Quadrupedal locomotion environment with a policy that interacts with the environment
-   ./orbit.sh -p source/standalone/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
+   ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 
 In the following tutorial, we will look at the :class:`envs.RLTaskEnv` class and how to use it

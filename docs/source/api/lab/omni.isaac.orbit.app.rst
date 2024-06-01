@@ -1,7 +1,7 @@
-﻿orbit.app
-=========
+﻿omni.isaac.lab.app
+==================
 
-.. automodule:: omni.isaac.orbit.app
+.. automodule:: omni.isaac.lab.app
 
    .. rubric:: Classes
 
@@ -40,7 +40,7 @@ The following details the behavior of the class based on the environment variabl
   .. note::
 
       The off-screen rendering pipeline only works when used in conjunction with the
-      :class:`omni.isaac.orbit.sim.SimulationContext` class. This is because the off-screen rendering
+      :class:`omni.isaac.lab.sim.SimulationContext` class. This is because the off-screen rendering
       pipeline enables flags that are internally used by the SimulationContext class.
 
 
@@ -51,13 +51,13 @@ To set the environment variables, one can use the following command in the termi
    export REMOTE_DEPLOYMENT=3
    export OFFSCREEN_RENDER=1
    # run the python script
-   ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
+   ./isaaclab.sh -p source/standalone/demo/play_quadrupeds.py
 
 Alternatively, one can set the environment variables to the python script directly:
 
 .. code:: bash
 
-   REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./orbit.sh -p source/standalone/demo/play_quadrupeds.py
+   REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./isaaclab.sh -p source/standalone/demo/play_quadrupeds.py
 
 
 Overriding the environment variables
@@ -73,7 +73,7 @@ The following snippet shows how use the :class:`AppLauncher` in different ways:
 
    import argparser
 
-   from omni.isaac.orbit.app import AppLauncher
+   from omni.isaac.lab.app import AppLauncher
 
    # add argparse arguments
    parser = argparse.ArgumentParser()

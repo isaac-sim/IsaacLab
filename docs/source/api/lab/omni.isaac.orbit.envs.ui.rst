@@ -1,7 +1,7 @@
-﻿orbit.envs.ui
-=============
+﻿omni.isaac.lab.envs.ui
+======================
 
-.. automodule:: omni.isaac.orbit.envs.ui
+.. automodule:: omni.isaac.lab.envs.ui
 
     .. rubric:: Classes
 

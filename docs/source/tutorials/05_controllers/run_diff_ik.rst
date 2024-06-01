@@ -1,7 +1,7 @@
 Using a task-space controller
 =============================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 In the previous tutorials, we have joint-space controllers to control the robot. However, in many
 cases, it is more intuitive to control the robot using a task-space controller. For example, if we
@@ -17,7 +17,7 @@ The Code
 ~~~~~~~~
 
 The tutorial corresponds to the ``run_diff_ik.py`` script in the
-``orbit/source/standalone/tutorials/05_controllers`` directory.
+``source/standalone/tutorials/05_controllers`` directory.
 
 
 .. dropdown:: Code for run_diff_ik.py
@@ -144,7 +144,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
+   ./isaaclab.sh -p source/standalone/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches

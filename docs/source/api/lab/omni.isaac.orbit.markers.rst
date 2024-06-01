@@ -1,7 +1,7 @@
-﻿orbit.markers
-=============
+﻿omni.isaac.lab.markers
+======================
 
-.. automodule:: omni.isaac.orbit.markers
+.. automodule:: omni.isaac.lab.markers
 
   .. rubric:: Classes
 

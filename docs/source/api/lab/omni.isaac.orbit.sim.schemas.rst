@@ -1,7 +1,7 @@
-﻿orbit.sim.schemas
-=================
+﻿omni.isaac.lab.sim.schemas
+==========================
 
-.. automodule:: omni.isaac.orbit.sim.schemas
+.. automodule:: omni.isaac.lab.sim.schemas
 
   .. rubric:: Classes
 

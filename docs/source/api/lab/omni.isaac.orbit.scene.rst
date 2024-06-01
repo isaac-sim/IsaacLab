@@ -1,7 +1,7 @@
-﻿orbit.scene
-===========
+﻿omni.isaac.lab.scene
+====================
 
-.. automodule:: omni.isaac.orbit.scene
+.. automodule:: omni.isaac.lab.scene
 
   .. rubric:: Classes
 

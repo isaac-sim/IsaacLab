@@ -22,7 +22,7 @@ you run the standalone script. The log file location is printed at the start of 
 
 .. code:: bash
 
-    [INFO] Using python from: /home/${USER}/git/orbit/_isaac_sim/python.sh
+    [INFO] Using python from: /home/${USER}/git/IsaacLab/_isaac_sim/python.sh
     ...
     Passing the following args to the base kit application:  []
     Loading user config located at: '.../data/Kit/Isaac-Sim/2023.1/user.config.json'
@@ -94,20 +94,20 @@ exceeds the size of the buffers, the simulation will fail with an error such as 
     parameter to 3072, otherwise the simulation will miss interactions
 
 In this case, you need to increase the size of the buffers passed to the
-:class:`~omni.isaac.orbit.sim.SimulationContext` class. The size of the buffers can be increased by setting
-the :attr:`~omni.isaac.orbit.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
-:class:`~omni.isaac.orbit.sim.PhysxCfg` class. For example, to increase the size of the buffers to
+:class:`~omni.isaac.lab.sim.SimulationContext` class. The size of the buffers can be increased by setting
+the :attr:`~omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
+:class:`~omni.isaac.lab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
 4096, you can use the following code:
 
 .. code:: python
 
-    import omni.isaac.orbit.sim as sim_utils
+    import omni.isaac.lab.sim as sim_utils
 
     sim_cfg = sim_utils.SimulationConfig()
     sim_cfg.physx.gpu_found_lost_pairs_capacity = 4096
     sim = SimulationContext(sim_params=sim_cfg)
 
-Please see the documentation for :class:`~omni.isaac.orbit.sim.SimulationCfg` for more details
+Please see the documentation for :class:`~omni.isaac.lab.sim.SimulationCfg` for more details
 on the parameters that can be used to configure the simulation.
 
 
@@ -205,25 +205,25 @@ simulation application. These typically look like the following:
     TypeError: expected Tensor as element 1 in argument 0, but got int
     Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
     Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
+    File "../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
+    File "../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
     TypeError: 'NoneType' object is not callable
     Exception ignored in: <function _make_registry.<locals>._Registry.__del__ at 0x7f94ac097f80>
     Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
-    File "../orbit/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
+    File "../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 103, in __del__
+    File "../IsaacLab/_isaac_sim/kit/extscore/omni.kit.viewport.registry/omni/kit/viewport/registry/registry.py", line 98, in destroy
     TypeError: 'NoneType' object is not callable
     Exception ignored in: <function SettingChangeSubscription.__del__ at 0x7fa2ea173e60>
     Traceback (most recent call last):
-    File "../orbit/_isaac_sim/kit/kernel/py/omni/kit/app/_impl/__init__.py", line 114, in __del__
+    File "../IsaacLab/_isaac_sim/kit/kernel/py/omni/kit/app/_impl/__init__.py", line 114, in __del__
     AttributeError: 'NoneType' object has no attribute 'get_settings'
     Exception ignored in: <function RegisteredActions.__del__ at 0x7f935f5cae60>
     Traceback (most recent call last):
-    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 345, in __del__
-    File "../orbit/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 350, in destroy
+    File "../IsaacLab/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 345, in __del__
+    File "../IsaacLab/_isaac_sim/extscache/omni.kit.viewport.menubar.lighting-104.0.7/omni/kit/viewport/menubar/lighting/actions.py", line 350, in destroy
     TypeError: 'NoneType' object is not callable
     2022-12-02 15:41:54 [18,514ms] [Warning] [carb.audio.context] 1 contexts were leaked
-    ../orbit/_isaac_sim/python.sh: line 41: 414372 Segmentation fault      (core dumped) $python_exe "$@" $args
+    ../IsaacLab/_isaac_sim/python.sh: line 41: 414372 Segmentation fault      (core dumped) $python_exe "$@" $args
     There was an error running python
 
 This is a known error with running standalone scripts with the Isaac Sim

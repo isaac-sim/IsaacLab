@@ -1,7 +1,7 @@
-﻿orbit.devices
-=============
+﻿omni.isaac.lab.devices
+======================
 
-.. automodule:: omni.isaac.orbit.devices
+.. automodule:: omni.isaac.lab.devices
 
   .. rubric:: Classes
 

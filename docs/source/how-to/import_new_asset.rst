@@ -1,7 +1,7 @@
 Importing a New Asset
 =====================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 NVIDIA Omniverse relies on the Universal Scene Description (USD) file format to
 import and export assets. USD is an open source file format developed by Pixar
@@ -87,17 +87,17 @@ The following shows the steps to clone the repository and run the converter:
   git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 
   # go to top of the repository
-  cd /path/to/orbit
+  cd IsaacLab
   # run the converter
-  ./orbit.sh -p source/standalone/tools/convert_urdf.py \
+  ./isaaclab.sh -p source/standalone/tools/convert_urdf.py \
     ~/git/anymal_d_simple_description/urdf/anymal.urdf \
-    source/extensions/omni.isaac.orbit_assets/data/Robots/ANYbotics/anymal_d.usd \
+    source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/anymal_d.usd \
     --merge-joints \
     --make-instanceable
 
 
 Executing the above script will create two USD files inside the
-``source/extensions/omni.isaac.orbit_assets/data/Robots/ANYbotics/`` directory:
+``source/extensions/omni.isaac.lab_assets/data/Robots/ANYbotics/`` directory:
 
 * ``anymal_d.usd`` - This is the main asset file. It contains all the non-mesh data.
 * ``Props/instanceable_assets.usd`` - This is the mesh data file.
@@ -148,17 +148,17 @@ the steps to clone the repository and run the converter:
   git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
   # go to top of the repository
-  cd /path/to/orbit
+  cd IsaacLab
   # run the converter
-  ./orbit.sh -p source/standalone/tools/convert_mesh.py \
+  ./isaaclab.sh -p source/standalone/tools/convert_mesh.py \
     ~/git/IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-    source/extensions/omni.isaac.orbit_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+    source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
     --make-instanceable \
     --collision-approximation convexDecomposition \
     --mass 1.0
 
 Similar to the URDF converter, executing the above script will create two USD files inside the
-``source/extensions/omni.isaac.orbit_assets/data/Props/CubeMultiColor/`` directory. Additionally,
+``source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
 if you press play on the opened window, you should see the asset fall down under the influence
 of gravity.
 

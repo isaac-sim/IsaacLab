@@ -1,7 +1,7 @@
-﻿orbit.controllers
-=================
+﻿omni.isaac.lab.controllers
+==========================
 
-.. automodule:: omni.isaac.orbit.controllers
+.. automodule:: omni.isaac.lab.controllers
 
   .. rubric:: Classes
 

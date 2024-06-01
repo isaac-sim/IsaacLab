@@ -1,7 +1,7 @@
-﻿orbit\_tasks.utils
-==================
+﻿omni.isaac.lab_tasks.utils
+==========================
 
-.. automodule:: omni.isaac.orbit_tasks.utils
+.. automodule:: omni.isaac.lab_tasks.utils
    :members:
    :imported-members:
 

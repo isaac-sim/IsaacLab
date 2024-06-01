@@ -1,7 +1,7 @@
-﻿orbit.actuators
-===============
+﻿omni.isaac.lab.actuators
+========================
 
-.. automodule:: omni.isaac.orbit.actuators
+.. automodule:: omni.isaac.lab.actuators
 
   .. rubric:: Classes
 

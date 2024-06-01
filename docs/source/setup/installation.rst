@@ -37,7 +37,7 @@ To check the minimum system requirements,refer to the documentation
 `here <https://docs.omniverse.nvidia.com/isaacsim/latest/installation/requirements.html>`__.
 
 .. note::
-	We have tested Orbit with Isaac Sim 2023.1.1 release on Ubuntu
+	We have tested Isaac Lab with Isaac Sim 2023.1.1 release on Ubuntu
 	20.04LTS with NVIDIA driver 525.147.
 
 Configuring the environment variables
@@ -117,55 +117,55 @@ and the
 `forums <https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_sim_forums.html>`__.
 
 
-Installing Orbit
-----------------
+Installing Isaac Lab
+--------------------
 
 Organizing the workspace
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. note::
 
-   We recommend making a `fork <https://github.com/NVIDIA-Omniverse/Orbit/fork>`_ of the ``orbit`` repository to contribute
+   We recommend making a `fork <https://github.com/isaac-sim/IsaacLab/fork>`_ of the ``Isaac Lab`` repository to contribute
    to the project. This is not mandatory to use the framework. If you
-   make a fork, please replace ``NVIDIA-Omniverse`` with your username
+   make a fork, please replace ``isaac-sim`` with your username
    in the following instructions.
 
    If you are not familiar with git, we recommend following the `git
    tutorial <https://git-scm.com/book/en/v2/Getting-Started-Git-Basics>`__.
 
--  Clone the ``orbit`` repository into your workspace:
+-  Clone the ``Isaac Lab`` repository into your workspace:
 
    .. code:: bash
 
       # Option 1: With SSH
-      git clone git@github.com:NVIDIA-Omniverse/orbit.git
+      git clone git@github.com:isaac-sim/IsaacLab.git
       # Option 2: With HTTPS
-      git clone https://github.com/NVIDIA-Omniverse/orbit.git
+      git clone https://github.com/isaac-sim/IsaacLab.git
 
 -  Set up a symbolic link between the installed Isaac Sim root folder
-   and ``_isaac_sim`` in the ``orbit``` directory. This makes it convenient
+   and ``_isaac_sim`` in the ``IsaacLab``` directory. This makes it convenient
    to index the python modules and look for extensions shipped with
    Isaac Sim.
 
    .. code:: bash
 
       # enter the cloned repository
-      cd orbit
+      cd IsaacLab
       # create a symbolic link
       ln -s ${ISAACSIM_PATH} _isaac_sim
 
-We provide a helper executable `orbit.sh <https://github.com/NVIDIA-Omniverse/Orbit/blob/main/orbit.sh>`_ that provides
+We provide a helper executable `isaaclab.sh <https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.sh>`_ that provides
 utilities to manage extensions:
 
 .. code:: text
 
-   ./orbit.sh --help
+   ./isaaclab.sh --help
 
-   usage: orbit.sh [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Orbit.
+   usage: isaaclab.sh [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab.
 
    optional arguments:
       -h, --help           Display the help content.
-      -i, --install        Install the extensions inside Orbit.
+      -i, --install        Install the extensions inside Isaac Lab.
       -e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'.
       -f, --format         Run pre-commit to format the code and check lints.
       -p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active).
@@ -174,7 +174,7 @@ utilities to manage extensions:
       -o, --docker         Run the docker container helper script (docker/container.sh).
       -v, --vscode         Generate the VSCode settings file from template.
       -d, --docs           Build the documentation from source using sphinx.
-      -c, --conda [NAME]   Create the conda environment for Orbit. Default name is 'orbit'.
+      -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
 
 Setting up the environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -182,8 +182,8 @@ Setting up the environment
 .. attention::
    This step is optional. If you are using the bundled python with Isaac Sim, you can skip this step.
 
-The executable ``orbit.sh`` automatically fetches the python bundled with Isaac
-Sim, using ``./orbit.sh -p`` command (unless inside a virtual environment). This executable
+The executable ``isaaclab.sh`` automatically fetches the python bundled with Isaac
+Sim, using ``./isaaclab.sh -p`` command (unless inside a virtual environment). This executable
 behaves like a python executable, and can be used to run any python script or
 module with the simulator. For more information, please refer to the
 `documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/manual_standalone_python.html#isaac-sim-python-environment>`__.
@@ -195,22 +195,22 @@ use the following command:
 
 .. code:: bash
 
-   # Option 1: Default name for conda environment is 'orbit'
-   ./orbit.sh --conda  # or "./orbit.sh -c"
+   # Option 1: Default name for conda environment is 'isaaclab'
+   ./isaaclab.sh --conda  # or "./isaaclab.sh -c"
    # Option 2: Custom name for conda environment
-   ./orbit.sh --conda my_env  # or "./orbit.sh -c my_env"
+   ./isaaclab.sh --conda my_env  # or "./isaaclab.sh -c my_env"
 
 If you are using ``conda`` to create a virtual environment, make sure to
 activate the environment before running any scripts. For example:
 
 .. code:: bash
 
-   conda activate orbit  # or "conda activate my_env"
+   conda activate isaaclab  # or "conda activate my_env"
 
-Once you are in the virtual environment, you do not need to use ``./orbit.sh -p``
+Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p``
 to run python scripts. You can use the default python executable in your environment
 by running ``python`` or ``python3``. However, for the rest of the documentation,
-we will assume that you are using ``./orbit.sh -p`` to run python scripts. This command
+we will assume that you are using ``./isaaclab.sh -p`` to run python scripts. This command
 is equivalent to running ``python`` or ``python3`` in your virtual environment.
 
 Building extensions
@@ -230,7 +230,7 @@ To build all the extensions, run the following commands:
 
    .. code:: bash
 
-      ./orbit.sh --install  # or "./orbit.sh -i"
+      ./isaaclab.sh --install  # or "./isaaclab.sh -i"
 
 -  For installing all other dependencies (such as learning
    frameworks), execute:
@@ -238,10 +238,10 @@ To build all the extensions, run the following commands:
    .. code:: bash
 
       # Option 1: Install all dependencies
-      ./orbit.sh --extra  # or "./orbit.sh -e"
+      ./isaaclab.sh --extra  # or "./isaaclab.sh -e"
       # Option 2: Install only a subset of dependencies
       # note: valid options are 'rl_games', 'rsl_rl', 'sb3', 'robomimic', 'all'
-      ./orbit.sh --extra rsl_rl  # or "./orbit.sh -e rsl_r"
+      ./isaaclab.sh --extra rsl_rl  # or "./isaaclab.sh -e rsl_r"
 
 
 Verifying the installation
@@ -252,9 +252,9 @@ top of the repository:
 
 .. code:: bash
 
-   # Option 1: Using the orbit.sh executable
+   # Option 1: Using the isaaclab.sh executable
    # note: this works for both the bundled python and the virtual environment
-   ./orbit.sh -p source/standalone/tutorials/00_sim/create_empty.py
+   ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
 
    # Option 2: Using python in your virtual environment
    python source/standalone/tutorials/00_sim/create_empty.py

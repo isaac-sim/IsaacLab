@@ -1,7 +1,7 @@
 Training with an RL Agent
 =========================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 In the previous tutorials, we covered how to define an RL task environment, register
 it into the ``gym`` registry, and interact with it using a random agent. We now move
@@ -18,7 +18,7 @@ For example, `Stable-Baselines3`_ expects the environment to conform to its
 `RSL-RL`_ and `RL-Games`_ expect a different interface. Since there is no one-size-fits-all
 solution, we do not base the :class:`envs.RLTaskEnv` on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`omni.isaac.orbit_tasks.utils.wrappers` module.
+These are specified in the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
 
 In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
 cartpole balancing task.
@@ -33,7 +33,7 @@ The Code
 --------
 
 For this tutorial, we use the training script from `Stable-Baselines3`_ workflow in the
-``orbit/source/standalone/workflows/sb3`` directory.
+``source/standalone/workflows/sb3`` directory.
 
 .. dropdown:: Code for train.py
     :icon: code
@@ -46,7 +46,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 The Code Explained
 ------------------
 
-.. currentmodule:: omni.isaac.orbit_tasks.utils
+.. currentmodule:: omni.isaac.lab_tasks.utils
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating
@@ -86,7 +86,7 @@ up the training process since only physics simulation step is performed.
 
 .. code-block:: bash
 
-  ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
+  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless
 
 
 Headless execution with off-screen render
@@ -99,7 +99,7 @@ agent's behavior during training.
 
 .. code-block:: bash
 
-  ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --offscreen_render --video
+  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --offscreen_render --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos`` directory. You can open these videos
 using any video player.
@@ -107,7 +107,7 @@ using any video player.
 Interactive execution
 """""""""""""""""""""
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
 simulation to see what is happening. In this case, you can ignore the ``--headless`` flag and run the
@@ -115,11 +115,11 @@ training script as follows:
 
 .. code-block:: bash
 
-  ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
+  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64
 
 This will open the Isaac Sim window and you can see the agent training in the environment. However, this
 will slow down the training process since the simulation is rendered on the screen. As a workaround, you
-can switch between different render modes in the ``"Orbit"`` window that is docked on the bottom-right
+can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
 corner of the screen. To learn more about these render modes, please check the
 :class:`sim.SimulationContext.RenderMode` class.
 
@@ -131,7 +131,7 @@ On a separate terminal, you can monitor the training progress by executing the f
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./orbit.sh -p -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole-v0
+   ./isaaclab.sh -p -m tensorboard.main --logdir logs/sb3/Isaac-Cartpole-v0
 
 Playing the trained agent
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -141,7 +141,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
+   ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --use_last_checkpoint
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole-v0``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

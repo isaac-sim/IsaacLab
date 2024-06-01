@@ -1,7 +1,7 @@
-﻿orbit.sim.spawners
-==================
+﻿omni.isaac.lab.sim.spawners
+===========================
 
-.. automodule:: omni.isaac.orbit.sim.spawners
+.. automodule:: omni.isaac.lab.sim.spawners
 
   .. rubric:: Submodules
 
@@ -35,7 +35,7 @@ Spawners
 Shapes
 ------
 
-.. automodule:: omni.isaac.orbit.sim.spawners.shapes
+.. automodule:: omni.isaac.lab.sim.spawners.shapes
 
   .. rubric:: Classes
 
@@ -91,7 +91,7 @@ Shapes
 Lights
 ------
 
-.. automodule:: omni.isaac.orbit.sim.spawners.lights
+.. automodule:: omni.isaac.lab.sim.spawners.lights
 
   .. rubric:: Classes
 
@@ -133,7 +133,7 @@ Lights
 Sensors
 -------
 
-.. automodule:: omni.isaac.orbit.sim.spawners.sensors
+.. automodule:: omni.isaac.lab.sim.spawners.sensors
 
   .. rubric:: Classes
 
@@ -155,7 +155,7 @@ Sensors
 From Files
 ----------
 
-.. automodule:: omni.isaac.orbit.sim.spawners.from_files
+.. automodule:: omni.isaac.lab.sim.spawners.from_files
 
   .. rubric:: Classes
 
@@ -186,7 +186,7 @@ From Files
 Materials
 ---------
 
-.. automodule:: omni.isaac.orbit.sim.spawners.materials
+.. automodule:: omni.isaac.lab.sim.spawners.materials
 
   .. rubric:: Classes
 
