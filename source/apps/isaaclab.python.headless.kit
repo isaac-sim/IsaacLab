@@ -3,55 +3,45 @@
 ##
 
 [package]
-title = "Isaac Sim Python - Minimal (headless)"
-description = "A minimal app for running standalone scripts headlessly."
-version = "2023.1.1"
+title = "Isaac Lab Python Headless"
+description = "An app for running Isaac Lab headlessly"
+version = "1.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "headless"]
 
-#################
-# Basic Kit App #
-#################
 [settings]
-# Note: This path was adapted to be respective to the kit-exe file location
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "2023.1.1"
-
-# set the default ros bridge to disable on startup
-isaac.startup.ros_bridge_extension = ""
+app.version = "4.0.0"
 
 ##################################
 # Omniverse related dependencies #
 ##################################
 [dependencies]
 "omni.kit.window.title" = {}
-"omni.kit.window.console" = {}
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
 "omni.warp.core" = {}
 "usdrt.scenegraph" = {}
-
-# "omni.kit.mainwindow" = {}
-# "omni.kit.telemetry" = {}
+"omni.kit.primitive.mesh" = {}
+"omni.kit.mainwindow" = {}
+"omni.kit.telemetry" = {}
 
 
 [settings]
-# Basic Kit App
+renderer.active = "rtx"
+
 app.content.emptyStageOnStart = false
 
-# deprecate support for old kit.ui.menu
-app.menu.legacy_mode = false
-# use omni.ui.Menu for the MenuBar
-app.menu.compatibility_mode = false
 # Setting the port for the embedded http server
 exts."omni.services.transport.server.http".port = 8211
 
 # default viewport is fill
 app.runLoops.rendering_0.fillResolution = false
+exts."omni.kit.window.viewport".blockingGetViewportDrawable = false
 
 # Fix PlayButtonGroup error
 exts."omni.kit.widget.toolbar".PlayButton.enabled = false
@@ -62,16 +52,26 @@ dev_build = false
 fabricDefaultStageFrameHistoryCount = 3 # needed for omni.syntheticdata TODO105 still true?
 
 [settings.app.window]
-title = "Isaac Sim Python"
+title = "Isaac Sim"
 hideUi = false
 _iconSize = 256
-# Note: This path was adapted to be respective to the kit folder location
-iconPath = "${exe-path}/../exts/omni.isaac.app.setup/data/nvidia-omniverse-isaacsim.ico"
+iconPath = "${omni.isaac.app.setup}/data/omni.isaac.sim.png"
+
+# width = 1700
+# height = 900
+# x = -1
+# y = -1
 
 # Fonts
 [setting.app.font]
 file = "${fonts}/OpenSans-SemiBold.ttf"
 size = 16
+
+# [setting.app.runLoops]
+# main.rateLimitEnabled = false
+# main.rateLimitFrequency = 60
+# main.rateLimitUseBusyLoop = false
+# rendering_0.rateLimitEnabled = false
 
 [settings.exts.'omni.kit.window.extensions']
 # List extensions here we want to show as featured when extension manager is opened
@@ -98,11 +98,21 @@ omni.replicator.asyncRendering = false
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
-# Disable the simulation output window popup
-physics.autoPopupSimulationOutputWindow=false
+# Avoid warning on shutdown from audio context
+app.audio.enabled = false
 
-# Disable IOMMU Enabled pop-up message on warmup (OM-100381)
-persistent.renderer.startupMessageDisplayed = true
+# Enable Vulkan - avoids torch+cu12 error on windows
+app.vulkan = true
+
+# Basic Kit App
+################################
+app.versionFile = "${app}/../VERSION"
+app.name = "Isaac-Sim"
+app.version = "4.0.0"
+
+# hide NonToggleable Exts
+exts."omni.kit.window.extensions".hideNonToggleableExts = true
+exts."omni.kit.window.extensions".showFeatureOnly = false
 
 # Hang Detector
 ################################
@@ -110,14 +120,16 @@ persistent.renderer.startupMessageDisplayed = true
 # app.hangDetector.timeout = 120
 
 
-#######################
-# Extensions Settings #
-#######################
+# set the default ros bridge to disable on startup
+isaac.startup.ros_bridge_extension = ""
+
+# Extensions
+###############################
 [settings.exts."omni.kit.registry.nucleus"]
 registries = [
-  { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/shared" },
-  { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-  { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
+    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/shared" },
+    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
+    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
 ]
 
 [settings.app.extensions]
@@ -125,9 +137,9 @@ skipPublishVerification = false
 registryEnabled = true
 
 [settings.exts."omni.kit.window.modifier.titlebar"]
-titleFormatString = "  Isaac Sim  {version:${exe-path}/../SHORT_VERSION,font_color=0x909090,font_size=16} {separator} {file, board=true}"
+titleFormatString = "  Isaac Sim  {version:${app}/../SHORT_VERSION,font_color=0x909090,font_size=16} {separator} {file, board=true}"
 showFileFullPath = true
-icon.file = "${exe-path}/../exts/omni.isaac.app.setup/data/nvidia-omniverse-isaacsim.ico"
+icon.file = "${app}/../exts/omni.isaac.app.setup/data/nvidia-omniverse-isaacsim.ico"
 icon.size = 256
 defaultFont.name = "Arial"
 defaultFont.size = 16
@@ -142,11 +154,10 @@ respondOnMouseUp = true
 changeWindowRegion = true
 
 [settings.crashreporter.data]
-experience = "Isaac Sim Python Minimal"
+experience = "Isaac Sim"
 
-######################
-# Isaac Sim Settings #
-######################
+# Isaac Sim Settings
+###############################
 [settings.app.renderer]
 skipWhileMinimized = false
 sleepMsOnFocus = 0
@@ -163,6 +174,7 @@ defaultCamPos.z = 5
 [settings.rtx]
 raytracing.fractionalCutoutOpacity = false
 hydra.enableSemanticSchema = true
+mdltranslator.mdlDistilling = false
 # descriptorSets=60000
 # reservedDescriptors=500000
 # sceneDb.maxInstances=1000000
@@ -193,24 +205,29 @@ simulation.defaultMetersPerUnit = 1.0
 omnigraph.updateToUsd = false
 omnigraph.useSchemaPrims = true
 omnigraph.disablePrimNodes = true
-physics.updateToUsd = false
-physics.updateVelocitiesToUsd = false
-physics.useFastCache = false
-physics.visualizationDisplayJoints = false
 omni.replicator.captureOnPlay = true
 omnihydra.useSceneGraphInstancing = true
-
 renderer.startupMessageDisplayed = true # hides the IOMMU popup window
 
-# Make Detail panel invisible by default
-app.omniverse.content_browser.options_menu.show_details = false
-app.omniverse.filepicker.options_menu.show_details = false
+# Make Detail panel visible by default
+app.omniverse.content_browser.options_menu.show_details = true
+app.omniverse.filepicker.options_menu.show_details = true
 
 [settings.physics]
 updateToUsd = false
+updateParticlesToUsd = false
 updateVelocitiesToUsd = false
 updateForceSensorsToUsd = false
 outputVelocitiesLocalSpace = false
+useFastCache = false
+visualizationDisplayJoints = false
+fabricUpdateTransformations = false
+fabricUpdateVelocities = false
+fabricUpdateForceSensors = false
+fabricUpdateJointStates = false
+
+# Performance improvement
+resourcemonitor.timeBetweenQueries = 100
 
 # Register extension folder from this repo in kit
 [settings.app.exts]
@@ -219,7 +236,10 @@ folders = [
     "${exe-path}/extscore",  # kit core extensions
     "${exe-path}/../exts",  # isaac extensions
     "${exe-path}/../extscache",  # isaac cache extensions
-    "${exe-path}/../extsPhysics",  # isaac physics extensions,
+    "${exe-path}/../extsPhysics",  # isaac physics extensions
+    "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
+    "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
+    "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
     "${app}/../extensions", # needed to find extensions in Isaac Lab
 ]
@@ -232,11 +252,6 @@ enabled=true # Enable this for DLSS
 ########################
 [dependencies]
 "omni.isaac.core" = {}
-"omni.isaac.core_archive" = {}
-"omni.pip.compute" = {}
-"omni.pip.cloud" = {}
 "omni.isaac.cloner" = {}
 "omni.isaac.kit" = {}
-"omni.isaac.ml_archive" = {}
 "omni.kit.loop-isaac" = {}
-"omni.isaac.cloner" = {}
