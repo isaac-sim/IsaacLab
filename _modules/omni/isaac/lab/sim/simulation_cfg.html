@@ -1,0 +1,781 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>omni.isaac.lab.sim.simulation_cfg &#8212; Isaac Lab documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../../_static/styles/theme.css?digest=3ee479438cf8b5e0d341" rel="stylesheet" />
+<link href="../../../../../_static/styles/bootstrap.css?digest=3ee479438cf8b5e0d341" rel="stylesheet" />
+<link href="../../../../../_static/styles/pydata-sphinx-theme.css?digest=3ee479438cf8b5e0d341" rel="stylesheet" />
+
+  
+  <link href="../../../../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=3ee479438cf8b5e0d341" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../../_static/scripts/bootstrap.js?digest=3ee479438cf8b5e0d341" />
+<link rel="preload" as="script" href="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=3ee479438cf8b5e0d341" />
+  <script src="../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=3ee479438cf8b5e0d341"></script>
+
+    <script data-url_root="../../../../../" id="documentation_options" src="../../../../../_static/documentation_options.js"></script>
+    <script src="../../../../../_static/doctools.js"></script>
+    <script src="../../../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../../../_static/clipboard.min.js"></script>
+    <script src="../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../../../_static/design-tabs.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sim/simulation_cfg';</script>
+    <link rel="icon" href="../../../../../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+<aside class="bd-header-announcement" aria-label="Announcement">
+  <div class="bd-header-announcement__content">We have now released v0.3.0! Please use the latest version for the best experience.</div>
+</aside>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+
+<a class="navbar-brand logo" href="../../../../../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../../../../_static/NVIDIA-logo-white.png" class="logo__image only-light" alt=""/>
+    <script>document.write(`<img src="../../../../../_static/NVIDIA-logo-black.png" class="logo__image only-dark" alt=""/>`);</script>
+  
+  
+    <p class="title logo__title">Isaac Lab documentation</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links navbar-nav"
+    aria-label="Quick Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/isaac-sim/IsaacLab" title="GitHub" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><span><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i></span>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" title="Stars" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba" class="icon-link-image" alt="Stars"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/developer.html">Developer’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/template.html">Building your Own Project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/spawn_prims.html">Spawning prims into the scene</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/launch_app.html">Deep-dive into AppLauncher</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/01_assets/index.html">Interacting with Assets</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/01_assets/run_rigid_object.html">Interacting with a rigid object</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/01_assets/run_articulation.html">Interacting with an articulation</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/02_scene/index.html">Creating a Scene</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/02_scene/create_scene.html">Using the Interactive Scene</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/04_sensors/index.html">Integrating Sensors</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/04_sensors/add_sensors_on_robot.html">Adding sensors on a robot</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/05_controllers/index.html">Using Motion Generators</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/05_controllers/run_diff_ik.html">Using a task-space controller</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/how-to/index.html">How-to Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/import_new_asset.html">Importing a New Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/write_articulation_cfg.html">Writing an Asset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/make_fixed_prim.html">Making a physics prim fixed in the simulation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/save_camera_output.html">Saving rendered images and 3D re-projection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/draw_markers.html">Creating Visualization Markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/wrap_rl_env.html">Wrapping environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/add_own_library.html">Adding your own learning library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/master_omniverse.html">Mastering Omniverse for Robotics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/how-to/record_animation.html">Recording Animations of Simulations</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/deployment/index.html">Container Deployment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/deployment/docker.html">Docker Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/deployment/cluster.html">Cluster Guide</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/deployment/run_docker_example.html">Running an example with Docker</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Source API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/api/index.html">API Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.app.html">omni.isaac.lab.app</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.actuators.html">omni.isaac.lab.actuators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.assets.html">omni.isaac.lab.assets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html">omni.isaac.lab.controllers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.devices.html">omni.isaac.lab.devices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.envs.html">omni.isaac.lab.envs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.managers.html">omni.isaac.lab.managers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.markers.html">omni.isaac.lab.markers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.scene.html">omni.isaac.lab.scene</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sensors.html">omni.isaac.lab.sensors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sim.html">omni.isaac.lab.sim</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.terrains.html">omni.isaac.lab.terrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.utils.html">omni.isaac.lab.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html">omni.isaac.lab.envs.mdp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.envs.ui.html">omni.isaac.lab.envs.ui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sensors.patterns.html">omni.isaac.lab.sensors.patterns</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sim.converters.html">omni.isaac.lab.sim.converters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html">omni.isaac.lab.sim.schemas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html">omni.isaac.lab.sim.spawners</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.html">omni.isaac.lab_tasks.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html">omni.isaac.lab_tasks.utils.wrappers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html">omni.isaac.lab_tasks.utils.data_collector</a></li>
+</ul>
+</details></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/migration.html">Migration Guide (Isaac Sim)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/contributing.html">Contribution Guidelines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/issues.html">Known Issues</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/changelog.html">Extensions Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/refs/bibliography.html">Bibliography</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sim/simulation_cfg.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm navbar-btn theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="theme-switch nav-link" data-mode="light"><i class="fa-solid fa-sun fa-lg"></i></span>
+    <span class="theme-switch nav-link" data-mode="dark"><i class="fa-solid fa-moon fa-lg"></i></span>
+    <span class="theme-switch nav-link" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg"></i></span>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm navbar-btn search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1></h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for omni.isaac.lab.sim.simulation_cfg</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+
+<span class="sd">&quot;&quot;&quot;Base configuration of the environment.</span>
+
+<span class="sd">This module defines the general configuration of the environment. It includes parameters for</span>
+<span class="sd">configuring the environment instances, viewer settings, and simulation parameters.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">from</span> <span class="nn">.spawners.materials</span> <span class="kn">import</span> <span class="n">RigidBodyMaterialCfg</span>
+
+
+<div class="viewcode-block" id="PhysxCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">PhysxCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for PhysX solver-related parameters.</span>
+
+<span class="sd">    These parameters are used to configure the PhysX solver. For more information, see the `PhysX 5 SDK</span>
+<span class="sd">    documentation`_.</span>
+
+<span class="sd">    PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled</span>
+<span class="sd">    through the flag `use_gpu`. Unlike CPU PhysX, the GPU simulation feature is not able to dynamically</span>
+<span class="sd">    grow all the buffers. Therefore, it is necessary to provide a reasonable estimate of the buffer sizes</span>
+<span class="sd">    for GPU features. If insufficient buffer sizes are provided, the simulation will fail with errors and</span>
+<span class="sd">    lead to adverse behaviors. The buffer sizes can be adjusted through the `gpu_*` parameters.</span>
+
+<span class="sd">    .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">use_gpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable GPU accelerated dynamics simulation. Default is True.</span>
+
+<span class="sd">    This enables GPU-accelerated implementations for broad-phase collision checks, contact generation,</span>
+<span class="sd">    shape and body management, and constrained solver.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">solver_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The type of solver to use.Default is 1 (TGS).</span>
+
+<span class="sd">    Available solvers:</span>
+
+<span class="sd">    * :obj:`0`: PGS (Projective Gauss-Seidel)</span>
+<span class="sd">    * :obj:`1`: TGS (Truncated Gauss-Seidel)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">min_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 1.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes</span>
+<span class="sd">        the number of iterations specified by the actor with the highest iteration and clamps it to</span>
+<span class="sd">        the range ``[min_position_iteration_count, max_position_iteration_count]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">255</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes</span>
+<span class="sd">        the number of iterations specified by the actor with the highest iteration and clamps it to</span>
+<span class="sd">        the range ``[min_position_iteration_count, max_position_iteration_count]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">min_velocity_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 0.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes</span>
+<span class="sd">        the number of iterations specified by the actor with the highest iteration and clamps it to</span>
+<span class="sd">        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_velocity_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">255</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum number of solver position iterations (rigid bodies, cloth, particles etc.). Default is 255.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Each physics actor in Omniverse specifies its own solver iteration count. The solver takes</span>
+<span class="sd">        the number of iterations specified by the actor with the highest iteration and clamps it to</span>
+<span class="sd">        the range ``[min_velocity_iteration_count, max_velocity_iteration_count]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">enable_ccd</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.</span>
+<span class="sd">    Default is False.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_stabilization</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable additional stabilization pass in solver. Default is True.&quot;&quot;&quot;</span>
+
+    <span class="n">enable_enhanced_determinism</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable improved determinism at the expense of performance. Defaults to False.</span>
+
+<span class="sd">    For more information on PhysX determinism, please check `here`_.</span>
+
+<span class="sd">    .. _here: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/RigidBodyDynamics.html#enhanced-determinism</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bounce_threshold_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Relative velocity threshold for contacts to bounce (in m/s). Default is 0.5 m/s.&quot;&quot;&quot;</span>
+
+    <span class="n">friction_offset_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.04</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Threshold for contact point to experience friction force (in m). Default is 0.04 m.&quot;&quot;&quot;</span>
+
+    <span class="n">friction_correlation_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.025</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Distance threshold for merging contacts into a single friction anchor point (in m). Default is 0.025 m.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_max_rigid_contact_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">23</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of rigid contact stream buffer allocated in pinned host memory. Default is 2 ** 23.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_max_rigid_patch_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span> <span class="o">*</span> <span class="mi">2</span><span class="o">**</span><span class="mi">15</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of the rigid contact patch stream buffer allocated in pinned host memory. Default is 5 * 2 ** 15.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_found_lost_pairs_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">21</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Capacity of found and lost buffers allocated in GPU global memory. Default is 2 ** 21.</span>
+
+<span class="sd">    This is used for the found/lost pair reports in the BP.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gpu_found_lost_aggregate_pairs_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">25</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Capacity of found and lost buffers in aggregate system allocated in GPU global memory.</span>
+<span class="sd">    Default is 2 ** 25.</span>
+
+<span class="sd">    This is used for the found/lost pair reports in AABB manager.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gpu_total_aggregate_pairs_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">21</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Capacity of total number of aggregate pairs allocated in GPU global memory. Default is 2 ** 21.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_collision_stack_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">26</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of the collision stack buffer allocated in pinned host memory. Default is 2 ** 26.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_heap_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">26</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial capacity of the GPU and pinned host memory heaps. Additional memory will be allocated</span>
+<span class="sd">    if more memory is required. Default is 2 ** 26.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_temp_buffer_capacity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">24</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Capacity of temp buffer allocated in pinned host memory. Default is 2 ** 24.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_max_num_partitions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Limitation for the partitions in the GPU dynamics pipeline. Default is 8.</span>
+
+<span class="sd">    This variable must be power of 2. A value greater than 32 is currently not supported. Range: (1, 32)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gpu_max_soft_body_contacts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">20</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of soft body contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span>
+
+    <span class="n">gpu_max_particle_contacts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="o">**</span><span class="mi">20</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Size of particle contacts stream buffer allocated in pinned host memory. Default is 2 ** 20.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="SimulationCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">SimulationCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for simulation physics.&quot;&quot;&quot;</span>
+
+    <span class="n">physics_prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/physicsScene&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The prim path where the USD PhysicsScene is created. Default is &quot;/physicsScene&quot;.&quot;&quot;&quot;</span>
+
+    <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">60.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The physics simulation time-step (in seconds). Default is 0.0167 seconds.&quot;&quot;&quot;</span>
+
+    <span class="n">substeps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of physics simulation steps per rendering step. Default is 1.&quot;&quot;&quot;</span>
+
+    <span class="n">gravity</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The gravity vector (in m/s^2). Default is (0.0, 0.0, -9.81).</span>
+
+<span class="sd">    If set to (0.0, 0.0, 0.0), gravity is disabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">enable_scene_query_support</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable scene query support for collision shapes. Default is False.</span>
+
+<span class="sd">    This flag allows performing collision queries (raycasts, sweeps, and overlaps) on actors and</span>
+<span class="sd">    attached shapes in the scene. This is useful for implementing custom collision detection logic</span>
+<span class="sd">    outside of the physics engine.</span>
+
+<span class="sd">    If set to False, the physics engine does not create the scene query manager and the scene query</span>
+<span class="sd">    functionality will not be available. However, this provides some performance speed-up.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This flag is overridden to True inside the :class:`SimulationContext` class when running the simulation</span>
+<span class="sd">        with the GUI enabled. This is to allow certain GUI features to work properly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">use_fabric</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable reading of physics buffers directly. Default is True.</span>
+
+<span class="sd">    When running the simulation, updates in the states in the scene is normally synchronized with USD.</span>
+<span class="sd">    This leads to an overhead in reading the data and does not scale well with massive parallelization.</span>
+<span class="sd">    This flag allows disabling the synchronization and reading the data directly from the physics buffers.</span>
+
+<span class="sd">    It is recommended to set this flag to :obj:`True` when running the simulation with a large number</span>
+<span class="sd">    of primitives in the scene.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        When enabled, the GUI will not update the physics parameters in real-time. To enable real-time</span>
+<span class="sd">        updates, please set this flag to :obj:`False`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">disable_contact_processing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable contact processing. Default is False.</span>
+
+<span class="sd">    By default, the physics engine processes all the contacts in the scene. However, reporting this contact</span>
+<span class="sd">    information can be expensive due to its combinatorial complexity. This flag allows disabling the contact</span>
+<span class="sd">    processing and querying the contacts manually by the user over a limited set of primitives in the scene.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">use_gpu_pipeline</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enable/disable GPU pipeline. Default is True.</span>
+
+<span class="sd">    If set to False, the physics data will be read as CPU buffers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The device for running the simulation/environment. Default is ``&quot;cuda:0&quot;``.&quot;&quot;&quot;</span>
+
+    <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;PhysX solver settings. Default is PhysxCfg().&quot;&quot;&quot;</span>
+
+    <span class="n">physics_material</span><span class="p">:</span> <span class="n">RigidBodyMaterialCfg</span> <span class="o">=</span> <span class="n">RigidBodyMaterialCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg().</span>
+
+<span class="sd">    The physics engine defaults to this physics material for all the rigid body prims that do not have any</span>
+<span class="sd">    physics material specified on them.</span>
+
+<span class="sd">    The material is created at the path: ``{physics_prim_path}/defaultMaterial``.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+</pre></div>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Isaac Lab Project Developers.
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2022-2024, The Isaac Lab Project Developers..
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jun 01, 2024.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../../../_static/scripts/bootstrap.js?digest=3ee479438cf8b5e0d341"></script>
+<script src="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=3ee479438cf8b5e0d341"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
