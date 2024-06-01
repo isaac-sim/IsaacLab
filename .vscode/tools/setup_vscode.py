@@ -22,6 +22,9 @@ ISAACLAB_DIR = pathlib.Path(__file__).parents[2]
 """Path to the Isaac Lab directory."""
 ISAACSIM_DIR = os.path.join(ISAACLAB_DIR, "_isaac_sim")
 """Path to the isaac-sim directory."""
+# check if ISAACSIM_DIR is valid:
+if not os.path.isdir(ISAACSIM_DIR):
+    ISAACSIM_DIR = os.environ.get("ISAACSIM_PATH", "")
 
 
 def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
