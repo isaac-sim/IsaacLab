@@ -12,7 +12,7 @@ Each extension has its own changelog. The changelog for each extension is locate
 this changelog to make it easier to find the changelog for a specific extension.
 
 omni.isaac.lab
------------------
+--------------
 
 Extension containing the core framework of Isaac Lab.
 
@@ -21,7 +21,7 @@ Extension containing the core framework of Isaac Lab.
 
 
 omni.isaac.lab_assets
-------------------------
+---------------------
 
 Extension for configurations of various assets and sensors for Isaac Lab.
 
@@ -30,7 +30,7 @@ Extension for configurations of various assets and sensors for Isaac Lab.
 
 
 omni.isaac.lab_tasks
-----------------------
+--------------------
 
 Extension containing the environments built using Isaac Lab.
 
