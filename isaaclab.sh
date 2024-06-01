@@ -39,8 +39,13 @@ extract_python_exe() {
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     else
-        # use python from kit
-        local python_exe=${build_path}/python.sh
+        if pip show isaacsim-rl > /dev/null 2>&1; then
+            # use current python executable
+            python_exe=$(which python)
+        else
+            # use python from kit
+            local python_exe=${build_path}/python.sh
+        fi
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
@@ -83,16 +88,6 @@ install_isaaclab_extension() {
         echo -e "\t module: $1"
         ${python_exe} -m pip install --editable $1
     fi
-}
-
-install_extension_deps() {
-    # retrieve the python executable
-    set -e
-    path="$1"
-    cmd="$2"
-    python_exe=$(extract_python_exe)
-    echo -e "\t Installing deps for module: $1"
-    ${python_exe} ${ISAACLAB_PATH}/tools/install_deps.py ${cmd} $1
 }
 
 # setup anaconda environment for Isaac Lab
@@ -199,12 +194,10 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-e] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help           Display the help content."
-    echo -e "\t-i, --install        Install the extensions inside Isaac Lab."
-    echo -e "\t-e, --extra [LIB]    Install learning frameworks (rl_games, rsl_rl, sb3) as extra dependencies. Default is 'all'."
-    echo -e "\t--install-deps [dep_type] Install dependencies for extensions (apt, rosdep, all) from each extension.toml. Default is 'all'."
+    echo -e "\t-i, --install [LIB]  Install the extensions inside Isaac Lab and learning frameworks as extra dependencies. Default is 'all'."
     echo -e "\t-f, --format         Run pre-commit to format the code and check lints."
     echo -e "\t-p, --python         Run the python executable provided by Isaac Sim or virtual environment (if active)."
     echo -e "\t-s, --sim            Run the simulator executable (isaac-sim.sh) provided by Isaac Sim."
@@ -235,6 +228,7 @@ while [[ $# -gt 0 ]]; do
         -i|--install)
             # install the python packages in IsaacLab/source directory
             echo "[INFO] Installing extensions inside the Isaac Lab repository..."
+            python_exe=$(extract_python_exe)
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
@@ -244,17 +238,19 @@ while [[ $# -gt 0 ]]; do
             # unset local variables
             unset install_isaaclab_extension
             # setup vscode settings
-            update_vscode_settings
-            shift # past argument
-            ;;
-        -e|--extra)
+            if ! ${python_exe} -m pip show isaacsim-rl &>/dev/null; then
+                update_vscode_settings
+            fi
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
-            python_exe=$(extract_python_exe)
             # check if specified which rl-framework to install
             if [ -z "$2" ]; then
                 echo "[INFO] Installing all rl-frameworks..."
                 framework_name="all"
+            elif [ "$2" = "none" ]; then
+                echo "[INFO] No rl-framework will be installed."
+                framework_name="none"
+                shift # past argument
             else
                 echo "[INFO] Installing rl-framework: $2"
                 framework_name=$2
@@ -262,30 +258,6 @@ while [[ $# -gt 0 ]]; do
             fi
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
-            shift # past argument
-            ;;
-        --install-deps)
-            # install the deps for extensions in source/extensions directory
-            if [ -z "$2" ]; then
-                dep_type="all"
-            else
-                dep_type=$2
-                shift # past argument
-            fi
-            echo "[INFO] Installing ${dep_type} dependencies for extensions inside the Isaac Lab repository..."
-            # recursively look into directories and install
-            # all extension dependencies
-            export -f extract_python_exe
-            export -f install_extension_deps
-            # check if dep_type is installed, if not "all"
-            if [ "$dep_type" = "all" ] || command -v "$dep_type" &>/dev/null; then
-                find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -print0 | xargs -0 -I {} bash -c 'install_extension_deps "$1" "$2"' _ {} "${dep_type}"
-            else
-                echo "[ERROR] Not installing ${dep_type} deps, ${dep_type} not a known command"
-                exit 1
-            fi
-            # unset local variables
-            unset install_extension_deps
             shift # past argument
             ;;
         -c|--conda)
