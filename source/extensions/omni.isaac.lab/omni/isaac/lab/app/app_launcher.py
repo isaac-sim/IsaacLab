@@ -172,10 +172,10 @@ class AppLauncher:
 
           If provided as an empty string, the experience file is determined based on the headless flag:
 
-          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.multicam.kit``.
-          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.multicam.kit``.
+          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
+          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
           * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.
-          * If headless is True and enable_cameras is True, the experience file is set to ``isaaclab.python.multicam.kit``.
+          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -484,10 +484,10 @@ class AppLauncher:
             if self._enable_cameras:
                 if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
-                        isaaclab_app_exp_path, "isaaclab.python.headless.multicam.kit"
+                        isaaclab_app_exp_path, "isaaclab.python.headless.rendering.kit"
                     )
                 else:
-                    self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.multicam.kit")
+                    self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.rendering.kit")
             elif self._headless and not self._livestream:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.headless.kit")
             else:
