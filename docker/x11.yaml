@@ -1,5 +1,5 @@
 services:
-  isaaclab-base:
+  isaac-lab-base:
     environment:
       - DISPLAY
       - TERM
@@ -17,7 +17,7 @@ services:
       target: /etc/localtime
       read_only: true
 
-  isaaclab-ros2:
+  isaac-lab-ros2:
     environment:
       - DISPLAY
       - TERM

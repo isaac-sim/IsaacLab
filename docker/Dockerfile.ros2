@@ -1,6 +1,6 @@
 # Everything past this stage is to install
 # ROS2 Humble
-FROM isaaclab-base AS ros2
+FROM isaac-lab-base AS ros2
 
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE

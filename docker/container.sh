@@ -277,29 +277,29 @@ echo "[INFO] Using container profile: $container_profile"
 # resolve mode
 case $mode in
     start)
-        echo "[INFO] Building the docker image and starting the container isaaclab-$container_profile in the background..."
+        echo "[INFO] Building the docker image and starting the container isaac-lab-$container_profile in the background..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # Determine if we want x11 forwarding enabled
         x11_check
         # We have to build the base image as a separate step,
         # in case we are building a profile which depends
         # upon
-        docker compose --file docker-compose.yaml --env-file .env.base build isaaclab-base
+        docker compose --file docker-compose.yaml --env-file .env.base build isaac-lab-base
         docker compose $add_yamls $add_profiles $add_envs up --detach --build --remove-orphans
         popd > /dev/null 2>&1
         ;;
     enter)
         # Check that desired container is running, exit if it isn't
-        is_container_running isaaclab-$container_profile
-        echo "[INFO] Entering the existing 'isaaclab-$container_profile' container in a bash session..."
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Entering the existing 'isaac-lab-$container_profile' container in a bash session..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker exec --interactive --tty isaaclab-$container_profile bash
+        docker exec --interactive --tty isaac-lab-$container_profile bash
         popd > /dev/null 2>&1
         ;;
     copy)
         # Check that desired container is running, exit if it isn't
-        is_container_running isaaclab-$container_profile
-        echo "[INFO] Copying artifacts from the 'isaaclab-$container_profile' container..."
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Copying artifacts from the 'isaac-lab-$container_profile' container..."
         echo -e "\t - /workspace/isaaclab/logs -> ${SCRIPT_DIR}/artifacts/logs"
         echo -e "\t - /workspace/isaaclab/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
         echo -e "\t - /workspace/isaaclab/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
@@ -315,16 +315,16 @@ case $mode in
         mkdir -p ./artifacts/docs
 
         # copy the artifacts
-        docker cp isaaclab-$container_profile:/workspace/isaaclab/logs ./artifacts/logs
-        docker cp isaaclab-$container_profile:/workspace/isaaclab/docs/_build ./artifacts/docs/_build
-        docker cp isaaclab-$container_profile:/workspace/isaaclab/data_storage ./artifacts/data_storage
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/logs ./artifacts/logs
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/docs/_build ./artifacts/docs/_build
+        docker cp isaac-lab-$container_profile:/workspace/isaaclab/data_storage ./artifacts/data_storage
         echo -e "\n[INFO] Finished copying the artifacts from the container."
         popd > /dev/null 2>&1
         ;;
     stop)
         # Check that desired container is running, exit if it isn't
-        is_container_running isaaclab-$container_profile
-        echo "[INFO] Stopping the launched docker container isaaclab-$container_profile..."
+        is_container_running isaac-lab-$container_profile
+        echo "[INFO] Stopping the launched docker container isaac-lab-$container_profile..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         docker compose --file docker-compose.yaml $add_profiles $add_envs down
         x11_cleanup
@@ -335,7 +335,7 @@ case $mode in
             install_apptainer
         fi
         # Check if Docker image exists
-        check_image_exists isaaclab-$container_profile:latest
+        check_image_exists isaac-lab-$container_profile:latest
         # Check if Docker version is greater than 25
         check_docker_version
         # source env file to get cluster login and path information
@@ -343,23 +343,23 @@ case $mode in
         # make sure exports directory exists
         mkdir -p /$SCRIPT_DIR/exports
         # clear old exports for selected profile
-        rm -rf /$SCRIPT_DIR/exports/isaaclab-$container_profile*
+        rm -rf /$SCRIPT_DIR/exports/isaac-lab-$container_profile*
         # create singularity image
         # NOTE: we create the singularity image as non-root user to allow for more flexibility. If this causes
         # issues, remove the --fakeroot flag and open an issue on the IsaacLab repository.
         cd /$SCRIPT_DIR/exports
-        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaaclab-$container_profile.sif docker-daemon://isaaclab-$container_profile:latest
+        APPTAINER_NOHTTPS=1 apptainer build --sandbox --fakeroot isaac-lab-$container_profile.sif docker-daemon://isaac-lab-$container_profile:latest
         # tar image (faster to send single file as opposed to directory with many files)
-        tar -cvf /$SCRIPT_DIR/exports/isaaclab-$container_profile.tar isaaclab-$container_profile.sif
+        tar -cvf /$SCRIPT_DIR/exports/isaac-lab-$container_profile.tar isaac-lab-$container_profile.sif
         # make sure target directory exists
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_SIF_PATH"
         # send image to cluster
-        scp $SCRIPT_DIR/exports/isaaclab-$container_profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaaclab-$container_profile.tar
+        scp $SCRIPT_DIR/exports/isaac-lab-$container_profile.tar $CLUSTER_LOGIN:$CLUSTER_SIF_PATH/isaac-lab-$container_profile.tar
         ;;
     job)
         source $SCRIPT_DIR/.env.base
         # Check if singularity image exists on the remote host
-        check_singularity_image_exists isaaclab-$container_profile
+        check_singularity_image_exists isaac-lab-$container_profile
         # make sure target directory exists
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ISAACLAB_DIR"
         # Sync Isaac Lab code
@@ -371,11 +371,11 @@ case $mode in
         if [ "$profile_arg" == "$container_profile" ] ; then
             # if the second argument is a profile, we have to shift the arguments
             echo "[INFO] Arguments passed to job script ${@:3}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaaclab-$container_profile" "${@:3}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:3}"
         else
             # if the second argument is a job argument, we have to shift only one argument
             echo "[INFO] Arguments passed to job script ${@:2}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaaclab-$container_profile" "${@:2}"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:2}"
         fi
         ;;
     *)

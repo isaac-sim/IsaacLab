@@ -2,7 +2,7 @@
 # be re-used between services to an
 # extension field
 # https://docs.docker.com/compose/compose-file/compose-file-v3/#extension-fields
-x-default-isaaclab-volumes: &default-isaaclab-volumes
+x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   # These volumes follow from this page
   # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
   - type: volume
@@ -46,20 +46,20 @@ x-default-isaaclab-volumes: &default-isaaclab-volumes
     # 2. Preserve the artifacts in persistent volumes for later copying
     #    to the host machine
   - type: volume
-    source: isaaclab-docs
+    source: isaac-lab-docs
     target: /workspace/isaaclab/docs/_build
   - type: volume
-    source: isaaclab-logs
+    source: isaac-lab-logs
     target: /workspace/isaaclab/logs
   - type: volume
-    source: isaaclab-data
+    source: isaac-lab-data
     target: /workspace/isaaclab/data_storage
 
-x-default-isaaclab-environment: &default-isaaclab-environment
+x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
   - OMNI_KIT_ALLOW_ROOT=1
 
-x-default-isaaclab-deploy: &default-isaaclab-deploy
+x-default-isaac-lab-deploy: &default-isaac-lab-deploy
   resources:
     reservations:
       devices:
@@ -69,7 +69,7 @@ x-default-isaaclab-deploy: &default-isaaclab-deploy
 
 services:
   # This service is the base Isaac Lab image
-  isaaclab-base:
+  isaac-lab-base:
     profiles: [ "base" ]
     env_file: .env.base
     build:
@@ -80,12 +80,12 @@ services:
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
-    image: isaaclab-base
-    container_name: isaaclab-base
-    environment: *default-isaaclab-environment
-    volumes: *default-isaaclab-volumes
+    image: isaac-lab-base
+    container_name: isaac-lab-base
+    environment: *default-isaac-lab-environment
+    volumes: *default-isaac-lab-volumes
     network_mode: host
-    deploy: *default-isaaclab-deploy
+    deploy: *default-isaac-lab-deploy
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -93,7 +93,7 @@ services:
 
   # This service adds a ROS2 Humble
   # installation on top of the base image
-  isaaclab-ros2:
+  isaac-lab-ros2:
     profiles: [ "ros2" ]
     env_file:
       - .env.base
@@ -106,12 +106,12 @@ services:
         # avoid a warning message when building only the base profile
         # with the .env.base file
         - ROS2_APT_PACKAGE=${ROS2_APT_PACKAGE:-NONE}
-    image: isaaclab-ros2
-    container_name: isaaclab-ros2
-    environment: *default-isaaclab-environment
-    volumes: *default-isaaclab-volumes
+    image: isaac-lab-ros2
+    container_name: isaac-lab-ros2
+    environment: *default-isaac-lab-environment
+    volumes: *default-isaac-lab-volumes
     network_mode: host
-    deploy: *default-isaaclab-deploy
+    deploy: *default-isaac-lab-deploy
     # This is the entrypoint for the container
     entrypoint: bash
     stdin_open: true
@@ -129,6 +129,6 @@ volumes:
   isaac-data:
   isaac-docs:
   # isaaclab
-  isaaclab-docs:
-  isaaclab-logs:
-  isaaclab-data:
+  isaac-lab-docs:
+  isaac-lab-logs:
+  isaac-lab-data:
