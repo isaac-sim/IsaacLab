@@ -180,7 +180,7 @@ Changed
 ^^^^^^^
 
 * Changed default loading of experience files in the :class:`omni.isaac.lab.app.AppLauncher` class from the ones
-  provided by Isaac Sim to the ones provided in Orbit's ``source/apps`` directory.
+  provided by Isaac Sim to the ones provided in Isaac Lab's ``source/apps`` directory.
 
 
 0.15.5 (2024-03-23)
@@ -242,7 +242,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the imitation learning workflow example script, updating Orbit and Robomimic API calls.
+* Fixed the imitation learning workflow example script, updating Isaac Lab and Robomimic API calls.
 * Removed the resetting of :attr:`_term_dones` in the :meth:`omni.isaac.lab.managers.TerminationManager.reset`.
   Previously, the environment cleared out all the terms. However, it impaired reading the specific term's values externally.
 
@@ -1283,9 +1283,9 @@ Added
 Added
 ^^^^^
 
-* Created :class:`omni.issac.orbit.sim.converters.asset_converter.AssetConverter` to serve as a base
+* Created :class:`omni.issac.lab.sim.converters.asset_converter.AssetConverter` to serve as a base
   class for all asset converters.
-* Added :class:`omni.issac.orbit.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
+* Added :class:`omni.issac.lab.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
   of mesh files (OBJ, STL and FBX) into USD format.
 * Added script ``convert_mesh.py`` to ``source/tools`` to allow users to convert a mesh to USD via command line arguments.
 
@@ -1567,7 +1567,7 @@ Added
 Changed
 ^^^^^^^
 
-* Adapted all the sensor classes to follow a structure similar to the :class:`omni.issac.orbit.assets.AssetBase`.
+* Adapted all the sensor classes to follow a structure similar to the :class:`omni.issac.lab.assets.AssetBase`.
   Hence, the spawning and initialization of sensors manually by the users is avoided.
 * Removed the :meth:`debug_vis` function since that this functionality is handled by a render callback automatically
   (based on the passed configuration for the :class:`omni.isaac.lab.sensors.SensorBaseCfg.debug_vis` flag).
@@ -1744,7 +1744,7 @@ Changed
 Fixed
 ^^^^^
 
-* Added a hack into :class:`omni.isaac.lab.app.AppLauncher` class to remove orbit packages from the path before launching
+* Added a hack into :class:`omni.isaac.lab.app.AppLauncher` class to remove Isaac Lab packages from the path before launching
   the simulation application. This prevents the warning messages that appears when the user launches the ``SimulationApp``.
 
 Added
