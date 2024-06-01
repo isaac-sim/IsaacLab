@@ -48,7 +48,7 @@ import warp as wp
 from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp

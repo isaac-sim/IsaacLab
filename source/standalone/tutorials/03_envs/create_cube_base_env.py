@@ -46,7 +46,7 @@ import torch
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
-from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
@@ -81,7 +81,7 @@ class CubeActionTerm(ActionTerm):
     _asset: RigidObject
     """The articulation asset on which the action term is applied."""
 
-    def __init__(self, cfg: CubeActionTermCfg, env: BaseEnv):
+    def __init__(self, cfg: CubeActionTermCfg, env: ManagerBasedEnv):
         # call super constructor
         super().__init__(cfg, env)
         # create buffers
@@ -145,7 +145,7 @@ class CubeActionTermCfg(ActionTermCfg):
 ##
 
 
-def base_position(env: BaseEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -243,7 +243,7 @@ class EventCfg:
 
 
 @configclass
-class CubeEnvCfg(BaseEnvCfg):
+class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
@@ -266,7 +266,7 @@ def main():
     """Main function."""
 
     # setup base environment
-    env = BaseEnv(cfg=CubeEnvCfg())
+    env = ManagerBasedEnv(cfg=CubeEnvCfg())
 
     # setup target position commands
     target_position = torch.rand(env.num_envs, 3, device=env.device) * 2

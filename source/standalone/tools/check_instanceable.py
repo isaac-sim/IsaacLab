@@ -44,7 +44,6 @@ import argparse
 import contextlib
 import os
 
-# omni-isaac-lab
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments

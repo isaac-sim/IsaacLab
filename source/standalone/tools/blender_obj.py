@@ -25,10 +25,7 @@ import sys
 
 
 def parse_cli_args():
-    """Parse the input command line arguments.
-
-    Reference: https://developer.blender.org/diffusion/B/browse/master/release/scripts/templates_py/background_job.py
-    """
+    """Parse the input command line arguments."""
     import argparse
 
     # get the args passed to blender after "--", all of which are ignored by

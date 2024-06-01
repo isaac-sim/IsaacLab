@@ -63,7 +63,7 @@ def main():
     env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
 
     # instantiate models using skrl model instantiator utility
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
+    # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
     # non-shared models
     if experiment_cfg["models"]["separate"]:
@@ -95,7 +95,7 @@ def main():
         models["value"] = models["policy"]
 
     # configure and instantiate PPO agent
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+    # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
     agent_cfg.update(process_skrl_cfg(experiment_cfg["agent"]))

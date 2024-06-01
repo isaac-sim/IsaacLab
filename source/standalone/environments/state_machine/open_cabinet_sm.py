@@ -50,7 +50,7 @@ import warp as wp
 from omni.isaac.lab.sensors import FrameTransformer
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
