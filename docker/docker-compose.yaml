@@ -128,7 +128,7 @@ volumes:
   isaac-carb-logs:
   isaac-data:
   isaac-docs:
-  # isaaclab
+  # isaac-lab
   isaac-lab-docs:
   isaac-lab-logs:
   isaac-lab-data:
