@@ -4,7 +4,7 @@ API Reference
 This page gives an overview of all the modules and classes in the Isaac Lab extensions.
 
 omni.isaac.lab extension
---------------------------
+------------------------
 
 The following modules are available in the ``omni.isaac.lab`` extension:
 

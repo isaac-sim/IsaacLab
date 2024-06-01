@@ -6,6 +6,7 @@ autodocsumm
 sphinx-copybutton
 sphinx_design
 sphinxemoji
+sphinx-tabs
 
 # basic python
 numpy

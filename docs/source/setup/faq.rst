@@ -28,6 +28,8 @@ Isaac Sim.
 that aims to unite complex 3D workflows. Isaac Sim leverages the latest advances in graphics and
 physics simulation to provide a high-fidelity simulation environment for robotics. It supports
 ROS/ROS2, various sensor simulation, tools for domain randomization and synthetic data creation.
+Tiled rendering support in Isaac Sim allows for vectorized rendering across environments, along with
+support for running in the cloud using `Isaac Automator`_.
 Overall, it is a powerful tool for roboticists and is a huge step forward in the field of robotics
 simulation.
 
@@ -46,6 +48,10 @@ provide an open-sourced, unified, and easy-to-use interface for developing and t
 and robot learning algorithms. It not only inherits the capabilities of Isaac Sim, but also adds a number
 of new features that pertain to robot learning research. For example, including actuator dynamics in the
 simulation, procedural terrain generation, and support to collect data from human demonstrations.
+
+Isaac Lab replaces the previous `IsaacGymEnvs`_, `OmniIsaacGymEnvs`_ and `Orbit`_ frameworks and will
+be the single robot learning framework for Isaac Sim. Previously released frameworks are deprecated
+and we encourage users to follow our `migration guides`_ to transition over to Isaac Lab.
 
 
 Why should I use Isaac Lab?
@@ -76,3 +82,6 @@ to Isaac Lab, please reach out to us.
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
 .. _IsaacGymEnvs: https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
 .. _OmniIsaacGymEnvs: https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs
+.. _Orbit: https://isaac-orbit.github.io/orbit
+.. _Isaac Automator: https://github.com/isaac-sim/IsaacAutomator
+.. _migration guides: ../migration/index.html

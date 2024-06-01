@@ -141,8 +141,10 @@ format.
 
    .. code:: bash
 
+      # install the dependencies
+      sudo apt install cmake build-essential
       # install python module (for robomimic)
-      ./isaaclab.sh -e robomimic
+      ./isaaclab.sh -i robomimic
       # split data
       ./isaaclab.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
 
@@ -172,7 +174,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for stable-baselines3)
-      ./isaaclab.sh -e sb3
+      ./isaaclab.sh -i sb3
       # run script for training
       # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
       ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
@@ -185,7 +187,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for skrl)
-      ./isaaclab.sh -e skrl
+      ./isaaclab.sh -i skrl
       # run script for training
       ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
@@ -197,7 +199,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rl-games)
-      ./isaaclab.sh -e rl_games
+      ./isaaclab.sh -i rl_games
       # run script for training
       ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
       # run script for playing with 32 environments
@@ -209,7 +211,7 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rsl-rl)
-      ./isaaclab.sh -e rsl_rl
+      ./isaaclab.sh -i rsl_rl
       # run script for training
       ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments

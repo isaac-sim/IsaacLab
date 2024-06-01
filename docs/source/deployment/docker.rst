@@ -31,6 +31,11 @@ We recommend using these versions or newer.
 * To build and run GPU-accelerated containers, you also need install the `NVIDIA Container Toolkit`_.
   Please follow the instructions on the `Container Toolkit website`_ for installation steps.
 
+.. note::
+
+    Due to limitations with `snap <https://snapcraft.io/docs/home-outside-home>`_, please make sure
+    the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
+
 
 Obtaining the Isaac Sim Container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -253,12 +258,12 @@ versions installed on your machine. To fix this, you can try the following:
 
 * Install the latest version of docker based on the instructions in the setup section.
 
-WebRTC and WebSocket Streaming
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WebRTC Streaming
+~~~~~~~~~~~~~~~~
 
 When streaming the GUI from Isaac Sim, there are `several streaming clients`_ available. There is a `known issue`_ when
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using either the Native Streaming Client or WebSocket options, or using the
+To avoid this problem, we suggest using the Native Streaming Client or using the
 Mozilla Firefox browser on which WebRTC works.
 
 Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client

@@ -29,6 +29,8 @@
     RayCasterCfg
     RayCasterCamera
     RayCasterCameraCfg
+    TiledCamera
+    TiledCameraCfg
 
 Sensor Base
 -----------
@@ -131,6 +133,20 @@ Ray-Cast Camera
     :show-inheritance:
 
 .. autoclass:: RayCasterCameraCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Tiled Rendering
+---------------
+
+.. autoclass:: TiledCamera
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: TiledCameraCfg
     :members:
     :inherited-members:
     :show-inheritance:

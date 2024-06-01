@@ -16,25 +16,23 @@ Environment variables
 The following details the behavior of the class based on the environment variables:
 
 * **Headless mode**: If the environment variable ``HEADLESS=1``, then SimulationApp will be started in headless mode.
-  If ``LIVESTREAM={1,2,3}``, then it will supersede the ``HEADLESS`` envvar and force headlessness.
+  If ``LIVESTREAM={1,2}``, then it will supersede the ``HEADLESS`` envvar and force headlessness.
 
   * ``HEADLESS=1`` causes the app to run in headless mode.
 
-* **Livestreaming**: If the environment variable ``LIVESTREAM={1,2,3}`` , then `livestream`_ is enabled. Any
+* **Livestreaming**: If the environment variable ``LIVESTREAM={1,2}`` , then `livestream`_ is enabled. Any
   of the livestream modes being true forces the app to run in headless mode.
 
   * ``LIVESTREAM=1`` enables streaming via the Isaac `Native Livestream`_ extension. This allows users to
     connect through the Omniverse Streaming Client.
-  * ``LIVESTREAM=2`` enables streaming via the `Websocket Livestream`_ extension. This allows users to
-    connect in a browser using the WebSocket protocol.
-  * ``LIVESTREAM=3`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
+  * ``LIVESTREAM=2`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
     connect in a browser using the WebRTC protocol.
 
-* **Offscreen Render**: If the environment variable ``OFFSCREEN_RENDER`` is set to 1, then the
-  offscreen-render pipeline is enabled. This is useful for running the simulator without a GUI but
-  still rendering the viewport and camera images.
+* **Enable cameras**: If the environment variable ``ENABLE_CAMERAS`` is set to 1, then the
+  cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
+  viewport and camera images.
 
-  * ``OFFSCREEN_RENDER=1``: Enables the offscreen-render pipeline which allows users to render
+  * ``ENABLE_CAMERAS=1``: Enables the offscreen-render pipeline which allows users to render
     the scene without launching a GUI.
 
   .. note::
@@ -49,7 +47,7 @@ To set the environment variables, one can use the following command in the termi
 .. code:: bash
 
    export REMOTE_DEPLOYMENT=3
-   export OFFSCREEN_RENDER=1
+   export ENABLE_CAMERAS=1
    # run the python script
    ./isaaclab.sh -p source/standalone/demo/play_quadrupeds.py
 
@@ -57,7 +55,7 @@ Alternatively, one can set the environment variables to the python script direct
 
 .. code:: bash
 
-   REMOTE_DEPLOYMENT=3 OFFSCREEN_RENDER=1 ./isaaclab.sh -p source/standalone/demo/play_quadrupeds.py
+   REMOTE_DEPLOYMENT=3 ENABLE_CAMERAS=1 ./isaaclab.sh -p source/standalone/demo/play_quadrupeds.py
 
 
 Overriding the environment variables

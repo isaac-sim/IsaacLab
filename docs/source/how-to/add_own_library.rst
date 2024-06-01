@@ -1,7 +1,7 @@
 Adding your own learning library
 ================================
 
-Isaac Lab comes pre-integrated with a number of libraries (such as RSL-RL , RL-Games, Stable Baselines, etc.).
+Isaac Lab comes pre-integrated with a number of libraries (such as RSL-RL, RL-Games, SKRL, Stable Baselines, etc.).
 However, you may want to integrate your own library with Isaac Lab or use a different version of the libraries than
 the one installed by Isaac Lab. This is possible as long as the library is available as Python package that supports
 the Python version used by the underlying simulator. For instance, if you are using Isaac Sim 2023.1.1, you need

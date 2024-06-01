@@ -8,7 +8,7 @@
     .. autosummary::
 
         BaseEnvWindow
-        RLTaskEnvWindow
+        ManagerBasedRLEnvWindow
         ViewportCameraController
 
 Base Environment UI
@@ -17,10 +17,10 @@ Base Environment UI
 .. autoclass:: BaseEnvWindow
     :members:
 
-RL Task Environment UI
-----------------------
+Config Based RL Environment UI
+------------------------------
 
-.. autoclass:: RLTaskEnvWindow
+.. autoclass:: ManagerBasedRLEnvWindow
     :members:
     :show-inheritance:
 

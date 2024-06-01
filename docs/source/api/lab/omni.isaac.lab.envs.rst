@@ -14,19 +14,21 @@
 
   .. autosummary::
 
-    BaseEnv
-    BaseEnvCfg
+    ManagerBasedEnv
+    ManagerBasedEnvCfg
     ViewerCfg
-    RLTaskEnv
-    RLTaskEnvCfg
+    ManagerBasedRLEnv
+    ManagerBasedRLEnvCfg
+    DirectRLEnv
+    DirectRLEnvCfg
 
-Base Environment
-----------------
+Manager Based Environment
+-------------------------
 
-.. autoclass:: BaseEnv
+.. autoclass:: ManagerBasedEnv
     :members:
 
-.. autoclass:: BaseEnvCfg
+.. autoclass:: ManagerBasedEnvCfg
     :members:
     :exclude-members: __init__, class_type
 
@@ -34,15 +36,29 @@ Base Environment
     :members:
     :exclude-members: __init__
 
-RL Task Environment
--------------------
+Manager Based RL Environment
+----------------------------
 
-.. autoclass:: RLTaskEnv
+.. autoclass:: ManagerBasedRLEnv
     :members:
     :inherited-members:
     :show-inheritance:
 
-.. autoclass:: RLTaskEnvCfg
+.. autoclass:: ManagerBasedRLEnvCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Direct RL Environment
+---------------------
+
+.. autoclass:: DirectRLEnv
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: DirectRLEnvCfg
     :members:
     :inherited-members:
     :show-inheritance:
