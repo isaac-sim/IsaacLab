@@ -6,7 +6,7 @@ jobs:
   build-docs:
     name: Build and deploy documentation
     runs-on: ubuntu-latest
-    if: github.repository == 'Isaac-Orbit/orbit' && github.ref == 'refs/heads/main'
+    if: github.repository == 'isaac-sim/IsaacLab' && github.ref == 'refs/heads/main'
 
     steps:
     - name: Checkout code

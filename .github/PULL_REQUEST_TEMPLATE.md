@@ -3,7 +3,7 @@
 <!--
 Thank you for your interest in sending a pull request. Please make sure to check the contribution guidelines.
 
-Link: https://isaac-orbit.github.io/orbit/source/refs/contributing.html
+Link: https://isaac-sim.github.io/IsaacLab/source/refs/contributing.html
 -->
 
 Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context.
@@ -40,11 +40,11 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 
 ## Checklist
 
-- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./orbit.sh --format`
+- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings
 - [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] I have run all the tests with `./orbit.sh --test` and they pass
+- [ ] I have run all the tests with `./isaaclab.sh --test` and they pass
 - [ ] I have updated the changelog and the corresponding version in the extension's `config/extension.toml` file
 - [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there
 
