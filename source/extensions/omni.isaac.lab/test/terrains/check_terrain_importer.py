@@ -30,7 +30,7 @@ Example usage:
 
 import argparse
 
-# omni-isaac-lab
+# omni.isaac.lab
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
@@ -81,7 +81,7 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def main():
-    """Generates a terrain from Isaac Lab."""
+    """Generates a terrain from isaaclab."""
 
     # Load kit helper
     sim_params = {

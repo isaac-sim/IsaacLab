@@ -21,7 +21,7 @@ _isaac_sim/python.sh source/extensions/omni.isaac.lab/test/deps/isaacsim/check_c
 
 import argparse
 
-# omni-isaac-lab
+# omni.isaac.lab
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
@@ -45,7 +45,10 @@ import numpy as np
 import os
 import random
 
-import omni.isaac.core.utils.nucleus as nucleus_utils
+try:
+    import omni.isaac.nucleus as nucleus_utils
+except ModuleNotFoundError:
+    import omni.isaac.core.utils.nucleus as nucleus_utils
 import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 from omni.isaac.core.articulations import ArticulationView
@@ -69,7 +72,7 @@ ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 
 
 def main():
-    """Runs a camera sensor from Isaac Lab."""
+    """Runs a camera sensor from isaaclab."""
 
     # Load kit helper
     world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cpu")

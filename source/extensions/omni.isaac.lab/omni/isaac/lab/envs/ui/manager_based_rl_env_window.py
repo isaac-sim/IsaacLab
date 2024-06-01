@@ -10,17 +10,17 @@ from typing import TYPE_CHECKING
 from .base_env_window import BaseEnvWindow
 
 if TYPE_CHECKING:
-    from ..rl_task_env import RLTaskEnv
+    from ..manager_based_rl_env import ManagerBasedRLEnv
 
 
-class RLTaskEnvWindow(BaseEnvWindow):
+class ManagerBasedRLEnvWindow(BaseEnvWindow):
     """Window manager for the RL environment.
 
     On top of the basic environment window, this class adds controls for the RL environment.
     This includes visualization of the command manager.
     """
 
-    def __init__(self, env: RLTaskEnv, window_name: str = "IsaacLab"):
+    def __init__(self, env: ManagerBasedRLEnv, window_name: str = "IsaacLab"):
         """Initialize the window.
 
         Args:
@@ -34,5 +34,5 @@ class RLTaskEnvWindow(BaseEnvWindow):
         with self.ui_window_elements["main_vstack"]:
             with self.ui_window_elements["debug_frame"]:
                 with self.ui_window_elements["debug_vstack"]:
-                    # add command manager visualization
                     self._create_debug_vis_ui_element("commands", self.env.command_manager)
+                    self._create_debug_vis_ui_element("actions", self.env.action_manager)

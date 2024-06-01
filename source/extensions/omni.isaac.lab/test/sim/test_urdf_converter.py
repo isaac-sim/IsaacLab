@@ -39,7 +39,8 @@ class TestUrdfConverter(unittest.TestCase):
         extension_path = get_extension_path_from_name("omni.importer.urdf")
         # default configuration
         self.config = UrdfConverterCfg(
-            asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf", fix_base=True
+            asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
+            fix_base=True,
         )
         # Simulation time-step
         self.dt = 0.01
@@ -107,9 +108,11 @@ class TestUrdfConverter(unittest.TestCase):
             os.makedirs(output_dir, exist_ok=True)
 
         # change the config
+        self.config.force_usd_conversion = True
         self.config.default_drive_type = "position"
         self.config.default_drive_stiffness = 400.0
         self.config.default_drive_damping = 40.0
+        self.config.override_joint_dynamics = True
         self.config.usd_dir = output_dir
         urdf_converter = UrdfConverter(self.config)
         # check the drive type of the robot

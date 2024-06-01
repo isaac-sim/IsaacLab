@@ -71,6 +71,10 @@ class ArticulationData(RigidObjectData):
     which are then set into the simulation.
     """
 
+    ##
+    # Joint properties.
+    ##
+
     joint_stiffness: torch.Tensor = None
     """Joint stiffness provided to simulation. Shape is (num_instances, num_joints)."""
 
@@ -82,6 +86,28 @@ class ArticulationData(RigidObjectData):
 
     joint_friction: torch.Tensor = None
     """Joint friction provided to simulation. Shape is (num_instances, num_joints)."""
+
+    joint_limits: torch.Tensor = None
+    """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
+
+    ##
+    # Default joint properties
+    ##
+
+    default_joint_stiffness: torch.Tensor = None
+    """Default joint stiffness of all joints. Shape is (num_instances, num_joints)."""
+
+    default_joint_damping: torch.Tensor = None
+    """Default joint damping of all joints. Shape is (num_instances, num_joints)."""
+
+    default_joint_armature: torch.Tensor = None
+    """Default joint armature of all joints. Shape is (num_instances, num_joints)."""
+
+    default_joint_friction: torch.Tensor = None
+    """Default joint friction of all joints. Shape is (num_instances, num_joints)."""
+
+    default_joint_limits: torch.Tensor = None
+    """Default joint limits of all joints. Shape is (num_instances, num_joints, 2)."""
 
     ##
     # Joint commands -- Explicit actuators.
@@ -105,6 +131,50 @@ class ArticulationData(RigidObjectData):
 
     Note: The torques are zero for implicit actuator models.
     """
+
+    ##
+    # Fixed tendon properties.
+    ##
+
+    fixed_tendon_stiffness: torch.Tensor = None
+    """Fixed tendon stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+
+    fixed_tendon_damping: torch.Tensor = None
+    """Fixed tendon damping provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+
+    fixed_tendon_limit_stiffness: torch.Tensor = None
+    """Fixed tendon limit stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+
+    fixed_tendon_rest_length: torch.Tensor = None
+    """Fixed tendon rest length provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+
+    fixed_tendon_offset: torch.Tensor = None
+    """Fixed tendon offset provided to simulation. Shape is (num_instances, num_fixed_tendons)."""
+
+    fixed_tendon_limit: torch.Tensor = None
+    """Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
+
+    ##
+    # Default fixed tendon properties
+    ##
+
+    default_fixed_tendon_stiffness: torch.Tensor = None
+    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_damping: torch.Tensor = None
+    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_limit_stiffness: torch.Tensor = None
+    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_rest_length: torch.Tensor = None
+    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_offset: torch.Tensor = None
+    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_limit: torch.Tensor = None
+    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
     # Other Data.

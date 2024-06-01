@@ -15,9 +15,10 @@ from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.utils.types import ArticulationActions
-from pxr import UsdPhysics
+from pxr import PhysxSchema, UsdPhysics
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -218,7 +219,8 @@ class Articulation(RigidObject):
         # -- joint states
         self._data.joint_pos[:] = self.root_physx_view.get_dof_positions()
         self._data.joint_vel[:] = self.root_physx_view.get_dof_velocities()
-        self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
+        if dt > 0.0:
+            self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
 
         # -- update common data
         # note: these are computed in the base class
@@ -248,6 +250,29 @@ class Articulation(RigidObject):
             joint_subset = self.joint_names
         # find joints
         return string_utils.resolve_matching_names(name_keys, joint_subset, preserve_order)
+
+    def find_fixed_tendons(
+        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
+    ) -> tuple[list[int], list[str]]:
+        """Find fixed tendons in the articulation based on the name keys.
+
+        Please see the :func:`omni.isaac.orbit.utils.string.resolve_matching_names` function for more information
+        on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the joint names with fixed tendons.
+            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means all joints
+                in the articulation are searched.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the tendon indices and names.
+        """
+        if tendon_subsets is None:
+            # tendons follow the joint names they are attached to
+            tendon_subsets = self.fixed_tendon_names
+        # find tendons
+        return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - Setters.
@@ -320,6 +345,8 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
@@ -350,6 +377,8 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
         # set into simulation
@@ -378,6 +407,8 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
         # set into simulation
@@ -404,6 +435,8 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # move tensor to cpu if needed
         if isinstance(limits, torch.Tensor):
             limits = limits.cpu()
@@ -433,6 +466,8 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
         # set into simulation
@@ -458,10 +493,40 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_friction[env_ids, joint_ids] = joint_friction
         # set into simulation
         self.root_physx_view.set_dof_friction_coefficients(self._data.joint_friction.cpu(), indices=physx_env_ids.cpu())
+
+    def write_joint_limits_to_sim(
+        self,
+        limits: torch.Tensor | float,
+        joint_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write joint limits into the simulation.
+
+        Args:
+            limits: Joint limits. Shape is (len(env_ids), len(joint_ids), 2).
+            joint_ids: The joint indices to set the limits for. Defaults to None (all joints).
+            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+        """
+        # note: This function isn't setting the values for actuator models. (#128)
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        if joint_ids is None:
+            joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set into internal buffers
+        self._data.joint_limits[env_ids, joint_ids] = limits
+        # set into simulation
+        self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
 
     """
     Operations - State.
@@ -486,6 +551,8 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set targets
         self._data.joint_pos_target[env_ids, joint_ids] = target
 
@@ -508,6 +575,8 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set targets
         self._data.joint_vel_target[env_ids, joint_ids] = target
 
@@ -530,8 +599,201 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
+
+    def set_fixed_tendon_stiffness(
+        self,
+        stiffness: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon stiffness into internal buffers.
+
+        .. note::
+            This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+            the desired values. To apply the tendon stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+        Args:
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the stiffness for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set stiffness
+        self._data.fixed_tendon_stiffness[env_ids, fixed_tendon_ids] = stiffness
+
+    def set_fixed_tendon_damping(
+        self,
+        damping: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon damping into internal buffers.
+
+        .. note::
+            This function does not apply the tendon damping to the simulation. It only fills the buffers with
+            the desired values. To apply the tendon damping, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+        Args:
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the damping for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set damping
+        self._data.fixed_tendon_damping[env_ids, fixed_tendon_ids] = damping
+
+    def set_fixed_tendon_limit_stiffness(
+        self,
+        limit_stiffness: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon limit stiffness efforts into internal buffers.
+
+        .. note::
+            This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+            the desired values. To apply the tendon limit stiffness, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+        Args:
+            limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the limit stiffness for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set limit_stiffness
+        self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
+
+    def set_fixed_tendon_limit(
+        self,
+        limit: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon limit efforts into internal buffers.
+
+        .. note::
+             This function does not apply the tendon limit to the simulation. It only fills the buffers with
+             the desired values. To apply the tendon limit, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+         Args:
+             limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
+             fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
+             env_ids: The environment indices to set the limit for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set limit
+        self._data.fixed_tendon_limit[env_ids, fixed_tendon_ids] = limit
+
+    def set_fixed_tendon_rest_length(
+        self,
+        rest_length: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon rest length efforts into internal buffers.
+
+        .. note::
+            This function does not apply the tendon rest length to the simulation. It only fills the buffers with
+            the desired values. To apply the tendon rest length, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+        Args:
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the rest length for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set rest_length
+        self._data.fixed_tendon_rest_length[env_ids, fixed_tendon_ids] = rest_length
+
+    def set_fixed_tendon_offset(
+        self,
+        offset: torch.Tensor,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set fixed tendon offset efforts into internal buffers.
+
+        .. note::
+            This function does not apply the tendon offset to the simulation. It only fills the buffers with
+            the desired values. To apply the tendon offset, call the :meth:`write_fixed_tendon_properties_to_sim` function.
+
+        Args:
+            offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the offset for. Defaults to None (all environments).
+        """
+        # resolve indices
+        if env_ids is None:
+            env_ids = slice(None)
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+        elif env_ids != slice(None):
+            env_ids = env_ids[:, None]
+        # set offset
+        self._data.fixed_tendon_offset[env_ids, fixed_tendon_ids] = offset
+
+    def write_fixed_tendon_properties_to_sim(
+        self,
+        fixed_tendon_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Write fixed tendon properties into the simulation.
+
+        Args:
+            fixed_tendon_ids: The fixed tendon indices to set the limits for. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to set the limits for. Defaults to None (all environments).
+        """
+        # resolve indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            physx_env_ids = self._ALL_INDICES
+        if fixed_tendon_ids is None:
+            fixed_tendon_ids = slice(None)
+
+        # set into simulation
+        self.root_physx_view.set_fixed_tendon_properties(
+            self._data.fixed_tendon_stiffness,
+            self._data.fixed_tendon_damping,
+            self._data.fixed_tendon_limit_stiffness,
+            self._data.fixed_tendon_limit,
+            self._data.fixed_tendon_rest_length,
+            self._data.fixed_tendon_offset,
+            indices=physx_env_ids,
+        )
 
     """
     Internal helper.
@@ -604,8 +866,11 @@ class Articulation(RigidObject):
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
+        self._process_fixed_tendons()
         # validate configuration
         self._validate_cfg()
+        # update the robot data
+        self.update(0.0)
         # log joint information
         self._log_articulation_joint_info()
 
@@ -632,13 +897,58 @@ class Articulation(RigidObject):
         self._data.joint_damping = torch.zeros_like(self._data.joint_pos)
         self._data.joint_armature = torch.zeros_like(self._data.joint_pos)
         self._data.joint_friction = torch.zeros_like(self._data.joint_pos)
+        self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         # -- joint commands (explicit)
         self._data.computed_torque = torch.zeros_like(self._data.joint_pos)
         self._data.applied_torque = torch.zeros_like(self._data.joint_pos)
+        # -- tendons
+        if self.num_fixed_tendons > 0:
+            self._data.fixed_tendon_stiffness = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.fixed_tendon_damping = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.fixed_tendon_limit_stiffness = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.fixed_tendon_limit = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, 2, device=self.device
+            )
+            self._data.fixed_tendon_rest_length = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.fixed_tendon_offset = torch.zeros(self.num_instances, self.num_fixed_tendons, device=self.device)
+
         # -- other data
         self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
+        # -- initialize default buffers
+        self._data.default_joint_stiffness = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_damping = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_armature = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_friction = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+        if self.num_fixed_tendons > 0:
+            self._data.default_fixed_tendon_stiffness = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.default_fixed_tendon_damping = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.default_fixed_tendon_limit_stiffness = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.default_fixed_tendon_limit = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, 2, device=self.device
+            )
+            self._data.default_fixed_tendon_rest_length = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
+            self._data.default_fixed_tendon_offset = torch.zeros(
+                self.num_instances, self.num_fixed_tendons, device=self.device
+            )
 
         # soft joint position limits (recommended not to be too close to limits).
         joint_pos_limits = self.root_physx_view.get_dof_limits()
@@ -669,6 +979,9 @@ class Articulation(RigidObject):
             self.cfg.init_state.joint_vel, self.joint_names
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
+
+        self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
+        self._data.joint_limits = self._data.default_joint_limits.clone()
 
     """
     Internal helpers -- Actuators.
@@ -738,6 +1051,14 @@ class Articulation(RigidObject):
                 self.write_joint_armature_to_sim(actuator.armature, joint_ids=actuator.joint_indices)
                 self.write_joint_friction_to_sim(actuator.friction, joint_ids=actuator.joint_indices)
 
+        # set the default joint parameters based on the changes from the actuators
+        self._data.default_joint_stiffness = self.root_physx_view.get_dof_stiffnesses().to(device=self.device).clone()
+        self._data.default_joint_damping = self.root_physx_view.get_dof_dampings().to(device=self.device).clone()
+        self._data.default_joint_armature = self.root_physx_view.get_dof_armatures().to(device=self.device).clone()
+        self._data.default_joint_friction = (
+            self.root_physx_view.get_dof_friction_coefficients().to(device=self.device).clone()
+        )
+
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
         if total_act_joints != (self.num_joints - self.num_fixed_tendons):
@@ -745,6 +1066,28 @@ class Articulation(RigidObject):
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
                 f" joints available: {total_act_joints} != {self.num_joints}."
             )
+
+    def _process_fixed_tendons(self):
+        """Process fixed tendons."""
+        self.fixed_tendon_names = list()
+        if self.num_fixed_tendons > 0:
+            stage = stage_utils.get_current_stage()
+            for j in range(self.num_joints):
+                usd_joint_path = self.root_physx_view.dof_paths[0][j]
+                # check whether joint has tendons - tendon name follows the joint name it is attached to
+                joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
+                if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
+                    joint_name = usd_joint_path.split("/")[-1]
+                    self.fixed_tendon_names.append(joint_name)
+
+            self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
+            self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
+            self._data.default_fixed_tendon_limit_stiffness = (
+                self.root_physx_view.get_fixed_tendon_limit_stiffnesses().clone()
+            )
+            self._data.default_fixed_tendon_limit = self.root_physx_view.get_fixed_tendon_limits().clone()
+            self._data.default_fixed_tendon_rest_length = self.root_physx_view.get_fixed_tendon_rest_lengths().clone()
+            self._data.default_fixed_tendon_offset = self.root_physx_view.get_fixed_tendon_offsets().clone()
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.

@@ -20,7 +20,7 @@ from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):
@@ -52,7 +52,7 @@ class ManagerTermBase(ABC):
 
     """
 
-    def __init__(self, cfg: ManagerTermBaseCfg, env: BaseEnv):
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
         """Initialize the manager term.
 
         Args:
@@ -116,7 +116,7 @@ class ManagerTermBase(ABC):
 class ManagerBase(ABC):
     """Base class for all managers."""
 
-    def __init__(self, cfg: object, env: BaseEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the manager.
 
         Args:

@@ -7,11 +7,15 @@
 
 from __future__ import annotations
 
+import inspect
 import torch
+import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import omni.kit.app
 
 from omni.isaac.lab.assets import AssetBase
 
@@ -19,7 +23,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):
@@ -35,7 +39,7 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
-    def __init__(self, cfg: ActionTermCfg, env: BaseEnv):
+    def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
 
         Args:
@@ -46,6 +50,17 @@ class ActionTerm(ManagerTermBase):
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
+
+        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        self._debug_vis_handle = None
+        # set initial state of debug visualization
+        self.set_debug_vis(self.cfg.debug_vis)
+
+    def __del__(self):
+        """Unsubscribe from the callbacks."""
+        if self._debug_vis_handle:
+            self._debug_vis_handle.unsubscribe()
+            self._debug_vis_handle = None
 
     """
     Properties.
@@ -69,9 +84,45 @@ class ActionTerm(ManagerTermBase):
         """The actions computed by the term after applying any processing."""
         raise NotImplementedError
 
+    @property
+    def has_debug_vis_implementation(self) -> bool:
+        """Whether the action term has a debug visualization implemented."""
+        # check if function raises NotImplementedError
+        source_code = inspect.getsource(self._set_debug_vis_impl)
+        return "NotImplementedError" not in source_code
+
     """
     Operations.
     """
+
+    def set_debug_vis(self, debug_vis: bool) -> bool:
+        """Sets whether to visualize the action term data.
+        Args:
+            debug_vis: Whether to visualize the action term data.
+        Returns:
+            Whether the debug visualization was successfully set. False if the action term does
+            not support debug visualization.
+        """
+        # check if debug visualization is supported
+        if not self.has_debug_vis_implementation:
+            return False
+        # toggle debug visualization objects
+        self._set_debug_vis_impl(debug_vis)
+        # toggle debug visualization handles
+        if debug_vis:
+            # create a subscriber for the post update event if it doesn't exist
+            if self._debug_vis_handle is None:
+                app_interface = omni.kit.app.get_app_interface()
+                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
+                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                )
+        else:
+            # remove the subscriber if it exists
+            if self._debug_vis_handle is not None:
+                self._debug_vis_handle.unsubscribe()
+                self._debug_vis_handle = None
+        # return success
+        return True
 
     @abstractmethod
     def process_actions(self, actions: torch.Tensor):
@@ -94,6 +145,20 @@ class ActionTerm(ManagerTermBase):
         """
         raise NotImplementedError
 
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        """Set debug visualization into visualization objects.
+        This function is responsible for creating the visualization objects if they don't exist
+        and input ``debug_vis`` is True. If the visualization objects exist, the function should
+        set their visibility into the stage.
+        """
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
+
+    def _debug_vis_callback(self, event):
+        """Callback for debug visualization.
+        This function calls the visualization objects and sets the data to visualize into them.
+        """
+        raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
+
 
 class ActionManager(ManagerBase):
     """Manager for processing and applying actions for a given world.
@@ -110,7 +175,7 @@ class ActionManager(ManagerBase):
       scene (such as robots). It should be called before every simulation step.
     """
 
-    def __init__(self, cfg: object, env: BaseEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the action manager.
 
         Args:
@@ -121,6 +186,10 @@ class ActionManager(ManagerBase):
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
+
+        self.cfg.debug_vis = False
+        for term in self._terms.values():
+            self.cfg.debug_vis |= term.cfg.debug_vis
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""
@@ -171,9 +240,29 @@ class ActionManager(ManagerBase):
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
 
+    @property
+    def has_debug_vis_implementation(self) -> bool:
+        """Whether the command terms have debug visualization implemented."""
+        # check if function raises NotImplementedError
+        has_debug_vis = False
+        for term in self._terms.values():
+            has_debug_vis |= term.has_debug_vis_implementation
+        return has_debug_vis
+
     """
     Operations.
     """
+
+    def set_debug_vis(self, debug_vis: bool) -> bool:
+        """Sets whether to visualize the action data.
+        Args:
+            debug_vis: Whether to visualize the action data.
+        Returns:
+            Whether the debug visualization was successfully set. False if the action
+            does not support debug visualization.
+        """
+        for term in self._terms.values():
+            term.set_debug_vis(debug_vis)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.

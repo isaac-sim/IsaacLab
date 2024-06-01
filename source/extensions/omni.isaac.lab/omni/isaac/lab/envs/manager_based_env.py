@@ -7,45 +7,23 @@ import builtins
 import torch
 import warnings
 from collections.abc import Sequence
-from typing import Any, Dict
+from typing import Any
 
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
+from omni.isaac.lab.envs.types import VecEnvObs
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
 
-from .base_env_cfg import BaseEnvCfg
+from .base_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 
-VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]
-"""Observation returned by the environment.
 
-The observations are stored in a dictionary. The keys are the group to which the observations belong.
-This is useful for various setups such as reinforcement learning with asymmetric actor-critic or
-multi-agent learning. For non-learning paradigms, this may include observations for different components
-of a system.
-
-Within each group, the observations can be stored either as a dictionary with keys as the names of each
-observation term in the group, or a single tensor obtained from concatenating all the observation terms.
-For example, for asymmetric actor-critic, the observation for the actor and the critic can be accessed
-using the keys ``"policy"`` and ``"critic"`` respectively.
-
-Note:
-    By default, most learning frameworks deal with default and privileged observations in different ways.
-    This handling must be taken care of by the wrapper around the :class:`RLTaskEnv` instance.
-
-    For included frameworks (RSL-RL, RL-Games, skrl), the observations must have the key "policy". In case,
-    the key "critic" is also present, then the critic observations are taken from the "critic" group.
-    Otherwise, they are the same as the "policy" group.
-
-"""
-
-
-class BaseEnv:
-    """The base environment encapsulates the simulation scene and the environment managers.
+class ManagerBasedEnv:
+    """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
 
     While a simulation scene or world comprises of different components such as the robots, objects,
     and sensors (cameras, lidars, etc.), the environment is a higher level abstraction
@@ -76,13 +54,13 @@ class BaseEnv:
 
     The environment steps forward in time at a fixed time-step. The physics simulation is decimated at a
     lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
-    independently using the :attr:`BaseEnvCfg.decimation` (number of simulation steps per environment step)
-    and the :attr:`BaseEnvCfg.sim.dt` (physics time-step) parameters. Based on these parameters, the
+    independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of simulation steps per environment step)
+    and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step) parameters. Based on these parameters, the
     environment time-step is computed as the product of the two. The two time-steps can be obtained by
     querying the :attr:`physics_dt` and the :attr:`step_dt` properties respectively.
     """
 
-    def __init__(self, cfg: BaseEnvCfg):
+    def __init__(self, cfg: ManagerBasedEnvCfg):
         """Initialize the environment.
 
         Args:
@@ -137,6 +115,10 @@ class BaseEnv:
                 self.sim.reset()
             # add timeline event to load managers
             self.load_managers()
+
+        # make sure torch is running on the correct device
+        if "cuda" in self.device:
+            torch.cuda.set_device(self.device)
 
         # extend UI elements
         # we need to do this here after all the managers are initialized
@@ -257,8 +239,8 @@ class BaseEnv:
 
         The environment steps forward at a fixed time-step, while the physics simulation is
         decimated at a lower time-step. This is to ensure that the simulation is stable. These two
-        time-steps can be configured independently using the :attr:`BaseEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`BaseEnvCfg.physics_dt` (physics time-step).
+        time-steps can be configured independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of
+        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.physics_dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
         Args:

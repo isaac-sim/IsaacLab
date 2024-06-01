@@ -94,7 +94,7 @@ class TestObservationManager(unittest.TestCase):
         self.num_envs = 20
         self.device = "cuda:0"
         # create dummy environment
-        self.env = namedtuple("BaseEnv", ["num_envs", "device", "data"])(
+        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data"])(
             self.num_envs, self.device, MyDataClass(self.num_envs, self.device)
         )
 

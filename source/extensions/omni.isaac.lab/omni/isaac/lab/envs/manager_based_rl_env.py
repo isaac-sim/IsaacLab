@@ -17,26 +17,15 @@ from omni.isaac.version import get_version
 
 from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 
-from .base_env import BaseEnv, VecEnvObs
-from .rl_task_env_cfg import RLTaskEnvCfg
-
-VecEnvStepReturn = tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, dict]
-"""The environment signals processed at the end of each step.
-
-The tuple contains batched information for each sub-environment. The information is stored in the following order:
-
-1. **Observations**: The observations from the environment.
-2. **Rewards**: The rewards from the environment.
-3. **Terminated Dones**: Whether the environment reached a terminal state, such as task success or robot falling etc.
-4. **Timeout Dones**: Whether the environment reached a timeout state, such as end of max episode length.
-5. **Extras**: A dictionary containing additional information from the environment.
-"""
+from .manager_based_env import ManagerBasedEnv
+from .rl_env_cfg import ManagerBasedRLEnvCfg
+from .types import VecEnvStepReturn
 
 
-class RLTaskEnv(BaseEnv, gym.Env):
-    """The superclass for reinforcement learning-based environments.
+class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
+    """The superclass for the manager-based workflow reinforcement learning-based environments.
 
-    This class inherits from :class:`BaseEnv` and implements the core functionality for
+    This class inherits from :class:`ManagerBasedEnv` and implements the core functionality for
     reinforcement learning-based environments. It is designed to be used with any RL
     library. The class is designed to be used with vectorized environments, i.e., the
     environment is expected to be run in parallel with multiple sub-environments. The
@@ -71,10 +60,10 @@ class RLTaskEnv(BaseEnv, gym.Env):
     }
     """Metadata for the environment."""
 
-    cfg: RLTaskEnvCfg
+    cfg: ManagerBasedRLEnvCfg
     """Configuration for the environment."""
 
-    def __init__(self, cfg: RLTaskEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
         """Initialize the environment.
 
         Args:
@@ -145,7 +134,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
-        Unlike the :class:`BaseEnv.step` class, the function performs the following operations:
+        Unlike the :class:`ManagerBasedEnv.step` class, the function performs the following operations:
 
         1. Process the actions.
         2. Perform physics stepping.
@@ -240,6 +229,7 @@ class RLTaskEnv(BaseEnv, gym.Env):
                     f"Cannot render '{self.render_mode}' when the simulation render mode is"
                     f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
                     f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
+                    " If running headless, make sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
             if not hasattr(self, "_rgb_annotator"):

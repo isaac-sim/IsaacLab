@@ -397,3 +397,17 @@ def create_rotation_matrix_from_view(
         x_axis = torch.where(is_close, replacement, x_axis)
     R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1)
     return R.transpose(1, 2)
+
+
+def save_images_to_file(images: torch.Tensor, file_path: str):
+    """Save images to file.
+
+    Args:
+        images: A tensor of shape (N, H, W, C) containing the images.
+        file_path: The path to save the images to.
+    """
+    from torchvision.utils import make_grid, save_image
+
+    save_image(
+        make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5)), file_path
+    )

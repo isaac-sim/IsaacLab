@@ -11,7 +11,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True, offscreen_render=True)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -44,7 +44,7 @@ QUAT_WORLD = [-0.3647052, -0.27984815, -0.1159169, 0.88047623]
 
 
 class TestWarpCamera(unittest.TestCase):
-    """Test for Isaac Lab camera sensor"""
+    """Test for isaaclab camera sensor"""
 
     """
     Test Setup and Teardown
@@ -344,13 +344,22 @@ class TestWarpCamera(unittest.TestCase):
             # Save images
             with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
                 # Pack data back into replicator format to save them using its writer
-                rep_output = dict()
-                camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
-                for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                    if info is not None:
-                        rep_output[key] = {"data": data, "info": info}
-                    else:
-                        rep_output[key] = data
+                if self.sim.get_version()[0] == 4:
+                    rep_output = {"annotators": {}}
+                    camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                    for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
+                        if info is not None:
+                            rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
+                        else:
+                            rep_output["annotators"][key] = {"render_product": {"data": data}}
+                else:
+                    rep_output = dict()
+                    camera_data = convert_dict_to_backend(camera.data.output[0].to_dict(), backend="numpy")
+                    for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
+                        if info is not None:
+                            rep_output[key] = {"data": data, "info": info}
+                        else:
+                            rep_output[key] = data
                 # Save images
                 rep_output["trigger_outputs"] = {"on_time": camera.frame[0]}
                 rep_writer.write(rep_output)

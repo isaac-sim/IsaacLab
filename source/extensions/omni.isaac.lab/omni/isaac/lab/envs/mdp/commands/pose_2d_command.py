@@ -19,7 +19,7 @@ from omni.isaac.lab.terrains import TerrainImporter
 from omni.isaac.lab.utils.math import quat_from_euler_xyz, quat_rotate_inverse, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from .commands_cfg import TerrainBasedPose2dCommandCfg, UniformPose2dCommandCfg
 
@@ -37,7 +37,7 @@ class UniformPose2dCommand(CommandTerm):
     cfg: UniformPose2dCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: UniformPose2dCommandCfg, env: BaseEnv):
+    def __init__(self, cfg: UniformPose2dCommandCfg, env: ManagerBasedEnv):
         """Initialize the command generator class.
 
         Args:
@@ -159,7 +159,7 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
     cfg: TerrainBasedPose2dCommandCfg
     """Configuration for the command generator."""
 
-    def __init__(self, cfg: TerrainBasedPose2dCommandCfg, env: BaseEnv):
+    def __init__(self, cfg: TerrainBasedPose2dCommandCfg, env: ManagerBasedEnv):
         # initialize the base class
         super().__init__(cfg, env)
 

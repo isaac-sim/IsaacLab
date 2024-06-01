@@ -20,9 +20,12 @@ from typing import Literal
 
 import carb
 import omni.client
-import omni.isaac.core.utils.nucleus as nucleus_utils
 
-# get assets root path
+try:
+    import omni.isaac.nucleus as nucleus_utils
+except ModuleNotFoundError:
+    import omni.isaac.core.utils.nucleus as nucleus_utils
+
 # note: we check only once at the start of the module to prevent multiple checks on the Nucleus Server
 NUCLEUS_ASSET_ROOT_DIR = nucleus_utils.get_assets_root_path()
 """Path to the root directory on the Nucleus Server.
@@ -31,8 +34,7 @@ This is resolved using Isaac Sim's Nucleus API. If the Nucleus Server is not run
 will be set to None. The path is resolved using the following steps:
 
 1. Based on simulation parameter: ``/persistent/isaac/asset_root/default``.
-2. Iterating over all the connected Nucleus Servers and checking for the first server that has the
-   the connected status.
+2. Iterating over all the connected Nucleus Servers and checking for the first server that has the the connected status.
 3. Based on simulation parameter: ``/persistent/isaac/asset_root/cloud``.
 """
 

@@ -136,6 +136,12 @@ class DomeLightCfg(LightCfg):
     * ``"cubeMapVerticalCross"``: A cube map with faces laid out as a vertical cross.
     """
 
+    visible_in_primary_ray: bool = True
+    """Whether the dome light is visible in the primary ray. Defaults to True.
+
+    If true, the texture in the sky is visible, otherwise the sky is black.
+    """
+
 
 @configclass
 class CylinderLightCfg(LightCfg):

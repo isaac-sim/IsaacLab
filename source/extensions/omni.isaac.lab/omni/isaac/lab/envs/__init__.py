@@ -13,16 +13,26 @@ reward, done flag, and information about the current episode.
 
 Based on these, there are two types of environments:
 
-* :class:`BaseEnv`: The base environment which only provides the agent with the
+* :class:`ManagerBasedEnv`: The manager-based workflow base environment which
+  only provides the agent with the
   current observations and executes the actions provided by the agent.
-* :class:`RLTaskEnv`: The RL task environment which besides the functionality of
+* :class:`ManagerBasedRLEnv`: The manager-based workflow RL task environment which
+  besides the functionality of
   the base environment also provides additional Markov Decision Process (MDP)
   related information such as the current reward, done flag, and information.
+
+In addition, RL task environments can use the direct workflow implementation:
+
+* :class:`DirectRLEnv`: The direct workflow RL task environment which provides implementations
+  for implementing scene setup, computing dones, performing resets, and computing
+  reward and observation.
 
 """
 
 from . import mdp, ui
-from .base_env import BaseEnv, VecEnvObs
-from .base_env_cfg import BaseEnvCfg, ViewerCfg
-from .rl_task_env import RLTaskEnv, VecEnvStepReturn
-from .rl_task_env_cfg import RLTaskEnvCfg
+from .base_env_cfg import ManagerBasedEnvCfg, ViewerCfg
+from .direct_rl_env import DirectRLEnv
+from .manager_based_env import ManagerBasedEnv
+from .manager_based_rl_env import ManagerBasedRLEnv
+from .rl_env_cfg import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from .types import VecEnvObs, VecEnvStepReturn

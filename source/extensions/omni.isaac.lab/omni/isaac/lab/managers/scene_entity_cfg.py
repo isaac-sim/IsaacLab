@@ -44,6 +44,23 @@ class SceneEntityCfg:
     manager.
     """
 
+    fixed_tendon_names: str | list[str] | None = None
+    """The names of the fixed tendons from the scene entity. Defaults to None.
+
+    The names can be either joint names or a regular expression matching the joint names.
+
+    These are converted to fixed tendon indices on initialization of the manager and passed to the term
+    function as a list of fixed tendon indices under :attr:`fixed_tendon_ids`.
+    """
+
+    fixed_tendon_ids: list[int] | slice = slice(None)
+    """The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means
+    all the fixed tendons in the asset (if present).
+
+    If :attr:`fixed_tendon_names` is specified, this is filled in automatically on initialization of the
+    manager.
+    """
+
     body_names: str | list[str] | None = None
     """The names of the bodies from the asset required by the term. Defaults to None.
 
@@ -87,12 +104,23 @@ class SceneEntityCfg:
         Raises:
             ValueError: If the scene entity is not found.
             ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.
+            ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.
             ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.
         """
         # check if the entity is valid
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
+        # convert joint names to indices based on regex
+        self._resolve_joint_names(scene)
+
+        # convert fixed tendon names to indices based on regex
+        self._resolve_fixed_tendon_names(scene)
+
+        # convert body names to indices based on regex
+        self._resolve_body_names(scene)
+
+    def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
         if self.joint_names is not None or self.joint_ids != slice(None):
             entity: Articulation = scene[self.name]
@@ -126,6 +154,48 @@ class SceneEntityCfg:
                     self.joint_ids = [self.joint_ids]
                 self.joint_names = [entity.joint_names[i] for i in self.joint_ids]
 
+    def _resolve_fixed_tendon_names(self, scene: InteractiveScene):
+        # convert tendon names to indices based on regex
+        if self.fixed_tendon_names is not None or self.fixed_tendon_ids != slice(None):
+            entity: Articulation = scene[self.name]
+            # -- if both are not their default values, check if they are valid
+            if self.fixed_tendon_names is not None and self.fixed_tendon_ids != slice(None):
+                if isinstance(self.fixed_tendon_names, str):
+                    self.fixed_tendon_names = [self.fixed_tendon_names]
+                if isinstance(self.fixed_tendon_ids, int):
+                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
+                fixed_tendon_ids, _ = entity.find_fixed_tendons(
+                    self.fixed_tendon_names, preserve_order=self.preserve_order
+                )
+                fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
+                if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
+                    raise ValueError(
+                        "Both 'fixed_tendon_names' and 'fixed_tendon_ids' are specified, and are not consistent."
+                        f"\n\tfrom joint names: {self.fixed_tendon_names} [{fixed_tendon_ids}]"
+                        f"\n\tfrom joint ids: {fixed_tendon_names} [{self.fixed_tendon_ids}]"
+                        "\nHint: Use either 'fixed_tendon_names' or 'fixed_tendon_ids' to avoid confusion."
+                    )
+            # -- from fixed tendon names to fixed tendon indices
+            elif self.fixed_tendon_names is not None:
+                if isinstance(self.fixed_tendon_names, str):
+                    self.fixed_tendon_names = [self.fixed_tendon_names]
+                self.fixed_tendon_ids, _ = entity.find_fixed_tendons(
+                    self.fixed_tendon_names, preserve_order=self.preserve_order
+                )
+                # performance optimization (slice offers faster indexing than list of indices)
+                # only all fixed tendon in the entity order are selected
+                if (
+                    len(self.fixed_tendon_ids) == entity.num_fixed_tendons
+                    and self.fixed_tendon_names == entity.fixed_tendon_names
+                ):
+                    self.fixed_tendon_ids = slice(None)
+            # -- from fixed tendon indices to fixed tendon names
+            elif self.fixed_tendon_ids != slice(None):
+                if isinstance(self.fixed_tendon_ids, int):
+                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
+                self.fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
+
+    def _resolve_body_names(self, scene: InteractiveScene):
         # convert body names to indices based on regex
         if self.body_names is not None or self.body_ids != slice(None):
             entity: RigidObject = scene[self.name]

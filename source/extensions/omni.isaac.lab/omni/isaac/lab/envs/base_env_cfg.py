@@ -76,7 +76,7 @@ class DefaultEventManagerCfg:
 
 
 @configclass
-class BaseEnvCfg:
+class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
 
     # simulation settings
