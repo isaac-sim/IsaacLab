@@ -107,7 +107,9 @@ def main():
     isaaclab_vscode_template_filename = os.path.join(ISAACLAB_DIR, ".vscode", "tools", "settings.template.json")
     # make sure the Isaac Lab template settings file exists
     if not os.path.exists(isaaclab_vscode_template_filename):
-        raise FileNotFoundError(f"Could not find the Isaac Lab template settings file: {isaaclab_vscode_template_filename}")
+        raise FileNotFoundError(
+            f"Could not find the Isaac Lab template settings file: {isaaclab_vscode_template_filename}"
+        )
     # read the Isaac Lab template settings file
     with open(isaaclab_vscode_template_filename) as f:
         isaaclab_template_settings = f.read()
@@ -140,7 +142,9 @@ def main():
         with open(isaaclab_vscode_template_launch_filename) as f:
             isaaclab_template_launch_settings = f.read()
         # add header
-        header_message = header_message.replace(isaaclab_vscode_template_filename, isaaclab_vscode_template_launch_filename)
+        header_message = header_message.replace(
+            isaaclab_vscode_template_filename, isaaclab_vscode_template_launch_filename
+        )
         isaaclab_launch_settings = header_message + isaaclab_template_launch_settings
         # write the Isaac Lab launch settings file
         with open(isaaclab_vscode_launch_filename, "w") as f:
