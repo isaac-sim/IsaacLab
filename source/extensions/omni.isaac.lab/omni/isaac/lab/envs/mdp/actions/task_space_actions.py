@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
@@ -16,7 +17,7 @@ from omni.isaac.lab.controllers.differential_ik import DifferentialIKController
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
@@ -42,7 +43,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     _scale: torch.Tensor
     """The scaling factor applied to the input action. Shape is (1, action_dim)."""
 
-    def __init__(self, cfg: actions_cfg.DifferentialInverseKinematicsActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.DifferentialInverseKinematicsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -139,6 +140,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             joint_pos_des = joint_pos.clone()
         # set the joint position command
         self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0
 
     """
     Helper functions.

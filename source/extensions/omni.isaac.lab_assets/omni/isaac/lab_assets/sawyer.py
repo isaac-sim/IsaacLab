@@ -21,7 +21,6 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 # Configuration
 ##
 
-
 SAWYER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RethinkRobotics/sawyer_instanceable.usd",

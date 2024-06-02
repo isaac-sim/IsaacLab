@@ -51,6 +51,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_tabs.tabs",
 ]
 
 # mathjax hacks
@@ -159,8 +160,8 @@ autodoc_mock_imports = [
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
 # suppressed, ignored).
 suppress_warnings = [
-    # FIXME: *THIS IS TERRIBLE.* Generally speaking, we do want Sphinx to inform
-    # us about cross-referencing failures. Remove this hack entirely after Sphinx
+    # Generally speaking, we do want Sphinx to inform
+    # us about cross-referencing failures. Remove this entirely after Sphinx
     # resolves this open issue:
     #   https://github.com/sphinx-doc/sphinx/issues/4961
     # Squelch mostly ignorable warnings resembling:
@@ -224,7 +225,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-4.0-silver.svg",
             "type": "url",
         },
         {

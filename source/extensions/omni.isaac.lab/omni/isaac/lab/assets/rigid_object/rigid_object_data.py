@@ -57,6 +57,13 @@ class RigidObjectData:
         This quantity is computed based on the rigid body state from the last step.
     """
 
+    ##
+    # Default rigid body properties
+    ##
+
+    default_mass: torch.Tensor = None
+    """ Default mass provided by simulation. Shape is (num_instances, num_bodies)."""
+
     """
     Properties
     """

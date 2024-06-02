@@ -19,7 +19,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
 class EventManager(ManagerBase):
@@ -53,10 +53,10 @@ class EventManager(ManagerBase):
 
     """
 
-    _env: RLTaskEnv
+    _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the event manager.
 
         Args:
@@ -150,15 +150,28 @@ class EventManager(ManagerBase):
                         f"Event mode '{mode}' requires the time step of the environment"
                         " to be passed to the event manager."
                     )
-                # extract time left for this term
-                time_left = self._interval_mode_time_left[index]
-                # update the time left for each environment
-                time_left -= dt
-                # check if the interval has passed
-                env_ids = (time_left <= 0.0).nonzero().flatten()
-                if len(env_ids) > 0:
-                    lower, upper = term_cfg.interval_range_s
-                    time_left[env_ids] = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
+                if term_cfg.is_global_time:
+                    # extract time left for this term
+                    time_left = self._interval_mode_time_global[index]
+                    # update the time left for each environment
+                    time_left -= dt
+                    # check if the interval has passed
+                    if time_left <= 0.0:
+                        lower, upper = term_cfg.interval_range_s
+                        self._interval_mode_time_global[index] = torch.rand(1) * (upper - lower) + lower
+                    else:
+                        # no need to call func to sample
+                        continue
+                else:
+                    # extract time left for this term
+                    time_left = self._interval_mode_time_left[index]
+                    # update the time left for each environment
+                    time_left -= dt
+                    # check if the interval has passed
+                    env_ids = (time_left <= 0.0).nonzero().flatten()
+                    if len(env_ids) > 0:
+                        lower, upper = term_cfg.interval_range_s
+                        time_left[env_ids] = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
             # call the event term
             term_cfg.func(self._env, env_ids, **term_cfg.params)
 
@@ -220,6 +233,8 @@ class EventManager(ManagerBase):
         self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
         # buffer to store the time left for each environment for "interval" mode
         self._interval_mode_time_left: list[torch.Tensor] = list()
+        # global timer for "interval" mode for global properties
+        self._interval_mode_time_global: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -248,6 +263,7 @@ class EventManager(ManagerBase):
             # add term name and parameters
             self._mode_term_names[term_cfg.mode].append(term_name)
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
+
             # check if the term is a class
             if isinstance(term_cfg.func, ManagerTermBase):
                 self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
@@ -258,10 +274,17 @@ class EventManager(ManagerBase):
                     raise ValueError(
                         f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not specified."
                     )
-                # sample the time left for each environment
-                lower, upper = term_cfg.interval_range_s
-                time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
-                self._interval_mode_time_left.append(time_left)
+
+                # sample the time left for global
+                if term_cfg.is_global_time:
+                    lower, upper = term_cfg.interval_range_s
+                    time_left = torch.rand(1) * (upper - lower) + lower
+                    self._interval_mode_time_global.append(time_left)
+                else:
+                    # sample the time left for each environment
+                    lower, upper = term_cfg.interval_range_s
+                    time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
+                    self._interval_mode_time_left.append(time_left)
 
 
 class RandomizationManager(EventManager):
@@ -272,7 +295,7 @@ class RandomizationManager(EventManager):
         renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.
     """
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the randomization manager.
 
         Args:

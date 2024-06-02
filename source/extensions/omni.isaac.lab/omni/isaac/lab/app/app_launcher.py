@@ -13,12 +13,16 @@ fault occurs. The launched :class:`omni.isaac.kit.SimulationApp` instance is acc
 """
 
 import argparse
+import contextlib
 import faulthandler
 import os
 import re
 import signal
 import sys
 from typing import Any, Literal
+
+with contextlib.suppress(ModuleNotFoundError):
+    import isaacsim  # noqa: F401
 
 from omni.isaac.kit import SimulationApp
 
@@ -98,9 +102,14 @@ class AppLauncher:
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
-        self._livestream: Literal[0, 1, 2, 3]  # 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC
+        self._livestream: Literal[0, 1, 2]  # 0: Disabled, 1: Native, 2: WebRTC
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
+
+        # Exposed to train scripts
+        self.device_id: int  # device ID for GPU simulation (defaults to 0)
+        self.local_rank: int  # local rank of GPUs in the current node
+        self.global_rank: int  # global rank for multi-node training
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
@@ -150,19 +159,23 @@ class AppLauncher:
         * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
           as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
           ``HEADLESS`` environment variable.
-        * ``livestream`` (int): If one of {0, 1, 2, 3}, then livestreaming and headless mode is enabled. The values
+        * ``livestream`` (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
-        * ``offscreen_render`` (bool): If True, the app will be launched in offscreen-render mode. The values
-          map the same as that for the ``OFFSCREEN_RENDER`` environment variable. If False, then offscreen-render
-          mode is determined by the ``OFFSCREEN_RENDER`` environment variable.
+        * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
+          headless mode. This flag must be set to True if the environments contains any camera sensors.
+          The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
+          If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
+        * ``device_id`` (int): If specified, simulation will run on the specified GPU device.
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
           If provided as an empty string, the experience file is determined based on the headless flag:
 
-          * If headless is True, the experience file is set to ``isaaclab.python.headless.kit``.
-          * If headless is False, the experience file is set to ``isaaclab.python.kit``.
+          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.
+          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.
+          * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.
+          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.
 
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
@@ -213,14 +226,20 @@ class AppLauncher:
             "--livestream",
             type=int,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
-            choices={0, 1, 2, 3},
+            choices={0, 1, 2},
             help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
         )
         arg_group.add_argument(
-            "--offscreen_render",
+            "--enable_cameras",
             action="store_true",
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1],
-            help="Enable offscreen rendering when running without a GUI.",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1],
+            help="Enable camera sensors and relevant extension dependencies.",
+        )
+        arg_group.add_argument(
+            "--device_id",
+            type=int,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1],
+            help="GPU device ID used for running simulation.",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -251,7 +270,8 @@ class AppLauncher:
     _APPLAUNCHER_CFG_INFO: dict[str, tuple[list[type], Any]] = {
         "headless": ([bool], False),
         "livestream": ([int], -1),
-        "offscreen_render": ([bool], False),
+        "enable_cameras": ([bool], False),
+        "device_id": ([int], 0),
         "experience": ([str], ""),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -267,6 +287,7 @@ class AppLauncher:
     # it is ambiguous where the default types are None
     _SIM_APP_CFG_TYPES: dict[str, list[type]] = {
         "headless": [bool],
+        "hide_ui": [bool, type(None)],
         "active_gpu": [int, type(None)],
         "physics_gpu": [int],
         "multi_gpu": [bool],
@@ -352,7 +373,7 @@ class AppLauncher:
         #
         livestream_env = int(os.environ.get("LIVESTREAM", 0))
         livestream_arg = launcher_args.pop("livestream", AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1])
-        livestream_valid_vals = {0, 1, 2, 3}
+        livestream_valid_vals = {0, 1, 2}
         # Value checking on LIVESTREAM
         if livestream_env not in livestream_valid_vals:
             raise ValueError(
@@ -393,7 +414,7 @@ class AppLauncher:
         # Note: Headless is always true when livestreaming
         if headless_arg is True:
             self._headless = headless_arg
-        elif self._livestream in {1, 2, 3}:
+        elif self._livestream in {1, 2}:
             # we are always headless on the host machine
             self._headless = True
             # inform who has toggled the headless flag
@@ -413,24 +434,43 @@ class AppLauncher:
         # Headless needs to be passed to the SimulationApp so we keep it here
         launcher_args["headless"] = self._headless
 
-        # --OFFSCREEN_RENDER logic--
+        # --enable_cameras logic--
         #
-        # off-screen rendering
-        offscreen_render_env = int(os.environ.get("OFFSCREEN_RENDER", 0))
-        offscreen_render_arg = launcher_args.pop(
-            "offscreen_render", AppLauncher._APPLAUNCHER_CFG_INFO["offscreen_render"][1]
-        )
-        offscreen_render_valid_vals = {0, 1}
-        if offscreen_render_env not in offscreen_render_valid_vals:
+        enable_cameras_env = int(os.environ.get("ENABLE_CAMERAS", 0))
+        enable_cameras_arg = launcher_args.pop("enable_cameras", AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1])
+        enable_cameras_valid_vals = {0, 1}
+        if enable_cameras_env not in enable_cameras_valid_vals:
             raise ValueError(
-                f"Invalid value for environment variable `OFFSCREEN_RENDER`: {offscreen_render_env} ."
-                f"Expected: {offscreen_render_valid_vals} ."
+                f"Invalid value for environment variable `ENABLE_CAMERAS`: {enable_cameras_env} ."
+                f"Expected: {enable_cameras_valid_vals} ."
             )
-        # We allow offscreen_render kwarg to supersede OFFSCREEN_RENDER envvar
-        if offscreen_render_arg is True:
-            self._offscreen_render = offscreen_render_arg
+        # We allow enable_cameras kwarg to supersede ENABLE_CAMERAS envvar
+        if enable_cameras_arg is True:
+            self._enable_cameras = enable_cameras_arg
         else:
-            self._offscreen_render = bool(offscreen_render_env)
+            self._enable_cameras = bool(enable_cameras_env)
+        self._offscreen_render = False
+        if self._enable_cameras and self._headless:
+            self._offscreen_render = True
+        # hide_ui flag
+        launcher_args["hide_ui"] = False
+        if self._headless and not self._livestream:
+            launcher_args["hide_ui"] = True
+
+        # --simulation GPU device logic --
+        self.device_id = launcher_args.pop("device_id", AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1])
+        if "distributed" in launcher_args:
+            distributed_train = launcher_args["distributed"]
+            # local rank (GPU id) in a current multi-gpu mode
+            self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            # global rank (GPU id) in multi-gpu multi-node mode
+            self.global_rank = int(os.getenv("RANK", "0"))
+            if distributed_train:
+                self.device_id = self.local_rank
+                launcher_args["multi_gpu"] = False
+        # set physics and rendering device
+        launcher_args["physics_gpu"] = self.device_id
+        launcher_args["active_gpu"] = self.device_id
 
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
@@ -438,10 +478,17 @@ class AppLauncher:
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
-        isaaclab_app_exp_path = os.path.join(os.environ["ISAACLAB_PATH"], "source", "apps")
+        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6, "apps")
         if self._sim_experience_file == "":
-            # check if the headless flag is set
-            if self._headless and not self._livestream:
+            # check if the headless flag is setS
+            if self._enable_cameras:
+                if self._headless and not self._livestream:
+                    self._sim_experience_file = os.path.join(
+                        isaaclab_app_exp_path, "isaaclab.python.headless.rendering.kit"
+                    )
+                else:
+                    self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.rendering.kit")
+            elif self._headless and not self._livestream:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.headless.kit")
             else:
                 self._sim_experience_file = os.path.join(isaaclab_app_exp_path, "isaaclab.python.kit")
@@ -491,10 +538,16 @@ class AppLauncher:
         for key, value in hacked_modules.items():
             sys.modules[key] = value
 
+    def _rendering_enabled(self):
+        # Indicates whether rendering is required by the app.
+        # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
+        return not self._headless or self._livestream >= 1 or self._enable_cameras
+
     def _load_extensions(self):
         """Load correct extensions based on AppLauncher's resolved config member variables."""
         # These have to be loaded after SimulationApp is initialized
         import carb
+        import omni.physx.bindings._physx as physx_impl
         from omni.isaac.core.utils.extensions import enable_extension
 
         # Retrieve carb settings for modification
@@ -514,18 +567,15 @@ class AppLauncher:
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.livestream.native")
-                enable_extension("omni.services.streaming.manager")
+                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
+                enable_extension("omni.kit.livestream.core-3.2.0")
+                enable_extension("omni.kit.livestream.native-4.1.0")
             elif self._livestream == 2:
-                # Enable WebSocket Livestream extension
-                # Default URL: http://localhost:8211/streaming/client/
-                enable_extension("omni.services.streamclient.websocket")
-            elif self._livestream == 3:
                 # Enable WebRTC Livestream extension
                 # Default URL: http://localhost:8211/streaming/webrtc-client/
                 enable_extension("omni.services.streamclient.webrtc")
             else:
-                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2, 3 .")
+                raise ValueError(f"Invalid value for livestream: {self._livestream}. Expected: 1, 2 .")
         else:
             carb_settings_iface.set_bool("/app/livestream/enabled", False)
 
@@ -539,44 +589,22 @@ class AppLauncher:
         # for example: the `Camera` sensor class
         carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", False)
 
-        # enable extensions for off-screen rendering
-        # Depending on the app file, some extensions might not be available in it.
-        # Thus, we manually enable these extensions to make sure they are available.
-        # note: enabling extensions is order-sensitive. please do not change the order!
-        if self._offscreen_render or not self._headless or self._livestream >= 1:
-            # extension to enable UI buttons (otherwise we get attribute errors)
-            enable_extension("omni.kit.window.toolbar")
-
-        if self._offscreen_render or not self._headless:
-            # extension to make RTX realtime and path-traced renderers
-            enable_extension("omni.kit.viewport.rtx")
-            # extension to make HydraDelegate renderers
-            enable_extension("omni.kit.viewport.pxr")
-            # enable viewport extension if full rendering is enabled
-            enable_extension("omni.kit.viewport.bundle")
-            # extension for window status bar
-            enable_extension("omni.kit.window.status_bar")
-        # enable replicator extension
-        # note: moved here since it requires to have the viewport extension to be enabled first.
-        enable_extension("omni.replicator.core")
-        # enable UI tools
-        # note: we need to always import this even with headless to make
-        #   the module for orbit.envs.ui work
-        enable_extension("omni.isaac.ui")
-        # enable animation recording extension
-        if not self._headless or self._livestream >= 1:
-            enable_extension("omni.kit.stagerecorder.core")
+        # set fabric update flag to disable updating transforms when rendering is disabled
+        carb_settings_iface.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
         carb_settings_iface.set_string(
             "/persistent/isaac/asset_root/default",
-            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
+            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0",
         )
         carb_settings_iface.set_string(
             "/persistent/isaac/asset_root/nvidia",
-            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1",
+            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0",
         )
+
+        # disable physics backwards compatibility check
+        carb_settings_iface.set_int(physx_impl.SETTING_BACKWARD_COMPATIBILITY, 0)
 
     def _hide_stop_button(self):
         """Hide the stop button in the toolbar.

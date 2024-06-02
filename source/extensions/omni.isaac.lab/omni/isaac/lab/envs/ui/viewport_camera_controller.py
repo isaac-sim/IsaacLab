@@ -16,7 +16,7 @@ import omni.kit.app
 import omni.timeline
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv, ViewerCfg
+    from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
 
 
 class ViewportCameraController:
@@ -34,7 +34,7 @@ class ViewportCameraController:
     root position. For this, it registers a callback to the post update event stream from the simulation app.
     """
 
-    def __init__(self, env: BaseEnv, cfg: ViewerCfg):
+    def __init__(self, env: ManagerBasedEnv | DirectRLEnv, cfg: ViewerCfg):
         """Initialize the ViewportCameraController.
 
         Args:

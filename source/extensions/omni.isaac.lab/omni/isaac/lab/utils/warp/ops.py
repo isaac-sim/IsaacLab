@@ -13,6 +13,8 @@ import torch
 
 import warp as wp
 
+wp.init()
+
 from . import kernels
 
 

@@ -24,7 +24,8 @@ Guidelines for modifications:
 * Hunter Hansen
 * James Smith
 * James Tigue
-* **Mayank Mittal** (maintainer)
+* Kelly Guo
+* Mayank Mittal
 * Nikita Rudin
 * Pascal Roth
 

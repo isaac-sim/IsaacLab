@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`RLTaskEnv` instance to Stable-Baselines3 vectorized environment.
+"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to Stable-Baselines3 vectorized environment.
 
 The following example shows how to wrap an environment for Stable-Baselines3:
 
@@ -27,7 +27,7 @@ from typing import Any
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
-from omni.isaac.lab.envs import RLTaskEnv
+from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
 Configuration Parser.
@@ -85,7 +85,7 @@ class Sb3VecEnvWrapper(VecEnv):
     still considered a single environment instance, Stable Baselines tries to wrap
     around it using the :class:`DummyVecEnv`. This is only done if the environment
     is not inheriting from their :class:`VecEnv`. Thus, this class thinly wraps
-    over the environment from :class:`RLTaskEnv`.
+    over the environment from :class:`ManagerBasedRLEnv`.
 
     Note:
         While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
@@ -123,18 +123,21 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: RLTaskEnv):
+    def __init__(self, env: ManagerBasedRLEnv):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
 
         Raises:
-            ValueError: When the environment is not an instance of :class:`RLTaskEnv`.
+            ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
         """
         # check that input is valid
-        if not isinstance(env.unwrapped, RLTaskEnv):
-            raise ValueError(f"The environment must be inherited from RLTaskEnv. Environment type: {type(env)}")
+        if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+            raise ValueError(
+                "The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type:"
+                f" {type(env)}"
+            )
         # initialize the wrapper
         self.env = env
         # collect common information
@@ -172,7 +175,7 @@ class Sb3VecEnvWrapper(VecEnv):
         return cls.__name__
 
     @property
-    def unwrapped(self) -> RLTaskEnv:
+    def unwrapped(self) -> ManagerBasedRLEnv:
         """Returns the base environment of the wrapper.
 
         This will be the bare :class:`gymnasium.Env` environment, underneath all layers of wrappers.
@@ -224,7 +227,7 @@ class Sb3VecEnvWrapper(VecEnv):
         reset_ids = (dones > 0).nonzero(as_tuple=False)
 
         # convert data types to numpy depending on backend
-        # note: RLTaskEnv uses torch backend (by default).
+        # note: ManagerBasedRLEnv uses torch backend (by default).
         obs = self._process_obs(obs_dict)
         rew = rew.detach().cpu().numpy()
         terminated = terminated.detach().cpu().numpy()
@@ -284,7 +287,7 @@ class Sb3VecEnvWrapper(VecEnv):
         """Convert observations into NumPy data type."""
         # Sb3 doesn't support asymmetric observation spaces, so we only use "policy"
         obs = obs_dict["policy"]
-        # note: RLTaskEnv uses torch backend (by default).
+        # note: ManagerBasedRLEnv uses torch backend (by default).
         if isinstance(obs, dict):
             for key, value in obs.items():
                 obs[key] = value.detach().cpu().numpy()

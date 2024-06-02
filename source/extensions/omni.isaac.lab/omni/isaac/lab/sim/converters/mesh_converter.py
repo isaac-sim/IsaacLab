@@ -10,7 +10,7 @@ import omni
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
-from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
 from omni.isaac.lab.sim.converters.mesh_converter_cfg import MeshConverterCfg
@@ -82,98 +82,50 @@ class MeshConverter(AssetConverterBase):
         mesh_file_format = mesh_file_format.lower()
 
         # Convert USD
-        status = asyncio.get_event_loop().run_until_complete(
-            self._convert_mesh_to_usd(in_file=cfg.asset_path, out_file=self.usd_path)
+        asyncio.get_event_loop().run_until_complete(
+            self._convert_mesh_to_usd(
+                in_file=cfg.asset_path, out_file=self.usd_path, prim_path=f"/{mesh_file_basename}"
+            )
         )
-        if not status:
-            raise RuntimeError(f"Failed to convert asset: {cfg.asset_path}! Please check the logs for more details.")
-
         # Open converted USD stage
         # note: This opens a new stage and does not use the stage created earlier by the user
         # create a new stage
         stage = Usd.Stage.Open(self.usd_path)
         # add USD to stage cache
         stage_id = UsdUtils.StageCache.Get().Insert(stage)
-        # need to make kwargs for compatibility with 2023
-        stage_kwargs = {"stage": stage}
-        stage_or_context_kwargs = {"stage_or_context": stage}
-        # FIXME: we need to hack this into command because Kit 105 has a bug.
-        from omni.usd.commands import MovePrimCommand
-
-        MovePrimCommand._selection = None  # type: ignore
-        # Set stage up-axis to Z
-        # note: later we need to rotate the mesh so that it is Z-up in the world
-        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-
-        # Move all meshes to underneath a new Xform so that we can make it instanceable later if requested
-        # Get the default prim (which is the root prim) -- "/World"
-        old_xform_prim = stage.GetDefaultPrim()
-        # Create a path called "/{mesh_file_basename}/geometry" and move the mesh to it
-        new_xform_prim = stage.DefinePrim(f"/{mesh_file_basename}", "Xform")
-        geom_undef_prim = stage.DefinePrim(f"{new_xform_prim.GetPath()}/geometry")
-        # Move Looks to underneath new Xform
-        omni.kit.commands.execute(
-            "MovePrim",
-            path_from=f"{old_xform_prim.GetPath()}/Looks",
-            path_to=f"{geom_undef_prim.GetPath()}/Looks",
-            destructive=True,
-            **stage_or_context_kwargs,
-        )
+        # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
+        xform_prim = stage.GetDefaultPrim()
+        geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
         # Move all meshes to underneath new Xform
-        for child_mesh_prim in old_xform_prim.GetChildren():
-            # Get mesh prim path
-            old_child_mesh_prim_path = child_mesh_prim.GetPath().pathString
-            new_child_mesh_prim_path = f"{geom_undef_prim.GetPath()}/{old_child_mesh_prim_path.split('/')[-1]}"
-            # Move mesh to underneath new Xform
-            omni.kit.commands.execute(
-                "MovePrim",
-                path_from=old_child_mesh_prim_path,
-                path_to=new_child_mesh_prim_path,
-                destructive=True,
-                **stage_or_context_kwargs,
-            )
-            # Apply default Xform rotation to mesh
-            omni.kit.commands.execute(
-                "CreateDefaultXformOnPrimCommand",
-                prim_path=new_child_mesh_prim_path,
-                **stage_kwargs,
-            )
-            # Get new mesh prim
-            child_mesh_prim = stage.GetPrimAtPath(new_child_mesh_prim_path)
-            # Rotate mesh so that it is Z-up in the world
-            attr_rotate = child_mesh_prim.GetAttribute("xformOp:orient")
-            attr_rotate.Set(Gf.Quatd(0.5, 0.5, 0.5, 0.5))
-            # Apply collider properties to mesh
-            if cfg.collision_props is not None:
-                # -- Collision approximation to mesh
-                # TODO: https://github.com/isaac-sim/IsaacLab/issues/163 Move this to a new Schema
-                mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(child_mesh_prim)
-                mesh_collision_api.GetApproximationAttr().Set(cfg.collision_approximation)
-                # -- Collider properties such as offset, scale, etc.
-                schemas.define_collision_properties(
-                    prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
-                )
+        for child_mesh_prim in geom_prim.GetChildren():
+            if child_mesh_prim.GetTypeName() == "Mesh":
+                # Apply collider properties to mesh
+                if cfg.collision_props is not None:
+                    # -- Collision approximation to mesh
+                    # TODO: https://github.com/isaac-orbit/orbit/issues/163 Move this to a new Schema
+                    mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(child_mesh_prim)
+                    mesh_collision_api.GetApproximationAttr().Set(cfg.collision_approximation)
+                    # -- Collider properties such as offset, scale, etc.
+                    schemas.define_collision_properties(
+                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                    )
         # Delete the old Xform and make the new Xform the default prim
-        stage.SetDefaultPrim(new_xform_prim)
-        omni.kit.commands.execute("DeletePrims", paths=[old_xform_prim.GetPath().pathString], stage=stage)
-
+        stage.SetDefaultPrim(xform_prim)
         # Handle instanceable
         # Create a new Xform prim that will be the prototype prim
         if cfg.make_instanceable:
             # Export Xform to a file so we can reference it from all instances
             export_prim_to_file(
                 path=os.path.join(self.usd_dir, self.usd_instanceable_meshes_path),
-                source_prim_path=geom_undef_prim.GetPath(),
+                source_prim_path=geom_prim.GetPath(),
                 stage=stage,
             )
             # Delete the original prim that will now be a reference
-            geom_undef_prim_path = geom_undef_prim.GetPath().pathString
-            omni.kit.commands.execute("DeletePrims", paths=[geom_undef_prim_path], stage=stage)
+            geom_prim_path = geom_prim.GetPath().pathString
+            omni.kit.commands.execute("DeletePrims", paths=[geom_prim_path], stage=stage)
             # Update references to exported Xform and make it instanceable
-            geom_undef_prim = stage.DefinePrim(geom_undef_prim_path)
-            geom_undef_prim.GetReferences().AddReference(
-                self.usd_instanceable_meshes_path, primPath=geom_undef_prim_path
-            )
+            geom_undef_prim = stage.DefinePrim(geom_prim_path)
+            geom_undef_prim.GetReferences().AddReference(self.usd_instanceable_meshes_path, primPath=geom_prim_path)
             geom_undef_prim.SetInstanceable(True)
 
         # Apply mass and rigid body properties after everything else
@@ -181,10 +133,10 @@ class MeshConverter(AssetConverterBase):
         #   asset unintentionally share the same rigid body properties
         # apply mass properties
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(prim_path=new_xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
+            schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
         # apply rigid body properties
         if cfg.rigid_props is not None:
-            schemas.define_rigid_body_properties(prim_path=new_xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
+            schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
 
         # Save changes to USD stage
         stage.Save()
@@ -196,7 +148,9 @@ class MeshConverter(AssetConverterBase):
     """
 
     @staticmethod
-    async def _convert_mesh_to_usd(in_file: str, out_file: str, load_materials: bool = True) -> bool:
+    async def _convert_mesh_to_usd(
+        in_file: str, out_file: str, prim_path: str = "/World", load_materials: bool = True
+    ) -> bool:
         """Convert mesh from supported file types to USD.
 
         This function uses the Omniverse Asset Converter extension to convert a mesh file to USD.
@@ -208,13 +162,14 @@ class MeshConverter(AssetConverterBase):
         The asset hierarchy is arranged as follows:
 
         .. code-block:: none
-            /World (default prim)
-                |- /Looks
-                |- /Mesh
+            prim_path (default prim)
+                |- /geometry/Looks
+                |- /geometry/mesh
 
         Args:
             in_file: The file to convert.
             out_file: The path to store the output file.
+            prim_path: The prim path of the mesh.
             load_materials: Set to True to enable attaching materials defined in the input file
                 to the generated USD mesh. Defaults to True.
 
@@ -222,10 +177,11 @@ class MeshConverter(AssetConverterBase):
             True if the conversion succeeds.
         """
         enable_extension("omni.kit.asset_converter")
-        enable_extension("omni.isaac.unit_converter")
+        enable_extension("omni.usd.metrics.assembler")
 
         import omni.kit.asset_converter
-        from omni.isaac.unit_converter.unit_conversion_utils import set_stage_meters_per_unit
+        import omni.usd
+        from omni.metrics.assembler.core import get_metrics_assembler_interface
 
         # Create converter context
         converter_context = omni.kit.asset_converter.AssetConverterContext()
@@ -246,7 +202,8 @@ class MeshConverter(AssetConverterBase):
 
         # Create converter task
         instance = omni.kit.asset_converter.get_instance()
-        task = instance.create_converter_task(in_file, out_file, None, converter_context)
+        out_file_non_metric = out_file.replace(".usd", "_non_metric.usd")
+        task = instance.create_converter_task(in_file, out_file_non_metric, None, converter_context)
         # Start conversion task and wait for it to finish
         success = True
         while True:
@@ -256,11 +213,18 @@ class MeshConverter(AssetConverterBase):
             else:
                 break
 
-        # Open converted USD stage
-        stage = Usd.Stage.Open(out_file)
-        # Set stage units to 1.0
-        set_stage_meters_per_unit(stage, 1.0)
-        # Save changes to USD stage
-        stage.Save()
+        temp_stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageUpAxis(temp_stage, UsdGeom.Tokens.z)
+        UsdGeom.SetStageMetersPerUnit(temp_stage, 1.0)
+        UsdPhysics.SetStageKilogramsPerUnit(temp_stage, 1.0)
 
+        base_prim = temp_stage.DefinePrim(prim_path, "Xform")
+        prim = temp_stage.DefinePrim(f"{prim_path}/geometry", "Xform")
+        prim.GetReferences().AddReference(out_file_non_metric)
+        cache = UsdUtils.StageCache.Get()
+        cache.Insert(temp_stage)
+        stage_id = cache.GetId(temp_stage).ToLongInt()
+        get_metrics_assembler_interface().resolve_stage(stage_id)
+        temp_stage.SetDefaultPrim(base_prim)
+        temp_stage.Export(out_file)
         return success

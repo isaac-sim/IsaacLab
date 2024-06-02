@@ -113,8 +113,13 @@ def main():
 
     # reset environment
     obs = env.reset()
+    if isinstance(obs, dict):
+        obs = obs["obs"]
     # required: enables the flag for batched observations
     _ = agent.get_batch_size(obs, 1)
+    # initialize RNN states if used
+    if agent.is_rnn:
+        agent.init_rnn()
     # simulate environment
     # note: We simplified the logic in rl-games player.py (:func:`BasePlayer.run()`) function in an
     #   attempt to have complete control over environment stepping. However, this removes other

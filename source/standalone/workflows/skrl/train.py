@@ -29,6 +29,7 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -82,6 +83,10 @@ def main():
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
 
+    # max iterations for training
+    if args_cli.max_iterations:
+        experiment_cfg["trainer"]["timesteps"] = args_cli.max_iterations * experiment_cfg["agent"]["rollouts"]
+
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), experiment_cfg)
@@ -108,7 +113,7 @@ def main():
     set_seed(args_cli_seed if args_cli_seed is not None else experiment_cfg["seed"])
 
     # instantiate models using skrl model instantiator utility
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
+    # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
     # non-shared models
     if experiment_cfg["models"]["separate"]:
@@ -140,12 +145,12 @@ def main():
         models["value"] = models["policy"]
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.memories.random.html
+    # https://skrl.readthedocs.io/en/latest/api/memories/random.html
     memory_size = experiment_cfg["agent"]["rollouts"]  # memory_size is the agent's number of rollouts
     memory = RandomMemory(memory_size=memory_size, num_envs=env.num_envs, device=env.device)
 
     # configure and instantiate PPO agent
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+    # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
     agent_cfg.update(process_skrl_cfg(experiment_cfg["agent"]))
@@ -163,7 +168,7 @@ def main():
     )
 
     # configure and instantiate a custom RL trainer for logging episode events
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html
+    # https://skrl.readthedocs.io/en/latest/api/trainers.html
     trainer_cfg = experiment_cfg["trainer"]
     trainer = SkrlSequentialLogTrainer(cfg=trainer_cfg, env=env, agents=agent)
 

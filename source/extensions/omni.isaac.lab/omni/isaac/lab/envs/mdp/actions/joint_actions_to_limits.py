@@ -17,7 +17,7 @@ from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
@@ -45,7 +45,7 @@ class JointPositionToLimitsAction(ActionTerm):
     _scale: torch.Tensor | float
     """The scaling factor applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.JointPositionToLimitsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -119,6 +119,9 @@ class JointPositionToLimitsAction(ActionTerm):
         # set position targets
         self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0
+
 
 class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     r"""Joint action term that applies exponential moving average (EMA) over the processed actions as the
@@ -145,7 +148,7 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     cfg: actions_cfg.EMAJointPositionToLimitsActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.EMAJointPositionToLimitsActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.EMAJointPositionToLimitsActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -180,6 +183,7 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         # check if specific environment ids are provided
         if env_ids is None:
             env_ids = slice(None)
+        super().reset(env_ids)
         # reset history to current joint positions
         self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
 

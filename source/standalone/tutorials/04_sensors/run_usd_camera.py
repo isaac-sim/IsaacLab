@@ -15,7 +15,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
     ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py
 
     # Usage with headless
-    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --offscreen_render
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras
 
 """
 
@@ -54,6 +54,7 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -235,12 +236,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_info = camera.data.info[camera_index]
 
             # Pack data back into replicator format to save them using its writer
-            rep_output = dict()
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-                if info is not None:
-                    rep_output[key] = {"data": data, "info": info}
-                else:
-                    rep_output[key] = data
+            if sim.get_version()[0] == 4:
+                rep_output = {"annotators": {}}
+                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                    if info is not None:
+                        rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
+                    else:
+                        rep_output["annotators"][key] = {"render_product": {"data": data}}
+            else:
+                rep_output = dict()
+                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                    if info is not None:
+                        rep_output[key] = {"data": data, "info": info}
+                    else:
+                        rep_output[key] = data
             # Save images
             # Note: We need to provide On-time data for Replicator to save the images.
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}

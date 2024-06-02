@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
 class TerminationManager(ManagerBase):
@@ -43,10 +43,10 @@ class TerminationManager(ManagerBase):
     configuration :attr:`TerminationTermCfg.time_out` decides whether the term is a timeout or a termination term.
     """
 
-    _env: RLTaskEnv
+    _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initializes the termination manager.
 
         Args:

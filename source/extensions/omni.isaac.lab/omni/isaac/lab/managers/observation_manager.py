@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
 
 class ObservationManager(ManagerBase):
@@ -31,7 +31,7 @@ class ObservationManager(ManagerBase):
     observation term should instantiate the :class:`ObservationTermCfg` class.
     """
 
-    def __init__(self, cfg: object, env: BaseEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize observation manager.
 
         Args:

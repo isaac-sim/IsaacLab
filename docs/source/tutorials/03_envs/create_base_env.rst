@@ -1,24 +1,25 @@
 .. _tutorial-create-base-env:
 
 
-Creating a Base Environment
-===========================
+Creating a Manager-Based Base Environment
+=========================================
 
 .. currentmodule:: omni.isaac.lab
 
 Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a
-coherent interface for various applications. In Isaac Lab, environments are
-implemented as :class:`envs.BaseEnv` and :class:`envs.RLTaskEnv` classes.
-The two classes are very similar, but :class:`envs.RLTaskEnv` is useful for
+coherent interface for various applications. In Isaac Lab, manager-based environments are
+implemented as :class:`envs.ManagerBasedEnv` and :class:`envs.ManagerBasedRLEnv` classes.
+The two classes are very similar, but :class:`envs.ManagerBasedRLEnv` is useful for
 reinforcement learning tasks and contains rewards, terminations, curriculum
-and command generation. The :class:`envs.BaseEnv` class is useful for
+and command generation. The :class:`envs.ManagerBasedEnv` class is useful for
 traditional robot control and doesn't contain rewards and terminations.
 
-In this tutorial, we will look at the base class :class:`envs.BaseEnv` and its
-corresponding configuration class :class:`envs.BaseEnvCfg`. We will use the
+In this tutorial, we will look at the base class :class:`envs.ManagerBasedEnv` and its
+corresponding configuration class :class:`envs.ManagerBasedEnvCfg` for the manager-based workflow.
+We will use the
 cartpole environment from earlier to illustrate the different components
-in creating a new :class:`envs.BaseEnv` environment.
+in creating a new :class:`envs.ManagerBasedEnv` environment.
 
 
 The Code
@@ -39,7 +40,7 @@ directory.
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-The base class :class:`envs.BaseEnv` wraps around many intricacies of the simulation interaction
+The base class :class:`envs.ManagerBasedEnv` wraps around many intricacies of the simulation interaction
 and provides a simple interface for the user to run the simulation and interact with it. It
 is composed of the following components:
 
@@ -51,7 +52,7 @@ is composed of the following components:
 
 By configuring these components, the user can create different variations of the same environment
 with minimal effort. In this tutorial, we will go through the different components of the
-:class:`envs.BaseEnv` class and how to configure them to create a new environment.
+:class:`envs.ManagerBasedEnv` class and how to configure them to create a new environment.
 
 Designing the scene
 -------------------
@@ -126,7 +127,7 @@ takes in the :attr:`managers.EventTermCfg.func` that specifies the function or c
 class that performs the event.
 
 Additionally, it expects the **mode** of the event. The mode specifies when the event term should be applied.
-It is possible to specify your own mode. For this, you'll need to adapt the :class:`~envs.BaseEnv` class.
+It is possible to specify your own mode. For this, you'll need to adapt the :class:`~envs.ManagerBasedEnv` class.
 However, out of the box, Isaac Lab provides three commonly used modes:
 
 * ``"startup"`` - Event that takes place only once at environment startup.
@@ -145,13 +146,13 @@ Tying it all together
 ---------------------
 
 Having defined the scene and manager configurations, we can now define the environment configuration
-through the :class:`envs.BaseEnvCfg` class. This class takes in the scene, action, observation and
+through the :class:`envs.ManagerBasedEnvCfg` class. This class takes in the scene, action, observation and
 event configurations.
 
-In addition to these, it also takes in the :attr:`envs.BaseEnvCfg.sim` which defines the simulation
+In addition to these, it also takes in the :attr:`envs.ManagerBasedEnvCfg.sim` which defines the simulation
 parameters such as the timestep, gravity, etc. This is initialized to the default values, but can
 be modified as needed. We recommend doing so by defining the :meth:`__post_init__` method in the
-:class:`envs.BaseEnvCfg` class, which is called after the configuration is initialized.
+:class:`envs.ManagerBasedEnvCfg` class, which is called after the configuration is initialized.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/03_envs/create_cartpole_base_env.py
    :language: python
@@ -162,12 +163,12 @@ Running the simulation
 
 Lastly, we revisit the simulation execution loop. This is now much simpler since we have
 abstracted away most of the details into the environment configuration. We only need to
-call the :meth:`envs.BaseEnv.reset` method to reset the environment and :meth:`envs.BaseEnv.step`
+call the :meth:`envs.ManagerBasedEnv.reset` method to reset the environment and :meth:`envs.ManagerBasedEnv.step`
 method to step the environment. Both these functions return the observation and an info dictionary
 which may contain additional information provided by the environment. These can be used by an
 agent for decision-making.
 
-The :class:`envs.BaseEnv` class does not have any notion of terminations since that concept is
+The :class:`envs.ManagerBasedEnv` class does not have any notion of terminations since that concept is
 specific for episodic tasks. Thus, the user is responsible for defining the termination condition
 for the environment. In this tutorial, we reset the simulation at regular intervals.
 
@@ -213,5 +214,5 @@ directory. For completeness, they can be run using the following commands:
    ./isaaclab.sh -p source/standalone/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 
-In the following tutorial, we will look at the :class:`envs.RLTaskEnv` class and how to use it
+In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).

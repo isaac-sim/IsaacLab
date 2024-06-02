@@ -33,13 +33,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import os
 import torch
 
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
@@ -48,7 +47,7 @@ from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import RayCasterCfg, patterns
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR, check_file_path, read_file
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 ##
@@ -78,6 +77,11 @@ class MySceneCfg(InteractiveSceneCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
+        visual_material=sim_utils.MdlFileCfg(
+            mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+            project_uvw=True,
+            texture_scale=(0.25, 0.25),
+        ),
         debug_vis=False,
     )
 
@@ -95,9 +99,13 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    sky_light = AssetBaseCfg(
+        prim_path="/World/skyLight",
+        spawn=sim_utils.DomeLightCfg(
+            intensity=900.0,
+            texture_file=f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/kloofendal_48d_partly_cloudy_4k.hdr",
+            visible_in_primary_ray=False,
+        ),
     )
 
 
@@ -106,7 +114,7 @@ class MySceneCfg(InteractiveSceneCfg):
 ##
 
 
-def constant_commands(env: BaseEnv) -> torch.Tensor:
+def constant_commands(env: ManagerBasedEnv) -> torch.Tensor:
     """The generated command from the command generator."""
     return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
 
@@ -179,7 +187,7 @@ class EventCfg:
 
 
 @configclass
-class QuadrupedEnvCfg(BaseEnvCfg):
+class QuadrupedEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
@@ -206,11 +214,11 @@ def main():
     """Main function."""
 
     # setup base environment
-    env = BaseEnv(cfg=QuadrupedEnvCfg())
+    env = ManagerBasedEnv(cfg=QuadrupedEnvCfg())
     obs, _ = env.reset()
 
     # load level policy
-    policy_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "Policies", "ANYmal-C", "policy.pt")
+    policy_path = ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt"
 
     # check if policy file exists
     if not check_file_path(policy_path):

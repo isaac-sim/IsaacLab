@@ -39,7 +39,7 @@ class TestRewardManager(unittest.TestCase):
     """Test cases for various situations with reward manager."""
 
     def setUp(self) -> None:
-        self.env = namedtuple("RLTaskEnv", ["num_envs", "dt", "device"])(20, 0.1, "cpu")
+        self.env = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device"])(20, 0.1, "cpu")
 
     def test_str(self):
         """Test the string representation of the reward manager."""

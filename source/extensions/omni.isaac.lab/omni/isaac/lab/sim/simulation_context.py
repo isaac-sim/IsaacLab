@@ -146,7 +146,6 @@ class SimulationContext(_SimulationContext):
         self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
-
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
             # set default render mode

@@ -333,6 +333,8 @@ class RigidObject(AssetBase):
         self._create_buffers()
         # process configuration
         self._process_cfg()
+        # update the rigid body data
+        self.update(0.0)
 
     def _create_buffers(self):
         """Create buffers for storing data."""
@@ -369,6 +371,9 @@ class RigidObject(AssetBase):
         # -- used to compute body accelerations numerically
         self._last_body_vel_w = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
 
+        # mass
+        self._data.default_mass = self.root_physx_view.get_masses().clone()
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -391,7 +396,8 @@ class RigidObject(AssetBase):
             override the update function without having to worry about updating the common data.
         """
         # -- body acceleration
-        self._data.body_acc_w[:] = (self._data.body_state_w[..., 7:] - self._last_body_vel_w) / dt
+        if dt > 0.0:
+            self._data.body_acc_w[:] = (self._data.body_state_w[..., 7:] - self._last_body_vel_w) / dt
         self._last_body_vel_w[:] = self._data.body_state_w[..., 7:]
         # -- root state in body frame
         self._data.root_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(

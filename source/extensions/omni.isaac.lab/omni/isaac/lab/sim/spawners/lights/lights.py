@@ -70,7 +70,10 @@ def spawn_light(
             else:
                 raise ValueError(f"Unsupported texture attribute: '{attr_name}'.")
         else:
-            prim_prop_name = f"inputs:{attr_name}"
+            if attr_name == "visible_in_primary_ray":
+                prim_prop_name = attr_name
+            else:
+                prim_prop_name = f"inputs:{attr_name}"
             # set the attribute
             safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
     # return the prim

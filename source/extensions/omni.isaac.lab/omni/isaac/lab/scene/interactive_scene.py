@@ -83,6 +83,8 @@ class InteractiveScene:
         self._extras = dict()
         # obtain the current stage
         self.stage = omni.usd.get_context().get_stage()
+        # physics scene path
+        self._physics_scene_path = None
         # prepare cloner for environment replication
         self.cloner = GridCloner(spacing=self.cfg.env_spacing)
         self.cloner.define_base_env(self.env_ns)
@@ -97,30 +99,54 @@ class InteractiveScene:
             copy_from_source=True,
         )
         self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
-        # add entities from config
-        self._add_entities_from_cfg()
-        # replicate physics if we have more than one environment
-        # this is done to make scene initialization faster at play time
-        if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-            self.cloner.replicate_physics(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                base_env_path=self.env_ns,
-                root_path=self.env_regex_ns.replace(".*", ""),
-            )
+        self._global_prim_paths = list()
+        if self._is_scene_setup_from_cfg():
+            # add entities from config
+            self._add_entities_from_cfg()
+            # replicate physics if we have more than one environment
+            # this is done to make scene initialization faster at play time
+            if self.cfg.replicate_physics and self.cfg.num_envs > 1:
+                self.cloner.replicate_physics(
+                    source_prim_path=self.env_prim_paths[0],
+                    prim_paths=self.env_prim_paths,
+                    base_env_path=self.env_ns,
+                    root_path=self.env_regex_ns.replace(".*", ""),
+                )
+            self.filter_collisions(self._global_prim_paths)
+
+    def clone_environments(self, copy_from_source: bool = False):
+        """Creates clones of the environment ``/World/envs/env_0``.
+
+        Args:
+            copy_from_source: (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.
+            If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
+            may increase). Defaults to False.
+        """
+        self.cloner.clone(
+            source_prim_path=self.env_prim_paths[0],
+            prim_paths=self.env_prim_paths,
+            replicate_physics=self.cfg.replicate_physics,
+            copy_from_source=copy_from_source,
+        )
+
+    def filter_collisions(self, global_prim_paths: list[str] = []):
+        """Filter environments collisions.
+
+        Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
+        in global prim paths (e.g. ground plane).
+
+        Args:
+            global_prim_paths: The global prim paths to enable collisions with.
+        """
         # obtain the current physics scene
-        physics_scene_prim_path = None
-        for prim in self.stage.Traverse():
-            if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
-                physics_scene_prim_path = prim.GetPrimPath()
-                carb.log_info(f"Physics scene prim path: {physics_scene_prim_path}")
-                break
+        physics_scene_prim_path = self.physics_scene_path
+
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
             physics_scene_prim_path,
             "/World/collisions",
             self.env_prim_paths,
-            global_paths=self._global_prim_paths,
+            global_paths=global_prim_paths,
         )
 
     def __str__(self) -> str:
@@ -136,6 +162,17 @@ class InteractiveScene:
     """
     Properties.
     """
+
+    @property
+    def physics_scene_path(self):
+        """Search the stage for the physics scene"""
+        if self._physics_scene_path is None:
+            for prim in self.stage.Traverse():
+                if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+                    self._physics_scene_path = prim.GetPrimPath()
+                    carb.log_info(f"Physics scene prim path: {self._physics_scene_path}")
+                    break
+        return self._physics_scene_path
 
     @property
     def physics_dt(self) -> float:
@@ -317,6 +354,12 @@ class InteractiveScene:
     """
     Internal methods.
     """
+
+    def _is_scene_setup_from_cfg(self):
+        return any(
+            not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
+            for asset_name, asset_cfg in self.cfg.__dict__.items()
+        )
 
     def _add_entities_from_cfg(self):
         """Add scene entities from the config."""

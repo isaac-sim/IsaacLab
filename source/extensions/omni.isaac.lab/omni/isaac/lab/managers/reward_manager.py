@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
 class RewardManager(ManagerBase):
@@ -37,10 +37,10 @@ class RewardManager(ManagerBase):
 
     """
 
-    _env: RLTaskEnv
+    _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the reward manager.
 
         Args:

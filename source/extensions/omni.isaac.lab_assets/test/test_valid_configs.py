@@ -54,7 +54,7 @@ class TestValidEntitiesConfigs(unittest.TestCase):
                 with self.subTest(asset_name=asset_name, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
                         # print the asset name
-                        print(">>> Testing entities:", asset_name)
+                        print(f">>> Testing entity {asset_name} on device {device}")
                         # name the prim path
                         entity_cfg.prim_path = "/World/asset"
                         # create the asset / sensors

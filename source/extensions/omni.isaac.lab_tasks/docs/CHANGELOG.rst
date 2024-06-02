@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.6.2 (2024-05-31)
+0.7.5 (2024-05-31)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -11,6 +11,66 @@ Added
   :meth:`omni.isaac.lab.actuators.ActuatorNetMLP.export` method. Previously, the normalization layer
   was not exported to the ONNX and JIT models. This caused the exported model to not work properly
   when used for inference.
+
+
+0.7.5 (2024-05-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a new environment ``Isaac-Navigation-Flat-Anymal-C-v0`` to navigate towards a target position on flat terrain.
+
+
+0.7.4 (2024-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Set default device for RSL RL and SB3 configs to "cuda:0".
+
+0.7.3 (2024-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Introduce ``--max_iterations`` argument to training scripts for specifying number of training iterations.
+
+0.7.2 (2024-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
+
+
+0.7.1 (2024-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the skrl agent configurations for the config and direct workflow tasks
+
+
+0.7.0 (2024-05-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`, and :class:`omni.isaac.lab.envs.DirectRLEnv`.
+* Split environments into ``manager_based`` and ``direct`` folders.
+
+Added
+^^^^^
+
+* Added direct workflow environments:
+  * ``Isaac-Cartpole-Direct-v0``, ``Isaac-Cartpole-Camera-Direct-v0``, ``Isaac-Ant-Direct-v0``, ``Isaac-Humanoid-Direct-v0``.
+  * ``Isaac-Velocity-Flat-Anymal-C-Direct-v0``, ``Isaac-Velocity-Rough-Anymal-C-Direct-v0``, ``Isaac-Quadcopter-Direct-v0``.
 
 
 0.6.1 (2024-04-16)
@@ -36,7 +96,7 @@ Fixed
 ^^^^^
 
 * Fixed logging of extra information for RL-Games wrapper. It expected the extra information to be under the
-  key ``"episode"``, but Orbit used the key ``"log"``. The wrapper now remaps the key to ``"episode"``.
+  key ``"episode"``, but Isaac Lab used the key ``"log"``. The wrapper now remaps the key to ``"episode"``.
 
 
 0.5.7 (2024-02-28)
@@ -74,7 +134,7 @@ Fixed
 Added
 ^^^^^
 
-* Added a check for the flag :attr:`omni.isaac.lab.envs.RLTaskEnvCfg.is_finite_horizon`
+* Added a check for the flag :attr:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg.is_finite_horizon`
   in the RSL-RL and RL-Games wrappers to handle the finite horizon tasks properly. Earlier,
   the wrappers were always assuming the tasks to be infinite horizon tasks and returning a
   time-out signals when the episode length was reached.
@@ -107,8 +167,8 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the wrappers to different learning frameworks to use the new :class:`omni.isaac.lab_tasks.RLTaskEnv` class.
-  The :class:`RLTaskEnv` class inherits from the :class:`gymnasium.Env` class (Gym 0.29.0).
+* Fixed the wrappers to different learning frameworks to use the new :class:`omni.isaac.lab_tasks.ManagerBasedRLEnv` class.
+  The :class:`ManagerBasedRLEnv` class inherits from the :class:`gymnasium.Env` class (Gym 0.29.0).
 * Fixed the registration of tasks in the Gym registry based on Gym 0.29.0 API.
 
 Changed
@@ -154,7 +214,7 @@ Changed
 * Moved the base environment definition to the :class:`omni.isaac.lab.envs.RLEnv` class. The :class:`RLEnv`
   contains RL-specific managers such as the reward, termination, randomization and curriculum managers. These
   are all configured using the :class:`omni.isaac.lab.envs.RLEnvConfig` class. The :class:`RLEnv` class
-  inherits from the :class:`omni.isaac.lab.envs.BaseEnv` and ``gym.Env`` classes.
+  inherits from the :class:`omni.isaac.lab.envs.ManagerBasedEnv` and ``gym.Env`` classes.
 
 Fixed
 ^^^^^

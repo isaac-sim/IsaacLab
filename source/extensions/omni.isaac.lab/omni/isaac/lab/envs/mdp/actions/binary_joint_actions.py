@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
@@ -15,7 +16,7 @@ from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
@@ -43,7 +44,7 @@ class BinaryJointAction(ActionTerm):
     _asset: Articulation
     """The articulation asset on which the action term is applied."""
 
-    def __init__(self, cfg: actions_cfg.BinaryJointActionCfg, env: BaseEnv) -> None:
+    def __init__(self, cfg: actions_cfg.BinaryJointActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -114,6 +115,9 @@ class BinaryJointAction(ActionTerm):
             binary_mask = actions < 0
         # compute the command
         self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0
 
 
 class BinaryJointPositionAction(BinaryJointAction):

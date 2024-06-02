@@ -21,7 +21,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
 class CommandTerm(ManagerTermBase):
@@ -37,7 +37,7 @@ class CommandTerm(ManagerTermBase):
     that can be used to visualize the command in the simulator.
     """
 
-    def __init__(self, cfg: CommandTermCfg, env: RLTaskEnv):
+    def __init__(self, cfg: CommandTermCfg, env: ManagerBasedRLEnv):
         """Initialize the command generator class.
 
         Args:
@@ -176,11 +176,12 @@ class CommandTerm(ManagerTermBase):
             env_ids: The list of environment IDs to resample.
         """
         # resample the time left before resampling
-        self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
-        # increment the command counter
-        self.command_counter[env_ids] += 1
-        # resample the command
-        self._resample_command(env_ids)
+        if len(env_ids) != 0:
+            self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
+            # increment the command counter
+            self.command_counter[env_ids] += 1
+            # resample the command
+            self._resample_command(env_ids)
 
     """
     Implementation specific functions.
@@ -232,10 +233,10 @@ class CommandManager(ManagerBase):
     :class:`CommandTermCfg` class.
     """
 
-    _env: RLTaskEnv
+    _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the command manager.
 
         Args:

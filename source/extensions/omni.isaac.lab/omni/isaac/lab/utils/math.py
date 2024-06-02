@@ -1239,6 +1239,28 @@ def sample_log_uniform(
     return torch.exp(sample_uniform(torch.log(lower), torch.log(upper), size, device))
 
 
+def sample_gaussian(
+    mean: torch.Tensor | float, std: torch.Tensor | float, size: int | tuple[int, ...], device: str
+) -> torch.Tensor:
+    """Sample using gaussian distribution.
+
+    Args:
+        mean: Mean of the gaussian.
+        std: Std of the gaussian.
+        size: The shape of the tensor.
+        device: Device to create tensor on.
+
+    Returns:
+        Sampled tensor.
+    """
+    if isinstance(mean, float):
+        if isinstance(size, int):
+            size = (size,)
+        return torch.normal(mean=mean, std=std, size=size).to(device=device)
+    else:
+        return torch.normal(mean=mean, std=std).to(device=device)
+
+
 def sample_cylinder(
     radius: float, h_range: tuple[float, float], size: int | tuple[int, ...], device: str
 ) -> torch.Tensor:

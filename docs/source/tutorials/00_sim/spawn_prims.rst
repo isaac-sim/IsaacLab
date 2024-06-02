@@ -46,7 +46,7 @@ A collection of these prims, with their attributes and relationships, is called 
 as a container for all prims in a scene. When we say we are designing a scene, we are actually designing a USD stage.
 
 While working with direct USD APIs provides a lot of flexibility, it can be cumbersome to learn and use. To make it
-easier to design scenes, Isaac Lab builds on top of the USD APIs to provide a configuration-drive interface to spawn prims
+easier to design scenes, Isaac Lab builds on top of the USD APIs to provide a configuration-driven interface to spawn prims
 into a scene. These are included in the :mod:`sim.spawners` module.
 
 When spawning prims into the scene, each prim requires a configuration class instance that defines the prim's attributes

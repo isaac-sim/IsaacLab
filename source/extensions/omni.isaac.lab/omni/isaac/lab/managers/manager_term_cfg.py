@@ -73,6 +73,9 @@ class ActionTermCfg:
     class for more details.
     """
 
+    debug_vis: bool = False
+    """Whether to visualize debug information. Defaults to False."""
+
 
 ##
 # Command manager.
@@ -192,6 +195,16 @@ class EventTermCfg(ManagerTermBaseCfg):
     Based on this, the interval is sampled uniformly between the specified
     range for each environment instance. The term is applied on the environment
     instances where the current time hits the interval time.
+
+    Note:
+        This is only used if the mode is ``"interval"``.
+    """
+
+    is_global_time: bool = False
+    """ Whether randomization should be tracked on a per-environment basis.
+
+    If True, the same time for the interval is tracked for all the environments instead of
+    tracking the time per-environment.
 
     Note:
         This is only used if the mode is ``"interval"``.

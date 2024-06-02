@@ -8,7 +8,7 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True, experience="omni.isaac.sim.python.gym.headless.kit").app
+simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
@@ -75,7 +75,7 @@ class TestSimulationContext(unittest.TestCase):
         sim = SimulationContext()
         version = sim.get_version()
         self.assertTrue(len(version) > 0)
-        self.assertTrue(version[0] >= 2023)
+        self.assertTrue(version[0] >= 4)
 
     def test_carb_setting(self):
         """Test setting carb settings."""

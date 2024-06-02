@@ -39,13 +39,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import os
 import torch
 
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
@@ -69,7 +68,7 @@ from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 ##
 
 
-def constant_commands(env: BaseEnv) -> torch.Tensor:
+def constant_commands(env: ManagerBasedEnv) -> torch.Tensor:
     """The generated command from the command generator."""
     return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
 
@@ -178,7 +177,7 @@ class EventCfg:
 
 
 @configclass
-class QuadrupedEnvCfg(BaseEnvCfg):
+class QuadrupedEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
@@ -205,10 +204,10 @@ def main():
     """Main function."""
     # setup base environment
     env_cfg = QuadrupedEnvCfg()
-    env = BaseEnv(cfg=env_cfg)
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # load level policy
-    policy_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "Policies", "ANYmal-C", "policy.pt")
+    policy_path = ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt"
     # check if policy file exists
     if not check_file_path(policy_path):
         raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")

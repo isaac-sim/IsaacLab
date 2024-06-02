@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
@@ -15,7 +16,7 @@ from omni.isaac.lab.assets.articulation import Articulation
 from omni.isaac.lab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
@@ -50,7 +51,7 @@ class JointAction(ActionTerm):
     _offset: torch.Tensor | float
     """The offset applied to the input action."""
 
-    def __init__(self, cfg: actions_cfg.JointActionCfg, env: BaseEnv) -> None:
+    def __init__(self, cfg: actions_cfg.JointActionCfg, env: ManagerBasedEnv) -> None:
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -118,6 +119,9 @@ class JointAction(ActionTerm):
         # apply the affine transformations
         self._processed_actions = self._raw_actions * self._scale + self._offset
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0
+
 
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
@@ -125,7 +129,7 @@ class JointPositionAction(JointAction):
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.JointPositionActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint positions as offset
@@ -156,7 +160,7 @@ class RelativeJointPositionAction(JointAction):
     cfg: actions_cfg.RelativeJointPositionActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.RelativeJointPositionActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.RelativeJointPositionActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
         # use zero offset for relative position
@@ -176,7 +180,7 @@ class JointVelocityAction(JointAction):
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointVelocityActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.JointVelocityActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
         # use default joint velocity as offset
@@ -194,7 +198,7 @@ class JointEffortAction(JointAction):
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""
 
-    def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
     def apply_actions(self):

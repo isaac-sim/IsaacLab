@@ -10,7 +10,7 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.lab.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher, run_tests
 
 # Can set this to False to see the GUI for debugging
 HEADLESS = True
@@ -26,7 +26,7 @@ import unittest
 
 import omni.usd
 
-from omni.isaac.lab.envs import BaseEnv, BaseEnvCfg
+from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.utils import configclass
 
@@ -49,7 +49,7 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
     """Generate base environment config based on device"""
 
     @configclass
-    class EmptyEnvCfg(BaseEnvCfg):
+    class EmptyEnvCfg(ManagerBasedEnvCfg):
         """Configuration for the empty test environment."""
 
         # Scene settings
@@ -82,7 +82,7 @@ class TestBaseEnv(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # create environment
-                env = BaseEnv(cfg=get_empty_base_env_cfg(device=device))
+                env = ManagerBasedEnv(cfg=get_empty_base_env_cfg(device=device))
                 # check size of action manager terms
                 self.assertEqual(env.action_manager.total_action_dim, 0)
                 self.assertEqual(len(env.action_manager.active_terms), 0)
@@ -99,3 +99,7 @@ class TestBaseEnv(unittest.TestCase):
                     obs, ext = env.step(action=act)
                 # close the environment
                 env.close()
+
+
+if __name__ == "__main__":
+    run_tests()

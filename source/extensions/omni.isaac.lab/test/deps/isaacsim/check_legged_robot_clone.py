@@ -42,7 +42,11 @@ import os
 import torch
 
 import carb
-import omni.isaac.core.utils.nucleus as nucleus_utils
+
+try:
+    import omni.isaac.nucleus as nucleus_utils
+except ModuleNotFoundError:
+    import omni.isaac.core.utils.nucleus as nucleus_utils
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.articulations import ArticulationView
@@ -63,8 +67,8 @@ if nucleus_utils.get_assets_root_path() is None:
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac/IsaacLab"
-"""Path to the `Isaac/IsaacLab` directory on the NVIDIA Nucleus Server."""
+ISAACLAB_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac/Samples/Orbit"
+"""Path to the `Isaac/Samples/Orbit` directory on the NVIDIA Nucleus Server."""
 
 
 """

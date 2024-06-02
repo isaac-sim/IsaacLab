@@ -48,6 +48,9 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     * ``"velocity"``: The joint stiff is set to zero and damping is based on the URDF file or provided configuration.
     """
 
+    override_joint_dynamics: bool = False
+    """Override the joint dynamics parsed from the URDF file. Defaults to False."""
+
     default_drive_stiffness: float = 0.0
     """The default stiffness of the joint drive. Defaults to 0.0."""
 
@@ -55,6 +58,6 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """The default damping of the joint drive. Defaults to 0.0.
 
     Note:
-        If set to zero, the values parsed from the URDF joint tag ``"<dynamics><damping>"`` are used.
+        If ``override_joint_dynamics`` is True, the values parsed from the URDF joint tag ``"<dynamics><damping>"`` are used.
         Otherwise, it is overridden by the configured value.
     """

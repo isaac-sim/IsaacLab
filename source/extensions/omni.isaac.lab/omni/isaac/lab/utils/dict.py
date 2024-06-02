@@ -222,9 +222,6 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
     This function mimics the dict.update() function. However, it works for
     nested dictionaries as well.
 
-    Reference:
-        https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
-
     Args:
         orig_dict: The original dictionary to insert items to.
         new_dict: The new dictionary to insert items from.

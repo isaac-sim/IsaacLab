@@ -23,6 +23,11 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument(
+    "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+)
+parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -76,6 +81,19 @@ def main():
     agent_cfg["params"]["config"]["train_dir"] = log_root_path
     agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
 
+    # multi-gpu training config
+    if args_cli.distributed:
+        agent_cfg["params"]["seed"] += app_launcher.global_rank
+        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["config"]["device_name"] = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["config"]["multi_gpu"] = True
+        # update env config device
+        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+
+    # max iterations
+    if args_cli.max_iterations:
+        agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
+
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
@@ -92,7 +110,7 @@ def main():
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos"),
+            "video_folder": os.path.join(log_root_path, log_dir, "videos"),
             "step_trigger": lambda step: step % args_cli.video_interval == 0,
             "video_length": args_cli.video_length,
             "disable_logger": True,

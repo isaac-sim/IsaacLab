@@ -23,7 +23,7 @@ Usage:
 
 import argparse
 
-# omni-isaac-lab
+# omni.isaac.lab
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import torch
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
@@ -15,7 +16,7 @@ from omni.isaac.lab.managers.action_manager import ActionTerm
 from omni.isaac.lab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 
@@ -59,7 +60,7 @@ class NonHolonomicAction(ActionTerm):
     _offset: torch.Tensor
     """The offset applied to the input action. Shape is (1, 2)."""
 
-    def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: BaseEnv):
+    def __init__(self, cfg: actions_cfg.NonHolonomicActionCfg, env: ManagerBasedEnv):
         # initialize the action term
         super().__init__(cfg, env)
 
@@ -139,3 +140,6 @@ class NonHolonomicAction(ActionTerm):
         self._joint_vel_command[:, 2] = self.processed_actions[:, 1]  # yaw
         # set the joint velocity targets
         self._asset.set_joint_velocity_target(self._joint_vel_command, joint_ids=self._joint_ids)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        self._raw_actions[env_ids] = 0.0

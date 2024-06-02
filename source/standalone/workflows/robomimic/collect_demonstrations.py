@@ -40,7 +40,7 @@ from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.manipulation.lift import mdp
+from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.utils.data_collector import RobomimicDataCollector
 from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 

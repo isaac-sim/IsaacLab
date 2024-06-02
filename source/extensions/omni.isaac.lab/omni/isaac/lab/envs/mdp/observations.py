@@ -20,42 +20,42 @@ from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import RayCaster
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import BaseEnv, RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 """
 Root state.
 """
 
 
-def base_pos_z(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_pos_z(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root height in the simulation world frame."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return asset.data.root_pos_w[:, 2].unsqueeze(-1)
 
 
-def base_lin_vel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_lin_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root linear velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_b
 
 
-def base_ang_vel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def base_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Root angular velocity in the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_ang_vel_b
 
 
-def projected_gravity(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Gravity projection on the asset's root frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.projected_gravity_b
 
 
-def root_pos_w(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def root_pos_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root position in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -63,7 +63,7 @@ def root_pos_w(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 
 
 def root_quat_w(
-    env: BaseEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedEnv, make_quat_unique: bool = False, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Asset root orientation (w, x, y, z) in the environment frame.
 
@@ -79,14 +79,14 @@ def root_quat_w(
     return math_utils.quat_unique(quat) if make_quat_unique else quat
 
 
-def root_lin_vel_w(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def root_lin_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_lin_vel_w
 
 
-def root_ang_vel_w(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def root_ang_vel_w(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root angular velocity in the environment frame."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
@@ -98,7 +98,7 @@ Joint state.
 """
 
 
-def joint_pos(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset.
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
@@ -108,7 +108,7 @@ def joint_pos(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"))
     return asset.data.joint_pos[:, asset_cfg.joint_ids]
 
 
-def joint_pos_rel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions.
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
@@ -118,7 +118,9 @@ def joint_pos_rel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robo
     return asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
 
 
-def joint_pos_limit_normalized(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def joint_pos_limit_normalized(
+    env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """The joint positions of the asset normalized with the asset's joint limits.
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their normalized positions returned.
@@ -132,7 +134,7 @@ def joint_pos_limit_normalized(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEn
     )
 
 
-def joint_vel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset.
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
@@ -142,7 +144,7 @@ def joint_vel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"))
     return asset.data.joint_vel[:, asset_cfg.joint_ids]
 
 
-def joint_vel_rel(env: BaseEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset w.r.t. the default joint velocities.
 
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
@@ -157,7 +159,7 @@ Sensors.
 """
 
 
-def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
+def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.
 
     The provided offset (Defaults to 0.5) is subtracted from the returned values.
@@ -168,7 +170,7 @@ def height_scan(env: BaseEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -
     return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
 
 
-def body_incoming_wrench(env: BaseEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
 
     This is the 6-D wrench (force and torque) applied to the body link by the incoming joint force.
@@ -185,7 +187,7 @@ Actions.
 """
 
 
-def last_action(env: BaseEnv, action_name: str | None = None) -> torch.Tensor:
+def last_action(env: ManagerBasedEnv, action_name: str | None = None) -> torch.Tensor:
     """The last input action to the environment.
 
     The name of the action term for which the action is required. If None, the
@@ -202,6 +204,6 @@ Commands.
 """
 
 
-def generated_commands(env: RLTaskEnv, command_name: str) -> torch.Tensor:
+def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)

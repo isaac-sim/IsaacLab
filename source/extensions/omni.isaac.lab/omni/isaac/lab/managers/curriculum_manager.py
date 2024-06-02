@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import RLTaskEnv
+    from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
 class CurriculumManager(ManagerBase):
@@ -30,10 +30,10 @@ class CurriculumManager(ManagerBase):
     parameters. Each curriculum term should instantiate the :class:`CurriculumTermCfg` class.
     """
 
-    _env: RLTaskEnv
+    _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: RLTaskEnv):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the manager.
 
         Args:

@@ -159,7 +159,7 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 .. code:: bash
 
-    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --offscreen_render
+    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --enable_cameras
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 

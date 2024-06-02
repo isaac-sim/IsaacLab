@@ -71,3 +71,37 @@ def raycast_mesh_kernel(
             ray_normal[tid] = n
         if return_face_id == 1:
             ray_face_id[tid] = f
+
+
+@wp.kernel
+def reshape_tiled_image(
+    tiled_image_buffer: wp.array(dtype=float),
+    batched_image: wp.array(dtype=float, ndim=4),
+    image_height: int,
+    image_width: int,
+    num_channels: int,
+    num_tiles_x: int,
+    offset: int,
+):
+    """Reshape a tiled image (height*width*num_channels*num_cameras,) to a batch of images (num_cameras, height, width, num_channels).
+
+    Args:
+        tiled_image_buffer: The input image buffer. Shape is (height*width*num_channels*num_cameras,).
+        batched_image: The output image. Shape is (num_cameras, height, width, num_channels).
+        image_width: The width of the image.
+        image_height: The height of the image.
+        num_channels: The number of channels in the image.
+        num_tiles_x: The number of tiles in x direction.
+        offset: The offset in the image buffer. This is used when multiple image types are concatenated in the buffer.
+    """
+    camera_id, height_id, width_id = wp.tid()
+    tile_x_id = camera_id % num_tiles_x
+    tile_y_id = camera_id // num_tiles_x
+    pixel_start = (
+        offset
+        + num_channels * num_tiles_x * image_width * (image_height * tile_y_id + height_id)
+        + num_channels * tile_x_id * image_width
+        + num_channels * width_id
+    )
+    for i in range(num_channels):
+        batched_image[camera_id, height_id, width_id, i] = tiled_image_buffer[pixel_start + i]

@@ -256,6 +256,8 @@ class Camera(SensorBase):
                 #   layer (default cameras are on session layer), and this is the simplest
                 #   way to set the property on the right layer.
                 omni.usd.set_prop_val(param_attr(), param_value)
+        # update the internal buffers
+        self._update_intrinsic_matrices(env_ids)
 
     """
     Operations - Set pose.
@@ -336,6 +338,10 @@ class Camera(SensorBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None):
+        if not self._is_initialized:
+            raise RuntimeError(
+                "Camera could not be initialized. Please ensure --enable_cameras is used to enable rendering."
+            )
         # reset the timestamps
         super().reset(env_ids)
         # resolve None
@@ -345,7 +351,6 @@ class Camera(SensorBase):
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_poses(env_ids)
-        self._update_intrinsic_matrices(env_ids)
         # Reset the frame count
         self._frame[env_ids] = 0
 
@@ -361,8 +366,14 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
+            RuntimeError: If replicator was not found.
         """
-        import omni.replicator.core as rep
+        try:
+            import omni.replicator.core as rep
+        except ModuleNotFoundError:
+            raise RuntimeError(
+                "Replicator was not found for rendering. Please use --enable_cameras to enable rendering."
+            )
         from omni.syntheticdata.scripts.SyntheticData import SyntheticData
 
         # Initialize parent class
@@ -447,12 +458,11 @@ class Camera(SensorBase):
 
         # Create internal buffers
         self._create_buffers()
+        self._update_intrinsic_matrices(self._ALL_INDICES)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
-        # -- intrinsic matrix
-        self._update_intrinsic_matrices(env_ids)
         # -- pose
         self._update_poses(env_ids)
         # -- read the data from annotator registry

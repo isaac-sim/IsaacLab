@@ -1,8 +1,9 @@
 Changelog
 ---------
 
-0.16.5 (2024-05-22)
-~~~~~~~~~~~~~~~~~~~
+
+0.17.11 (2024-05-30)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -12,8 +13,8 @@ Fixed
   :meth:`omni.isaac.lab.sensor.ContactSensor._debug_vis_callback` is called which references it.
 
 
-0.16.4 (2024-05-15)
-~~~~~~~~~~~~~~~~~~~
+0.17.10 (2024-05-30)
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -23,7 +24,7 @@ Fixed
   compound objects were reflected across all instances generated from the same ``default_factory`` method.
 
 
-0.16.3 (2024-05-13)
+0.17.9 (2024-05-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -33,7 +34,139 @@ Added
   variants when loading assets from USD files.
 
 
-0.16.2 (2024-04-26)
+0.17.8 (2024-05-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Implemented the reset methods in the action terms to avoid returning outdated data.
+
+
+0.17.7 (2024-05-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added debug visualization utilities in the :class:`omni.isaac.lab.managers.ActionManager` class.
+
+
+0.17.6 (2024-05-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``wp.init()`` call in Warp utils.
+
+
+0.17.5 (2024-05-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Websocket livestreaming is no longer supported. Valid livestream options are {0, 1, 2}.
+* WebRTC livestream is now set with livestream=2.
+
+
+0.17.4 (2024-05-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the noise functions to also support add, scale, and abs operations on the data. Added aliases
+  to ensure backward compatibility with the previous functions.
+
+  * Added :attr:`omni.isaac.lab.utils.noise.NoiseCfg.operation` for the different operations.
+  * Renamed ``constant_bias_noise`` to :func:`omni.isaac.lab.utils.noise.constant_noise`.
+  * Renamed ``additive_uniform_noise`` to :func:`omni.isaac.lab.utils.noise.uniform_noise`.
+  * Renamed ``additive_gaussian_noise`` to :func:`omni.isaac.lab.utils.noise.gaussian_noise`.
+
+
+0.17.3 (2024-05-15)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set ``hide_ui`` flag in the app launcher for livestream.
+* Fix native client livestream extensions.
+
+
+0.17.2 (2024-05-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed ``_range`` to ``distribution_params`` in ``events.py`` for methods that defined a distribution.
+* Apply additive/scaling randomization noise on default data instead of current data.
+* Changed material bucketing logic to prevent exceeding 64k materials.
+
+Fixed
+^^^^^
+
+* Fixed broadcasting issues with indexing when environment and joint IDs are provided.
+* Fixed incorrect tensor dimensions when setting a subset of environments.
+
+Added
+^^^^^
+
+* Added support for randomization of fixed tendon parameters.
+* Added support for randomization of dof limits.
+* Added support for randomization of gravity.
+* Added support for Gaussian sampling.
+* Added default buffers to Articulation/Rigid object data classes for randomization.
+
+
+0.17.1 (2024-05-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added attribute :attr:`omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics` to properly parse
+  joint dynamics in :class:`omni.isaac.lab.sim.converters.UrdfConverter`.
+
+
+0.17.0 (2024-05-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed ``BaseEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedEnv`.
+* Renamed ``base_env.py`` to ``manager_based_env.py``.
+* Renamed ``BaseEnvCfg`` to :class:`omni.isaac.lab.envs.ManagerBasedEnvCfg`.
+* Renamed ``RLTaskEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`.
+* Renamed ``rl_task_env.py`` to ``manager_based_rl_env.py``.
+* Renamed ``RLTaskEnvCfg`` to :class:`omni.isaac.lab.envs.ManagerBasedRLEnvCfg`.
+* Renamed ``rl_task_env_cfg.py`` to ``rl_env_cfg.py``.
+* Renamed ``OIGEEnv`` to :class:`omni.isaac.lab.envs.DirectRLEnv`.
+* Renamed ``oige_env.py`` to ``direct_rl_env.py``.
+* Renamed ``RLTaskEnvWindow`` to :class:`omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow`.
+* Renamed ``rl_task_env_window.py`` to ``manager_based_rl_env_window.py``.
+* Renamed all references of ``BaseEnv``, ``BaseEnvCfg``, ``RLTaskEnv``, ``RLTaskEnvCfg``,  ``OIGEEnv``, and ``RLTaskEnvWindow``.
+
+Added
+^^^^^
+
+* Added direct workflow base class :class:`omni.isaac.lab.envs.DirectRLEnv`.
+
+
+0.16.4 (2024-05-06)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :class:`omni.isaac.lab.sensors.TiledCamera` to support tiled rendering with RGB and depth.
+
+
+0.16.3 (2024-04-26)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -42,6 +175,16 @@ Fixed
 * Fixed parsing of filter prim path expressions in the :class:`omni.isaac.lab.sensors.ContactSensor` class.
   Earlier, the filter prim paths given to the physics view was not being parsed since they were specified as
   regex expressions instead of glob expressions.
+
+
+0.16.2 (2024-04-25)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified the installation procedure, isaaclab -e is no longer needed
+* Updated torch dependency to 2.2.2
 
 
 0.16.1 (2024-04-20)
@@ -90,6 +233,16 @@ Deprecated
 * Deprecated the function :meth:`omni.isaac.lab.envs.mdp.add_body_mass` in favor of
   :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass`. This supports randomizing the mass based on different
   operations (add, scale, or set) and sampling distributions.
+
+
+0.15.13 (2024-04-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Improved startup performance by enabling rendering-based extensions only when necessary and caching of nucleus directory.
+* Renamed the flag ``OFFSCREEN_RENDER`` or ``--offscreen_render`` to ``ENABLE_CAMERAS`` or ``--enable_cameras`` respectively.
 
 
 0.15.12 (2024-04-16)
@@ -1283,9 +1436,9 @@ Added
 Added
 ^^^^^
 
-* Created :class:`omni.issac.lab.sim.converters.asset_converter.AssetConverter` to serve as a base
+* Created :class:`omni.isaac.lab.sim.converters.asset_converter.AssetConverter` to serve as a base
   class for all asset converters.
-* Added :class:`omni.issac.lab.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
+* Added :class:`omni.isaac.lab.sim.converters.mesh_converter.MeshConverter` to handle loading and conversion
   of mesh files (OBJ, STL and FBX) into USD format.
 * Added script ``convert_mesh.py`` to ``source/tools`` to allow users to convert a mesh to USD via command line arguments.
 
@@ -1567,7 +1720,7 @@ Added
 Changed
 ^^^^^^^
 
-* Adapted all the sensor classes to follow a structure similar to the :class:`omni.issac.lab.assets.AssetBase`.
+* Adapted all the sensor classes to follow a structure similar to the :class:`omni.isaac.lab.assets.AssetBase`.
   Hence, the spawning and initialization of sensors manually by the users is avoided.
 * Removed the :meth:`debug_vis` function since that this functionality is handled by a render callback automatically
   (based on the passed configuration for the :class:`omni.isaac.lab.sensors.SensorBaseCfg.debug_vis` flag).

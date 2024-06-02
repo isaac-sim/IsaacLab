@@ -7,6 +7,7 @@
 TESTS_TO_SKIP = [
     # lab
     "test_argparser_launch.py",  # app.close issue
+    "test_build_simulation_context_nonheadless.py",  # headless
     "test_env_var_launch.py",  # app.close issue
     "test_kwarg_launch.py",  # app.close issue
     "test_differential_ik.py",  # Failing

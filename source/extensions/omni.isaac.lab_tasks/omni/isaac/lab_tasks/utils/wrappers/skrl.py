@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Wrapper to configure an :class:`RLTaskEnv` instance to skrl environment.
+"""Wrapper to configure an :class:`ManagerBasedRLEnv` instance to skrl environment.
 
 The following example shows how to wrap an environment for skrl:
 
@@ -38,7 +38,7 @@ from skrl.trainers.torch import Trainer
 from skrl.trainers.torch.sequential import SEQUENTIAL_TRAINER_DEFAULT_CONFIG
 from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
 
-from omni.isaac.lab.envs import RLTaskEnv
+from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
 Configuration Parser.
@@ -91,10 +91,10 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlVecEnvWrapper(env: RLTaskEnv):
+def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
     """Wraps around Isaac Lab environment for skrl.
 
-    This function wraps around the Isaac Lab environment. Since the :class:`RLTaskEnv` environment
+    This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment
     wrapping functionality is defined within the skrl library itself, this implementation
     is maintained for compatibility with the structure of the extension that contains it.
     Internally it calls the :func:`wrap_env` from the skrl library API.
@@ -103,14 +103,16 @@ def SkrlVecEnvWrapper(env: RLTaskEnv):
         env: The environment to wrap around.
 
     Raises:
-        ValueError: When the environment is not an instance of :class:`RLTaskEnv`.
+        ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
 
     Reference:
-        https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html
+        https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
     # check that input is valid
-    if not isinstance(env.unwrapped, RLTaskEnv):
-        raise ValueError(f"The environment must be inherited from RLTaskEnv. Environment type: {type(env)}")
+    if not isinstance(env.unwrapped, ManagerBasedRLEnv) and not isinstance(env.unwrapped, DirectRLEnv):
+        raise ValueError(
+            f"The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: {type(env)}"
+        )
     # wrap and return the environment
     return wrap_env(env, wrapper="isaac-orbit")
 
@@ -134,7 +136,7 @@ class SkrlSequentialLogTrainer(Trainer):
     * It does not close the environment at the end of the training.
 
     Reference:
-        https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html
+        https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class
     """
 
     def __init__(
@@ -210,8 +212,8 @@ class SkrlSequentialLogTrainer(Trainer):
                     timesteps=self.timesteps,
                 )
             # log custom environment data
-            if "episode" in infos:
-                for k, v in infos["episode"].items():
+            if "log" in infos:
+                for k, v in infos["log"].items():
                     if isinstance(v, torch.Tensor) and v.numel() == 1:
                         self.agents.track_data(f"EpisodeInfo / {k}", v.item())
             # post-interaction
