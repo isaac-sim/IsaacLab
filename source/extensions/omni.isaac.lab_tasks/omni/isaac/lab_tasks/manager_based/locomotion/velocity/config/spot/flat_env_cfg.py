@@ -212,9 +212,14 @@ class SpotRewardsCfg:
         },
     )
     gait = RewardTermCfg(
-        func=spot_mdp.gait_reward,
+        func=spot_mdp.GaitReward,
         weight=10.0,
-        params={"std": 0.1, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+        params={
+            "std": 0.1,
+            "max_err": 0.2,
+            "synced_feet_pair_names": (("fl_foot", "hr_foot"), ("fr_foot", "hl_foot")),
+            "sensor_cfg": SceneEntityCfg("contact_forces"),
+        },
     )
 
     # -- penalties
