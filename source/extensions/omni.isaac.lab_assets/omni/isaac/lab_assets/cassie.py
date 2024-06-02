@@ -21,7 +21,6 @@ from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 # Configuration
 ##
 
-
 CASSIE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",

@@ -23,7 +23,6 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 # Configuration
 ##
 
-
 KINOVA_JACO2_N7S300_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Kinova/Jaco2/J2N7S300/j2n7s300_instanceable.usd",

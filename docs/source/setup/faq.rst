@@ -40,7 +40,7 @@ a starting point to understand what is possible with the simulators for robot le
 can be used for benchmarking but are not designed for developing and testing custom environments and algorithms.
 This is where Isaac Lab comes in.
 
-Isaac Lab :cite:`mittal2023orbit` is built on top of Isaac Sim to provide a unified and flexible framework
+Isaac Lab is built on top of Isaac Sim to provide a unified and flexible framework
 for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
 motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to

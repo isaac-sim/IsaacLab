@@ -1,4 +1,4 @@
-![Example Tasks created with Isaac Lab](docs/source/_static/tasks.jpg)
+![Isaac Lab](docs/source/_static/isaaclab.jpg)
 
 ---
 
@@ -54,20 +54,3 @@ or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-
 NVIDIA Isaac Sim is available freely under [individual license](https://www.nvidia.com/en-us/omniverse/download/). For more information about its license terms, please check [here](https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement).
 
 The Isaac Lab framework is released under [BSD-3 License](LICENSE). The license files of its dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
-
-## Citing
-
-If you use this framework in your work, please cite [this paper](https://arxiv.org/abs/2301.04195):
-
-```text
-@article{mittal2023orbit,
-   author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
-   journal={IEEE Robotics and Automation Letters},
-   title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
-   year={2023},
-   volume={8},
-   number={6},
-   pages={3740-3747},
-   doi={10.1109/LRA.2023.3270034}
-}
-```

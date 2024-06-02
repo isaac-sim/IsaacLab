@@ -11,6 +11,10 @@ from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+##
+# Configuration
+##
+
 CARTPOLE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
@@ -45,3 +49,4 @@ CARTPOLE_CFG = ArticulationCfg(
         ),
     },
 )
+"""Configuration for a simple Cartpole robot."""

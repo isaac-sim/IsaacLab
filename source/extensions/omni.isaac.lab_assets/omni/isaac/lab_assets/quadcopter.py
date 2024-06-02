@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Quadcopters"""
+"""Configuration for the quadcopters"""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import ImplicitActuatorCfg
 from omni.isaac.lab.assets import ArticulationCfg
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+
+##
+# Configuration
+##
 
 CRAZYFLIE_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -50,3 +54,4 @@ CRAZYFLIE_CFG = ArticulationCfg(
         ),
     },
 )
+"""Configuration for the Crazyflie quadcopter."""

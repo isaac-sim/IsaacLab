@@ -36,7 +36,7 @@ from omni.isaac.lab.sim import SimulationContext
 # Pre-defined configs
 ##
 from omni.isaac.lab_assets.cassie import CASSIE_CFG  # isort:skip
-from omni.isaac.lab_assets.h1 import H1_CFG  # isort:skip
+from omni.isaac.lab_assets import H1_CFG  # isort:skip
 
 
 def main():
