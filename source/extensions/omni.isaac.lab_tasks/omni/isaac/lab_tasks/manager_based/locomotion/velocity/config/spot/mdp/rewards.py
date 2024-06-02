@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 # -- Task Rewards
 
+
 def air_time_reward(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, mode_time: float) -> torch.Tensor:
     """Reward longer feet air and contact time"""
     # extract the used quantities (to enable type-hinting)
