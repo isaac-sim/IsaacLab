@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../_static/tabs.js"></script>
     <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/scene/interactive_scene';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -551,6 +569,8 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_extras</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="c1"># obtain the current stage</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">get_stage</span><span class="p">()</span>
+        <span class="c1"># physics scene path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1"># prepare cloner for environment replication</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span> <span class="o">=</span> <span class="n">GridCloner</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">env_spacing</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">define_base_env</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env_ns</span><span class="p">)</span>
@@ -565,30 +585,54 @@ document.write(`
             <span class="n">copy_from_source</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_default_env_origins</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">env_origins</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-        <span class="c1"># add entities from config</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_add_entities_from_cfg</span><span class="p">()</span>
-        <span class="c1"># replicate physics if we have more than one environment</span>
-        <span class="c1"># this is done to make scene initialization faster at play time</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">(</span>
-                <span class="n">source_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
-                <span class="n">prim_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
-                <span class="n">base_env_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_ns</span><span class="p">,</span>
-                <span class="n">root_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
-            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_scene_setup_from_cfg</span><span class="p">():</span>
+            <span class="c1"># add entities from config</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_add_entities_from_cfg</span><span class="p">()</span>
+            <span class="c1"># replicate physics if we have more than one environment</span>
+            <span class="c1"># this is done to make scene initialization faster at play time</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">num_envs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">(</span>
+                    <span class="n">source_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">prim_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
+                    <span class="n">base_env_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_ns</span><span class="p">,</span>
+                    <span class="n">root_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="InteractiveScene.clone_environments"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.clone_environments">[docs]</a>    <span class="k">def</span> <span class="nf">clone_environments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">copy_from_source</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates clones of the environment ``/World/envs/env_0``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            copy_from_source: (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.</span>
+<span class="sd">            If True, clones are independent copies of the source prim and won&#39;t reflect its changes (start-up time</span>
+<span class="sd">            may increase). Defaults to False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span>
+            <span class="n">source_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">prim_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
+            <span class="n">replicate_physics</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">replicate_physics</span><span class="p">,</span>
+            <span class="n">copy_from_source</span><span class="o">=</span><span class="n">copy_from_source</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="InteractiveScene.filter_collisions"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.filter_collisions">[docs]</a>    <span class="k">def</span> <span class="nf">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">global_prim_paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Filter environments collisions.</span>
+
+<span class="sd">        Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims</span>
+<span class="sd">        in global prim paths (e.g. ground plane).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            global_prim_paths: The global prim paths to enable collisions with.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># obtain the current physics scene</span>
-        <span class="n">physics_scene_prim_path</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxSceneAPI</span><span class="p">):</span>
-                <span class="n">physics_scene_prim_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span>
-                <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Physics scene prim path: </span><span class="si">{</span><span class="n">physics_scene_prim_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-                <span class="k">break</span>
+        <span class="n">physics_scene_prim_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">physics_scene_path</span>
+
         <span class="c1"># filter collisions within each environment instance</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cloner</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span>
             <span class="n">physics_scene_prim_path</span><span class="p">,</span>
             <span class="s2">&quot;/World/collisions&quot;</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">env_prim_paths</span><span class="p">,</span>
-            <span class="n">global_paths</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">,</span>
+            <span class="n">global_paths</span><span class="o">=</span><span class="n">global_prim_paths</span><span class="p">,</span>
         <span class="p">)</span></div>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -604,6 +648,17 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Properties.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">physics_scene_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Search the stage for the physics scene&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">prim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span><span class="o">.</span><span class="n">Traverse</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">prim</span><span class="o">.</span><span class="n">HasAPI</span><span class="p">(</span><span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxSceneAPI</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span> <span class="o">=</span> <span class="n">prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span>
+                    <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Physics scene prim path: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="k">break</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_scene_path</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">physics_dt</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
@@ -786,6 +841,12 @@ document.write(`
 <span class="sd">    Internal methods.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="k">def</span> <span class="nf">_is_scene_setup_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="ow">not</span> <span class="p">(</span><span class="n">asset_name</span> <span class="ow">in</span> <span class="n">InteractiveSceneCfg</span><span class="o">.</span><span class="n">__dataclass_fields__</span> <span class="ow">or</span> <span class="n">asset_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">asset_name</span><span class="p">,</span> <span class="n">asset_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">_add_entities_from_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Add scene entities from the config.&quot;&quot;&quot;</span>
         <span class="c1"># store paths that are in global collision filter</span>
@@ -888,7 +949,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

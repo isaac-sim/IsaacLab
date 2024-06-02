@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="omni.isaac.lab_tasks.utils" href="omni.isaac.lab_tasks.utils.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -670,7 +687,7 @@ Thus, they should always be used in conjunction with the respective learning fra
 </div>
 <section id="module-omni.isaac.lab_tasks.utils.wrappers.rl_games">
 <span id="rl-games-wrapper"></span><h2>RL-Games Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.rl_games" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code> instance to RL-Games vectorized environment.</p>
+<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to RL-Games vectorized environment.</p>
 <p>The following example shows how to wrap an environment for RL-Games and register the environment construction
 for RL-Games <code class="xref py py-class docutils literal notranslate"><span class="pre">Runner</span></code> class:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">rl_games.common</span> <span class="kn">import</span> <span class="n">env_configurations</span><span class="p">,</span> <span class="n">vecenv</span>
@@ -717,7 +734,7 @@ observations and actions.</p>
 <p>For algorithms like asymmetric actor-critic, RL-Games expects a dictionary for
 observations. This dictionary contains “obs” and “states” which typically correspond
 to the actor and critic observations respectively.</p>
-<p>To use asymmetric actor-critic, the environment observations from <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>
+<p>To use asymmetric actor-critic, the environment observations from <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>
 must have the key or group name “critic”. The observation group is used to set the
 <code class="xref py py-attr docutils literal notranslate"><span class="pre">num_states</span></code> (int) and <a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.state_space" title="omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.state_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">state_space</span></code></a> (<code class="xref py py-obj docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>). These are
 used by the learning agent in RL-Games to allocate buffers in the trajectory memory.
@@ -781,7 +798,7 @@ wrapper.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rl_device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rl_games.html#RlGamesVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rl_device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip_actions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rl_games.html#RlGamesVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initializes the wrapper instance.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -794,7 +811,7 @@ wrapper.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
 <dd class="field-even"><ul class="simple">
-<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – The environment is not inherited from <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – The environment is not inherited from <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p></li>
 <li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If specified, the privileged observations (critic) are not of type <code class="xref py py-obj docutils literal notranslate"><span class="pre">gym.spaces.Box</span></code>.</p></li>
 </ul>
 </dd>
@@ -827,7 +844,7 @@ wrapper.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.unwrapped">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the base environment of the wrapper.</p>
 <p>This will be the bare <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> environment, underneath all layers of wrappers.</p>
 </dd></dl>
@@ -925,14 +942,14 @@ wrapper.</p>
 </section>
 <section id="module-omni.isaac.lab_tasks.utils.wrappers.rsl_rl">
 <span id="rsl-rl-wrapper"></span><h2>RSL-RL Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.rsl_rl" title="Permalink to this heading">#</a></h2>
-<p>Wrappers and utilities to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code> for RSL-RL library.</p>
+<p>Wrappers and utilities to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> for RSL-RL library.</p>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_jit" title="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_jit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_policy_as_jit</span></code></a>(actor_critic, ...[, ...])</p></td>
 <td><p>Export policy into a Torch JIT file.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx" title="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_policy_as_onnx</span></code></a>(actor_critic, ...[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx" title="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">export_policy_as_onnx</span></code></a>(actor_critic, path[, ...])</p></td>
 <td><p>Export policy into a Torch ONNX file.</p></td>
 </tr>
 </tbody>
@@ -970,15 +987,11 @@ wrapper.</p>
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>Reference:</dt><dd><p><a class="github reference external" href="https://github.com/leggedrobotics/legged_gym/blob/master/legged_gym/utils/helpers.py#L180">leggedrobotics/legged_gym</a></p>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">export_policy_as_onnx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">actor_critic</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'policy.onnx'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rsl_rl/exporter.html#export_policy_as_onnx"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.rsl_rl.</span></span><span class="sig-name descname"><span class="pre">export_policy_as_onnx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">actor_critic</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'policy.onnx'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rsl_rl/exporter.html#export_policy_as_onnx"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.export_policy_as_onnx" title="Permalink to this definition">#</a></dt>
 <dd><p>Export policy into a Torch ONNX file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1014,7 +1027,10 @@ wrapper.</p>
 <td><p>The seed for the experiment.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.device" title="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
-<td><p>The device for the rl-agent.</p></td>
+<td><p><ol class="arabic simple" start="0">
+<li></li>
+</ol>
+</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.num_steps_per_env" title="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.num_steps_per_env"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_steps_per_env</span></code></a></p></td>
 <td><p>The number of steps per environment per update.</p></td>
@@ -1075,7 +1091,14 @@ wrapper.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.device">
 <span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlOnPolicyRunnerCfg.device" title="Permalink to this definition">#</a></dt>
-<dd><p>The device for the rl-agent. Default is cuda.</p>
+<dd><ol class="arabic simple" start="0">
+<li></li>
+</ol>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The device for the rl-agent. Default is cuda</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1446,7 +1469,7 @@ wrapper.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rsl_rl/vecenv_wrapper.html#RslRlVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/rsl_rl/vecenv_wrapper.html#RslRlVecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initializes the wrapper.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1457,7 +1480,7 @@ wrapper.</p>
 <dd class="field-odd"><p><strong>env</strong> – The environment to wrap around.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1494,7 +1517,7 @@ wrapper.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.unwrapped">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.rsl_rl.RslRlVecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the base environment of the wrapper.</p>
 <p>This will be the bare <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> environment, underneath all layers of wrappers.</p>
 </dd></dl>
@@ -1516,7 +1539,7 @@ wrapper.</p>
 </section>
 <section id="module-omni.isaac.lab_tasks.utils.wrappers.skrl">
 <span id="skrl-wrapper"></span><h2>SKRL Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.skrl" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code> instance to skrl environment.</p>
+<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to skrl environment.</p>
 <p>The following example shows how to wrap an environment for skrl:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.skrl</span> <span class="kn">import</span> <span class="n">SkrlVecEnvWrapper</span>
 
@@ -1566,9 +1589,9 @@ wrapper.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">SkrlVecEnvWrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">SkrlVecEnvWrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="Permalink to this definition">#</a></dt>
 <dd><p>Wraps around Isaac Lab environment for skrl.</p>
-<p>This function wraps around the Isaac Lab environment. Since the <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code> environment
+<p>This function wraps around the Isaac Lab environment. Since the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> environment
 wrapping functionality is defined within the skrl library itself, this implementation
 is maintained for compatibility with the structure of the extension that contains it.
 Internally it calls the <code class="xref py py-func docutils literal notranslate"><span class="pre">wrap_env()</span></code> from the skrl library API.</p>
@@ -1577,11 +1600,11 @@ Internally it calls the <code class="xref py py-func docutils literal notranslat
 <dd class="field-odd"><p><strong>env</strong> – The environment to wrap around.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p>
 </dd>
 </dl>
 <dl class="simple">
-<dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html">https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html</a></p>
+<dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html">https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html</a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -1601,7 +1624,7 @@ differences:</p>
 <li><p>It does not close the environment at the end of the training.</p></li>
 </ul>
 <dl class="simple">
-<dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html">https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html</a></p>
+<dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class">https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class</a></p>
 </dd>
 </dl>
 <p><strong>Methods:</strong></p>
@@ -1670,7 +1693,7 @@ train on. Defaults to None.</p></li>
 </section>
 <section id="module-omni.isaac.lab_tasks.utils.wrappers.sb3">
 <span id="stable-baselines3-wrapper"></span><h2>Stable-Baselines3 Wrapper<a class="headerlink" href="#module-omni.isaac.lab_tasks.utils.wrappers.sb3" title="Permalink to this heading">#</a></h2>
-<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code> instance to Stable-Baselines3 vectorized environment.</p>
+<p>Wrapper to configure an <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> instance to Stable-Baselines3 vectorized environment.</p>
 <p>The following example shows how to wrap an environment for Stable-Baselines3:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.sb3</span> <span class="kn">import</span> <span class="n">Sb3VecEnvWrapper</span>
 
@@ -1722,7 +1745,7 @@ train on. Defaults to None.</p></li>
 still considered a single environment instance, Stable Baselines tries to wrap
 around it using the <code class="xref py py-class docutils literal notranslate"><span class="pre">DummyVecEnv</span></code>. This is only done if the environment
 is not inheriting from their <code class="xref py py-class docutils literal notranslate"><span class="pre">VecEnv</span></code>. Thus, this class thinly wraps
-over the environment from <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>.</p>
+over the environment from <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>While Stable-Baselines3 supports Gym 0.26+ API, their vectorized environment
@@ -1786,14 +1809,14 @@ wrapper.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/sb3.html#Sb3VecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/sb3.html#Sb3VecEnvWrapper.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the wrapper.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>env</strong> – The environment to wrap around.</p>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code>.</p>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1806,7 +1829,7 @@ wrapper.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.unwrapped">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.rl_task_env.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">unwrapped</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></em><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.sb3.Sb3VecEnvWrapper.unwrapped" title="Permalink to this definition">#</a></dt>
 <dd><p>Returns the base environment of the wrapper.</p>
 <p>This will be the bare <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> environment, underneath all layers of wrappers.</p>
 </dd></dl>
@@ -2015,7 +2038,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

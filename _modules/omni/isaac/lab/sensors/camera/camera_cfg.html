@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/camera_cfg';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -479,6 +497,7 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">..sensor_base_cfg</span> <span class="kn">import</span> <span class="n">SensorBaseCfg</span>
 <span class="kn">from</span> <span class="nn">.camera</span> <span class="kn">import</span> <span class="n">Camera</span>
+<span class="kn">from</span> <span class="nn">.tiled_camera</span> <span class="kn">import</span> <span class="n">TiledCamera</span>
 
 
 <div class="viewcode-block" id="CameraCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg">[docs]</a><span class="nd">@configclass</span>
@@ -574,6 +593,67 @@ document.write(`
 <span class="sd">    If True, instance segmentation is converted to an image where instance IDs are mapped to colors.</span>
 <span class="sd">    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="TiledCameraCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">TiledCameraCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a tiled rendering camera sensor.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="TiledCameraCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">OffsetCfg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame.&quot;&quot;&quot;</span>
+
+        <span class="n">pos</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+        <span class="n">rot</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+        <span class="n">convention</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;opengl&quot;</span><span class="p">,</span> <span class="s2">&quot;ros&quot;</span><span class="p">,</span> <span class="s2">&quot;world&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;ros&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The convention in which the frame offset is applied. Defaults to &quot;ros&quot;.</span>
+
+<span class="sd">        - ``&quot;opengl&quot;`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera) convention.</span>
+<span class="sd">        - ``&quot;ros&quot;``    - forward axis: ``+Z`` - up axis: ``-Y`` - Offset is applied in the ROS convention.</span>
+<span class="sd">        - ``&quot;world&quot;``  - forward axis: ``+X`` - up axis: ``+Z`` - Offset is applied in the World Frame convention.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span></div>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">TiledCamera</span>
+
+    <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The parent frame is the frame the sensor attaches to. For example, the parent frame of a</span>
+<span class="sd">        camera at path ``/World/envs/env_0/Robot/Camera`` is ``/World/envs/env_0/Robot``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">spawn</span><span class="p">:</span> <span class="n">PinholeCameraCfg</span> <span class="o">|</span> <span class="n">FisheyeCameraCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Spawn configuration for the asset.</span>
+
+<span class="sd">    If None, then the prim is not spawned by the asset. Instead, it is assumed that the</span>
+<span class="sd">    asset is already present in the scene.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;List of sensor names/types to enable for the camera. Defaults to [&quot;rgb&quot;].</span>
+
+<span class="sd">    Please refer to the :class:`Camera` class for a list of available data types.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Width of the image in pixels.&quot;&quot;&quot;</span>
+
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Height of the image in pixels.&quot;&quot;&quot;</span>
+
+    <span class="n">return_latest_camera_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to return the latest camera pose when fetching the camera&#39;s data. Defaults to False.</span>
+
+<span class="sd">    If True, the latest camera pose is returned in the camera&#39;s data which will slow down performance</span>
+<span class="sd">    due to the use of :class:`XformPrimView`.</span>
+<span class="sd">    If False, the pose of the camera during initialization is returned.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -621,7 +701,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

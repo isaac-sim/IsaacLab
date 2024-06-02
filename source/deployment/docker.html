@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="Container Deployment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -546,7 +563,7 @@ document.write(`
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-issues">Known Issues</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#invalid-mount-config-for-type-bind">Invalid mount config for type “bind”</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-and-websocket-streaming">WebRTC and WebSocket Streaming</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-streaming">WebRTC Streaming</a></li>
 </ul>
 </li>
 </ul>
@@ -586,6 +603,11 @@ Docker without using <code class="docutils literal notranslate"><span class="pre
 <li><p>To build and run GPU-accelerated containers, you also need install the <a class="reference external" href="https://github.com/NVIDIA/nvidia-container-toolkit">NVIDIA Container Toolkit</a>.
 Please follow the instructions on the <a class="reference external" href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html">Container Toolkit website</a> for installation steps.</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Due to limitations with <a class="reference external" href="https://snapcraft.io/docs/home-outside-home">snap</a>, please make sure
+the Isaac Lab directory is placed under the <code class="docutils literal notranslate"><span class="pre">/home</span></code> directory tree when using docker.</p>
+</div>
 </section>
 <section id="obtaining-the-isaac-sim-container">
 <h3>Obtaining the Isaac Sim Container<a class="headerlink" href="#obtaining-the-isaac-sim-container" title="Permalink to this heading">#</a></h3>
@@ -783,11 +805,11 @@ sudo<span class="w"> </span>apt<span class="w"> </span>clean<span class="w"> </s
 <li><p>Install the latest version of docker based on the instructions in the setup section.</p></li>
 </ul>
 </section>
-<section id="webrtc-and-websocket-streaming">
-<h3>WebRTC and WebSocket Streaming<a class="headerlink" href="#webrtc-and-websocket-streaming" title="Permalink to this heading">#</a></h3>
+<section id="webrtc-streaming">
+<h3>WebRTC Streaming<a class="headerlink" href="#webrtc-streaming" title="Permalink to this heading">#</a></h3>
 <p>When streaming the GUI from Isaac Sim, there are <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html">several streaming clients</a> available. There is a <a class="reference external" href="https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916">known issue</a> when
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using either the Native Streaming Client or WebSocket options, or using the
+To avoid this problem, we suggest using the Native Streaming Client or using the
 Mozilla Firefox browser on which WebRTC works.</p>
 <p>Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client
 is freely available from the Omniverse app, and is easy to use. The other streaming methods similarly require only a web browser.
@@ -859,7 +881,7 @@ in docker-compose.yaml.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#known-issues">Known Issues</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#invalid-mount-config-for-type-bind">Invalid mount config for type “bind”</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-and-websocket-streaming">WebRTC and WebSocket Streaming</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#webrtc-streaming">WebRTC Streaming</a></li>
 </ul>
 </li>
 </ul>
@@ -895,7 +917,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

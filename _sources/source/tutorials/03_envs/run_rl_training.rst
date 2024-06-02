@@ -7,7 +7,7 @@ In the previous tutorials, we covered how to define an RL task environment, regi
 it into the ``gym`` registry, and interact with it using a random agent. We now move
 on to the next step: training an RL agent to solve the task.
 
-Although the :class:`envs.RLTaskEnv` conforms to the :class:`gymnasium.Env` interface,
+Although the :class:`envs.ManagerBasedRLEnv` conforms to the :class:`gymnasium.Env` interface,
 it is not exactly a ``gym`` environment. The input and outputs of the environment are
 not numpy arrays, but rather based on torch tensors with the first dimension being the
 number of environment instances.
@@ -15,8 +15,8 @@ number of environment instances.
 Additionally, most RL libraries expect their own variation of an environment interface.
 For example, `Stable-Baselines3`_ expects the environment to conform to its
 `VecEnv API`_ which expects a list of numpy arrays instead of a single tensor. Similarly,
-`RSL-RL`_ and `RL-Games`_ expect a different interface. Since there is no one-size-fits-all
-solution, we do not base the :class:`envs.RLTaskEnv` on any particular learning library.
+`RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
+solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
 These are specified in the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
 
@@ -93,13 +93,13 @@ Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
 Since the above command does not render the simulation, it is not possible to visualize the agent's
-behavior during training. To visualize the agent's behavior, we pass the ``--offscreen_render`` which
+behavior during training. To visualize the agent's behavior, we pass the ``--enable_cameras`` which
 enables off-screen rendering. Additionally, we pass the flag ``--video`` which records a video of the
 agent's behavior during training.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --offscreen_render --video
+  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --enable_cameras --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos`` directory. You can open these videos
 using any video player.
@@ -151,3 +151,4 @@ directory. You can also specify a specific checkpoint by passing the ``--checkpo
 .. _`stable_baselines3.common.vec_env.VecNormalize`: https://stable-baselines3.readthedocs.io/en/master/guide/vec_envs.html#vecnormalize
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _RSL-RL: https://github.com/leggedrobotics/rsl_rl
+.. _SKRL: https://skrl.readthedocs.io

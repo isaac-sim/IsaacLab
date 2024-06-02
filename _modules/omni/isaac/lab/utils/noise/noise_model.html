@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.envs.ui.rl_task_env_window &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.utils.noise.noise_model &#8212; Isaac Lab documentation</title>
   
   
   
@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,15 +45,16 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/ui/rl_task_env_window';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/utils/noise/noise_model';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -387,7 +405,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/envs/ui/rl_task_env_window.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/utils/noise/noise_model.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -465,7 +483,7 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.envs.ui.rl_task_env_window</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.utils.noise.noise_model</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -473,37 +491,113 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">from</span> <span class="nn">.base_env_window</span> <span class="kn">import</span> <span class="n">BaseEnvWindow</span>
-
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">..rl_task_env</span> <span class="kn">import</span> <span class="n">RLTaskEnv</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">noise_cfg</span>
 
 
-<div class="viewcode-block" id="RLTaskEnvWindow"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.RLTaskEnvWindow">[docs]</a><span class="k">class</span> <span class="nc">RLTaskEnvWindow</span><span class="p">(</span><span class="n">BaseEnvWindow</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Window manager for the RL environment.</span>
+<div class="viewcode-block" id="constant_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.constant_noise">[docs]</a><span class="k">def</span> <span class="nf">constant_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">ConstantNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Constant noise.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">bias</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 
-<span class="sd">    On top of the basic environment window, this class adds controls for the RL environment.</span>
-<span class="sd">    This includes visualization of the command manager.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RLTaskEnvWindow.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">RLTaskEnv</span><span class="p">,</span> <span class="n">window_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;IsaacLab&quot;</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the window.</span>
+<div class="viewcode-block" id="uniform_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.uniform_noise">[docs]</a><span class="k">def</span> <span class="nf">uniform_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">UniformNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Uniform noise.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">n_max</span> <span class="o">-</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span><span class="p">)</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">n_min</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="gaussian_noise"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.gaussian_noise">[docs]</a><span class="k">def</span> <span class="nf">gaussian_noise</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">GaussianNoiseCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gaussian noise.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span> <span class="o">*</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mean</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">std</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown operation in noise: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">operation</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NoiseModel"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel">[docs]</a><span class="k">class</span> <span class="nc">NoiseModel</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for noise models.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelCfg</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the noise model.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            env: The environment object.</span>
-<span class="sd">            window_name: The name of the window. Defaults to &quot;IsaacLab&quot;.</span>
+<span class="sd">            num_envs: The number of environments.</span>
+<span class="sd">            noise_model_cfg: The noise configuration to use.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># initialize base window</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">window_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_envs</span> <span class="o">=</span> <span class="n">num_envs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span>
 
-        <span class="c1"># add custom UI elements</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;main_vstack&quot;</span><span class="p">]:</span>
-            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_frame&quot;</span><span class="p">]:</span>
-                <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_vstack&quot;</span><span class="p">]:</span>
-                    <span class="c1"># add command manager visualization</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_create_debug_vis_ui_element</span><span class="p">(</span><span class="s2">&quot;commands&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">command_manager</span><span class="p">)</span></div></div>
+<div class="viewcode-block" id="NoiseModel.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Apply the noise to the data.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            data: The data to apply the noise to, which is a tensor of shape (num_envs, \*data_shape).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_noise_model_cfg</span><span class="o">.</span><span class="n">noise_cfg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NoiseModel.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModel.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
+
+<span class="sd">        This method can be implemented by derived classes to reset the noise model.</span>
+<span class="sd">        This is useful when implementing temporal noise models such as random walk.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: The environment ids to reset the noise model for.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div></div>
+
+
+<div class="viewcode-block" id="NoiseModelWithAdditiveBias"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias">[docs]</a><span class="k">class</span> <span class="nc">NoiseModelWithAdditiveBias</span><span class="p">(</span><span class="n">NoiseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Noise model with an additive bias.</span>
+
+<span class="sd">    The bias term is sampled from a the specified distribution on reset.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">:</span> <span class="n">noise_cfg</span><span class="o">.</span><span class="n">NoiseModelWithAdditiveBiasCfg</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">noise_model_cfg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span> <span class="o">=</span> <span class="n">noise_model_cfg</span><span class="o">.</span><span class="n">bias_noise_cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">num_envs</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NoiseModelWithAdditiveBias.apply"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Apply the noise + bias.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            data: The data to apply the noise to, which is a tensor of shape (num_envs, \*data_shape).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span></div>
+
+<div class="viewcode-block" id="NoiseModelWithAdditiveBias.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the noise model.</span>
+
+<span class="sd">        This method resets the bias term for the specified environments.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            env_ids: The environment ids to reset the noise model for.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bias</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bias_noise_cfg</span><span class="p">)</span></div></div>
 </pre></div>
 
                 </article>
@@ -551,7 +645,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -57,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.terrains" href="omni.isaac.lab.terrains.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -178,7 +179,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -213,7 +214,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -221,11 +228,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -243,8 +259,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -609,25 +626,58 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_triangle"><code class="docutils literal notranslate"><span class="pre">sample_triangle()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_uniform"><code class="docutils literal notranslate"><span class="pre">sample_uniform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_log_uniform"><code class="docutils literal notranslate"><span class="pre">sample_log_uniform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_gaussian"><code class="docutils literal notranslate"><span class="pre">sample_gaussian()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_cylinder"><code class="docutils literal notranslate"><span class="pre">sample_cylinder()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.noise">Noise operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg.mean</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg.n_min</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg.n_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.noise_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg.noise_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg.class_type</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.n_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.n_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.operation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModel.apply()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.apply()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.gaussian_noise"><code class="docutils literal notranslate"><span class="pre">gaussian_noise()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.uniform_noise"><code class="docutils literal notranslate"><span class="pre">uniform_noise()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.string">String operations</a><ul class="nav section-nav flex-column">
@@ -997,8 +1047,7 @@ distribution of the assets easier and makes the repository smaller in size code-
 will be set to None. The path is resolved using the following steps:</p>
 <ol class="arabic simple">
 <li><p>Based on simulation parameter: <code class="docutils literal notranslate"><span class="pre">/persistent/isaac/asset_root/default</span></code>.</p></li>
-<li><p>Iterating over all the connected Nucleus Servers and checking for the first server that has the
-the connected status.</p></li>
+<li><p>Iterating over all the connected Nucleus Servers and checking for the first server that has the the connected status.</p></li>
 <li><p>Based on simulation parameter: <code class="docutils literal notranslate"><span class="pre">/persistent/isaac/asset_root/cloud</span></code>.</p></li>
 </ol>
 </dd></dl>
@@ -1213,10 +1262,6 @@ the desired backend. Defaults to (“numpy”, “torch”, “warp”).</p></li
 <dd><p>Updates existing dictionary with values from a new dictionary.</p>
 <p>This function mimics the dict.update() function. However, it works for
 nested dictionaries as well.</p>
-<dl class="simple">
-<dt>Reference:</dt><dd><p><a class="reference external" href="https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth">https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth</a></p>
-</dd>
-</dl>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1363,7 +1408,10 @@ nested dictionaries as well.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_log_uniform" title="omni.isaac.lab.utils.math.sample_log_uniform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_log_uniform</span></code></a>(lower, upper, size, device)</p></td>
 <td><p>Sample using log-uniform distribution within a range.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_cylinder" title="omni.isaac.lab.utils.math.sample_cylinder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_cylinder</span></code></a>(radius, h_range, size, device)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_gaussian" title="omni.isaac.lab.utils.math.sample_gaussian"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_gaussian</span></code></a>(mean, std, size, device)</p></td>
+<td><p>Sample using gaussian distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.math.sample_cylinder" title="omni.isaac.lab.utils.math.sample_cylinder"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_cylinder</span></code></a>(radius, h_range, size, device)</p></td>
 <td><p>Sample 3D points uniformly on a cylinder's surface.</p></td>
 </tr>
 </tbody>
@@ -2188,6 +2236,25 @@ are uniformly distributed in the log-space and then exponentiated to get the fin
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.math.sample_gaussian">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">sample_gaussian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/math.html#sample_gaussian"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.math.sample_gaussian" title="Permalink to this definition">#</a></dt>
+<dd><p>Sample using gaussian distribution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mean</strong> – Mean of the gaussian.</p></li>
+<li><p><strong>std</strong> – Std of the gaussian.</p></li>
+<li><p><strong>size</strong> – The shape of the tensor.</p></li>
+<li><p><strong>device</strong> – Device to create tensor on.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Sampled tensor.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.math.sample_cylinder">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.math.</span></span><span class="sig-name descname"><span class="pre">sample_cylinder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">h_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/math.html#sample_cylinder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.math.sample_cylinder" title="Permalink to this definition">#</a></dt>
 <dd><p>Sample 3D points uniformly on a cylinder’s surface.</p>
@@ -2237,13 +2304,49 @@ with the noise applied. These functions are then used in the <a class="reference
 <td><p>Base configuration for a noise term.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg" title="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></p></td>
-<td><p>Configuration for a additive gaussian noise term.</p></td>
+<td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg" title="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></p></td>
-<td><p>Configuration for a additive uniform noise term.</p></td>
+<td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.UniformNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg" title="omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></p></td>
-<td><p>Configuration for a constant bias noise term.</p></td>
+<td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.ConstantNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg" title="omni.isaac.lab.utils.noise.ConstantNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p></td>
+<td><p>Configuration for an additive constant noise term.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p></td>
+<td><p>Configuration for an additive gaussian noise term.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelCfg" title="omni.isaac.lab.utils.noise.NoiseModelCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a></p></td>
+<td><p>Configuration for a noise model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a></p></td>
+<td><p>Configuration for an additive gaussian noise with bias model.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg" title="omni.isaac.lab.utils.noise.UniformNoiseCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p></td>
+<td><p>Configuration for a additive uniform noise term.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.NoiseModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p></td>
+<td><p>Base class for noise models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p></td>
+<td><p>Noise model with an additive bias.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Functions:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.constant_noise" title="omni.isaac.lab.utils.noise.constant_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">constant_noise</span></code></a>(data, cfg)</p></td>
+<td><p>Constant noise.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.gaussian_noise" title="omni.isaac.lab.utils.noise.gaussian_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gaussian_noise</span></code></a>(data, cfg)</p></td>
+<td><p>Gaussian noise.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.uniform_noise" title="omni.isaac.lab.utils.noise.uniform_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">uniform_noise</span></code></a>(data, cfg)</p></td>
+<td><p>Uniform noise.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2253,90 +2356,334 @@ with the noise applied. These functions are then used in the <a class="reference
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#NoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
 <p>Base configuration for a noise term.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg.operation" title="omni.isaac.lab.utils.noise.NoiseCfg.operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">operation</span></code></a></p></td>
+<td><p>The operation to apply the noise on the data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
 </dd></dl>
 
-<dl class="py class">
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveGaussianNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#AdditiveGaussianNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p>
-<p>Configuration for a additive gaussian noise term.</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean" title="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean</span></code></a></p></td>
-<td><p>The mean of the noise.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std" title="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
-<td><p>The standard deviation of the noise.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean">
-<span class="sig-name descname"><span class="pre">mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean" title="Permalink to this definition">#</a></dt>
-<dd><p>The mean of the noise. Defaults to 0.0.</p>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveGaussianNoiseCfg</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.GaussianNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a></p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std">
-<span class="sig-name descname"><span class="pre">std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std" title="Permalink to this definition">#</a></dt>
-<dd><p>The standard deviation of the noise. Defaults to 1.0.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveUniformNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#AdditiveUniformNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p>
-<p>Configuration for a additive uniform noise term.</p>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min" title="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_min</span></code></a></p></td>
-<td><p>The minimum value of the noise.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max" title="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_max</span></code></a></p></td>
-<td><p>The maximum value of the noise.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min">
-<span class="sig-name descname"><span class="pre">n_min</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min" title="Permalink to this definition">#</a></dt>
-<dd><p>The minimum value of the noise. Defaults to -1.0.</p>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">AdditiveUniformNoiseCfg</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.UniformNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a></p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max">
-<span class="sig-name descname"><span class="pre">n_max</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max" title="Permalink to this definition">#</a></dt>
-<dd><p>The maximum value of the noise. Defaults to 1.0.</p>
-</dd></dl>
-
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">ConstantBiasNoiseCfg</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.ConstantNoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a></p>
 </dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">ConstantBiasNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#ConstantBiasNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantNoiseCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">ConstantNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#ConstantNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p>
-<p>Configuration for a constant bias noise term.</p>
+<p>Configuration for an additive constant noise term.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias" title="omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bias</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias" title="omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bias</span></code></a></p></td>
 <td><p>The bias to add.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias">
-<span class="sig-name descname"><span class="pre">bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias">
+<span class="sig-name descname"><span class="pre">bias</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias" title="Permalink to this definition">#</a></dt>
 <dd><p>The bias to add. Defaults to 0.0.</p>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.GaussianNoiseCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">GaussianNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#GaussianNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p>
+<p>Configuration for an additive gaussian noise term.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean"><code class="xref py py-obj docutils literal notranslate"><span class="pre">mean</span></code></a></p></td>
+<td><p>The mean of the noise.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std" title="omni.isaac.lab.utils.noise.GaussianNoiseCfg.std"><code class="xref py py-obj docutils literal notranslate"><span class="pre">std</span></code></a></p></td>
+<td><p>The standard deviation of the noise.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean">
+<span class="sig-name descname"><span class="pre">mean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean" title="Permalink to this definition">#</a></dt>
+<dd><p>The mean of the noise. Defaults to 0.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.GaussianNoiseCfg.std">
+<span class="sig-name descname"><span class="pre">std</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std" title="Permalink to this definition">#</a></dt>
+<dd><p>The standard deviation of the noise. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#NoiseModelCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Configuration for a noise model.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.class_type" title="omni.isaac.lab.utils.noise.NoiseModelCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
+<td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg" title="omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">noise_cfg</span></code></a></p></td>
+<td><p>The noise configuration to use.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelCfg.class_type">
+<span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.class_type" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a>
+<strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code>(data)</p></td>
+<td><p>Apply the noise to the data.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code>(env_ids)</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg">
+<span class="sig-name descname"><span class="pre">noise_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><span class="pre">NoiseCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The noise configuration to use.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#NoiseModelWithAdditiveBiasCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseModelCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a></p>
+<p>Configuration for an additive gaussian noise with bias model.</p>
+<p><strong>Classes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_type</span></code></a></p></td>
+<td><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.noise_model.NoiseModelWithAdditiveBias"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg">
+<span class="sig-name descname"><span class="pre">noise_cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><span class="pre">NoiseCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg" title="Permalink to this definition">#</a></dt>
+<dd><p>The noise configuration to use.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type">
+<span class="sig-name descname"><span class="pre">class_type</span></span><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type" title="Permalink to this definition">#</a></dt>
+<dd><p>alias of <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="omni.isaac.lab.utils.noise.noise_model.NoiseModelWithAdditiveBias"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a>
+<strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code>(data)</p></td>
+<td><p>Apply the noise + bias.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code>(env_ids)</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.UniformNoiseCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">UniformNoiseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_cfg.html#UniformNoiseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.NoiseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></p>
+<p>Configuration for a additive uniform noise term.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min" title="omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_min</span></code></a></p></td>
+<td><p>The minimum value of the noise.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max" title="omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max"><code class="xref py py-obj docutils literal notranslate"><span class="pre">n_max</span></code></a></p></td>
+<td><p>The maximum value of the noise.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min">
+<span class="sig-name descname"><span class="pre">n_min</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min" title="Permalink to this definition">#</a></dt>
+<dd><p>The minimum value of the noise. Defaults to -1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max">
+<span class="sig-name descname"><span class="pre">n_max</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max" title="Permalink to this definition">#</a></dt>
+<dd><p>The maximum value of the noise. Defaults to 1.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.UniformNoiseCfg.operation">
+<span class="sig-name descname"><span class="pre">operation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'add'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'scale'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'abs'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.operation" title="Permalink to this definition">#</a></dt>
+<dd><p>The operation to apply the noise on the data. Defaults to “add”.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModel</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModel" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Base class for noise models.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel.apply" title="omni.isaac.lab.utils.noise.NoiseModel.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(data)</p></td>
+<td><p>Apply the noise to the data.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel.reset" title="omni.isaac.lab.utils.noise.NoiseModel.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>(env_ids)</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModel.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModel.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModel.apply" title="Permalink to this definition">#</a></dt>
+<dd><p>Apply the noise to the data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The data to apply the noise to, which is a tensor of shape (num_envs, *data_shape).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModel.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModel.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModel.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the noise model.</p>
+<p>This method can be implemented by derived classes to reset the noise model.
+This is useful when implementing temporal noise models such as random walk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">NoiseModelWithAdditiveBias</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias" title="Permalink to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModel" title="omni.isaac.lab.utils.noise.noise_model.NoiseModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">NoiseModel</span></code></a></p>
+<p>Noise model with an additive bias.</p>
+<p>The bias term is sampled from a the specified distribution on reset.</p>
+<p><strong>Methods:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(data)</p></td>
+<td><p>Apply the noise + bias.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset" title="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>(env_ids)</p></td>
+<td><p>Reset the noise model.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply" title="Permalink to this definition">#</a></dt>
+<dd><p>Apply the noise + bias.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The data to apply the noise to, which is a tensor of shape (num_envs, *data_shape).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#NoiseModelWithAdditiveBias.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset" title="Permalink to this definition">#</a></dt>
+<dd><p>Reset the noise model.</p>
+<p>This method resets the bias term for the specified environments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>env_ids</strong> – The environment ids to reset the noise model for.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.constant_noise">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">constant_noise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.ConstantNoiseCfg"><span class="pre">noise_cfg.ConstantNoiseCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#constant_noise"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.constant_noise" title="Permalink to this definition">#</a></dt>
+<dd><p>Constant noise.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.gaussian_noise">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">gaussian_noise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.GaussianNoiseCfg"><span class="pre">noise_cfg.GaussianNoiseCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#gaussian_noise"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.gaussian_noise" title="Permalink to this definition">#</a></dt>
+<dd><p>Gaussian noise.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.noise.uniform_noise">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.noise.</span></span><span class="sig-name descname"><span class="pre">uniform_noise</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg" title="omni.isaac.lab.utils.noise.noise_cfg.UniformNoiseCfg"><span class="pre">noise_cfg.UniformNoiseCfg</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/noise/noise_model.html#uniform_noise"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.noise.uniform_noise" title="Permalink to this definition">#</a></dt>
+<dd><p>Uniform noise.</p>
 </dd></dl>
 
 </section>
@@ -2865,25 +3212,58 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_triangle"><code class="docutils literal notranslate"><span class="pre">sample_triangle()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_uniform"><code class="docutils literal notranslate"><span class="pre">sample_uniform()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_log_uniform"><code class="docutils literal notranslate"><span class="pre">sample_log_uniform()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_gaussian"><code class="docutils literal notranslate"><span class="pre">sample_gaussian()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.math.sample_cylinder"><code class="docutils literal notranslate"><span class="pre">sample_cylinder()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.noise">Noise operations</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg.mean</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg"><code class="docutils literal notranslate"><span class="pre">NoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">NoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_min"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg.n_min</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg.n_max"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg.n_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveGaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveGaussianNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.AdditiveUniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">AdditiveUniformNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.bias</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">ConstantNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.ConstantBiasNoiseCfg.bias"><code class="docutils literal notranslate"><span class="pre">ConstantBiasNoiseCfg.bias</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.mean"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.mean</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.std"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.std</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.GaussianNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">GaussianNoiseCfg.operation</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.class_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelCfg.noise_cfg</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.noise_cfg"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg.noise_cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBiasCfg.class_type"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBiasCfg.class_type</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_min"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.n_min</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.n_max"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.n_max</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.UniformNoiseCfg.operation"><code class="docutils literal notranslate"><span class="pre">UniformNoiseCfg.operation</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel"><code class="docutils literal notranslate"><span class="pre">NoiseModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModel.apply()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModel.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModel.reset()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.apply"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.apply()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.NoiseModelWithAdditiveBias.reset"><code class="docutils literal notranslate"><span class="pre">NoiseModelWithAdditiveBias.reset()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.constant_noise"><code class="docutils literal notranslate"><span class="pre">constant_noise()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.gaussian_noise"><code class="docutils literal notranslate"><span class="pre">gaussian_noise()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.noise.uniform_noise"><code class="docutils literal notranslate"><span class="pre">uniform_noise()</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.string">String operations</a><ul class="nav section-nav flex-column">
@@ -2946,7 +3326,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

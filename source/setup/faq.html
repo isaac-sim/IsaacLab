@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -51,11 +52,11 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Environments" href="../features/environments.html" />
+    <link rel="next" title="Task Design Workflows" href="../features/workflows.html" />
     <link rel="prev" title="Building your Own Project" href="template.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -567,6 +584,8 @@ Isaac Sim.</p>
 that aims to unite complex 3D workflows. Isaac Sim leverages the latest advances in graphics and
 physics simulation to provide a high-fidelity simulation environment for robotics. It supports
 ROS/ROS2, various sensor simulation, tools for domain randomization and synthetic data creation.
+Tiled rendering support in Isaac Sim allows for vectorized rendering across environments, along with
+support for running in the cloud using <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>.
 Overall, it is a powerful tool for roboticists and is a huge step forward in the field of robotics
 simulation.</p>
 <p>With the release of above two tools, NVIDIA also released an open-sourced set of environments called
@@ -575,7 +594,7 @@ These environments have been designed to display the capabilities of the underly
 a starting point to understand what is possible with the simulators for robot learning. These environments
 can be used for benchmarking but are not designed for developing and testing custom environments and algorithms.
 This is where Isaac Lab comes in.</p>
-<p>Isaac Lab <span id="id7">[<a class="reference internal" href="../refs/bibliography.html#id16" title="Mayank Mittal, Calvin Yu, Qinxi Yu, Jingzhou Liu, Nikita Rudin, David Hoeller, Jia Lin Yuan, Ritvik Singh, Yunrong Guo, Hammad Mazhar, Ajay Mandlekar, Buck Babich, Gavriel State, Marco Hutter, and Animesh Garg. Orbit: a unified simulation framework for interactive robot learning environments. IEEE Robotics and Automation Letters, 8(6):3740-3747, 2023. doi:10.1109/LRA.2023.3270034.">MYY+23</a>]</span> is built on top of Isaac Sim to provide a unified and flexible framework
+<p>Isaac Lab is built on top of Isaac Sim to provide a unified and flexible framework
 for robot learning that exploits latest simulation technologies. It is designed to be modular and extensible,
 and aims to simplify common workflows in robotics research (such as RL, learning from demonstrations, and
 motion planning). While it includes some pre-built environments, sensors, and tasks, its main goal is to
@@ -583,6 +602,9 @@ provide an open-sourced, unified, and easy-to-use interface for developing and t
 and robot learning algorithms. It not only inherits the capabilities of Isaac Sim, but also adds a number
 of new features that pertain to robot learning research. For example, including actuator dynamics in the
 simulation, procedural terrain generation, and support to collect data from human demonstrations.</p>
+<p>Isaac Lab replaces the previous <a class="reference external" href="https://github.com/NVIDIA-Omniverse/IsaacGymEnvs">IsaacGymEnvs</a>, <a class="reference external" href="https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a> and <a class="reference external" href="https://isaac-orbit.github.io/orbit">Orbit</a> frameworks and will
+be the single robot learning framework for Isaac Sim. Previously released frameworks are deprecated
+and we encourage users to follow our <a class="reference external" href="../migration/index.html">migration guides</a> to transition over to Isaac Lab.</p>
 </section>
 <section id="why-should-i-use-isaac-lab">
 <h2>Why should I use Isaac Lab?<a class="headerlink" href="#why-should-i-use-isaac-lab" title="Permalink to this heading">#</a></h2>
@@ -626,11 +648,11 @@ to Isaac Lab, please reach out to us.</p>
       </div>
     </a>
     <a class="right-next"
-       href="../features/environments.html"
+       href="../features/workflows.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Environments</p>
+        <p class="prev-next-title">Task Design Workflows</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -685,7 +707,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

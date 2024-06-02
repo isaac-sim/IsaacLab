@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/ui/base_env_window';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -479,16 +497,15 @@ document.write(`
 <span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
-<span class="kn">import</span> <span class="nn">omni.isaac.ui.ui_utils</span> <span class="k">as</span> <span class="nn">ui_utils</span>
 <span class="kn">import</span> <span class="nn">omni.kit.app</span>
 <span class="kn">import</span> <span class="nn">omni.kit.commands</span>
-<span class="kn">import</span> <span class="nn">omni.ui</span>
 <span class="kn">import</span> <span class="nn">omni.usd</span>
-<span class="kn">from</span> <span class="nn">omni.kit.window.extensions</span> <span class="kn">import</span> <span class="n">SimpleCheckBox</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Sdf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">..base_env</span> <span class="kn">import</span> <span class="n">BaseEnv</span>
+    <span class="kn">import</span> <span class="nn">omni.ui</span>
+
+    <span class="kn">from</span> <span class="nn">..manager_based_env</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
 <div class="viewcode-block" id="BaseEnvWindow"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow">[docs]</a><span class="k">class</span> <span class="nc">BaseEnvWindow</span><span class="p">:</span>
@@ -508,7 +525,7 @@ document.write(`
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="BaseEnvWindow.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span> <span class="n">window_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;IsaacLab&quot;</span><span class="p">):</span>
+<div class="viewcode-block" id="BaseEnvWindow.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.ui.html#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">window_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;IsaacLab&quot;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the window.</span>
 
 <span class="sd">        Args:</span>
@@ -570,7 +587,7 @@ document.write(`
             <span class="n">width</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
             <span class="n">height</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">collapsed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">style</span><span class="o">=</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
+            <span class="n">style</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
             <span class="n">horizontal_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_AS_NEEDED</span><span class="p">,</span>
             <span class="n">vertical_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_ALWAYS_ON</span><span class="p">,</span>
         <span class="p">)</span>
@@ -587,7 +604,7 @@ document.write(`
                     <span class="s2">&quot;tooltip&quot;</span><span class="p">:</span> <span class="s2">&quot;Select a rendering mode</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">RenderMode</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">,</span>
                     <span class="s2">&quot;on_clicked_fn&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">set_render_mode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">RenderMode</span><span class="p">[</span><span class="n">value</span><span class="p">]),</span>
                 <span class="p">}</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;render_dropdown&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">dropdown_builder</span><span class="p">(</span><span class="o">**</span><span class="n">render_mode_cfg</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;render_dropdown&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">dropdown_builder</span><span class="p">(</span><span class="o">**</span><span class="n">render_mode_cfg</span><span class="p">)</span>
 
                 <span class="c1"># create animation recording box</span>
                 <span class="n">record_animate_cfg</span> <span class="o">=</span> <span class="p">{</span>
@@ -598,7 +615,9 @@ document.write(`
                     <span class="s2">&quot;tooltip&quot;</span><span class="p">:</span> <span class="s2">&quot;Record the animation of the scene. Only effective if fabric is disabled.&quot;</span><span class="p">,</span>
                     <span class="s2">&quot;on_clicked_fn&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">value</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_toggle_recording_animation_fn</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
                 <span class="p">}</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;record_animation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">state_btn_builder</span><span class="p">(</span><span class="o">**</span><span class="n">record_animate_cfg</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;record_animation&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">state_btn_builder</span><span class="p">(</span>
+                    <span class="o">**</span><span class="n">record_animate_cfg</span>
+                <span class="p">)</span>
                 <span class="c1"># disable the button if fabric is not enabled</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;record_animation&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">enabled</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">is_fabric_enabled</span><span class="p">()</span>
 
@@ -610,7 +629,7 @@ document.write(`
             <span class="n">width</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
             <span class="n">height</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">collapsed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">style</span><span class="o">=</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
+            <span class="n">style</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
             <span class="n">horizontal_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_AS_NEEDED</span><span class="p">,</span>
             <span class="n">vertical_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_ALWAYS_ON</span><span class="p">,</span>
         <span class="p">)</span>
@@ -628,7 +647,7 @@ document.write(`
                     <span class="s2">&quot;max&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span>
                     <span class="s2">&quot;tooltip&quot;</span><span class="p">:</span> <span class="s2">&quot;The environment index to follow. Only effective if follow mode is not &#39;World&#39;.&quot;</span><span class="p">,</span>
                 <span class="p">}</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_env_index&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">int_builder</span><span class="p">(</span><span class="o">**</span><span class="n">viewport_origin_cfg</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_env_index&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">int_builder</span><span class="p">(</span><span class="o">**</span><span class="n">viewport_origin_cfg</span><span class="p">)</span>
                 <span class="c1"># create a number slider to move to environment origin</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_env_index&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">add_value_changed_fn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_set_viewer_env_index_fn</span><span class="p">)</span>
 
@@ -641,17 +660,17 @@ document.write(`
                     <span class="s2">&quot;tooltip&quot;</span><span class="p">:</span> <span class="s2">&quot;Select the viewport camera following mode.&quot;</span><span class="p">,</span>
                     <span class="s2">&quot;on_clicked_fn&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_set_viewer_origin_type_fn</span><span class="p">,</span>
                 <span class="p">}</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_follow&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">dropdown_builder</span><span class="p">(</span><span class="o">**</span><span class="n">viewer_follow_cfg</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_follow&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">dropdown_builder</span><span class="p">(</span><span class="o">**</span><span class="n">viewer_follow_cfg</span><span class="p">)</span>
 
                 <span class="c1"># add viewer default eye and lookat locations</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_eye&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">xyz_builder</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_eye&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">xyz_builder</span><span class="p">(</span>
                     <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Camera Eye&quot;</span><span class="p">,</span>
                     <span class="n">tooltip</span><span class="o">=</span><span class="s2">&quot;Modify the XYZ location of the viewer eye.&quot;</span><span class="p">,</span>
                     <span class="n">default_val</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">eye</span><span class="p">,</span>
                     <span class="n">step</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
                     <span class="n">on_value_changed_fn</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_set_viewer_location_fn</span><span class="p">]</span> <span class="o">*</span> <span class="mi">3</span><span class="p">,</span>
                 <span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_lookat&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui_utils</span><span class="o">.</span><span class="n">xyz_builder</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;viewer_lookat&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">xyz_builder</span><span class="p">(</span>
                     <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Camera Target&quot;</span><span class="p">,</span>
                     <span class="n">tooltip</span><span class="o">=</span><span class="s2">&quot;Modify the XYZ location of the viewer target.&quot;</span><span class="p">,</span>
                     <span class="n">default_val</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">viewer</span><span class="o">.</span><span class="n">lookat</span><span class="p">,</span>
@@ -667,13 +686,16 @@ document.write(`
 <span class="sd">        that has it implemented. If the element does not have a debug visualization implemented,</span>
 <span class="sd">        a label is created instead.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># import omni.isaac.ui.ui_utils as ui_utils</span>
+        <span class="c1"># import omni.ui</span>
+
         <span class="c1"># create collapsable frame for debug visualization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ui_window_elements</span><span class="p">[</span><span class="s2">&quot;debug_frame&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">CollapsableFrame</span><span class="p">(</span>
             <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Scene Debug Visualization&quot;</span><span class="p">,</span>
             <span class="n">width</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Fraction</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
             <span class="n">height</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">collapsed</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="n">style</span><span class="o">=</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
+            <span class="n">style</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">get_style</span><span class="p">(),</span>
             <span class="n">horizontal_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_AS_NEEDED</span><span class="p">,</span>
             <span class="n">vertical_scrollbar_policy</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ScrollBarPolicy</span><span class="o">.</span><span class="n">SCROLLBAR_ALWAYS_ON</span><span class="p">,</span>
         <span class="p">)</span>
@@ -828,6 +850,8 @@ document.write(`
 
     <span class="k">def</span> <span class="nf">_create_debug_vis_ui_element</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">elem</span><span class="p">:</span> <span class="nb">object</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a checkbox for toggling debug visualization for the given element.&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">omni.kit.window.extensions</span> <span class="kn">import</span> <span class="n">SimpleCheckBox</span>
+
         <span class="k">with</span> <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">HStack</span><span class="p">():</span>
             <span class="c1"># create the UI element</span>
             <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
@@ -837,7 +861,7 @@ document.write(`
             <span class="p">)</span>
             <span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span>
                 <span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(),</span>
-                <span class="n">width</span><span class="o">=</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">LABEL_WIDTH</span> <span class="o">-</span> <span class="mi">12</span><span class="p">,</span>
+                <span class="n">width</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">LABEL_WIDTH</span> <span class="o">-</span> <span class="mi">12</span><span class="p">,</span>
                 <span class="n">alignment</span><span class="o">=</span><span class="n">omni</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">Alignment</span><span class="o">.</span><span class="n">LEFT_CENTER</span><span class="p">,</span>
                 <span class="n">tooltip</span><span class="o">=</span><span class="n">text</span><span class="p">,</span>
             <span class="p">)</span>
@@ -847,7 +871,7 @@ document.write(`
                 <span class="n">checked</span><span class="o">=</span><span class="n">elem</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">,</span>
                 <span class="n">on_checked_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">value</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="n">elem</span><span class="p">):</span> <span class="n">e</span><span class="o">.</span><span class="n">set_debug_vis</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
             <span class="p">)</span>
-            <span class="n">ui_utils</span><span class="o">.</span><span class="n">add_line_rect_flourish</span><span class="p">()</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">isaac</span><span class="o">.</span><span class="n">ui</span><span class="o">.</span><span class="n">ui_utils</span><span class="o">.</span><span class="n">add_line_rect_flourish</span><span class="p">()</span>
 
     <span class="k">async</span> <span class="k">def</span> <span class="nf">_dock_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">window_title</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Docks the custom UI window to the property window.&quot;&quot;&quot;</span>
@@ -910,7 +934,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

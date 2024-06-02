@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="Creating Visualization Markers" href="draw_markers.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -548,7 +565,7 @@ document.write(`
 <p>Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
 A detailed description of the API is available in the <a class="reference external" href="https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Wrapper</span></code></a> class.</p>
-<p>At present, all RL environments inheriting from the <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.RLTaskEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code></a> class
+<p>At present, all RL environments inheriting from the <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code></a> class
 are compatible with <a class="reference external" href="https://gymnasium.farama.org/api/wrappers/#gymnasium.Wrapper" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Wrapper</span></code></a>, since the base class implements the <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling <code class="docutils literal notranslate"><span class="pre">env</span> <span class="pre">=</span> <span class="pre">wrapper(env,</span> <span class="pre">*args,</span> <span class="pre">**kwargs)</span></code> repeatedly.</p>
@@ -659,7 +676,7 @@ for 200 steps, and saves it in the <code class="docutils literal notranslate"><s
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.app</span> <span class="kn">import</span> <span class="n">AppLauncher</span>
 
 <span class="c1"># launch omniverse app in headless mode with off-screen rendering</span>
-<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">headless</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">offscreen_render</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">headless</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">enable_cameras</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
 
 <span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
@@ -687,9 +704,9 @@ for 200 steps, and saves it in the <code class="docutils literal notranslate"><s
 <h2>Wrapper for learning frameworks<a class="headerlink" href="#wrapper-for-learning-frameworks" title="Permalink to this heading">#</a></h2>
 <p>Every learning framework has its own API for interacting with environments. For example, the
 <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/">Stable-Baselines3</a> library uses the <a class="reference external" href="https://gymnasium.farama.org/api/env/">gym.Env</a>
-interface to interact with environments. However, libraries like <a class="reference external" href="https://github.com/Denys88/rl_games">RL-Games</a> or <a class="reference external" href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a>
+interface to interact with environments. However, libraries like <a class="reference external" href="https://github.com/Denys88/rl_games">RL-Games</a>, <a class="reference external" href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a> or <a class="reference external" href="https://skrl.readthedocs.io">SKRL</a>
 use their own API for interfacing with a learning environments. Since there is no one-size-fits-all
-solution, we do not base the <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.RLTaskEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">RLTaskEnv</span></code></a> class on any particular learning framework’s
+solution, we do not base the <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code></a> class on any particular learning framework’s
 environment definition. Instead, we implement wrappers to make it compatible with the learning
 framework’s environment definition.</p>
 <p>As an example of how to use the RL task environment with Stable-Baselines3:</p>
@@ -711,7 +728,7 @@ modifies the interpretation of environment’s APIs which may no longer be compa
 <section id="adding-new-wrappers">
 <h2>Adding new wrappers<a class="headerlink" href="#adding-new-wrappers" title="Permalink to this heading">#</a></h2>
 <p>All new wrappers should be added to the <a class="reference internal" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#module-omni.isaac.lab_tasks.utils.wrappers" title="omni.isaac.lab_tasks.utils.wrappers"><code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.utils.wrappers</span></code></a> module.
-They should check that the underlying environment is an instance of <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.RLTaskEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.RLTaskEnv</span></code></a>
+They should check that the underlying environment is an instance of <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.envs.ManagerBasedRLEnv</span></code></a>
 before applying the wrapper. This can be done by using the <code class="xref py py-func docutils literal notranslate"><span class="pre">unwrapped()</span></code> property.</p>
 <p>We include a set of wrappers in this module that can be used as a reference to implement your own wrappers.
 If you implement a new wrapper, please consider contributing it to the framework by opening a pull request.</p>
@@ -799,7 +816,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

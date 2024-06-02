@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="Developer’s Guide" href="developer.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -666,8 +683,10 @@ format.</p>
 </div>
 </li>
 <li><p>Split the dataset into train and validation set:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for robomimic)</span>
-./isaaclab.sh<span class="w"> </span>-e<span class="w"> </span>robomimic
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install the dependencies</span>
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>cmake<span class="w"> </span>build-essential
+<span class="c1"># install python module (for robomimic)</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>robomimic
 <span class="c1"># split data</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone//workflows/robomimic/tools/split_train_val.py<span class="w"> </span>logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5<span class="w"> </span>--ratio<span class="w"> </span><span class="m">0</span>.2
 </pre></div>
@@ -695,7 +714,7 @@ from the environments into the respective libraries function argument and return
 <a class="reference external" href="https://stable-baselines3.readthedocs.io/en/master/index.html">Stable-Baselines3</a>
 on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v0</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for stable-baselines3)</span>
-./isaaclab.sh<span class="w"> </span>-e<span class="w"> </span>sb3
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>sb3
 <span class="c1"># run script for training</span>
 <span class="c1"># note: we enable cpu flag since SB3 doesn&#39;t optimize for GPU anyway</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--cpu
@@ -707,7 +726,7 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <li><p>Training an agent with
 <a class="reference external" href="https://skrl.readthedocs.io">SKRL</a> on <code class="docutils literal notranslate"><span class="pre">Isaac-Reach-Franka-v0</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
-./isaaclab.sh<span class="w"> </span>-e<span class="w"> </span>skrl
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
@@ -718,7 +737,7 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <li><p>Training an agent with
 <a class="reference external" href="https://github.com/Denys88/rl_games">RL-Games</a> on <code class="docutils literal notranslate"><span class="pre">Isaac-Ant-v0</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for rl-games)</span>
-./isaaclab.sh<span class="w"> </span>-e<span class="w"> </span>rl_games
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>rl_games
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Ant-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
@@ -729,7 +748,7 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <li><p>Training an agent with
 <a class="reference external" href="https://github.com/leggedrobotics/rsl_rl">RSL-RL</a> on <code class="docutils literal notranslate"><span class="pre">Isaac-Reach-Franka-v0</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for rsl-rl)</span>
-./isaaclab.sh<span class="w"> </span>-e<span class="w"> </span>rsl_rl
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>rsl_rl
 <span class="c1"># run script for training</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless
 <span class="c1"># run script for playing with 32 environments</span>
@@ -838,7 +857,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

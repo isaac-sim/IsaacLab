@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.envs.rl_task_env_cfg &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.envs.rl_env_cfg &#8212; Isaac Lab documentation</title>
   
   
   
@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,15 +45,16 @@
     <script src="../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../_static/tabs.js"></script>
     <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/rl_task_env_cfg';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/rl_env_cfg';</script>
     <link rel="icon" href="../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -387,7 +405,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/envs/rl_task_env_cfg.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/envs/rl_env_cfg.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -465,7 +483,7 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.envs.rl_task_env_cfg</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.envs.rl_env_cfg</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -473,18 +491,21 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.noise.noise_cfg</span> <span class="kn">import</span> <span class="n">NoiseModelCfg</span>
 
-<span class="kn">from</span> <span class="nn">.base_env_cfg</span> <span class="kn">import</span> <span class="n">BaseEnvCfg</span>
-<span class="kn">from</span> <span class="nn">.ui</span> <span class="kn">import</span> <span class="n">RLTaskEnvWindow</span>
+<span class="kn">from</span> <span class="nn">.base_env_cfg</span> <span class="kn">import</span> <span class="n">ManagerBasedEnvCfg</span><span class="p">,</span> <span class="n">ViewerCfg</span>
+<span class="kn">from</span> <span class="nn">.ui</span> <span class="kn">import</span> <span class="n">BaseEnvWindow</span><span class="p">,</span> <span class="n">ManagerBasedRLEnvWindow</span>
 
 
-<div class="viewcode-block" id="RLTaskEnvCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnvCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">RLTaskEnvCfg</span><span class="p">(</span><span class="n">BaseEnvCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a reinforcement learning environment.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ManagerBasedRLEnvCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">ManagerBasedRLEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a reinforcement learning environment with the manager-based workflow.&quot;&quot;&quot;</span>
 
     <span class="c1"># ui settings</span>
-    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">RLTaskEnvWindow</span>
+    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">ManagerBasedRLEnvWindow</span>
 
     <span class="c1"># general settings</span>
     <span class="n">is_finite_horizon</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -505,7 +526,7 @@ document.write(`
 <span class="sd">    (or truncated) done signal is sent to the agent.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">        The base :class:`RLTaskEnv` class does not use this flag directly. It is used by the environment</span>
+<span class="sd">        The base :class:`ManagerBasedRLEnv` class does not use this flag directly. It is used by the environment</span>
 <span class="sd">        wrappers to determine what type of done signal to send to the corresponding learning agent.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -545,6 +566,107 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Command settings.</span>
 
 <span class="sd">    Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DirectRLEnvCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DirectRLEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a reinforcement learning environment with the direct workflow.&quot;&quot;&quot;</span>
+
+    <span class="c1"># simulation settings</span>
+    <span class="n">viewer</span><span class="p">:</span> <span class="n">ViewerCfg</span> <span class="o">=</span> <span class="n">ViewerCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Viewer configuration. Default is ViewerCfg().&quot;&quot;&quot;</span>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics simulation configuration. Default is SimulationCfg().&quot;&quot;&quot;</span>
+
+    <span class="c1"># ui settings</span>
+    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">BaseEnvWindow</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The class type of the UI window. Default is None.</span>
+
+<span class="sd">    If None, then no UI window is created.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If you want to make your own UI window, you can create a class that inherits from</span>
+<span class="sd">        from :class:`omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set</span>
+<span class="sd">        this attribute to your class type.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># general settings</span>
+    <span class="n">decimation</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of control action updates @ sim dt per policy dt.</span>
+
+<span class="sd">    For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.</span>
+<span class="sd">    This means that the control action is updated every 10 simulation steps.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># environment settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scene settings.</span>
+
+<span class="sd">    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># general settings</span>
+    <span class="n">is_finite_horizon</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the learning task is treated as a finite or infinite horizon problem for the agent.</span>
+<span class="sd">    Defaults to False, which means the task is treated as an infinite horizon problem.</span>
+
+<span class="sd">    This flag handles the subtleties of finite and infinite horizon tasks:</span>
+
+<span class="sd">    * **Finite horizon**: no penalty or bootstrapping value is required by the the agent for</span>
+<span class="sd">      running out of time. However, the environment still needs to terminate the episode after the</span>
+<span class="sd">      time limit is reached.</span>
+<span class="sd">    * **Infinite horizon**: the agent needs to bootstrap the value of the state at the end of the episode.</span>
+<span class="sd">      This is done by sending a time-limit (or truncated) done signal to the agent, which triggers this</span>
+<span class="sd">      bootstrapping calculation.</span>
+
+<span class="sd">    If True, then the environment is treated as a finite horizon problem and no time-out (or truncated) done signal</span>
+<span class="sd">    is sent to the agent. If False, then the environment is treated as an infinite horizon problem and a time-out</span>
+<span class="sd">    (or truncated) done signal is sent to the agent.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The base :class:`ManagerBasedRLEnv` class does not use this flag directly. It is used by the environment</span>
+<span class="sd">        wrappers to determine what type of done signal to send to the corresponding learning agent.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">episode_length_s</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Duration of an episode (in seconds).</span>
+
+<span class="sd">    Based on the decimation rate and physics time step, the episode length is calculated as:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        episode_length_steps = ceil(episode_length_s / (decimation_rate * physics_time_step))</span>
+
+<span class="sd">    For example, if the decimation rate is 10, the physics time step is 0.01, and the episode length is 10 seconds,</span>
+<span class="sd">    then the episode length in steps is 100.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_observations</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The size of the observation for each environment.&quot;&quot;&quot;</span>
+
+    <span class="n">num_states</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The size of the state-space for each environment. Default is 0.</span>
+
+<span class="sd">    This is used for asymmetric actor-critic and defines the observation space for the critic.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_actions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The size of the action space for each environment.&quot;&quot;&quot;</span>
+
+    <span class="n">events</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Settings for specifying domain randomization terms during training.</span>
+<span class="sd">       Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">action_noise_model</span><span class="p">:</span> <span class="n">NoiseModelCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Settings for adding noise to the action buffer.</span>
+<span class="sd">       Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">observation_noise_model</span><span class="p">:</span> <span class="n">NoiseModelCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Settings for adding noise to the observation buffer.</span>
+<span class="sd">       Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
@@ -593,7 +715,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

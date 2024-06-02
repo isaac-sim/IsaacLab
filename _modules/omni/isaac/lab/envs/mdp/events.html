@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/mdp/events';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -488,6 +506,7 @@ document.write(`
 
 <span class="kn">import</span> <span class="nn">carb</span>
 
+<span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ImplicitActuator</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">Articulation</span><span class="p">,</span> <span class="n">RigidObject</span>
@@ -495,11 +514,11 @@ document.write(`
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.terrains</span> <span class="kn">import</span> <span class="n">TerrainImporter</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">BaseEnv</span>
+    <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_material"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_material</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">static_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">dynamic_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -531,31 +550,39 @@ document.write(`
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">|</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
 
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="p">(</span><span class="n">RigidObject</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Randomization term &#39;randomize_rigid_body_material&#39; not supported for asset: &#39;</span><span class="si">{</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
+            <span class="sa">f</span><span class="s2">&quot; with type: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
+        <span class="p">)</span>
+
     <span class="c1"># resolve environment ids</span>
     <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+    <span class="c1"># retrieve material buffer</span>
+    <span class="n">materials</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_material_properties</span><span class="p">()</span>
 
     <span class="c1"># sample material properties from the given ranges</span>
-    <span class="n">material_buckets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">num_buckets</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
-    <span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">static_friction_range</span><span class="p">)</span>
-    <span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">dynamic_friction_range</span><span class="p">)</span>
-    <span class="n">material_buckets</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">restitution_range</span><span class="p">)</span>
+    <span class="n">material_samples</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">static_friction_range</span><span class="p">)</span>
+    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">dynamic_friction_range</span><span class="p">)</span>
+    <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">uniform_</span><span class="p">(</span><span class="o">*</span><span class="n">restitution_range</span><span class="p">)</span>
 
-    <span class="c1"># create random material assignments based on the total number of shapes: num_assets x num_shapes</span>
-    <span class="c1"># note: not optimal since it creates assignments for all the shapes but only a subset is used in the body indices case.</span>
-    <span class="n">material_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">num_buckets</span><span class="p">,</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">max_shapes</span><span class="p">))</span>
+    <span class="c1"># create uniform range tensor for bucketing</span>
+    <span class="n">lo</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">static_friction_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dynamic_friction_range</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">restitution_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">hi</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">static_friction_range</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dynamic_friction_range</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">restitution_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">RigidObject</span><span class="p">):</span>
-        <span class="c1"># get the current materials of the bodies</span>
-        <span class="n">materials</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_material_properties</span><span class="p">()</span>
-        <span class="c1"># assign the new materials</span>
-        <span class="c1"># material ids are of shape: num_env_ids x num_shapes</span>
-        <span class="c1"># material_buckets are of shape: num_buckets x 3</span>
-        <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_buckets</span><span class="p">[</span><span class="n">material_ids</span><span class="p">]</span>
+    <span class="c1"># to avoid 64k material limit in physx, we bucket materials by binning randomized material properties</span>
+    <span class="c1"># into buckets based on the number of buckets specified</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">buckets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([(</span><span class="n">hi</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="o">-</span> <span class="n">lo</span><span class="p">[</span><span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">i</span> <span class="o">/</span> <span class="n">num_buckets</span> <span class="o">+</span> <span class="n">lo</span><span class="p">[</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_buckets</span><span class="p">)],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span> <span class="o">=</span> <span class="n">buckets</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">buckets</span><span class="p">,</span> <span class="n">material_samples</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">())</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
 
-        <span class="c1"># set the material properties into the physics simulation</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">):</span>
+    <span class="c1"># update material buffer with new samples</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="n">Articulation</span><span class="p">)</span> <span class="ow">and</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># obtain number of shapes per body (needed for indexing the material properties correctly)</span>
         <span class="c1"># note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes</span>
         <span class="c1">#  per body. We use the physics simulation view to obtain the number of shapes per body.</span>
@@ -563,9 +590,6 @@ document.write(`
         <span class="k">for</span> <span class="n">link_path</span> <span class="ow">in</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">link_paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
             <span class="n">link_physx_view</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">link_path</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
             <span class="n">num_shapes_per_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">link_physx_view</span><span class="o">.</span><span class="n">max_shapes</span><span class="p">)</span>
-
-        <span class="c1"># get the current materials of the bodies</span>
-        <span class="n">materials</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_material_properties</span><span class="p">()</span>
 
         <span class="c1"># sample material properties from the given ranges</span>
         <span class="k">for</span> <span class="n">body_id</span> <span class="ow">in</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">:</span>
@@ -576,19 +600,19 @@ document.write(`
             <span class="c1"># assign the new materials</span>
             <span class="c1"># material ids are of shape: num_env_ids x num_shapes</span>
             <span class="c1"># material_buckets are of shape: num_buckets x 3</span>
-            <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_buckets</span><span class="p">[</span><span class="n">material_ids</span><span class="p">[:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]]</span>
-
-        <span class="c1"># set the material properties into the physics simulation</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+            <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_samples</span><span class="p">[:,</span> <span class="n">start_idx</span><span class="p">:</span><span class="n">end_idx</span><span class="p">]</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;Randomization term &#39;randomize_rigid_body_material&#39; not supported for asset: &#39;</span><span class="si">{</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;&quot;</span>
-            <span class="sa">f</span><span class="s2">&quot; with type: &#39;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span><span class="si">}</span><span class="s2">&#39; and body_ids: &#39;</span><span class="si">{</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
-        <span class="p">)</span></div>
+        <span class="n">materials</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">material_samples</span>
+
+    <span class="c1"># apply to simulation</span>
+    <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="add_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.add_body_mass">[docs]</a><span class="k">def</span> <span class="nf">add_body_mass</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">mass_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mass_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the mass of the bodies by adding a random value sampled from the given range.</span>
 
@@ -605,21 +629,23 @@ document.write(`
     <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
 
     <span class="c1"># call the new function</span>
-    <span class="n">randomize_rigid_body_mass</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">,</span> <span class="n">mass_range</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="s2">&quot;uniform&quot;</span><span class="p">)</span></div>
+    <span class="n">randomize_rigid_body_mass</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">,</span> <span class="n">mass_distribution_params</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="s2">&quot;uniform&quot;</span>
+    <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-    <span class="n">mass_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">mass_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
-    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the mass of the bodies by adding, scaling, or setting random values.</span>
 
 <span class="sd">    This function allows randomizing the mass of the bodies of the asset. The function samples random values from the</span>
-<span class="sd">    given ranges and adds, scales, or sets the values into the physics simulation based on the operation.</span>
+<span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.</span>
 
 <span class="sd">    .. tip::</span>
 <span class="sd">        This function uses CPU tensors to assign the body masses. It is recommended to use this function</span>
@@ -627,6 +653,12 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">|</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
 
     <span class="c1"># resolve body indices</span>
     <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
@@ -636,36 +668,69 @@ document.write(`
 
     <span class="c1"># get the current masses of the bodies (num_assets, num_bodies)</span>
     <span class="n">masses</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_masses</span><span class="p">()</span>
+    <span class="c1"># apply randomization on default values</span>
+    <span class="n">masses</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_mass</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">body_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
     <span class="c1"># sample from the given range</span>
     <span class="c1"># note: we modify the masses in-place for all environments</span>
     <span class="c1">#   however, the setter takes care that only the masses of the specified environments are modified</span>
     <span class="n">masses</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-        <span class="n">masses</span><span class="p">,</span> <span class="n">mass_range</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">body_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
+        <span class="n">masses</span><span class="p">,</span> <span class="n">mass_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">body_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
     <span class="p">)</span>
 
-    <span class="c1"># resolve environment ids</span>
-    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
     <span class="c1"># set the mass into the physics simulation</span>
     <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_masses</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">def</span> <span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">gravity_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
+    <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize gravity by adding, scaling, or setting random values.</span>
+
+<span class="sd">    This function allows randomizing gravity of the physics scene. The function samples random values from the</span>
+<span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.</span>
+
+<span class="sd">    .. attention::</span>
+<span class="sd">        This function applied the same gravity for all the environments.</span>
+
+<span class="sd">    .. tip::</span>
+<span class="sd">        This function uses CPU tensors to assign gravity.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># get the current gravity</span>
+    <span class="n">gravity</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">dist_param_0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">dist_param_1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">gravity_distribution_params</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">gravity</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+        <span class="n">gravity</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">dist_param_0</span><span class="p">,</span> <span class="n">dist_param_1</span><span class="p">),</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
+        <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+        <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+    <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># set the gravity into the physics simulation</span>
+    <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span></div>
+
+
 <div class="viewcode-block" id="randomize_actuator_gains"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_actuator_gains">[docs]</a><span class="k">def</span> <span class="nf">randomize_actuator_gains</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-    <span class="n">stiffness_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">damping_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">stiffness_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">damping_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
-    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the actuator gains in an articulation by adding, scaling, or setting random values.</span>
 
 <span class="sd">    This function allows randomizing the actuator stiffness and damping gains.</span>
 
-<span class="sd">    The function samples random values from the given ranges and applies the operation to the joint properties.</span>
-<span class="sd">    It then sets the values into the actuator models. If the ranges are not provided for a particular property,</span>
+<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to the joint properties.</span>
+<span class="sd">    It then sets the values into the actuator models. If the distribution parameters are not provided for a particular property,</span>
 <span class="sd">    the function does not modify the property.</span>
 
 <span class="sd">    .. tip::</span>
@@ -678,6 +743,10 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
     <span class="c1"># resolve joint indices</span>
     <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
@@ -702,37 +771,39 @@ document.write(`
 
     <span class="c1"># sample joint properties from the given ranges and set into the physics simulation</span>
     <span class="c1"># -- stiffness</span>
-    <span class="k">if</span> <span class="n">stiffness_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_stiffnesses</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">stiffness_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_stiffness</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">stiffness</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">stiffness</span><span class="p">,</span> <span class="n">stiffness_range</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)</span>
+            <span class="n">stiffness</span><span class="p">,</span> <span class="n">stiffness_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
         <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_stiffness_to_sim</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
     <span class="c1"># -- damping</span>
-    <span class="k">if</span> <span class="n">damping_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">damping</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_dampings</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">damping_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">damping</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_damping</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">damping</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">damping</span><span class="p">,</span> <span class="n">damping_range</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)</span>
+            <span class="n">damping</span><span class="p">,</span> <span class="n">damping_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
         <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_joint_parameters"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_joint_parameters">[docs]</a><span class="k">def</span> <span class="nf">randomize_joint_parameters</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-    <span class="n">friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">armature_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">friction_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">armature_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lower_limit_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">upper_limit_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
-    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the joint parameters of an articulation by adding, scaling, or setting random values.</span>
 
-<span class="sd">    This function allows randomizing the joint parameters (friction and armature) of the asset. These correspond</span>
-<span class="sd">    to the physics engine joint properties that affect the joint behavior.</span>
+<span class="sd">    This function allows randomizing the joint parameters of the asset.</span>
+<span class="sd">    These correspond to the physics engine joint properties that affect the joint behavior.</span>
 
-<span class="sd">    The function samples random values from the given ranges and applies the operation to the joint properties.</span>
-<span class="sd">    It then sets the values into the physics simulation. If the ranges are not provided for a</span>
+<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to the joint properties.</span>
+<span class="sd">    It then sets the values into the physics simulation. If the distribution parameters are not provided for a</span>
 <span class="sd">    particular property, the function does not modify the property.</span>
 
 <span class="sd">    .. tip::</span>
@@ -742,6 +813,10 @@ document.write(`
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
 
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
     <span class="c1"># resolve joint indices</span>
     <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># for optimization purposes</span>
@@ -750,23 +825,190 @@ document.write(`
 
     <span class="c1"># sample joint properties from the given ranges and set into the physics simulation</span>
     <span class="c1"># -- friction</span>
-    <span class="k">if</span> <span class="n">friction_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">friction</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_friction_coefficients</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">friction_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">friction</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_friction</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">friction</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">friction</span><span class="p">,</span> <span class="n">friction_range</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)</span>
+            <span class="n">friction</span><span class="p">,</span> <span class="n">friction_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
         <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_friction_to_sim</span><span class="p">(</span><span class="n">friction</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
     <span class="c1"># -- armature</span>
-    <span class="k">if</span> <span class="n">armature_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">armature</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_armatures</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">armature_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">armature</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_armature</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="n">armature</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
-            <span class="n">armature</span><span class="p">,</span> <span class="n">armature_range</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
-        <span class="p">)</span>
-        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+            <span class="n">armature</span><span class="p">,</span> <span class="n">armature_distribution_params</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_armature_to_sim</span><span class="p">(</span><span class="n">armature</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- dof limits</span>
+    <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dof_limits</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_limits</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lower_limits</span> <span class="o">=</span> <span class="n">dof_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">lower_limits</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">lower_limits</span><span class="p">,</span>
+                <span class="n">lower_limit_distribution_params</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="p">,</span>
+                <span class="n">joint_ids</span><span class="p">,</span>
+                <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">lower_limits</span>
+        <span class="k">if</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">upper_limits</span> <span class="o">=</span> <span class="n">dof_limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">upper_limits</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">upper_limits</span><span class="p">,</span>
+                <span class="n">upper_limit_distribution_params</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="p">,</span>
+                <span class="n">joint_ids</span><span class="p">,</span>
+                <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">]</span>
+            <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">upper_limits</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Randomization term &#39;randomize_joint_parameters&#39; is setting lower joint limits that are greater than&quot;</span>
+                <span class="s2">&quot; upper joint limits.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_limits_to_sim</span><span class="p">(</span><span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="randomize_fixed_tendon_parameters"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_fixed_tendon_parameters">[docs]</a><span class="k">def</span> <span class="nf">randomize_fixed_tendon_parameters</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
+    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
+    <span class="n">stiffness_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">damping_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">limit_stiffness_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">lower_limit_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">upper_limit_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">rest_length_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">offset_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;abs&quot;</span><span class="p">,</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;uniform&quot;</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the fixed tendon parameters of an articulation by adding, scaling, or setting random values.</span>
+
+<span class="sd">    This function allows randomizing the fixed tendon parameters of the asset.</span>
+<span class="sd">    These correspond to the physics engine tendon properties that affect the joint behavior.</span>
+
+<span class="sd">    The function samples random values from the given distribution parameters and applies the operation to the tendon properties.</span>
+<span class="sd">    It then sets the values into the physics simulation. If the distribution parameters are not provided for a</span>
+<span class="sd">    particular property, the function does not modify the property.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># extract the used quantities (to enable type-hinting)</span>
+    <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="c1"># resolve environment ids</span>
+    <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># resolve joint indices</span>
+    <span class="k">if</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># for optimization purposes</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">asset</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="c1"># sample tendon properties from the given ranges and set into the physics simulation</span>
+    <span class="c1"># -- stiffness</span>
+    <span class="k">if</span> <span class="n">stiffness_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">stiffness</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">stiffness</span><span class="p">,</span>
+            <span class="n">stiffness_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_stiffness</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- damping</span>
+    <span class="k">if</span> <span class="n">damping_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">damping</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_damping</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">damping</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">damping</span><span class="p">,</span>
+            <span class="n">damping_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_damping</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- limit stiffness</span>
+    <span class="k">if</span> <span class="n">limit_stiffness_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">limit_stiffness</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_limit_stiffness</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">limit_stiffness</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">limit_stiffness</span><span class="p">,</span>
+            <span class="n">limit_stiffness_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_limit_stiffness</span><span class="p">(</span><span class="n">limit_stiffness</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- limits</span>
+    <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_limit</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="c1"># -- lower limit</span>
+        <span class="k">if</span> <span class="n">lower_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lower_limit</span> <span class="o">=</span> <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">lower_limit</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">lower_limit</span><span class="p">,</span>
+                <span class="n">lower_limit_distribution_params</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="p">,</span>
+                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+            <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">lower_limit</span>
+        <span class="c1"># -- upper limit</span>
+        <span class="k">if</span> <span class="n">upper_limit_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">upper_limit</span> <span class="o">=</span> <span class="n">limit</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">upper_limit</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+                <span class="n">upper_limit</span><span class="p">,</span>
+                <span class="n">upper_limit_distribution_params</span><span class="p">,</span>
+                <span class="n">env_ids</span><span class="p">,</span>
+                <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+                <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+                <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+            <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+            <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">upper_limit</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Randomization term &#39;randomize_fixed_tendon_parameters&#39; is setting lower tendon limits that are greater&quot;</span>
+                <span class="s2">&quot; than upper tendon limits.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_limit</span><span class="p">(</span><span class="n">limit</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- rest length</span>
+    <span class="k">if</span> <span class="n">rest_length_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">rest_length</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_rest_length</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">rest_length</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">rest_length</span><span class="p">,</span>
+            <span class="n">rest_length_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_rest_length</span><span class="p">(</span><span class="n">rest_length</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+    <span class="c1"># -- offset</span>
+    <span class="k">if</span> <span class="n">offset_distribution_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_fixed_tendon_offset</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="n">_randomize_prop_by_op</span><span class="p">(</span>
+            <span class="n">offset</span><span class="p">,</span>
+            <span class="n">offset_distribution_params</span><span class="p">,</span>
+            <span class="n">env_ids</span><span class="p">,</span>
+            <span class="n">fixed_tendon_ids</span><span class="p">,</span>
+            <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
+            <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
+        <span class="p">)[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span>
+        <span class="n">asset</span><span class="o">.</span><span class="n">set_fixed_tendon_offset</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="n">asset</span><span class="o">.</span><span class="n">write_fixed_tendon_properties_to_sim</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="apply_external_force_torque"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.apply_external_force_torque">[docs]</a><span class="k">def</span> <span class="nf">apply_external_force_torque</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">force_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">torque_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -797,7 +1039,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="push_by_setting_velocity"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.push_by_setting_velocity">[docs]</a><span class="k">def</span> <span class="nf">push_by_setting_velocity</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">),</span>
@@ -825,7 +1067,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="reset_root_state_uniform"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_uniform">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_uniform</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -870,7 +1112,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="reset_root_state_with_random_orientation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_with_random_orientation">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_with_random_orientation</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -922,7 +1164,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="reset_root_state_from_terrain"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_from_terrain">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_from_terrain</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -989,7 +1231,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="reset_joints_by_scale"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_scale">[docs]</a><span class="k">def</span> <span class="nf">reset_joints_by_scale</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">position_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -1022,7 +1264,7 @@ document.write(`
 
 
 <div class="viewcode-block" id="reset_joints_by_offset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_offset">[docs]</a><span class="k">def</span> <span class="nf">reset_joints_by_offset</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">position_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -1055,7 +1297,7 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span> <span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">BaseEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+<div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span> <span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the scene to the default state specified in the scene configuration.&quot;&quot;&quot;</span>
     <span class="c1"># rigid bodies</span>
     <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
@@ -1085,17 +1327,17 @@ document.write(`
 
 <span class="k">def</span> <span class="nf">_randomize_prop_by_op</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-    <span class="n">sample_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">distribution_parameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">dim_0_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">dim_1_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">slice</span><span class="p">,</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>
-    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">],</span>
+    <span class="n">distribution</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">,</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Perform data randomization based on the given operation and distribution.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        data: The data tensor to be randomized. Shape is (dim_0, dim_1).</span>
-<span class="sd">        sample_range: The range to sample the random values from.</span>
+<span class="sd">        distribution_parameters: The parameters for the distribution to sample values from.</span>
 <span class="sd">        dim_0_ids: The indices of the first dimension to randomize.</span>
 <span class="sd">        dim_1_ids: The indices of the second dimension to randomize.</span>
 <span class="sd">        operation: The operation to perform on the data. Options: &#39;add&#39;, &#39;scale&#39;, &#39;abs&#39;.</span>
@@ -1114,6 +1356,7 @@ document.write(`
         <span class="n">dim_0_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">n_dim_0</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dim_0_ids</span><span class="p">)</span>
+        <span class="n">dim_0_ids</span> <span class="o">=</span> <span class="n">dim_0_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
     <span class="c1"># -- dim 1</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dim_1_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
         <span class="n">n_dim_1</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
@@ -1125,18 +1368,20 @@ document.write(`
         <span class="n">dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_uniform</span>
     <span class="k">elif</span> <span class="n">distribution</span> <span class="o">==</span> <span class="s2">&quot;log_uniform&quot;</span><span class="p">:</span>
         <span class="n">dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_log_uniform</span>
+    <span class="k">elif</span> <span class="n">distribution</span> <span class="o">==</span> <span class="s2">&quot;gaussian&quot;</span><span class="p">:</span>
+        <span class="n">dist_fn</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">sample_gaussian</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;Unknown distribution: &#39;</span><span class="si">{</span><span class="n">distribution</span><span class="si">}</span><span class="s2">&#39; for joint properties randomization.&quot;</span>
-            <span class="s2">&quot; Please use &#39;uniform&#39; or &#39;log_uniform&#39;.&quot;</span>
+            <span class="s2">&quot; Please use &#39;uniform&#39;, &#39;log_uniform&#39;, &#39;gaussian&#39;.&quot;</span>
         <span class="p">)</span>
     <span class="c1"># perform the operation</span>
     <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
-        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">sample_range</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">distribution_parameters</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;scale&quot;</span><span class="p">:</span>
-        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">*=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">sample_range</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">*=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">distribution_parameters</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;abs&quot;</span><span class="p">:</span>
-        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">sample_range</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">data</span><span class="p">[</span><span class="n">dim_0_ids</span><span class="p">,</span> <span class="n">dim_1_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">dist_fn</span><span class="p">(</span><span class="o">*</span><span class="n">distribution_parameters</span><span class="p">,</span> <span class="p">(</span><span class="n">n_dim_0</span><span class="p">,</span> <span class="n">n_dim_1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">&quot;Unknown operation: &#39;</span><span class="si">{</span><span class="n">operation</span><span class="si">}</span><span class="s2">&#39; for property randomization. Please use &#39;add&#39;, &#39;scale&#39;, or &#39;abs&#39;.&quot;</span>
@@ -1189,7 +1434,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

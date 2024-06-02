@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -57,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.actuators" href="omni.isaac.lab.actuators.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -178,7 +179,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -213,7 +214,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -221,11 +228,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -243,8 +259,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -591,6 +608,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.heading_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.body_state_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.body_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.body_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.default_mass"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.default_mass</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_pos_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_quat_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_vel_w</span></code></a></li>
@@ -641,6 +659,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_joints"><code class="docutils literal notranslate"><span class="pre">Articulation.find_joints()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_fixed_tendons"><code class="docutils literal notranslate"><span class="pre">Articulation.find_fixed_tendons()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">Articulation.set_external_force_and_torque()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_root_pose_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_root_velocity_to_sim()</span></code></a></li>
@@ -650,9 +669,17 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_effort_limit_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_armature_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_friction_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_limits_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_position_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_position_target()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_velocity_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_velocity_target()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_effort_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_effort_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_stiffness()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_damping()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_limit_stiffness()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_limit()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_rest_length()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_offset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_fixed_tendon_properties_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.device"><code class="docutils literal notranslate"><span class="pre">Articulation.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_bodies"><code class="docutils literal notranslate"><span class="pre">Articulation.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Articulation.has_debug_vis_implementation</span></code></a></li>
@@ -671,6 +698,15 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_pos_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_pos_target</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_vel_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_vel_target</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_effort_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_effort_target</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_armature</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_friction</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_limits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_armature</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_acc_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_ang_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_ang_acc_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_ang_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_ang_vel_w</span></code></a></li>
@@ -681,6 +717,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_quat_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_mass"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_mass</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_root_state"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_root_state</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.heading_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.projected_gravity_b</span></code></a></li>
@@ -693,12 +730,21 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_vel_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_vel_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_vel_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_stiffness</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_damping</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_armature</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_friction</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.computed_torque"><code class="docutils literal notranslate"><span class="pre">ArticulationData.computed_torque</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.applied_torque"><code class="docutils literal notranslate"><span class="pre">ArticulationData.applied_torque</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_limit_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_rest_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_limit</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_limit_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_rest_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.soft_joint_pos_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.soft_joint_pos_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.soft_joint_vel_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.soft_joint_vel_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.gear_ratio"><code class="docutils literal notranslate"><span class="pre">ArticulationData.gear_ratio</span></code></a></li>
@@ -1409,46 +1455,49 @@ does not support debug visualization.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_acc_w" title="omni.isaac.lab.assets.RigidObjectData.body_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_acc_w</span></code></a></p></td>
 <td><p>Acceleration of all bodies.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_pos_w" title="omni.isaac.lab.assets.RigidObjectData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.default_mass" title="omni.isaac.lab.assets.RigidObjectData.default_mass"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_mass</span></code></a></p></td>
+<td><p>Default mass provided by simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_pos_w" title="omni.isaac.lab.assets.RigidObjectData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
 <td><p>Root position in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_quat_w" title="omni.isaac.lab.assets.RigidObjectData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_quat_w" title="omni.isaac.lab.assets.RigidObjectData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
 <td><p>Root orientation (w, x, y, z) in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
 <td><p>Root velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
 <td><p>Root linear velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w" title="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
 <td><p>Root angular velocity in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b" title="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b" title="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
 <td><p>Root linear velocity in base frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b" title="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b" title="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
 <td><p>Root angular velocity in base world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_pos_w" title="omni.isaac.lab.assets.RigidObjectData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_pos_w" title="omni.isaac.lab.assets.RigidObjectData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
 <td><p>Positions of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_quat_w" title="omni.isaac.lab.assets.RigidObjectData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_quat_w" title="omni.isaac.lab.assets.RigidObjectData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
 <td><p>Orientation (w, x, y, z) of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
 <td><p>Velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
 <td><p>Linear velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w" title="omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
 <td><p>Angular velocity of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w" title="omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w" title="omni.isaac.lab.assets.RigidObjectData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
 <td><p>Linear acceleration of all bodies in simulation world frame.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w" title="omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w" title="omni.isaac.lab.assets.RigidObjectData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
 <td><p>Angular acceleration of all bodies in simulation world frame.</p></td>
 </tr>
 </tbody>
@@ -1510,6 +1559,12 @@ Shape is (num_instances, num_bodies, 13).</p>
 <p class="admonition-title">Note</p>
 <p>This quantity is computed based on the rigid body state from the last step.</p>
 </div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.default_mass">
+<span class="sig-name descname"><span class="pre">default_mass</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.default_mass" title="Permalink to this definition">#</a></dt>
+<dd><p>Default mass provided by simulation. Shape is (num_instances, num_bodies).</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1820,32 +1875,38 @@ As an example, the following snippet shows how this can be used for position com
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.find_joints" title="omni.isaac.lab.assets.Articulation.find_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_joints</span></code></a>(name_keys[, joint_subset, ...])</p></td>
 <td><p>Find joints in the articulation based on the name keys.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_external_force_and_torque" title="omni.isaac.lab.assets.Articulation.set_external_force_and_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_external_force_and_torque</span></code></a>(forces, torques)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.find_fixed_tendons" title="omni.isaac.lab.assets.Articulation.find_fixed_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_fixed_tendons</span></code></a>(name_keys[, ...])</p></td>
+<td><p>Find fixed tendons in the articulation based on the name keys.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_external_force_and_torque" title="omni.isaac.lab.assets.Articulation.set_external_force_and_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_external_force_and_torque</span></code></a>(forces, torques)</p></td>
 <td><p>Set external force and torque to apply on the asset's bodies in their local frame.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_pose_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_pose_to_sim</span></code></a>(root_pose[, env_ids])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_pose_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_pose_to_sim</span></code></a>(root_pose[, env_ids])</p></td>
 <td><p>Set the root pose over selected environment indices into the simulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_velocity_to_sim</span></code></a>(root_velocity[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_velocity_to_sim</span></code></a>(root_velocity[, ...])</p></td>
 <td><p>Set the root velocity over selected environment indices into the simulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_state_to_sim</span></code></a>(position, velocity)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_state_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_state_to_sim</span></code></a>(position, velocity)</p></td>
 <td><p>Write joint positions and velocities to the simulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_stiffness_to_sim</span></code></a>(stiffness[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_stiffness_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_stiffness_to_sim</span></code></a>(stiffness[, ...])</p></td>
 <td><p>Write joint stiffness into the simulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_damping_to_sim</span></code></a>(damping[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_damping_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_damping_to_sim</span></code></a>(damping[, ...])</p></td>
 <td><p>Write joint damping into the simulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_effort_limit_to_sim</span></code></a>(limits[, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_effort_limit_to_sim</span></code></a>(limits[, ...])</p></td>
 <td><p>Write joint effort limits into the simulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_armature_to_sim</span></code></a>(armature[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_armature_to_sim</span></code></a>(armature[, ...])</p></td>
 <td><p>Write joint armature into the simulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_friction_to_sim</span></code></a>(joint_friction)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_friction_to_sim</span></code></a>(joint_friction)</p></td>
 <td><p>Write joint friction into the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim" title="omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_joint_limits_to_sim</span></code></a>(limits[, ...])</p></td>
+<td><p>Write joint limits into the simulation.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_joint_position_target" title="omni.isaac.lab.assets.Articulation.set_joint_position_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_joint_position_target</span></code></a>(target[, ...])</p></td>
 <td><p>Set joint position targets into internal buffers.</p></td>
@@ -1856,13 +1917,34 @@ As an example, the following snippet shows how this can be used for position com
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_joint_effort_target" title="omni.isaac.lab.assets.Articulation.set_joint_effort_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_joint_effort_target</span></code></a>(target[, joint_ids, ...])</p></td>
 <td><p>Set joint efforts into internal buffers.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.find_bodies" title="omni.isaac.lab.assets.Articulation.find_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_bodies</span></code></a>(name_keys[, preserve_order])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_stiffness</span></code></a>(stiffness[, ...])</p></td>
+<td><p>Set fixed tendon stiffness into internal buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_damping</span></code></a>(damping[, ...])</p></td>
+<td><p>Set fixed tendon damping into internal buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_limit_stiffness</span></code></a>(limit_stiffness)</p></td>
+<td><p>Set fixed tendon limit stiffness efforts into internal buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_limit</span></code></a>(limit[, ...])</p></td>
+<td><p>Set fixed tendon limit efforts into internal buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_rest_length</span></code></a>(rest_length[, ...])</p></td>
+<td><p>Set fixed tendon rest length efforts into internal buffers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset" title="omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_fixed_tendon_offset</span></code></a>(offset[, ...])</p></td>
+<td><p>Set fixed tendon offset efforts into internal buffers.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim</span></code></a>([...])</p></td>
+<td><p>Write fixed tendon properties into the simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.find_bodies" title="omni.isaac.lab.assets.Articulation.find_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">find_bodies</span></code></a>(name_keys[, preserve_order])</p></td>
 <td><p>Find bodies in the articulation based on the name keys.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_debug_vis" title="omni.isaac.lab.assets.Articulation.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.set_debug_vis" title="omni.isaac.lab.assets.Articulation.set_debug_vis"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_debug_vis</span></code></a>(debug_vis)</p></td>
 <td><p>Sets whether to visualize the asset data.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_state_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_state_to_sim</span></code></a>(root_state[, env_ids])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_root_state_to_sim" title="omni.isaac.lab.assets.Articulation.write_root_state_to_sim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_root_state_to_sim</span></code></a>(root_state[, env_ids])</p></td>
 <td><p>Set the root state over selected environment indices into the simulation.</p></td>
 </tr>
 </tbody>
@@ -1999,6 +2081,27 @@ in the articulation are searched.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A tuple of lists containing the joint indices and names.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.find_fixed_tendons">
+<span class="sig-name descname"><span class="pre">find_fixed_tendons</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name_keys</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tendon_subsets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">preserve_order</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.find_fixed_tendons"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.find_fixed_tendons" title="Permalink to this definition">#</a></dt>
+<dd><p>Find fixed tendons in the articulation based on the name keys.</p>
+<p>Please see the <code class="xref py py-func docutils literal notranslate"><span class="pre">omni.isaac.orbit.utils.string.resolve_matching_names()</span></code> function for more information
+on the name matching.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name_keys</strong> – A regular expression or a list of regular expressions to match the joint names with fixed tendons.</p></li>
+<li><p><strong>tendon_subsets</strong> – A subset of joints with fixed tendons to search for. Defaults to None, which means all joints
+in the articulation are searched.</p></li>
+<li><p><strong>preserve_order</strong> – Whether to preserve the order of the name keys in the output. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple of lists containing the tendon indices and names.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2160,6 +2263,21 @@ Defaults to None (all environments).</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim">
+<span class="sig-name descname"><span class="pre">write_joint_limits_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">joint_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.write_joint_limits_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Write joint limits into the simulation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>limits</strong> – Joint limits. Shape is (len(env_ids), len(joint_ids), 2).</p></li>
+<li><p><strong>joint_ids</strong> – The joint indices to set the limits for. Defaults to None (all joints).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the limits for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_joint_position_target">
 <span class="sig-name descname"><span class="pre">set_joint_position_target</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">joint_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_joint_position_target"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_joint_position_target" title="Permalink to this definition">#</a></dt>
 <dd><p>Set joint position targets into internal buffers.</p>
@@ -2214,6 +2332,139 @@ the desired values. To apply the joint targets, call the <a class="reference int
 <li><p><strong>target</strong> – Joint effort targets. Shape is (len(env_ids), len(joint_ids)).</p></li>
 <li><p><strong>joint_ids</strong> – The joint indices to set the targets for. Defaults to None (all joints).</p></li>
 <li><p><strong>env_ids</strong> – The environment indices to set the targets for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_stiffness</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stiffness</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_stiffness"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon stiffness into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
+the desired values. To apply the tendon stiffness, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>stiffness</strong> – Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).</p></li>
+<li><p><strong>fixed_tendon_ids</strong> – The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the stiffness for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_damping</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">damping</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_damping"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon damping into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the tendon damping to the simulation. It only fills the buffers with
+the desired values. To apply the tendon damping, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>damping</strong> – Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).</p></li>
+<li><p><strong>fixed_tendon_ids</strong> – The tendon indices to set the damping for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the damping for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_limit_stiffness</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit_stiffness</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_limit_stiffness"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon limit stiffness efforts into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
+the desired values. To apply the tendon limit stiffness, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>limit_stiffness</strong> – Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).</p></li>
+<li><p><strong>fixed_tendon_ids</strong> – The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the limit stiffness for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_limit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_limit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon limit efforts into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<blockquote>
+<div><p>This function does not apply the tendon limit to the simulation. It only fills the buffers with
+the desired values. To apply the tendon limit, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Args:</dt><dd><p>limit: Fixed tendon limit. Shape is (len(env_ids), len(fixed_tendon_ids)).
+fixed_tendon_ids: The tendon indices to set the limit for. Defaults to None (all fixed tendons).
+env_ids: The environment indices to set the limit for. Defaults to None (all environments).</p>
+</dd>
+</dl>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_rest_length</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rest_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_rest_length"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon rest length efforts into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the tendon rest length to the simulation. It only fills the buffers with
+the desired values. To apply the tendon rest length, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rest_length</strong> – Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).</p></li>
+<li><p><strong>fixed_tendon_ids</strong> – The tendon indices to set the rest length for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the rest length for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset">
+<span class="sig-name descname"><span class="pre">set_fixed_tendon_offset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.set_fixed_tendon_offset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Set fixed tendon offset efforts into internal buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function does not apply the tendon offset to the simulation. It only fills the buffers with
+the desired values. To apply the tendon offset, call the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_fixed_tendon_properties_to_sim()</span></code></a> function.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>offset</strong> – Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).</p></li>
+<li><p><strong>fixed_tendon_ids</strong> – The tendon indices to set the offset for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the offset for. Defaults to None (all environments).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim">
+<span class="sig-name descname"><span class="pre">write_fixed_tendon_properties_to_sim</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fixed_tendon_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#slice" title="(in Python v3.12)"><span class="pre">slice</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/assets/articulation/articulation.html#Articulation.write_fixed_tendon_properties_to_sim"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim" title="Permalink to this definition">#</a></dt>
+<dd><p>Write fixed tendon properties into the simulation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fixed_tendon_ids</strong> – The fixed tendon indices to set the limits for. Defaults to None (all fixed tendons).</p></li>
+<li><p><strong>env_ids</strong> – The environment indices to set the limits for. Defaults to None (all environments).</p></li>
 </ul>
 </dd>
 </dl>
@@ -2325,48 +2576,6 @@ and angular velocity. All the quantities are in the simulation frame.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.joint_effort_target" title="omni.isaac.lab.assets.ArticulationData.joint_effort_target"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_effort_target</span></code></a></p></td>
 <td><p>Joint effort targets commanded by the user.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_ang_acc_w" title="omni.isaac.lab.assets.ArticulationData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
-<td><p>Angular acceleration of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_ang_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
-<td><p>Angular velocity of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_lin_acc_w" title="omni.isaac.lab.assets.ArticulationData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
-<td><p>Linear acceleration of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_lin_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
-<td><p>Linear velocity of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_pos_w" title="omni.isaac.lab.assets.ArticulationData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
-<td><p>Positions of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_quat_w" title="omni.isaac.lab.assets.ArticulationData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
-<td><p>Orientation (w, x, y, z) of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
-<td><p>Velocity of all bodies in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_b" title="omni.isaac.lab.assets.ArticulationData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
-<td><p>Root angular velocity in base world frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
-<td><p>Root angular velocity in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_b" title="omni.isaac.lab.assets.ArticulationData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
-<td><p>Root linear velocity in base frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
-<td><p>Root linear velocity in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_pos_w" title="omni.isaac.lab.assets.ArticulationData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
-<td><p>Root position in simulation world frame.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_quat_w" title="omni.isaac.lab.assets.ArticulationData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
-<td><p>Root orientation (w, x, y, z) in simulation world frame.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
-<td><p>Root velocity in simulation world frame.</p></td>
-</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness" title="omni.isaac.lab.assets.ArticulationData.joint_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_stiffness</span></code></a></p></td>
 <td><p>Joint stiffness provided to simulation.</p></td>
 </tr>
@@ -2379,11 +2588,107 @@ and angular velocity. All the quantities are in the simulation frame.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.joint_friction" title="omni.isaac.lab.assets.ArticulationData.joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_friction</span></code></a></p></td>
 <td><p>Joint friction provided to simulation.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.joint_limits" title="omni.isaac.lab.assets.ArticulationData.joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_limits</span></code></a></p></td>
+<td><p>Joint limits provided to simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_joint_stiffness" title="omni.isaac.lab.assets.ArticulationData.default_joint_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_stiffness</span></code></a></p></td>
+<td><p>Default joint stiffness of all joints.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_joint_damping" title="omni.isaac.lab.assets.ArticulationData.default_joint_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_damping</span></code></a></p></td>
+<td><p>Default joint damping of all joints.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_joint_armature" title="omni.isaac.lab.assets.ArticulationData.default_joint_armature"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_armature</span></code></a></p></td>
+<td><p>Default joint armature of all joints.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_joint_friction" title="omni.isaac.lab.assets.ArticulationData.default_joint_friction"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_friction</span></code></a></p></td>
+<td><p>Default joint friction of all joints.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_ang_acc_w" title="omni.isaac.lab.assets.ArticulationData.body_ang_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_acc_w</span></code></a></p></td>
+<td><p>Angular acceleration of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_ang_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_ang_vel_w</span></code></a></p></td>
+<td><p>Angular velocity of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_lin_acc_w" title="omni.isaac.lab.assets.ArticulationData.body_lin_acc_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_acc_w</span></code></a></p></td>
+<td><p>Linear acceleration of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_lin_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_lin_vel_w</span></code></a></p></td>
+<td><p>Linear velocity of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_pos_w" title="omni.isaac.lab.assets.ArticulationData.body_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_pos_w</span></code></a></p></td>
+<td><p>Positions of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_quat_w" title="omni.isaac.lab.assets.ArticulationData.body_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_quat_w</span></code></a></p></td>
+<td><p>Orientation (w, x, y, z) of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w" title="omni.isaac.lab.assets.ArticulationData.body_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_vel_w</span></code></a></p></td>
+<td><p>Velocity of all bodies in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_b" title="omni.isaac.lab.assets.ArticulationData.root_ang_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_b</span></code></a></p></td>
+<td><p>Root angular velocity in base world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_ang_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_ang_vel_w</span></code></a></p></td>
+<td><p>Root angular velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_b" title="omni.isaac.lab.assets.ArticulationData.root_lin_vel_b"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_b</span></code></a></p></td>
+<td><p>Root linear velocity in base frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_lin_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_lin_vel_w</span></code></a></p></td>
+<td><p>Root linear velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_pos_w" title="omni.isaac.lab.assets.ArticulationData.root_pos_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_pos_w</span></code></a></p></td>
+<td><p>Root position in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_quat_w" title="omni.isaac.lab.assets.ArticulationData.root_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_quat_w</span></code></a></p></td>
+<td><p>Root orientation (w, x, y, z) in simulation world frame.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.root_vel_w" title="omni.isaac.lab.assets.ArticulationData.root_vel_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_vel_w</span></code></a></p></td>
+<td><p>Root velocity in simulation world frame.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_joint_limits" title="omni.isaac.lab.assets.ArticulationData.default_joint_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_joint_limits</span></code></a></p></td>
+<td><p>Default joint limits of all joints.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.computed_torque" title="omni.isaac.lab.assets.ArticulationData.computed_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">computed_torque</span></code></a></p></td>
 <td><p>Joint torques computed from the actuator model (before clipping).</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.applied_torque" title="omni.isaac.lab.assets.ArticulationData.applied_torque"><code class="xref py py-obj docutils literal notranslate"><span class="pre">applied_torque</span></code></a></p></td>
 <td><p>Joint torques applied from the actuator model (after clipping).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_stiffness</span></code></a></p></td>
+<td><p>Fixed tendon stiffness provided to simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_damping</span></code></a></p></td>
+<td><p>Fixed tendon damping provided to simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_limit_stiffness</span></code></a></p></td>
+<td><p>Fixed tendon limit stiffness provided to simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_rest_length</span></code></a></p></td>
+<td><p>Fixed tendon rest length provided to simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_offset</span></code></a></p></td>
+<td><p>Fixed tendon offset provided to simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit" title="omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_limit</span></code></a></p></td>
+<td><p>Fixed tendon limits provided to simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_stiffness</span></code></a></p></td>
+<td><p>Default tendon stiffness of all tendons.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_damping</span></code></a></p></td>
+<td><p>Default tendon damping of all tendons.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_limit_stiffness</span></code></a></p></td>
+<td><p>Default tendon limit stiffness of all tendons.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_rest_length</span></code></a></p></td>
+<td><p>Default tendon rest length of all tendons.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_offset</span></code></a></p></td>
+<td><p>Default tendon offset of all tendons.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit" title="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">default_fixed_tendon_limit</span></code></a></p></td>
+<td><p>Default tendon limits of all tendons.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.soft_joint_pos_limits" title="omni.isaac.lab.assets.ArticulationData.soft_joint_pos_limits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">soft_joint_pos_limits</span></code></a></p></td>
 <td><p>Joint positions limits for all joints.</p></td>
@@ -2461,6 +2766,60 @@ which are then set into the simulation.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_stiffness">
+<span class="sig-name descname"><span class="pre">joint_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint stiffness provided to simulation. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_damping">
+<span class="sig-name descname"><span class="pre">joint_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint damping provided to simulation. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_armature">
+<span class="sig-name descname"><span class="pre">joint_armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_armature" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint armature provided to simulation. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_friction">
+<span class="sig-name descname"><span class="pre">joint_friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_friction" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint friction provided to simulation. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_limits">
+<span class="sig-name descname"><span class="pre">joint_limits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_limits" title="Permalink to this definition">#</a></dt>
+<dd><p>Joint limits provided to simulation. Shape is (num_instances, num_joints, 2).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_joint_stiffness">
+<span class="sig-name descname"><span class="pre">default_joint_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_joint_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Default joint stiffness of all joints. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_joint_damping">
+<span class="sig-name descname"><span class="pre">default_joint_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_joint_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Default joint damping of all joints. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_joint_armature">
+<span class="sig-name descname"><span class="pre">default_joint_armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_joint_armature" title="Permalink to this definition">#</a></dt>
+<dd><p>Default joint armature of all joints. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_joint_friction">
+<span class="sig-name descname"><span class="pre">default_joint_friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_joint_friction" title="Permalink to this definition">#</a></dt>
+<dd><p>Default joint friction of all joints. Shape is (num_instances, num_joints).</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_acc_w">
 <span class="sig-name descname"><span class="pre">body_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).</p>
@@ -2523,6 +2882,12 @@ Shape is (num_instances, num_bodies, 13).</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_mass">
+<span class="sig-name descname"><span class="pre">default_mass</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_mass" title="Permalink to this definition">#</a></dt>
+<dd><p>Default mass provided by simulation. Shape is (num_instances, num_bodies).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2603,27 +2968,9 @@ frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_stiffness">
-<span class="sig-name descname"><span class="pre">joint_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness" title="Permalink to this definition">#</a></dt>
-<dd><p>Joint stiffness provided to simulation. Shape is (num_instances, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_damping">
-<span class="sig-name descname"><span class="pre">joint_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_damping" title="Permalink to this definition">#</a></dt>
-<dd><p>Joint damping provided to simulation. Shape is (num_instances, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_armature">
-<span class="sig-name descname"><span class="pre">joint_armature</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_armature" title="Permalink to this definition">#</a></dt>
-<dd><p>Joint armature provided to simulation. Shape is (num_instances, num_joints).</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.joint_friction">
-<span class="sig-name descname"><span class="pre">joint_friction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.joint_friction" title="Permalink to this definition">#</a></dt>
-<dd><p>Joint friction provided to simulation. Shape is (num_instances, num_joints).</p>
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_joint_limits">
+<span class="sig-name descname"><span class="pre">default_joint_limits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_joint_limits" title="Permalink to this definition">#</a></dt>
+<dd><p>Default joint limits of all joints. Shape is (num_instances, num_joints, 2).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2643,6 +2990,78 @@ For instance, to penalize the learning agent for a difference between the comput
 <p>These torques are set into the simulation, after clipping the <a class="reference internal" href="#omni.isaac.lab.assets.ArticulationData.computed_torque" title="omni.isaac.lab.assets.ArticulationData.computed_torque"><code class="xref py py-attr docutils literal notranslate"><span class="pre">computed_torque</span></code></a> based on the
 actuator model.</p>
 <p>Note: The torques are zero for implicit actuator models.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness">
+<span class="sig-name descname"><span class="pre">fixed_tendon_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping">
+<span class="sig-name descname"><span class="pre">fixed_tendon_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon damping provided to simulation. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness">
+<span class="sig-name descname"><span class="pre">fixed_tendon_limit_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon limit stiffness provided to simulation. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length">
+<span class="sig-name descname"><span class="pre">fixed_tendon_rest_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon rest length provided to simulation. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset">
+<span class="sig-name descname"><span class="pre">fixed_tendon_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon offset provided to simulation. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit">
+<span class="sig-name descname"><span class="pre">fixed_tendon_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit" title="Permalink to this definition">#</a></dt>
+<dd><p>Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_limit_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_rest_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit">
+<span class="sig-name descname"><span class="pre">default_fixed_tendon_limit</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit" title="Permalink to this definition">#</a></dt>
+<dd><p>Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2915,6 +3334,7 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.heading_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.body_state_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.body_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.body_acc_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.default_mass"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.default_mass</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_pos_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_quat_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObjectData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">RigidObjectData.root_vel_w</span></code></a></li>
@@ -2965,6 +3385,7 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_data_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_data_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_joints"><code class="docutils literal notranslate"><span class="pre">Articulation.find_joints()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_fixed_tendons"><code class="docutils literal notranslate"><span class="pre">Articulation.find_fixed_tendons()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">Articulation.set_external_force_and_torque()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_root_pose_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_root_velocity_to_sim()</span></code></a></li>
@@ -2974,9 +3395,17 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_effort_limit_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_effort_limit_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_armature_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_armature_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_friction_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_friction_to_sim()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_joint_limits_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_joint_limits_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_position_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_position_target()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_velocity_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_velocity_target()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_joint_effort_target"><code class="docutils literal notranslate"><span class="pre">Articulation.set_joint_effort_target()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_stiffness()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_damping()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_limit_stiffness()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_limit()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_rest_length()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">Articulation.set_fixed_tendon_offset()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.write_fixed_tendon_properties_to_sim"><code class="docutils literal notranslate"><span class="pre">Articulation.write_fixed_tendon_properties_to_sim()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.device"><code class="docutils literal notranslate"><span class="pre">Articulation.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_bodies"><code class="docutils literal notranslate"><span class="pre">Articulation.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Articulation.has_debug_vis_implementation</span></code></a></li>
@@ -2995,6 +3424,15 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_pos_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_pos_target</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_vel_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_vel_target</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_effort_target"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_effort_target</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_armature</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_friction</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_limits</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_armature</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_friction</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_acc_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_ang_acc_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_ang_acc_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_ang_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_ang_vel_w</span></code></a></li>
@@ -3005,6 +3443,7 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_quat_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.body_vel_w</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_mass"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_mass</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_root_state"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_root_state</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.heading_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.heading_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.projected_gravity_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.projected_gravity_b</span></code></a></li>
@@ -3017,12 +3456,21 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_state_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_state_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_vel_b"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_vel_b</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.root_vel_w"><code class="docutils literal notranslate"><span class="pre">ArticulationData.root_vel_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_stiffness</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_damping</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_armature"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_armature</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.joint_friction"><code class="docutils literal notranslate"><span class="pre">ArticulationData.joint_friction</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_joint_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_joint_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.computed_torque"><code class="docutils literal notranslate"><span class="pre">ArticulationData.computed_torque</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.applied_torque"><code class="docutils literal notranslate"><span class="pre">ArticulationData.applied_torque</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_limit_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_rest_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">ArticulationData.fixed_tendon_limit</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_damping"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit_stiffness"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_limit_stiffness</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_rest_length"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_rest_length</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_offset"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.default_fixed_tendon_limit"><code class="docutils literal notranslate"><span class="pre">ArticulationData.default_fixed_tendon_limit</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.soft_joint_pos_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.soft_joint_pos_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.soft_joint_vel_limits"><code class="docutils literal notranslate"><span class="pre">ArticulationData.soft_joint_vel_limits</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.ArticulationData.gear_ratio"><code class="docutils literal notranslate"><span class="pre">ArticulationData.gear_ratio</span></code></a></li>
@@ -3082,7 +3530,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

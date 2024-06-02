@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="omni.isaac.lab.envs.mdp" href="omni.isaac.lab.envs.mdp.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -536,9 +553,9 @@ document.write(`
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rl-task-environment-ui">RL Task Environment UI</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow"><code class="docutils literal notranslate"><span class="pre">RLTaskEnvWindow</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__"><code class="docutils literal notranslate"><span class="pre">RLTaskEnvWindow.__init__()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-based-rl-environment-ui">Config Based RL Environment UI</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow.__init__()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -579,7 +596,7 @@ toggling different debug visualization tools, and other user-defined functionali
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.BaseEnvWindow" title="omni.isaac.lab.envs.ui.BaseEnvWindow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BaseEnvWindow</span></code></a></p></td>
 <td><p>Window manager for the basic environment.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow" title="omni.isaac.lab.envs.ui.RLTaskEnvWindow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RLTaskEnvWindow</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow" title="omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow</span></code></a></p></td>
 <td><p>Window manager for the RL environment.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ViewportCameraController" title="omni.isaac.lab.envs.ui.ViewportCameraController"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ViewportCameraController</span></code></a></p></td>
@@ -618,7 +635,7 @@ directly from the standalone execution script.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.BaseEnvWindow.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.BaseEnv" title="omni.isaac.lab.envs.BaseEnv"><span class="pre">BaseEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'IsaacLab'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/base_env_window.html#BaseEnvWindow.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'IsaacLab'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/base_env_window.html#BaseEnvWindow.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.BaseEnvWindow.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the window.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -633,11 +650,11 @@ directly from the standalone execution script.</p>
 </dd></dl>
 
 </section>
-<section id="rl-task-environment-ui">
-<h2>RL Task Environment UI<a class="headerlink" href="#rl-task-environment-ui" title="Permalink to this heading">#</a></h2>
+<section id="config-based-rl-environment-ui">
+<h2>Config Based RL Environment UI<a class="headerlink" href="#config-based-rl-environment-ui" title="Permalink to this heading">#</a></h2>
 <dl class="py class">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.RLTaskEnvWindow">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.ui.</span></span><span class="sig-name descname"><span class="pre">RLTaskEnvWindow</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/rl_task_env_window.html#RLTaskEnvWindow"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.envs.ui.</span></span><span class="sig-name descname"><span class="pre">ManagerBasedRLEnvWindow</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/manager_based_rl_env_window.html#ManagerBasedRLEnvWindow"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow" title="Permalink to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.envs.ui.BaseEnvWindow" title="omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseEnvWindow</span></code></a></p>
 <p>Window manager for the RL environment.</p>
 <p>On top of the basic environment window, this class adds controls for the RL environment.
@@ -645,15 +662,15 @@ This includes visualization of the command manager.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__" title="omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env[, window_name])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__" title="omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env[, window_name])</p></td>
 <td><p>Initialize the window.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
 <dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.RLTaskEnv" title="omni.isaac.lab.envs.RLTaskEnv"><span class="pre">RLTaskEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'IsaacLab'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/rl_task_env_window.html#RLTaskEnvWindow.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'IsaacLab'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/manager_based_rl_env_window.html#ManagerBasedRLEnvWindow.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the window.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -718,7 +735,7 @@ root position. For this, it registers a callback to the post update event stream
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.envs.ui.ViewportCameraController.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.BaseEnv" title="omni.isaac.lab.envs.BaseEnv"><span class="pre">BaseEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ViewerCfg" title="omni.isaac.lab.envs.ViewerCfg"><span class="pre">ViewerCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/viewport_camera_controller.html#ViewportCameraController.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.ViewportCameraController.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><span class="pre">ManagerBasedEnv</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><span class="pre">DirectRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="omni.isaac.lab.envs.html#omni.isaac.lab.envs.ViewerCfg" title="omni.isaac.lab.envs.ViewerCfg"><span class="pre">ViewerCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/envs/ui/viewport_camera_controller.html#ViewportCameraController.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.envs.ui.ViewportCameraController.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initialize the ViewportCameraController.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -854,9 +871,9 @@ asset in the scene.</p>
 </li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rl-task-environment-ui">RL Task Environment UI</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow"><code class="docutils literal notranslate"><span class="pre">RLTaskEnvWindow</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.RLTaskEnvWindow.__init__"><code class="docutils literal notranslate"><span class="pre">RLTaskEnvWindow.__init__()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#config-based-rl-environment-ui">Config Based RL Environment UI</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ui.ManagerBasedRLEnvWindow.__init__"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvWindow.__init__()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -907,7 +924,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

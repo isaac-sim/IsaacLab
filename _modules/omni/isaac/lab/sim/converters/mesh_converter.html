@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sim/converters/mesh_converter';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -478,7 +496,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.kit.commands</span>
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Gf</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
+<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="p">,</span> <span class="n">UsdPhysics</span><span class="p">,</span> <span class="n">UsdUtils</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.asset_converter_base</span> <span class="kn">import</span> <span class="n">AssetConverterBase</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.converters.mesh_converter_cfg</span> <span class="kn">import</span> <span class="n">MeshConverterCfg</span>
@@ -550,98 +568,50 @@ document.write(`
         <span class="n">mesh_file_format</span> <span class="o">=</span> <span class="n">mesh_file_format</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
 
         <span class="c1"># Convert USD</span>
-        <span class="n">status</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_convert_mesh_to_usd</span><span class="p">(</span><span class="n">in_file</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">,</span> <span class="n">out_file</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
+        <span class="n">asyncio</span><span class="o">.</span><span class="n">get_event_loop</span><span class="p">()</span><span class="o">.</span><span class="n">run_until_complete</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_convert_mesh_to_usd</span><span class="p">(</span>
+                <span class="n">in_file</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="p">,</span> <span class="n">out_file</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">,</span> <span class="n">prim_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">status</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to convert asset: </span><span class="si">{</span><span class="n">cfg</span><span class="o">.</span><span class="n">asset_path</span><span class="si">}</span><span class="s2">! Please check the logs for more details.&quot;</span><span class="p">)</span>
-
         <span class="c1"># Open converted USD stage</span>
         <span class="c1"># note: This opens a new stage and does not use the stage created earlier by the user</span>
         <span class="c1"># create a new stage</span>
         <span class="n">stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_path</span><span class="p">)</span>
         <span class="c1"># add USD to stage cache</span>
         <span class="n">stage_id</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">stage</span><span class="p">)</span>
-        <span class="c1"># need to make kwargs for compatibility with 2023</span>
-        <span class="n">stage_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;stage&quot;</span><span class="p">:</span> <span class="n">stage</span><span class="p">}</span>
-        <span class="n">stage_or_context_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;stage_or_context&quot;</span><span class="p">:</span> <span class="n">stage</span><span class="p">}</span>
-        <span class="c1"># FIXME: we need to hack this into command because Kit 105 has a bug.</span>
-        <span class="kn">from</span> <span class="nn">omni.usd.commands</span> <span class="kn">import</span> <span class="n">MovePrimCommand</span>
-
-        <span class="n">MovePrimCommand</span><span class="o">.</span><span class="n">_selection</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># type: ignore</span>
-        <span class="c1"># Set stage up-axis to Z</span>
-        <span class="c1"># note: later we need to rotate the mesh so that it is Z-up in the world</span>
-        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageUpAxis</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">z</span><span class="p">)</span>
-
-        <span class="c1"># Move all meshes to underneath a new Xform so that we can make it instanceable later if requested</span>
-        <span class="c1"># Get the default prim (which is the root prim) -- &quot;/World&quot;</span>
-        <span class="n">old_xform_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetDefaultPrim</span><span class="p">()</span>
-        <span class="c1"># Create a path called &quot;/{mesh_file_basename}/geometry&quot; and move the mesh to it</span>
-        <span class="n">new_xform_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-        <span class="n">geom_undef_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">new_xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">/geometry&quot;</span><span class="p">)</span>
-        <span class="c1"># Move Looks to underneath new Xform</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-            <span class="s2">&quot;MovePrim&quot;</span><span class="p">,</span>
-            <span class="n">path_from</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">old_xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">/Looks&quot;</span><span class="p">,</span>
-            <span class="n">path_to</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">/Looks&quot;</span><span class="p">,</span>
-            <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="o">**</span><span class="n">stage_or_context_kwargs</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="c1"># Get the default prim (which is the root prim) -- &quot;/{mesh_file_basename}&quot;</span>
+        <span class="n">xform_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetDefaultPrim</span><span class="p">()</span>
+        <span class="n">geom_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;/</span><span class="si">{</span><span class="n">mesh_file_basename</span><span class="si">}</span><span class="s2">/geometry&quot;</span><span class="p">)</span>
         <span class="c1"># Move all meshes to underneath new Xform</span>
-        <span class="k">for</span> <span class="n">child_mesh_prim</span> <span class="ow">in</span> <span class="n">old_xform_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">():</span>
-            <span class="c1"># Get mesh prim path</span>
-            <span class="n">old_child_mesh_prim_path</span> <span class="o">=</span> <span class="n">child_mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
-            <span class="n">new_child_mesh_prim_path</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">old_child_mesh_prim_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-            <span class="c1"># Move mesh to underneath new Xform</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">&quot;MovePrim&quot;</span><span class="p">,</span>
-                <span class="n">path_from</span><span class="o">=</span><span class="n">old_child_mesh_prim_path</span><span class="p">,</span>
-                <span class="n">path_to</span><span class="o">=</span><span class="n">new_child_mesh_prim_path</span><span class="p">,</span>
-                <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">stage_or_context_kwargs</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="c1"># Apply default Xform rotation to mesh</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">&quot;CreateDefaultXformOnPrimCommand&quot;</span><span class="p">,</span>
-                <span class="n">prim_path</span><span class="o">=</span><span class="n">new_child_mesh_prim_path</span><span class="p">,</span>
-                <span class="o">**</span><span class="n">stage_kwargs</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="c1"># Get new mesh prim</span>
-            <span class="n">child_mesh_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">new_child_mesh_prim_path</span><span class="p">)</span>
-            <span class="c1"># Rotate mesh so that it is Z-up in the world</span>
-            <span class="n">attr_rotate</span> <span class="o">=</span> <span class="n">child_mesh_prim</span><span class="o">.</span><span class="n">GetAttribute</span><span class="p">(</span><span class="s2">&quot;xformOp:orient&quot;</span><span class="p">)</span>
-            <span class="n">attr_rotate</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">Gf</span><span class="o">.</span><span class="n">Quatd</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">))</span>
-            <span class="c1"># Apply collider properties to mesh</span>
-            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># -- Collision approximation to mesh</span>
-                <span class="c1"># TODO: https://github.com/isaac-sim/IsaacLab/issues/163 Move this to a new Schema</span>
-                <span class="n">mesh_collision_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">child_mesh_prim</span><span class="p">)</span>
-                <span class="n">mesh_collision_api</span><span class="o">.</span><span class="n">GetApproximationAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_approximation</span><span class="p">)</span>
-                <span class="c1"># -- Collider properties such as offset, scale, etc.</span>
-                <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span>
-                    <span class="n">prim_path</span><span class="o">=</span><span class="n">child_mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span>
-                <span class="p">)</span>
+        <span class="k">for</span> <span class="n">child_mesh_prim</span> <span class="ow">in</span> <span class="n">geom_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">child_mesh_prim</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Mesh&quot;</span><span class="p">:</span>
+                <span class="c1"># Apply collider properties to mesh</span>
+                <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># -- Collision approximation to mesh</span>
+                    <span class="c1"># TODO: https://github.com/isaac-orbit/orbit/issues/163 Move this to a new Schema</span>
+                    <span class="n">mesh_collision_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">child_mesh_prim</span><span class="p">)</span>
+                    <span class="n">mesh_collision_api</span><span class="o">.</span><span class="n">GetApproximationAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_approximation</span><span class="p">)</span>
+                    <span class="c1"># -- Collider properties such as offset, scale, etc.</span>
+                    <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span>
+                        <span class="n">prim_path</span><span class="o">=</span><span class="n">child_mesh_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span>
+                    <span class="p">)</span>
         <span class="c1"># Delete the old Xform and make the new Xform the default prim</span>
-        <span class="n">stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">new_xform_prim</span><span class="p">)</span>
-        <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DeletePrims&quot;</span><span class="p">,</span> <span class="n">paths</span><span class="o">=</span><span class="p">[</span><span class="n">old_xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span><span class="p">],</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
-
+        <span class="n">stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">xform_prim</span><span class="p">)</span>
         <span class="c1"># Handle instanceable</span>
         <span class="c1"># Create a new Xform prim that will be the prototype prim</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">make_instanceable</span><span class="p">:</span>
             <span class="c1"># Export Xform to a file so we can reference it from all instances</span>
             <span class="n">export_prim_to_file</span><span class="p">(</span>
                 <span class="n">path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_dir</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">usd_instanceable_meshes_path</span><span class="p">),</span>
-                <span class="n">source_prim_path</span><span class="o">=</span><span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span>
+                <span class="n">source_prim_path</span><span class="o">=</span><span class="n">geom_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span>
                 <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="c1"># Delete the original prim that will now be a reference</span>
-            <span class="n">geom_undef_prim_path</span> <span class="o">=</span> <span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
-            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DeletePrims&quot;</span><span class="p">,</span> <span class="n">paths</span><span class="o">=</span><span class="p">[</span><span class="n">geom_undef_prim_path</span><span class="p">],</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+            <span class="n">geom_prim_path</span> <span class="o">=</span> <span class="n">geom_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="o">.</span><span class="n">pathString</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">commands</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;DeletePrims&quot;</span><span class="p">,</span> <span class="n">paths</span><span class="o">=</span><span class="p">[</span><span class="n">geom_prim_path</span><span class="p">],</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
             <span class="c1"># Update references to exported Xform and make it instanceable</span>
-            <span class="n">geom_undef_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="n">geom_undef_prim_path</span><span class="p">)</span>
-            <span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetReferences</span><span class="p">()</span><span class="o">.</span><span class="n">AddReference</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">usd_instanceable_meshes_path</span><span class="p">,</span> <span class="n">primPath</span><span class="o">=</span><span class="n">geom_undef_prim_path</span>
-            <span class="p">)</span>
+            <span class="n">geom_undef_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="n">geom_prim_path</span><span class="p">)</span>
+            <span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">GetReferences</span><span class="p">()</span><span class="o">.</span><span class="n">AddReference</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usd_instanceable_meshes_path</span><span class="p">,</span> <span class="n">primPath</span><span class="o">=</span><span class="n">geom_prim_path</span><span class="p">)</span>
             <span class="n">geom_undef_prim</span><span class="o">.</span><span class="n">SetInstanceable</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="c1"># Apply mass and rigid body properties after everything else</span>
@@ -649,10 +619,10 @@ document.write(`
         <span class="c1">#   asset unintentionally share the same rigid body properties</span>
         <span class="c1"># apply mass properties</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="n">new_xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+            <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="n">xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
         <span class="c1"># apply rigid body properties</span>
         <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">schemas</span><span class="o">.</span><span class="n">define_rigid_body_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="n">new_xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
+            <span class="n">schemas</span><span class="o">.</span><span class="n">define_rigid_body_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="n">xform_prim</span><span class="o">.</span><span class="n">GetPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span><span class="p">,</span> <span class="n">stage</span><span class="o">=</span><span class="n">stage</span><span class="p">)</span>
 
         <span class="c1"># Save changes to USD stage</span>
         <span class="n">stage</span><span class="o">.</span><span class="n">Save</span><span class="p">()</span>
@@ -664,7 +634,9 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@staticmethod</span>
-    <span class="k">async</span> <span class="k">def</span> <span class="nf">_convert_mesh_to_usd</span><span class="p">(</span><span class="n">in_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">load_materials</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">_convert_mesh_to_usd</span><span class="p">(</span>
+        <span class="n">in_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">out_file</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;/World&quot;</span><span class="p">,</span> <span class="n">load_materials</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Convert mesh from supported file types to USD.</span>
 
 <span class="sd">        This function uses the Omniverse Asset Converter extension to convert a mesh file to USD.</span>
@@ -676,13 +648,14 @@ document.write(`
 <span class="sd">        The asset hierarchy is arranged as follows:</span>
 
 <span class="sd">        .. code-block:: none</span>
-<span class="sd">            /World (default prim)</span>
-<span class="sd">                |- /Looks</span>
-<span class="sd">                |- /Mesh</span>
+<span class="sd">            prim_path (default prim)</span>
+<span class="sd">                |- /geometry/Looks</span>
+<span class="sd">                |- /geometry/mesh</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            in_file: The file to convert.</span>
 <span class="sd">            out_file: The path to store the output file.</span>
+<span class="sd">            prim_path: The prim path of the mesh.</span>
 <span class="sd">            load_materials: Set to True to enable attaching materials defined in the input file</span>
 <span class="sd">                to the generated USD mesh. Defaults to True.</span>
 
@@ -690,10 +663,11 @@ document.write(`
 <span class="sd">            True if the conversion succeeds.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.asset_converter&quot;</span><span class="p">)</span>
-        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.isaac.unit_converter&quot;</span><span class="p">)</span>
+        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.usd.metrics.assembler&quot;</span><span class="p">)</span>
 
         <span class="kn">import</span> <span class="nn">omni.kit.asset_converter</span>
-        <span class="kn">from</span> <span class="nn">omni.isaac.unit_converter.unit_conversion_utils</span> <span class="kn">import</span> <span class="n">set_stage_meters_per_unit</span>
+        <span class="kn">import</span> <span class="nn">omni.usd</span>
+        <span class="kn">from</span> <span class="nn">omni.metrics.assembler.core</span> <span class="kn">import</span> <span class="n">get_metrics_assembler_interface</span>
 
         <span class="c1"># Create converter context</span>
         <span class="n">converter_context</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">asset_converter</span><span class="o">.</span><span class="n">AssetConverterContext</span><span class="p">()</span>
@@ -714,7 +688,8 @@ document.write(`
 
         <span class="c1"># Create converter task</span>
         <span class="n">instance</span> <span class="o">=</span> <span class="n">omni</span><span class="o">.</span><span class="n">kit</span><span class="o">.</span><span class="n">asset_converter</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
-        <span class="n">task</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">create_converter_task</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">out_file</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">converter_context</span><span class="p">)</span>
+        <span class="n">out_file_non_metric</span> <span class="o">=</span> <span class="n">out_file</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.usd&quot;</span><span class="p">,</span> <span class="s2">&quot;_non_metric.usd&quot;</span><span class="p">)</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">create_converter_task</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">out_file_non_metric</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">converter_context</span><span class="p">)</span>
         <span class="c1"># Start conversion task and wait for it to finish</span>
         <span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
@@ -724,13 +699,20 @@ document.write(`
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">break</span>
 
-        <span class="c1"># Open converted USD stage</span>
-        <span class="n">stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">Open</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
-        <span class="c1"># Set stage units to 1.0</span>
-        <span class="n">set_stage_meters_per_unit</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
-        <span class="c1"># Save changes to USD stage</span>
-        <span class="n">stage</span><span class="o">.</span><span class="n">Save</span><span class="p">()</span>
+        <span class="n">temp_stage</span> <span class="o">=</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="o">.</span><span class="n">CreateInMemory</span><span class="p">()</span>
+        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageUpAxis</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Tokens</span><span class="o">.</span><span class="n">z</span><span class="p">)</span>
+        <span class="n">UsdGeom</span><span class="o">.</span><span class="n">SetStageMetersPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">SetStageKilogramsPerUnit</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 
+        <span class="n">base_prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+        <span class="n">prim</span> <span class="o">=</span> <span class="n">temp_stage</span><span class="o">.</span><span class="n">DefinePrim</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/geometry&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+        <span class="n">prim</span><span class="o">.</span><span class="n">GetReferences</span><span class="p">()</span><span class="o">.</span><span class="n">AddReference</span><span class="p">(</span><span class="n">out_file_non_metric</span><span class="p">)</span>
+        <span class="n">cache</span> <span class="o">=</span> <span class="n">UsdUtils</span><span class="o">.</span><span class="n">StageCache</span><span class="o">.</span><span class="n">Get</span><span class="p">()</span>
+        <span class="n">cache</span><span class="o">.</span><span class="n">Insert</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">)</span>
+        <span class="n">stage_id</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">GetId</span><span class="p">(</span><span class="n">temp_stage</span><span class="p">)</span><span class="o">.</span><span class="n">ToLongInt</span><span class="p">()</span>
+        <span class="n">get_metrics_assembler_interface</span><span class="p">()</span><span class="o">.</span><span class="n">resolve_stage</span><span class="p">(</span><span class="n">stage_id</span><span class="p">)</span>
+        <span class="n">temp_stage</span><span class="o">.</span><span class="n">SetDefaultPrim</span><span class="p">(</span><span class="n">base_prim</span><span class="p">)</span>
+        <span class="n">temp_stage</span><span class="o">.</span><span class="n">Export</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">success</span></div>
 </pre></div>
 
@@ -779,7 +761,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

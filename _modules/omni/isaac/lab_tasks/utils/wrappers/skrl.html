@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab_tasks/utils/wrappers/skrl';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -471,7 +489,7 @@ document.write(`
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="sd">&quot;&quot;&quot;Wrapper to configure an :class:`RLTaskEnv` instance to skrl environment.</span>
+<span class="sd">&quot;&quot;&quot;Wrapper to configure an :class:`ManagerBasedRLEnv` instance to skrl environment.</span>
 
 <span class="sd">The following example shows how to wrap an environment for skrl:</span>
 
@@ -506,7 +524,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">skrl.trainers.torch.sequential</span> <span class="kn">import</span> <span class="n">SEQUENTIAL_TRAINER_DEFAULT_CONFIG</span>
 <span class="kn">from</span> <span class="nn">skrl.utils.model_instantiators.torch</span> <span class="kn">import</span> <span class="n">Shape</span>  <span class="c1"># noqa: F401</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">RLTaskEnv</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Configuration Parser.</span>
@@ -559,10 +577,10 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span> <span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">RLTaskEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="SkrlVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">[docs]</a><span class="k">def</span> <span class="nf">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps around Isaac Lab environment for skrl.</span>
 
-<span class="sd">    This function wraps around the Isaac Lab environment. Since the :class:`RLTaskEnv` environment</span>
+<span class="sd">    This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment</span>
 <span class="sd">    wrapping functionality is defined within the skrl library itself, this implementation</span>
 <span class="sd">    is maintained for compatibility with the structure of the extension that contains it.</span>
 <span class="sd">    Internally it calls the :func:`wrap_env` from the skrl library API.</span>
@@ -571,14 +589,16 @@ document.write(`
 <span class="sd">        env: The environment to wrap around.</span>
 
 <span class="sd">    Raises:</span>
-<span class="sd">        ValueError: When the environment is not an instance of :class:`RLTaskEnv`.</span>
+<span class="sd">        ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.</span>
 
 <span class="sd">    Reference:</span>
-<span class="sd">        https://skrl.readthedocs.io/en/latest/modules/skrl.envs.wrapping.html</span>
+<span class="sd">        https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># check that input is valid</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">RLTaskEnv</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The environment must be inherited from RLTaskEnv. Environment type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">unwrapped</span><span class="p">,</span> <span class="n">DirectRLEnv</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
     <span class="c1"># wrap and return the environment</span>
     <span class="k">return</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaac-orbit&quot;</span><span class="p">)</span></div>
 
@@ -602,7 +622,7 @@ document.write(`
 <span class="sd">    * It does not close the environment at the end of the training.</span>
 
 <span class="sd">    Reference:</span>
-<span class="sd">        https://skrl.readthedocs.io/en/latest/modules/skrl.trainers.base_class.html</span>
+<span class="sd">        https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="SkrlSequentialLogTrainer.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
@@ -678,8 +698,8 @@ document.write(`
                     <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="c1"># log custom environment data</span>
-            <span class="k">if</span> <span class="s2">&quot;episode&quot;</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">[</span><span class="s2">&quot;episode&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;log&quot;</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">track_data</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;EpisodeInfo / </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
             <span class="c1"># post-interaction</span>
@@ -797,7 +817,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

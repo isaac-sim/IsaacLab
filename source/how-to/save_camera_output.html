@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
     <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="Making a physics prim fixed in the simulation" href="make_fixed_prim.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -567,7 +584,7 @@ directory.</p>
 <span class="linenos"> 15</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py</span>
 <span class="linenos"> 16</span>
 <span class="linenos"> 17</span><span class="sd">    # Usage with headless</span>
-<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --offscreen_render</span>
+<span class="linenos"> 18</span><span class="sd">    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras</span>
 <span class="linenos"> 19</span>
 <span class="linenos"> 20</span><span class="sd">&quot;&quot;&quot;</span>
 <span class="linenos"> 21</span>
@@ -606,238 +623,247 @@ directory.</p>
 <span class="linenos"> 54</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">add_app_launcher_args</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
 <span class="linenos"> 55</span><span class="c1"># parse the arguments</span>
 <span class="linenos"> 56</span><span class="n">args_cli</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<span class="linenos"> 57</span><span class="c1"># launch omniverse app</span>
-<span class="linenos"> 58</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
-<span class="linenos"> 59</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
-<span class="linenos"> 60</span>
-<span class="linenos"> 61</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
-<span class="linenos"> 62</span>
-<span class="linenos"> 63</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="linenos"> 64</span><span class="kn">import</span> <span class="nn">os</span>
-<span class="linenos"> 65</span><span class="kn">import</span> <span class="nn">random</span>
-<span class="linenos"> 66</span><span class="kn">import</span> <span class="nn">torch</span>
-<span class="linenos"> 67</span>
-<span class="linenos"> 68</span><span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
-<span class="linenos"> 69</span><span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
-<span class="linenos"> 70</span>
-<span class="linenos"> 71</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
-<span class="linenos"> 72</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
-<span class="linenos"> 73</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers</span> <span class="kn">import</span> <span class="n">VisualizationMarkers</span>
-<span class="linenos"> 74</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers.config</span> <span class="kn">import</span> <span class="n">RAY_CASTER_MARKER_CFG</span>
-<span class="linenos"> 75</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors.camera</span> <span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">CameraCfg</span>
-<span class="linenos"> 76</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors.camera.utils</span> <span class="kn">import</span> <span class="n">create_pointcloud_from_depth</span>
-<span class="linenos"> 77</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">convert_dict_to_backend</span>
-<span class="linenos"> 78</span>
+<span class="linenos"> 57</span><span class="n">args_cli</span><span class="o">.</span><span class="n">enable_cameras</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="linenos"> 58</span><span class="c1"># launch omniverse app</span>
+<span class="linenos"> 59</span><span class="n">app_launcher</span> <span class="o">=</span> <span class="n">AppLauncher</span><span class="p">(</span><span class="n">args_cli</span><span class="p">)</span>
+<span class="linenos"> 60</span><span class="n">simulation_app</span> <span class="o">=</span> <span class="n">app_launcher</span><span class="o">.</span><span class="n">app</span>
+<span class="linenos"> 61</span>
+<span class="linenos"> 62</span><span class="sd">&quot;&quot;&quot;Rest everything follows.&quot;&quot;&quot;</span>
+<span class="linenos"> 63</span>
+<span class="linenos"> 64</span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="linenos"> 65</span><span class="kn">import</span> <span class="nn">os</span>
+<span class="linenos"> 66</span><span class="kn">import</span> <span class="nn">random</span>
+<span class="linenos"> 67</span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="linenos"> 68</span>
+<span class="linenos"> 69</span><span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
+<span class="linenos"> 70</span><span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
+<span class="linenos"> 71</span>
+<span class="linenos"> 72</span><span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
+<span class="linenos"> 73</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.assets</span> <span class="kn">import</span> <span class="n">RigidObject</span><span class="p">,</span> <span class="n">RigidObjectCfg</span>
+<span class="linenos"> 74</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers</span> <span class="kn">import</span> <span class="n">VisualizationMarkers</span>
+<span class="linenos"> 75</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.markers.config</span> <span class="kn">import</span> <span class="n">RAY_CASTER_MARKER_CFG</span>
+<span class="linenos"> 76</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors.camera</span> <span class="kn">import</span> <span class="n">Camera</span><span class="p">,</span> <span class="n">CameraCfg</span>
+<span class="linenos"> 77</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.sensors.camera.utils</span> <span class="kn">import</span> <span class="n">create_pointcloud_from_depth</span>
+<span class="linenos"> 78</span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">convert_dict_to_backend</span>
 <span class="linenos"> 79</span>
-<span class="linenos"> 80</span><span class="k">def</span> <span class="nf">define_sensor</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Camera</span><span class="p">:</span>
-<span class="linenos"> 81</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the camera sensor to add to the scene.&quot;&quot;&quot;</span>
-<span class="linenos"> 82</span>    <span class="c1"># Setup camera sensor</span>
-<span class="linenos"> 83</span>    <span class="c1"># In contrast to the ray-cast camera, we spawn the prim at these locations.</span>
-<span class="linenos"> 84</span>    <span class="c1"># This means the camera sensor will be attached to these prims.</span>
-<span class="linenos"> 85</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin_00&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-<span class="linenos"> 86</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin_01&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-<span class="linenos"> 87</span>    <span class="n">camera_cfg</span> <span class="o">=</span> <span class="n">CameraCfg</span><span class="p">(</span>
-<span class="linenos"> 88</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Origin_.*/CameraSensor&quot;</span><span class="p">,</span>
-<span class="linenos"> 89</span>        <span class="n">update_period</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-<span class="linenos"> 90</span>        <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">,</span>
-<span class="linenos"> 91</span>        <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span>
-<span class="linenos"> 92</span>        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span>
-<span class="linenos"> 93</span>            <span class="s2">&quot;rgb&quot;</span><span class="p">,</span>
-<span class="linenos"> 94</span>            <span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">,</span>
-<span class="linenos"> 95</span>            <span class="s2">&quot;normals&quot;</span><span class="p">,</span>
-<span class="linenos"> 96</span>            <span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">,</span>
-<span class="linenos"> 97</span>            <span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">,</span>
-<span class="linenos"> 98</span>            <span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">,</span>
-<span class="linenos"> 99</span>        <span class="p">],</span>
-<span class="linenos">100</span>        <span class="n">colorize_semantic_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">101</span>        <span class="n">colorize_instance_id_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">102</span>        <span class="n">colorize_instance_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="linenos">103</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
-<span class="linenos">104</span>            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0e5</span><span class="p">)</span>
-<span class="linenos">105</span>        <span class="p">),</span>
-<span class="linenos">106</span>    <span class="p">)</span>
-<span class="linenos">107</span>    <span class="c1"># Create camera</span>
-<span class="linenos">108</span>    <span class="n">camera</span> <span class="o">=</span> <span class="n">Camera</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">camera_cfg</span><span class="p">)</span>
-<span class="linenos">109</span>
-<span class="linenos">110</span>    <span class="k">return</span> <span class="n">camera</span>
-<span class="linenos">111</span>
+<span class="linenos"> 80</span>
+<span class="linenos"> 81</span><span class="k">def</span> <span class="nf">define_sensor</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Camera</span><span class="p">:</span>
+<span class="linenos"> 82</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Defines the camera sensor to add to the scene.&quot;&quot;&quot;</span>
+<span class="linenos"> 83</span>    <span class="c1"># Setup camera sensor</span>
+<span class="linenos"> 84</span>    <span class="c1"># In contrast to the ray-cast camera, we spawn the prim at these locations.</span>
+<span class="linenos"> 85</span>    <span class="c1"># This means the camera sensor will be attached to these prims.</span>
+<span class="linenos"> 86</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin_00&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+<span class="linenos"> 87</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Origin_01&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+<span class="linenos"> 88</span>    <span class="n">camera_cfg</span> <span class="o">=</span> <span class="n">CameraCfg</span><span class="p">(</span>
+<span class="linenos"> 89</span>        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/Origin_.*/CameraSensor&quot;</span><span class="p">,</span>
+<span class="linenos"> 90</span>        <span class="n">update_period</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<span class="linenos"> 91</span>        <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">,</span>
+<span class="linenos"> 92</span>        <span class="n">width</span><span class="o">=</span><span class="mi">640</span><span class="p">,</span>
+<span class="linenos"> 93</span>        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span>
+<span class="linenos"> 94</span>            <span class="s2">&quot;rgb&quot;</span><span class="p">,</span>
+<span class="linenos"> 95</span>            <span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">,</span>
+<span class="linenos"> 96</span>            <span class="s2">&quot;normals&quot;</span><span class="p">,</span>
+<span class="linenos"> 97</span>            <span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">,</span>
+<span class="linenos"> 98</span>            <span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">,</span>
+<span class="linenos"> 99</span>            <span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">,</span>
+<span class="linenos">100</span>        <span class="p">],</span>
+<span class="linenos">101</span>        <span class="n">colorize_semantic_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">102</span>        <span class="n">colorize_instance_id_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">103</span>        <span class="n">colorize_instance_segmentation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="linenos">104</span>        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
+<span class="linenos">105</span>            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0e5</span><span class="p">)</span>
+<span class="linenos">106</span>        <span class="p">),</span>
+<span class="linenos">107</span>    <span class="p">)</span>
+<span class="linenos">108</span>    <span class="c1"># Create camera</span>
+<span class="linenos">109</span>    <span class="n">camera</span> <span class="o">=</span> <span class="n">Camera</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">camera_cfg</span><span class="p">)</span>
+<span class="linenos">110</span>
+<span class="linenos">111</span>    <span class="k">return</span> <span class="n">camera</span>
 <span class="linenos">112</span>
-<span class="linenos">113</span><span class="k">def</span> <span class="nf">design_scene</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="linenos">114</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Design the scene.&quot;&quot;&quot;</span>
-<span class="linenos">115</span>    <span class="c1"># Populate scene</span>
-<span class="linenos">116</span>    <span class="c1"># -- Ground-plane</span>
-<span class="linenos">117</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
-<span class="linenos">118</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
-<span class="linenos">119</span>    <span class="c1"># -- Lights</span>
-<span class="linenos">120</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
-<span class="linenos">121</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
-<span class="linenos">122</span>
-<span class="linenos">123</span>    <span class="c1"># Create a dictionary for the scene entities</span>
-<span class="linenos">124</span>    <span class="n">scene_entities</span> <span class="o">=</span> <span class="p">{}</span>
-<span class="linenos">125</span>
-<span class="linenos">126</span>    <span class="c1"># Xform to hold objects</span>
-<span class="linenos">127</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Objects&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
-<span class="linenos">128</span>    <span class="c1"># Random objects</span>
-<span class="linenos">129</span>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
-<span class="linenos">130</span>        <span class="c1"># sample random position</span>
-<span class="linenos">131</span>        <span class="n">position</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span>
-<span class="linenos">132</span>        <span class="n">position</span> <span class="o">*=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
-<span class="linenos">133</span>        <span class="c1"># sample random color</span>
-<span class="linenos">134</span>        <span class="n">color</span> <span class="o">=</span> <span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">())</span>
-<span class="linenos">135</span>        <span class="c1"># choose random prim type</span>
-<span class="linenos">136</span>        <span class="n">prim_type</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Cube&quot;</span><span class="p">,</span> <span class="s2">&quot;Cone&quot;</span><span class="p">,</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">])</span>
-<span class="linenos">137</span>        <span class="n">common_properties</span> <span class="o">=</span> <span class="p">{</span>
-<span class="linenos">138</span>            <span class="s2">&quot;rigid_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
-<span class="linenos">139</span>            <span class="s2">&quot;mass_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">5.0</span><span class="p">),</span>
-<span class="linenos">140</span>            <span class="s2">&quot;collision_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
-<span class="linenos">141</span>            <span class="s2">&quot;visual_material&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
-<span class="linenos">142</span>            <span class="s2">&quot;semantic_tags&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="s2">&quot;class&quot;</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">)],</span>
-<span class="linenos">143</span>        <span class="p">}</span>
-<span class="linenos">144</span>        <span class="k">if</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cube&quot;</span><span class="p">:</span>
-<span class="linenos">145</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">),</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
-<span class="linenos">146</span>        <span class="k">elif</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cone&quot;</span><span class="p">:</span>
-<span class="linenos">147</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
-<span class="linenos">148</span>        <span class="k">elif</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">:</span>
-<span class="linenos">149</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CylinderCfg</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
-<span class="linenos">150</span>        <span class="c1"># Rigid Object</span>
-<span class="linenos">151</span>        <span class="n">obj_cfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
-<span class="linenos">152</span>            <span class="n">prim_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;/World/Objects/Obj_</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-<span class="linenos">153</span>            <span class="n">spawn</span><span class="o">=</span><span class="n">shape_cfg</span><span class="p">,</span>
-<span class="linenos">154</span>            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">position</span><span class="p">),</span>
-<span class="linenos">155</span>        <span class="p">)</span>
-<span class="linenos">156</span>        <span class="n">scene_entities</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;rigid_object</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">RigidObject</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">obj_cfg</span><span class="p">)</span>
-<span class="linenos">157</span>
-<span class="linenos">158</span>    <span class="c1"># Sensors</span>
-<span class="linenos">159</span>    <span class="n">camera</span> <span class="o">=</span> <span class="n">define_sensor</span><span class="p">()</span>
-<span class="linenos">160</span>
-<span class="linenos">161</span>    <span class="c1"># return the scene information</span>
-<span class="linenos">162</span>    <span class="n">scene_entities</span><span class="p">[</span><span class="s2">&quot;camera&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">camera</span>
-<span class="linenos">163</span>    <span class="k">return</span> <span class="n">scene_entities</span>
-<span class="linenos">164</span>
+<span class="linenos">113</span>
+<span class="linenos">114</span><span class="k">def</span> <span class="nf">design_scene</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="linenos">115</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Design the scene.&quot;&quot;&quot;</span>
+<span class="linenos">116</span>    <span class="c1"># Populate scene</span>
+<span class="linenos">117</span>    <span class="c1"># -- Ground-plane</span>
+<span class="linenos">118</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">GroundPlaneCfg</span><span class="p">()</span>
+<span class="linenos">119</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/defaultGroundPlane&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+<span class="linenos">120</span>    <span class="c1"># -- Lights</span>
+<span class="linenos">121</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">DistantLightCfg</span><span class="p">(</span><span class="n">intensity</span><span class="o">=</span><span class="mf">3000.0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">))</span>
+<span class="linenos">122</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Light&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">)</span>
+<span class="linenos">123</span>
+<span class="linenos">124</span>    <span class="c1"># Create a dictionary for the scene entities</span>
+<span class="linenos">125</span>    <span class="n">scene_entities</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="linenos">126</span>
+<span class="linenos">127</span>    <span class="c1"># Xform to hold objects</span>
+<span class="linenos">128</span>    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="s2">&quot;/World/Objects&quot;</span><span class="p">,</span> <span class="s2">&quot;Xform&quot;</span><span class="p">)</span>
+<span class="linenos">129</span>    <span class="c1"># Random objects</span>
+<span class="linenos">130</span>    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+<span class="linenos">131</span>        <span class="c1"># sample random position</span>
+<span class="linenos">132</span>        <span class="n">position</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span>
+<span class="linenos">133</span>        <span class="n">position</span> <span class="o">*=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="linenos">134</span>        <span class="c1"># sample random color</span>
+<span class="linenos">135</span>        <span class="n">color</span> <span class="o">=</span> <span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(),</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">())</span>
+<span class="linenos">136</span>        <span class="c1"># choose random prim type</span>
+<span class="linenos">137</span>        <span class="n">prim_type</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">([</span><span class="s2">&quot;Cube&quot;</span><span class="p">,</span> <span class="s2">&quot;Cone&quot;</span><span class="p">,</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">])</span>
+<span class="linenos">138</span>        <span class="n">common_properties</span> <span class="o">=</span> <span class="p">{</span>
+<span class="linenos">139</span>            <span class="s2">&quot;rigid_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">RigidBodyPropertiesCfg</span><span class="p">(),</span>
+<span class="linenos">140</span>            <span class="s2">&quot;mass_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MassPropertiesCfg</span><span class="p">(</span><span class="n">mass</span><span class="o">=</span><span class="mf">5.0</span><span class="p">),</span>
+<span class="linenos">141</span>            <span class="s2">&quot;collision_props&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CollisionPropertiesCfg</span><span class="p">(),</span>
+<span class="linenos">142</span>            <span class="s2">&quot;visual_material&quot;</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">metallic</span><span class="o">=</span><span class="mf">0.5</span><span class="p">),</span>
+<span class="linenos">143</span>            <span class="s2">&quot;semantic_tags&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="s2">&quot;class&quot;</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">)],</span>
+<span class="linenos">144</span>        <span class="p">}</span>
+<span class="linenos">145</span>        <span class="k">if</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cube&quot;</span><span class="p">:</span>
+<span class="linenos">146</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">),</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
+<span class="linenos">147</span>        <span class="k">elif</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cone&quot;</span><span class="p">:</span>
+<span class="linenos">148</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
+<span class="linenos">149</span>        <span class="k">elif</span> <span class="n">prim_type</span> <span class="o">==</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">:</span>
+<span class="linenos">150</span>            <span class="n">shape_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">CylinderCfg</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="o">**</span><span class="n">common_properties</span><span class="p">)</span>
+<span class="linenos">151</span>        <span class="c1"># Rigid Object</span>
+<span class="linenos">152</span>        <span class="n">obj_cfg</span> <span class="o">=</span> <span class="n">RigidObjectCfg</span><span class="p">(</span>
+<span class="linenos">153</span>            <span class="n">prim_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;/World/Objects/Obj_</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+<span class="linenos">154</span>            <span class="n">spawn</span><span class="o">=</span><span class="n">shape_cfg</span><span class="p">,</span>
+<span class="linenos">155</span>            <span class="n">init_state</span><span class="o">=</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">position</span><span class="p">),</span>
+<span class="linenos">156</span>        <span class="p">)</span>
+<span class="linenos">157</span>        <span class="n">scene_entities</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;rigid_object</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">RigidObject</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">obj_cfg</span><span class="p">)</span>
+<span class="linenos">158</span>
+<span class="linenos">159</span>    <span class="c1"># Sensors</span>
+<span class="linenos">160</span>    <span class="n">camera</span> <span class="o">=</span> <span class="n">define_sensor</span><span class="p">()</span>
+<span class="linenos">161</span>
+<span class="linenos">162</span>    <span class="c1"># return the scene information</span>
+<span class="linenos">163</span>    <span class="n">scene_entities</span><span class="p">[</span><span class="s2">&quot;camera&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">camera</span>
+<span class="linenos">164</span>    <span class="k">return</span> <span class="n">scene_entities</span>
 <span class="linenos">165</span>
-<span class="linenos">166</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
-<span class="linenos">167</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the simulator.&quot;&quot;&quot;</span>
-<span class="linenos">168</span>    <span class="c1"># extract entities for simplified notation</span>
-<span class="linenos">169</span>    <span class="n">camera</span><span class="p">:</span> <span class="n">Camera</span> <span class="o">=</span> <span class="n">scene_entities</span><span class="p">[</span><span class="s2">&quot;camera&quot;</span><span class="p">]</span>
-<span class="linenos">170</span>
-<span class="hll"><span class="linenos">171</span>    <span class="c1"># Create replicator writer</span>
-</span><span class="hll"><span class="linenos">172</span>    <span class="n">output_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="s2">&quot;camera&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">173</span>    <span class="n">rep_writer</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">BasicWriter</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">174</span>        <span class="n">output_dir</span><span class="o">=</span><span class="n">output_dir</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">175</span>        <span class="n">frame_padding</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">176</span>        <span class="n">colorize_instance_id_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_id_segmentation</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">177</span>        <span class="n">colorize_instance_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">178</span>        <span class="n">colorize_semantic_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">179</span>    <span class="p">)</span>
-</span><span class="linenos">180</span>
-<span class="linenos">181</span>    <span class="c1"># Camera positions, targets, orientations</span>
-<span class="linenos">182</span>    <span class="n">camera_positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">183</span>    <span class="n">camera_targets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-<span class="linenos">184</span>    <span class="c1"># These orientations are in ROS-convention, and will position the cameras to view the origin</span>
-<span class="linenos">185</span>    <span class="n">camera_orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>  <span class="c1"># noqa: F841</span>
-<span class="linenos">186</span>        <span class="p">[[</span><span class="o">-</span><span class="mf">0.1759</span><span class="p">,</span> <span class="mf">0.3399</span><span class="p">,</span> <span class="mf">0.8205</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4247</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.4247</span><span class="p">,</span> <span class="mf">0.8205</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3399</span><span class="p">,</span> <span class="mf">0.1759</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
-<span class="linenos">187</span>    <span class="p">)</span>
-<span class="linenos">188</span>
-<span class="linenos">189</span>    <span class="c1"># Set pose: There are two ways to set the pose of the camera.</span>
-<span class="linenos">190</span>    <span class="c1"># -- Option-1: Set pose using view</span>
-<span class="linenos">191</span>    <span class="n">camera</span><span class="o">.</span><span class="n">set_world_poses_from_view</span><span class="p">(</span><span class="n">camera_positions</span><span class="p">,</span> <span class="n">camera_targets</span><span class="p">)</span>
-<span class="linenos">192</span>    <span class="c1"># -- Option-2: Set pose using ROS</span>
-<span class="linenos">193</span>    <span class="c1"># camera.set_world_poses(camera_positions, camera_orientations, convention=&quot;ros&quot;)</span>
-<span class="linenos">194</span>
-<span class="linenos">195</span>    <span class="c1"># Index of the camera to use for visualization and saving</span>
-<span class="linenos">196</span>    <span class="n">camera_index</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">camera_id</span>
-<span class="linenos">197</span>
-<span class="linenos">198</span>    <span class="c1"># Create the markers for the --draw option outside of is_running() loop</span>
-<span class="linenos">199</span>    <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">draw</span><span class="p">:</span>
-<span class="linenos">200</span>        <span class="n">cfg</span> <span class="o">=</span> <span class="n">RAY_CASTER_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/CameraPointCloud&quot;</span><span class="p">)</span>
-<span class="linenos">201</span>        <span class="n">cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">[</span><span class="s2">&quot;hit&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">radius</span> <span class="o">=</span> <span class="mf">0.002</span>
-<span class="linenos">202</span>        <span class="n">pc_markers</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
-<span class="linenos">203</span>
-<span class="linenos">204</span>    <span class="c1"># Simulate physics</span>
-<span class="linenos">205</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">206</span>        <span class="c1"># Step simulation</span>
-<span class="linenos">207</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">208</span>        <span class="c1"># Update camera data</span>
-<span class="linenos">209</span>        <span class="n">camera</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">())</span>
-<span class="linenos">210</span>
-<span class="linenos">211</span>        <span class="c1"># Print camera info</span>
-<span class="linenos">212</span>        <span class="nb">print</span><span class="p">(</span><span class="n">camera</span><span class="p">)</span>
-<span class="linenos">213</span>        <span class="k">if</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">214</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of rgb image        : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">215</span>        <span class="k">if</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">216</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of depth image      : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">217</span>        <span class="k">if</span> <span class="s2">&quot;normals&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">218</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of normals          : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;normals&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">219</span>        <span class="k">if</span> <span class="s2">&quot;semantic_segmentation&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">220</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of semantic segm.   : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">221</span>        <span class="k">if</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">222</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of instance segm.   : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">223</span>        <span class="k">if</span> <span class="s2">&quot;instance_id_segmentation_fast&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="linenos">224</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of instance id segm.: &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-<span class="linenos">225</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-------------------------------&quot;</span><span class="p">)</span>
-<span class="linenos">226</span>
-<span class="linenos">227</span>        <span class="c1"># Extract camera data</span>
-<span class="linenos">228</span>        <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">save</span><span class="p">:</span>
-<span class="hll"><span class="linenos">229</span>            <span class="c1"># Save images from camera at camera_index</span>
-</span><span class="hll"><span class="linenos">230</span>            <span class="c1"># note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.</span>
-</span><span class="hll"><span class="linenos">231</span>            <span class="c1"># tensordict allows easy indexing of tensors in the dictionary</span>
-</span><span class="hll"><span class="linenos">232</span>            <span class="n">single_cam_data</span> <span class="o">=</span> <span class="n">convert_dict_to_backend</span><span class="p">(</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span> <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;numpy&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos">233</span>
-</span><span class="hll"><span class="linenos">234</span>            <span class="c1"># Extract the other information</span>
-</span><span class="hll"><span class="linenos">235</span>            <span class="n">single_cam_info</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="n">camera_index</span><span class="p">]</span>
-</span><span class="hll"><span class="linenos">236</span>
-</span><span class="hll"><span class="linenos">237</span>            <span class="c1"># Pack data back into replicator format to save them using its writer</span>
-</span><span class="hll"><span class="linenos">238</span>            <span class="n">rep_output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-</span><span class="hll"><span class="linenos">239</span>            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
-</span><span class="hll"><span class="linenos">240</span>                <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">241</span>                    <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="n">info</span><span class="p">}</span>
-</span><span class="hll"><span class="linenos">242</span>                <span class="k">else</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">243</span>                    <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
-</span><span class="hll"><span class="linenos">244</span>            <span class="c1"># Save images</span>
-</span><span class="hll"><span class="linenos">245</span>            <span class="c1"># Note: We need to provide On-time data for Replicator to save the images.</span>
-</span><span class="hll"><span class="linenos">246</span>            <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;trigger_outputs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;on_time&quot;</span><span class="p">:</span> <span class="n">camera</span><span class="o">.</span><span class="n">frame</span><span class="p">[</span><span class="n">camera_index</span><span class="p">]}</span>
-</span><span class="hll"><span class="linenos">247</span>            <span class="n">rep_writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">rep_output</span><span class="p">)</span>
-</span><span class="linenos">248</span>
-<span class="linenos">249</span>        <span class="c1"># Draw pointcloud if there is a GUI and --draw has been passed</span>
-<span class="linenos">250</span>        <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">draw</span> <span class="ow">and</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-<span class="hll"><span class="linenos">251</span>            <span class="c1"># Derive pointcloud from camera at camera_index</span>
-</span><span class="hll"><span class="linenos">252</span>            <span class="n">pointcloud</span> <span class="o">=</span> <span class="n">create_pointcloud_from_depth</span><span class="p">(</span>
-</span><span class="hll"><span class="linenos">253</span>                <span class="n">intrinsic_matrix</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
-</span><span class="hll"><span class="linenos">254</span>                <span class="n">depth</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">camera_index</span><span class="p">][</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">],</span>
-</span><span class="hll"><span class="linenos">255</span>                <span class="n">position</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
-</span><span class="hll"><span class="linenos">256</span>                <span class="n">orientation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">quat_w_ros</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
-</span><span class="hll"><span class="linenos">257</span>                <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
-</span><span class="hll"><span class="linenos">258</span>            <span class="p">)</span>
-</span><span class="hll"><span class="linenos">259</span>
-</span><span class="hll"><span class="linenos">260</span>            <span class="c1"># In the first few steps, things are still being instanced and Camera.data</span>
-</span><span class="hll"><span class="linenos">261</span>            <span class="c1"># can be empty. If we attempt to visualize an empty pointcloud it will crash</span>
-</span><span class="hll"><span class="linenos">262</span>            <span class="c1"># the sim, so we check that the pointcloud is not empty.</span>
-</span><span class="hll"><span class="linenos">263</span>            <span class="k">if</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-</span><span class="hll"><span class="linenos">264</span>                <span class="n">pc_markers</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">translations</span><span class="o">=</span><span class="n">pointcloud</span><span class="p">)</span>
-</span><span class="linenos">265</span>
-<span class="linenos">266</span>
-<span class="linenos">267</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos">268</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos">269</span>    <span class="c1"># Load simulation context</span>
-<span class="linenos">270</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">cpu</span> <span class="k">else</span> <span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
-<span class="linenos">271</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos">272</span>    <span class="c1"># Set main camera</span>
-<span class="linenos">273</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
-<span class="linenos">274</span>    <span class="c1"># design the scene</span>
-<span class="linenos">275</span>    <span class="n">scene_entities</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
-<span class="linenos">276</span>    <span class="c1"># Play simulator</span>
-<span class="linenos">277</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos">278</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos">279</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos">280</span>    <span class="c1"># Run simulator</span>
-<span class="linenos">281</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">)</span>
-<span class="linenos">282</span>
-<span class="linenos">283</span>
-<span class="linenos">284</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">285</span>    <span class="c1"># run the main function</span>
-<span class="linenos">286</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">287</span>    <span class="c1"># close sim app</span>
-<span class="linenos">288</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos">166</span>
+<span class="linenos">167</span><span class="k">def</span> <span class="nf">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">:</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="linenos">168</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the simulator.&quot;&quot;&quot;</span>
+<span class="linenos">169</span>    <span class="c1"># extract entities for simplified notation</span>
+<span class="linenos">170</span>    <span class="n">camera</span><span class="p">:</span> <span class="n">Camera</span> <span class="o">=</span> <span class="n">scene_entities</span><span class="p">[</span><span class="s2">&quot;camera&quot;</span><span class="p">]</span>
+<span class="hll"><span class="linenos">171</span>
+</span><span class="hll"><span class="linenos">172</span>    <span class="c1"># Create replicator writer</span>
+</span><span class="hll"><span class="linenos">173</span>    <span class="n">output_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="s2">&quot;camera&quot;</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">174</span>    <span class="n">rep_writer</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">BasicWriter</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">175</span>        <span class="n">output_dir</span><span class="o">=</span><span class="n">output_dir</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">176</span>        <span class="n">frame_padding</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">177</span>        <span class="n">colorize_instance_id_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_id_segmentation</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">178</span>        <span class="n">colorize_instance_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_instance_segmentation</span><span class="p">,</span>
+</span><span class="hll"><span class="linenos">179</span>        <span class="n">colorize_semantic_segmentation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">colorize_semantic_segmentation</span><span class="p">,</span>
+</span><span class="linenos">180</span>    <span class="p">)</span>
+<span class="linenos">181</span>
+<span class="linenos">182</span>    <span class="c1"># Camera positions, targets, orientations</span>
+<span class="linenos">183</span>    <span class="n">camera_positions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">184</span>    <span class="n">camera_targets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+<span class="linenos">185</span>    <span class="c1"># These orientations are in ROS-convention, and will position the cameras to view the origin</span>
+<span class="linenos">186</span>    <span class="n">camera_orientations</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>  <span class="c1"># noqa: F841</span>
+<span class="linenos">187</span>        <span class="p">[[</span><span class="o">-</span><span class="mf">0.1759</span><span class="p">,</span> <span class="mf">0.3399</span><span class="p">,</span> <span class="mf">0.8205</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4247</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.4247</span><span class="p">,</span> <span class="mf">0.8205</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.3399</span><span class="p">,</span> <span class="mf">0.1759</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span>
+<span class="linenos">188</span>    <span class="p">)</span>
+<span class="linenos">189</span>
+<span class="linenos">190</span>    <span class="c1"># Set pose: There are two ways to set the pose of the camera.</span>
+<span class="linenos">191</span>    <span class="c1"># -- Option-1: Set pose using view</span>
+<span class="linenos">192</span>    <span class="n">camera</span><span class="o">.</span><span class="n">set_world_poses_from_view</span><span class="p">(</span><span class="n">camera_positions</span><span class="p">,</span> <span class="n">camera_targets</span><span class="p">)</span>
+<span class="linenos">193</span>    <span class="c1"># -- Option-2: Set pose using ROS</span>
+<span class="linenos">194</span>    <span class="c1"># camera.set_world_poses(camera_positions, camera_orientations, convention=&quot;ros&quot;)</span>
+<span class="linenos">195</span>
+<span class="linenos">196</span>    <span class="c1"># Index of the camera to use for visualization and saving</span>
+<span class="linenos">197</span>    <span class="n">camera_index</span> <span class="o">=</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">camera_id</span>
+<span class="linenos">198</span>
+<span class="linenos">199</span>    <span class="c1"># Create the markers for the --draw option outside of is_running() loop</span>
+<span class="linenos">200</span>    <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">draw</span><span class="p">:</span>
+<span class="linenos">201</span>        <span class="n">cfg</span> <span class="o">=</span> <span class="n">RAY_CASTER_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/CameraPointCloud&quot;</span><span class="p">)</span>
+<span class="linenos">202</span>        <span class="n">cfg</span><span class="o">.</span><span class="n">markers</span><span class="p">[</span><span class="s2">&quot;hit&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">radius</span> <span class="o">=</span> <span class="mf">0.002</span>
+<span class="linenos">203</span>        <span class="n">pc_markers</span> <span class="o">=</span> <span class="n">VisualizationMarkers</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
+<span class="linenos">204</span>
+<span class="linenos">205</span>    <span class="c1"># Simulate physics</span>
+<span class="linenos">206</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">207</span>        <span class="c1"># Step simulation</span>
+<span class="linenos">208</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">209</span>        <span class="c1"># Update camera data</span>
+<span class="linenos">210</span>        <span class="n">camera</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">get_physics_dt</span><span class="p">())</span>
+<span class="linenos">211</span>
+<span class="linenos">212</span>        <span class="c1"># Print camera info</span>
+<span class="linenos">213</span>        <span class="nb">print</span><span class="p">(</span><span class="n">camera</span><span class="p">)</span>
+<span class="linenos">214</span>        <span class="k">if</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">215</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of rgb image        : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">216</span>        <span class="k">if</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">217</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of depth image      : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">218</span>        <span class="k">if</span> <span class="s2">&quot;normals&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">219</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of normals          : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;normals&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">220</span>        <span class="k">if</span> <span class="s2">&quot;semantic_segmentation&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">221</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of semantic segm.   : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;semantic_segmentation&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">222</span>        <span class="k">if</span> <span class="s2">&quot;instance_segmentation_fast&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">223</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of instance segm.   : &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;instance_segmentation_fast&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">224</span>        <span class="k">if</span> <span class="s2">&quot;instance_id_segmentation_fast&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+<span class="linenos">225</span>            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Received shape of instance id segm.: &quot;</span><span class="p">,</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;instance_id_segmentation_fast&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="linenos">226</span>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-------------------------------&quot;</span><span class="p">)</span>
+<span class="linenos">227</span>
+<span class="linenos">228</span>        <span class="c1"># Extract camera data</span>
+<span class="hll"><span class="linenos">229</span>        <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">save</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">230</span>            <span class="c1"># Save images from camera at camera_index</span>
+</span><span class="hll"><span class="linenos">231</span>            <span class="c1"># note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.</span>
+</span><span class="hll"><span class="linenos">232</span>            <span class="c1"># tensordict allows easy indexing of tensors in the dictionary</span>
+</span><span class="hll"><span class="linenos">233</span>            <span class="n">single_cam_data</span> <span class="o">=</span> <span class="n">convert_dict_to_backend</span><span class="p">(</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span> <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;numpy&quot;</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">234</span>
+</span><span class="hll"><span class="linenos">235</span>            <span class="c1"># Extract the other information</span>
+</span><span class="hll"><span class="linenos">236</span>            <span class="n">single_cam_info</span> <span class="o">=</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="n">camera_index</span><span class="p">]</span>
+</span><span class="hll"><span class="linenos">237</span>
+</span><span class="hll"><span class="linenos">238</span>            <span class="c1"># Pack data back into replicator format to save them using its writer</span>
+</span><span class="hll"><span class="linenos">239</span>            <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">240</span>                <span class="n">rep_output</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;annotators&quot;</span><span class="p">:</span> <span class="p">{}}</span>
+</span><span class="hll"><span class="linenos">241</span>                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+</span><span class="hll"><span class="linenos">242</span>                    <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">243</span>                        <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;annotators&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;render_product&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">info</span><span class="p">}}</span>
+</span><span class="hll"><span class="linenos">244</span>                    <span class="k">else</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">245</span>                        <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;annotators&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;render_product&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">}}</span>
+</span><span class="hll"><span class="linenos">246</span>            <span class="k">else</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">247</span>                <span class="n">rep_output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+</span><span class="linenos">248</span>                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+<span class="linenos">249</span>                    <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="linenos">250</span>                        <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="n">info</span><span class="p">}</span>
+<span class="hll"><span class="linenos">251</span>                    <span class="k">else</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">252</span>                        <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+</span><span class="hll"><span class="linenos">253</span>            <span class="c1"># Save images</span>
+</span><span class="hll"><span class="linenos">254</span>            <span class="c1"># Note: We need to provide On-time data for Replicator to save the images.</span>
+</span><span class="hll"><span class="linenos">255</span>            <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;trigger_outputs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;on_time&quot;</span><span class="p">:</span> <span class="n">camera</span><span class="o">.</span><span class="n">frame</span><span class="p">[</span><span class="n">camera_index</span><span class="p">]}</span>
+</span><span class="hll"><span class="linenos">256</span>            <span class="n">rep_writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">rep_output</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos">257</span>
+</span><span class="hll"><span class="linenos">258</span>        <span class="c1"># Draw pointcloud if there is a GUI and --draw has been passed</span>
+</span><span class="hll"><span class="linenos">259</span>        <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">and</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">draw</span> <span class="ow">and</span> <span class="s2">&quot;distance_to_image_plane&quot;</span> <span class="ow">in</span> <span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+</span><span class="hll"><span class="linenos">260</span>            <span class="c1"># Derive pointcloud from camera at camera_index</span>
+</span><span class="hll"><span class="linenos">261</span>            <span class="n">pointcloud</span> <span class="o">=</span> <span class="n">create_pointcloud_from_depth</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos">262</span>                <span class="n">intrinsic_matrix</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">intrinsic_matrices</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
+</span><span class="hll"><span class="linenos">263</span>                <span class="n">depth</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">camera_index</span><span class="p">][</span><span class="s2">&quot;distance_to_image_plane&quot;</span><span class="p">],</span>
+</span><span class="hll"><span class="linenos">264</span>                <span class="n">position</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
+</span><span class="linenos">265</span>                <span class="n">orientation</span><span class="o">=</span><span class="n">camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">quat_w_ros</span><span class="p">[</span><span class="n">camera_index</span><span class="p">],</span>
+<span class="linenos">266</span>                <span class="n">device</span><span class="o">=</span><span class="n">sim</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+<span class="linenos">267</span>            <span class="p">)</span>
+<span class="linenos">268</span>
+<span class="linenos">269</span>            <span class="c1"># In the first few steps, things are still being instanced and Camera.data</span>
+<span class="linenos">270</span>            <span class="c1"># can be empty. If we attempt to visualize an empty pointcloud it will crash</span>
+<span class="linenos">271</span>            <span class="c1"># the sim, so we check that the pointcloud is not empty.</span>
+<span class="linenos">272</span>            <span class="k">if</span> <span class="n">pointcloud</span><span class="o">.</span><span class="n">size</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+<span class="linenos">273</span>                <span class="n">pc_markers</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">translations</span><span class="o">=</span><span class="n">pointcloud</span><span class="p">)</span>
+<span class="linenos">274</span>
+<span class="linenos">275</span>
+<span class="linenos">276</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos">277</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos">278</span>    <span class="c1"># Load simulation context</span>
+<span class="linenos">279</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span> <span class="k">if</span> <span class="n">args_cli</span><span class="o">.</span><span class="n">cpu</span> <span class="k">else</span> <span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
+<span class="linenos">280</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos">281</span>    <span class="c1"># Set main camera</span>
+<span class="linenos">282</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="linenos">283</span>    <span class="c1"># design the scene</span>
+<span class="linenos">284</span>    <span class="n">scene_entities</span> <span class="o">=</span> <span class="n">design_scene</span><span class="p">()</span>
+<span class="linenos">285</span>    <span class="c1"># Play simulator</span>
+<span class="linenos">286</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">287</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">288</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">289</span>    <span class="c1"># Run simulator</span>
+<span class="linenos">290</span>    <span class="n">run_simulator</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">scene_entities</span><span class="p">)</span>
+<span class="linenos">291</span>
+<span class="linenos">292</span>
+<span class="linenos">293</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">294</span>    <span class="c1"># run the main function</span>
+<span class="linenos">295</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">296</span>    <span class="c1"># close sim app</span>
+<span class="linenos">297</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -870,12 +896,20 @@ them in a dictionary.</p>
 </div>
 <p>After this step, we can save the images using the BasicWriter.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>            <span class="c1"># Pack data back into replicator format to save them using its writer</span>
-            <span class="n">rep_output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
-                <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="n">info</span><span class="p">}</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+            <span class="k">if</span> <span class="n">sim</span><span class="o">.</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="n">rep_output</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;annotators&quot;</span><span class="p">:</span> <span class="p">{}}</span>
+                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+                    <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;annotators&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;render_product&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="o">**</span><span class="n">info</span><span class="p">}}</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;annotators&quot;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;render_product&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">}}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rep_output</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">single_cam_data</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">single_cam_data</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">single_cam_info</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+                    <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;data&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="s2">&quot;info&quot;</span><span class="p">:</span> <span class="n">info</span><span class="p">}</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">rep_output</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
             <span class="c1"># Save images</span>
             <span class="c1"># Note: We need to provide On-time data for Replicator to save the images.</span>
             <span class="n">rep_output</span><span class="p">[</span><span class="s2">&quot;trigger_outputs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;on_time&quot;</span><span class="p">:</span> <span class="n">camera</span><span class="o">.</span><span class="n">frame</span><span class="p">[</span><span class="n">camera_index</span><span class="p">]}</span>
@@ -927,7 +961,7 @@ This makes it easy to visualize the point cloud in the 3D space.</p>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--draw
 
 <span class="c1"># Usage with saving only in headless mode</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--headless<span class="w"> </span>--offscreen_render
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras
 </pre></div>
 </div>
 <p>The simulation should start, and you can observe different objects falling down. An output folder will be created
@@ -1018,7 +1052,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

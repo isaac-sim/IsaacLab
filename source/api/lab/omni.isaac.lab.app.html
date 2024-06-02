@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -55,7 +56,7 @@
     <link rel="prev" title="API Reference" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -176,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -211,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -219,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -241,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -573,27 +590,25 @@ document.write(`
 <p>The following details the behavior of the class based on the environment variables:</p>
 <ul>
 <li><p><strong>Headless mode</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">HEADLESS=1</span></code>, then SimulationApp will be started in headless mode.
-If <code class="docutils literal notranslate"><span class="pre">LIVESTREAM={1,2,3}</span></code>, then it will supersede the <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> envvar and force headlessness.</p>
+If <code class="docutils literal notranslate"><span class="pre">LIVESTREAM={1,2}</span></code>, then it will supersede the <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> envvar and force headlessness.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">HEADLESS=1</span></code> causes the app to run in headless mode.</p></li>
 </ul>
 </li>
-<li><p><strong>Livestreaming</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">LIVESTREAM={1,2,3}</span></code> , then <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html">livestream</a> is enabled. Any
+<li><p><strong>Livestreaming</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">LIVESTREAM={1,2}</span></code> , then <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html">livestream</a> is enabled. Any
 of the livestream modes being true forces the app to run in headless mode.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">LIVESTREAM=1</span></code> enables streaming via the Isaac <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-kit-remote">Native Livestream</a> extension. This allows users to
 connect through the Omniverse Streaming Client.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LIVESTREAM=2</span></code> enables streaming via the <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-webrtc">Websocket Livestream</a> extension. This allows users to
-connect in a browser using the WebSocket protocol.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">LIVESTREAM=3</span></code> enables streaming  via the <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket">WebRTC Livestream</a> extension. This allows users to
+<li><p><code class="docutils literal notranslate"><span class="pre">LIVESTREAM=2</span></code> enables streaming  via the <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket">WebRTC Livestream</a> extension. This allows users to
 connect in a browser using the WebRTC protocol.</p></li>
 </ul>
 </li>
-<li><p><strong>Offscreen Render</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER</span></code> is set to 1, then the
-offscreen-render pipeline is enabled. This is useful for running the simulator without a GUI but
-still rendering the viewport and camera images.</p>
+<li><p><strong>Enable cameras</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> is set to 1, then the
+cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
+viewport and camera images.</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER=1</span></code>: Enables the offscreen-render pipeline which allows users to render
+<li><p><code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS=1</span></code>: Enables the offscreen-render pipeline which allows users to render
 the scene without launching a GUI.</p></li>
 </ul>
 <div class="admonition note">
@@ -606,13 +621,13 @@ pipeline enables flags that are internally used by the SimulationContext class.<
 </ul>
 <p>To set the environment variables, one can use the following command in the terminal:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">REMOTE_DEPLOYMENT</span><span class="o">=</span><span class="m">3</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">OFFSCREEN_RENDER</span><span class="o">=</span><span class="m">1</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ENABLE_CAMERAS</span><span class="o">=</span><span class="m">1</span>
 <span class="c1"># run the python script</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demo/play_quadrupeds.py
 </pre></div>
 </div>
 <p>Alternatively, one can set the environment variables to the python script directly:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">REMOTE_DEPLOYMENT</span><span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="nv">OFFSCREEN_RENDER</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demo/play_quadrupeds.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">REMOTE_DEPLOYMENT</span><span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="nv">ENABLE_CAMERAS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/demo/play_quadrupeds.py
 </pre></div>
 </div>
 </section>
@@ -738,18 +753,22 @@ environment variables using command-line arguments.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">headless</span></code> (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
 as that for the <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable. If False, then headless mode is determined by the
 <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">livestream</span></code> (int): If one of {0, 1, 2, 3}, then livestreaming and headless mode is enabled. The values
+<li><p><code class="docutils literal notranslate"><span class="pre">livestream</span></code> (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values
 map the same as that for the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable. If <code class="xref py py-obj docutils literal notranslate"><span class="pre">-1</span></code>, then livestreaming is
 determined by the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">offscreen_render</span></code> (bool): If True, the app will be launched in offscreen-render mode. The values
-map the same as that for the <code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER</span></code> environment variable. If False, then offscreen-render
-mode is determined by the <code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER</span></code> environment variable.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">enable_cameras</span></code> (bool): If True, the app will enable camera sensors and render them, even when in
+headless mode. This flag must be set to True if the environments contains any camera sensors.
+The values map the same as that for the <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> environment variable.
+If False, then enable_cameras mode is determined by the <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> environment variable.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">device_id</span></code> (int): If specified, simulation will run on the specified GPU device.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">experience</span></code> (str): The experience file to load when launching the SimulationApp. If a relative path
 is provided, it is resolved relative to the <code class="docutils literal notranslate"><span class="pre">apps</span></code> folder in Isaac Sim and Isaac Lab (in that order).</p>
 <p>If provided as an empty string, the experience file is determined based on the headless flag:</p>
 <ul class="simple">
-<li><p>If headless is True, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.kit</span></code>.</p></li>
-<li><p>If headless is False, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.kit</span></code>.</p></li>
+<li><p>If headless and enable_cameras are True, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.rendering.kit</span></code>.</p></li>
+<li><p>If headless is False and enable_cameras is True, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.rendering.kit</span></code>.</p></li>
+<li><p>If headless is False and enable_cameras is False, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.kit</span></code>.</p></li>
+<li><p>If headless is True and enable_cameras is False, the experience file is set to <code class="docutils literal notranslate"><span class="pre">isaaclab.python.headless.kit</span></code>.</p></li>
 </ul>
 </li>
 </ul>
@@ -854,7 +873,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

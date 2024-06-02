@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -57,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.sim.schemas" href="omni.isaac.lab.sim.schemas.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -178,7 +179,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -213,7 +214,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../setup/template.html">Building your Own Project</a></li>
@@ -221,11 +228,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -243,8 +259,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -727,6 +744,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.exposure"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.exposure</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.intensity"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.intensity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.texture_format</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.visible_in_primary_ray</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg"><code class="docutils literal notranslate"><span class="pre">SphereLightCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -804,6 +822,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.merge_fixed_joints</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.self_collision</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_type"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.override_joint_dynamics</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_damping"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.link_density"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.link_density</span></code></a></li>
@@ -2732,6 +2751,9 @@ to the documentation on <a class="reference external" href="https://openusd.org/
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format"><code class="xref py py-obj docutils literal notranslate"><span class="pre">texture_format</span></code></a></p></td>
 <td><p>The parametrization format of the color map file.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray" title="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visible_in_primary_ray</span></code></a></p></td>
+<td><p>Whether the dome light is visible in the primary ray.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2843,6 +2865,13 @@ to not vary with the area or angular size of the light.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;angular&quot;</span></code>: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better sampling at the edges.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">&quot;cubeMapVerticalCross&quot;</span></code>: A cube map with faces laid out as a vertical cross.</p></li>
 </ul>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray">
+<span class="sig-name descname"><span class="pre">visible_in_primary_ray</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the dome light is visible in the primary ray. Defaults to True.</p>
+<p>If true, the texture in the sky is visible, otherwise the sky is black.</p>
 </dd></dl>
 
 </dd></dl>
@@ -3560,6 +3589,12 @@ used in the scene. For more information, please check the USD documentation on
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics">
+<span class="sig-name descname"><span class="pre">override_joint_dynamics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics" title="Permalink to this definition">#</a></dt>
+<dd><p>Override the joint dynamics parsed from the URDF file. Defaults to False.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness">
 <span class="sig-name descname"><span class="pre">default_drive_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness" title="Permalink to this definition">#</a></dt>
 <dd><p>The default stiffness of the joint drive. Defaults to 0.0.</p>
@@ -3571,7 +3606,7 @@ used in the scene. For more information, please check the USD documentation on
 <dd><p>The default damping of the joint drive. Defaults to 0.0.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If set to zero, the values parsed from the URDF joint tag <code class="docutils literal notranslate"><span class="pre">&quot;&lt;dynamics&gt;&lt;damping&gt;&quot;</span></code> are used.
+<p>If <code class="docutils literal notranslate"><span class="pre">override_joint_dynamics</span></code> is True, the values parsed from the URDF joint tag <code class="docutils literal notranslate"><span class="pre">&quot;&lt;dynamics&gt;&lt;damping&gt;&quot;</span></code> are used.
 Otherwise, it is overridden by the configured value.</p>
 </div>
 </dd></dl>
@@ -4709,6 +4744,7 @@ rigid contacts are active.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.exposure"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.exposure</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.intensity"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.intensity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.texture_format"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.texture_format</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.DomeLightCfg.visible_in_primary_ray"><code class="docutils literal notranslate"><span class="pre">DomeLightCfg.visible_in_primary_ray</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.lights.SphereLightCfg"><code class="docutils literal notranslate"><span class="pre">SphereLightCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -4786,6 +4822,7 @@ rigid contacts are active.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.merge_fixed_joints"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.merge_fixed_joints</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.self_collision</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_type"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_type</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.override_joint_dynamics"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.override_joint_dynamics</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_stiffness"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_stiffness</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.default_drive_damping"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.default_drive_damping</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.spawners.from_files.UrdfFileCfg.link_density"><code class="docutils literal notranslate"><span class="pre">UrdfFileCfg.link_density</span></code></a></li>
@@ -4918,7 +4955,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

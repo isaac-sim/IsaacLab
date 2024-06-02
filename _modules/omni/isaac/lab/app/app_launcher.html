@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../_static/tabs.js"></script>
     <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/app/app_launcher';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -481,12 +499,16 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">contextlib</span>
 <span class="kn">import</span> <span class="nn">faulthandler</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">signal</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">suppress</span><span class="p">(</span><span class="ne">ModuleNotFoundError</span><span class="p">):</span>
+    <span class="kn">import</span> <span class="nn">isaacsim</span>  <span class="c1"># noqa: F401</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.kit</span> <span class="kn">import</span> <span class="n">SimulationApp</span>
 
@@ -566,9 +588,14 @@ document.write(`
 
         <span class="c1"># Define config members that are read from env-vars or keyword args</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span> <span class="nb">bool</span>  <span class="c1"># 0: GUI, 1: Headless</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>  <span class="c1"># 0: Disabled, 1: Native, 2: Websocket, 3: WebRTC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>  <span class="c1"># 0: Disabled, 1: Native, 2: WebRTC</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span><span class="p">:</span> <span class="nb">bool</span>  <span class="c1"># 0: Disabled, 1: Enabled</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># Experience file to load</span>
+
+        <span class="c1"># Exposed to train scripts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># device ID for GPU simulation (defaults to 0)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># local rank of GPUs in the current node</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_rank</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># global rank for multi-node training</span>
 
         <span class="c1"># Integrate env-vars and input keyword args into simulation app config</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_config_resolution</span><span class="p">(</span><span class="n">launcher_args</span><span class="p">)</span>
@@ -618,19 +645,23 @@ document.write(`
 <span class="sd">        * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same</span>
 <span class="sd">          as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the</span>
 <span class="sd">          ``HEADLESS`` environment variable.</span>
-<span class="sd">        * ``livestream`` (int): If one of {0, 1, 2, 3}, then livestreaming and headless mode is enabled. The values</span>
+<span class="sd">        * ``livestream`` (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values</span>
 <span class="sd">          map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is</span>
 <span class="sd">          determined by the ``LIVESTREAM`` environment variable.</span>
-<span class="sd">        * ``offscreen_render`` (bool): If True, the app will be launched in offscreen-render mode. The values</span>
-<span class="sd">          map the same as that for the ``OFFSCREEN_RENDER`` environment variable. If False, then offscreen-render</span>
-<span class="sd">          mode is determined by the ``OFFSCREEN_RENDER`` environment variable.</span>
+<span class="sd">        * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in</span>
+<span class="sd">          headless mode. This flag must be set to True if the environments contains any camera sensors.</span>
+<span class="sd">          The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.</span>
+<span class="sd">          If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.</span>
+<span class="sd">        * ``device_id`` (int): If specified, simulation will run on the specified GPU device.</span>
 <span class="sd">        * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path</span>
 <span class="sd">          is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).</span>
 
 <span class="sd">          If provided as an empty string, the experience file is determined based on the headless flag:</span>
 
-<span class="sd">          * If headless is True, the experience file is set to ``isaaclab.python.headless.kit``.</span>
-<span class="sd">          * If headless is False, the experience file is set to ``isaaclab.python.kit``.</span>
+<span class="sd">          * If headless and enable_cameras are True, the experience file is set to ``isaaclab.python.headless.rendering.kit``.</span>
+<span class="sd">          * If headless is False and enable_cameras is True, the experience file is set to ``isaaclab.python.rendering.kit``.</span>
+<span class="sd">          * If headless is False and enable_cameras is False, the experience file is set to ``isaaclab.python.kit``.</span>
+<span class="sd">          * If headless is True and enable_cameras is False, the experience file is set to ``isaaclab.python.headless.kit``.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            parser: An argument parser instance to be extended with the AppLauncher specific options.</span>
@@ -681,14 +712,20 @@ document.write(`
             <span class="s2">&quot;--livestream&quot;</span><span class="p">,</span>
             <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
             <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;livestream&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-            <span class="n">choices</span><span class="o">=</span><span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">},</span>
+            <span class="n">choices</span><span class="o">=</span><span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">},</span>
             <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-            <span class="s2">&quot;--offscreen_render&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;--enable_cameras&quot;</span><span class="p">,</span>
             <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
-            <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;offscreen_render&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable offscreen rendering when running without a GUI.&quot;</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;enable_cameras&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Enable camera sensors and relevant extension dependencies.&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s2">&quot;--device_id&quot;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">&quot;GPU device ID used for running simulation.&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">arg_group</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
             <span class="s2">&quot;--verbose&quot;</span><span class="p">,</span>  <span class="c1"># Note: This is read by SimulationApp through sys.argv</span>
@@ -719,7 +756,8 @@ document.write(`
     <span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">type</span><span class="p">],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;headless&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
         <span class="s2">&quot;livestream&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">int</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
-        <span class="s2">&quot;offscreen_render&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="s2">&quot;enable_cameras&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">bool</span><span class="p">],</span> <span class="kc">False</span><span class="p">),</span>
+        <span class="s2">&quot;device_id&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">int</span><span class="p">],</span> <span class="mi">0</span><span class="p">),</span>
         <span class="s2">&quot;experience&quot;</span><span class="p">:</span> <span class="p">([</span><span class="nb">str</span><span class="p">],</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
     <span class="p">}</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.</span>
@@ -735,6 +773,7 @@ document.write(`
     <span class="c1"># it is ambiguous where the default types are None</span>
     <span class="n">_SIM_APP_CFG_TYPES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">type</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">&quot;headless&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">bool</span><span class="p">],</span>
+        <span class="s2">&quot;hide_ui&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="kc">None</span><span class="p">)],</span>
         <span class="s2">&quot;active_gpu&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="kc">None</span><span class="p">)],</span>
         <span class="s2">&quot;physics_gpu&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">],</span>
         <span class="s2">&quot;multi_gpu&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">bool</span><span class="p">],</span>
@@ -820,7 +859,7 @@ document.write(`
         <span class="c1">#</span>
         <span class="n">livestream_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LIVESTREAM&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
         <span class="n">livestream_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;livestream&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;livestream&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">livestream_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">}</span>
+        <span class="n">livestream_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">}</span>
         <span class="c1"># Value checking on LIVESTREAM</span>
         <span class="k">if</span> <span class="n">livestream_env</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">livestream_valid_vals</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
@@ -861,7 +900,7 @@ document.write(`
         <span class="c1"># Note: Headless is always true when livestreaming</span>
         <span class="k">if</span> <span class="n">headless_arg</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="n">headless_arg</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="ow">in</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">}:</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="ow">in</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">}:</span>
             <span class="c1"># we are always headless on the host machine</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="c1"># inform who has toggled the headless flag</span>
@@ -881,24 +920,43 @@ document.write(`
         <span class="c1"># Headless needs to be passed to the SimulationApp so we keep it here</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;headless&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span>
 
-        <span class="c1"># --OFFSCREEN_RENDER logic--</span>
+        <span class="c1"># --enable_cameras logic--</span>
         <span class="c1">#</span>
-        <span class="c1"># off-screen rendering</span>
-        <span class="n">offscreen_render_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;OFFSCREEN_RENDER&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
-        <span class="n">offscreen_render_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span>
-            <span class="s2">&quot;offscreen_render&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;offscreen_render&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
-        <span class="p">)</span>
-        <span class="n">offscreen_render_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
-        <span class="k">if</span> <span class="n">offscreen_render_env</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">offscreen_render_valid_vals</span><span class="p">:</span>
+        <span class="n">enable_cameras_env</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ENABLE_CAMERAS&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">enable_cameras_arg</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;enable_cameras&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;enable_cameras&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">enable_cameras_valid_vals</span> <span class="o">=</span> <span class="p">{</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">enable_cameras_env</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">enable_cameras_valid_vals</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">&quot;Invalid value for environment variable `OFFSCREEN_RENDER`: </span><span class="si">{</span><span class="n">offscreen_render_env</span><span class="si">}</span><span class="s2"> .&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot;Expected: </span><span class="si">{</span><span class="n">offscreen_render_valid_vals</span><span class="si">}</span><span class="s2"> .&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid value for environment variable `ENABLE_CAMERAS`: </span><span class="si">{</span><span class="n">enable_cameras_env</span><span class="si">}</span><span class="s2"> .&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Expected: </span><span class="si">{</span><span class="n">enable_cameras_valid_vals</span><span class="si">}</span><span class="s2"> .&quot;</span>
             <span class="p">)</span>
-        <span class="c1"># We allow offscreen_render kwarg to supersede OFFSCREEN_RENDER envvar</span>
-        <span class="k">if</span> <span class="n">offscreen_render_arg</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="n">offscreen_render_arg</span>
+        <span class="c1"># We allow enable_cameras kwarg to supersede ENABLE_CAMERAS envvar</span>
+        <span class="k">if</span> <span class="n">enable_cameras_arg</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="o">=</span> <span class="n">enable_cameras_arg</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">offscreen_render_env</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">enable_cameras_env</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># hide_ui flag</span>
+        <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;hide_ui&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
+            <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;hide_ui&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># --simulation GPU device logic --</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;device_id&quot;</span><span class="p">,</span> <span class="n">AppLauncher</span><span class="o">.</span><span class="n">_APPLAUNCHER_CFG_INFO</span><span class="p">[</span><span class="s2">&quot;device_id&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s2">&quot;distributed&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">:</span>
+            <span class="n">distributed_train</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;distributed&quot;</span><span class="p">]</span>
+            <span class="c1"># local rank (GPU id) in a current multi-gpu mode</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;LOCAL_RANK&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">))</span>
+            <span class="c1"># global rank (GPU id) in multi-gpu multi-node mode</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">global_rank</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;RANK&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">distributed_train</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span>
+                <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;multi_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># set physics and rendering device</span>
+        <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;physics_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
+        <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;active_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
 
         <span class="c1"># Check if input keywords contain an &#39;experience&#39; file setting</span>
         <span class="c1"># Note: since experience is taken as a separate argument by Simulation App, we store it separately</span>
@@ -906,10 +964,17 @@ document.write(`
 
         <span class="c1"># If nothing is provided resolve the experience file based on the headless flag</span>
         <span class="n">kit_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;EXP_PATH&quot;</span><span class="p">]</span>
-        <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;ISAACLAB_PATH&quot;</span><span class="p">],</span> <span class="s2">&quot;source&quot;</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
+        <span class="n">isaaclab_app_exp_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)),</span> <span class="o">*</span><span class="p">[</span><span class="s2">&quot;..&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">6</span><span class="p">,</span> <span class="s2">&quot;apps&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
-            <span class="c1"># check if the headless flag is set</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
+            <span class="c1"># check if the headless flag is setS</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.headless.rendering.kit&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.rendering.kit&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.headless.kit&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_sim_experience_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">isaaclab_app_exp_path</span><span class="p">,</span> <span class="s2">&quot;isaaclab.python.kit&quot;</span><span class="p">)</span>
@@ -959,10 +1024,16 @@ document.write(`
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hacked_modules</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
 
+    <span class="k">def</span> <span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Indicates whether rendering is required by the app.</span>
+        <span class="c1"># Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_enable_cameras</span>
+
     <span class="k">def</span> <span class="nf">_load_extensions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Load correct extensions based on AppLauncher&#39;s resolved config member variables.&quot;&quot;&quot;</span>
         <span class="c1"># These have to be loaded after SimulationApp is initialized</span>
         <span class="kn">import</span> <span class="nn">carb</span>
+        <span class="kn">import</span> <span class="nn">omni.physx.bindings._physx</span> <span class="k">as</span> <span class="nn">physx_impl</span>
         <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.extensions</span> <span class="kn">import</span> <span class="n">enable_extension</span>
 
         <span class="c1"># Retrieve carb settings for modification</span>
@@ -982,18 +1053,15 @@ document.write(`
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
                 <span class="c1"># Enable Native Livestream extension</span>
                 <span class="c1"># Default App: Streaming Client from the Omniverse Launcher</span>
-                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.livestream.native&quot;</span><span class="p">)</span>
-                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.services.streaming.manager&quot;</span><span class="p">)</span>
+                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.streamsdk.plugins-3.2.1&quot;</span><span class="p">)</span>
+                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.livestream.core-3.2.0&quot;</span><span class="p">)</span>
+                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.livestream.native-4.1.0&quot;</span><span class="p">)</span>
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
-                <span class="c1"># Enable WebSocket Livestream extension</span>
-                <span class="c1"># Default URL: http://localhost:8211/streaming/client/</span>
-                <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.services.streamclient.websocket&quot;</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
                 <span class="c1"># Enable WebRTC Livestream extension</span>
                 <span class="c1"># Default URL: http://localhost:8211/streaming/webrtc-client/</span>
                 <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.services.streamclient.webrtc&quot;</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for livestream: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">. Expected: 1, 2, 3 .&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid value for livestream: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span><span class="si">}</span><span class="s2">. Expected: 1, 2 .&quot;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/app/livestream/enabled&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
@@ -1007,44 +1075,22 @@ document.write(`
         <span class="c1"># for example: the `Camera` sensor class</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/rtx_sensors&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
-        <span class="c1"># enable extensions for off-screen rendering</span>
-        <span class="c1"># Depending on the app file, some extensions might not be available in it.</span>
-        <span class="c1"># Thus, we manually enable these extensions to make sure they are available.</span>
-        <span class="c1"># note: enabling extensions is order-sensitive. please do not change the order!</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="c1"># extension to enable UI buttons (otherwise we get attribute errors)</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.window.toolbar&quot;</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span><span class="p">:</span>
-            <span class="c1"># extension to make RTX realtime and path-traced renderers</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.viewport.rtx&quot;</span><span class="p">)</span>
-            <span class="c1"># extension to make HydraDelegate renderers</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.viewport.pxr&quot;</span><span class="p">)</span>
-            <span class="c1"># enable viewport extension if full rendering is enabled</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.viewport.bundle&quot;</span><span class="p">)</span>
-            <span class="c1"># extension for window status bar</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.window.status_bar&quot;</span><span class="p">)</span>
-        <span class="c1"># enable replicator extension</span>
-        <span class="c1"># note: moved here since it requires to have the viewport extension to be enabled first.</span>
-        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.replicator.core&quot;</span><span class="p">)</span>
-        <span class="c1"># enable UI tools</span>
-        <span class="c1"># note: we need to always import this even with headless to make</span>
-        <span class="c1">#   the module for orbit.envs.ui work</span>
-        <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.isaac.ui&quot;</span><span class="p">)</span>
-        <span class="c1"># enable animation recording extension</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_headless</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">enable_extension</span><span class="p">(</span><span class="s2">&quot;omni.kit.stagerecorder.core&quot;</span><span class="p">)</span>
+        <span class="c1"># set fabric update flag to disable updating transforms when rendering is disabled</span>
+        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/fabricUpdateTransformations&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rendering_enabled</span><span class="p">())</span>
 
         <span class="c1"># set the nucleus directory manually to the latest published Nucleus</span>
         <span class="c1"># note: this is done to ensure prior versions of Isaac Sim still use the latest assets</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span>
             <span class="s2">&quot;/persistent/isaac/asset_root/default&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0&quot;</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_string</span><span class="p">(</span>
             <span class="s2">&quot;/persistent/isaac/asset_root/nvidia&quot;</span><span class="p">,</span>
-            <span class="s2">&quot;http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/2023.1.1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0&quot;</span><span class="p">,</span>
         <span class="p">)</span>
+
+        <span class="c1"># disable physics backwards compatibility check</span>
+        <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_int</span><span class="p">(</span><span class="n">physx_impl</span><span class="o">.</span><span class="n">SETTING_BACKWARD_COMPATIBILITY</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_hide_stop_button</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Hide the stop button in the toolbar.</span>
@@ -1123,7 +1169,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>

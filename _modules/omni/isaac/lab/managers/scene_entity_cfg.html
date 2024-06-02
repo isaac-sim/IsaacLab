@@ -31,6 +31,7 @@
     <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
     <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
@@ -44,6 +45,7 @@
     <script src="../../../../../_static/sphinx_highlight.js"></script>
     <script src="../../../../../_static/clipboard.min.js"></script>
     <script src="../../../../../_static/copybutton.js"></script>
+    <script src="../../../../../_static/tabs.js"></script>
     <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/managers/scene_entity_cfg';</script>
@@ -52,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 02, 2024"/>
   </head>
   
   
@@ -175,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -210,7 +212,13 @@
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/installation.html">Installation Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/setup/installation/index.html">Installation Guide</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/pip_installation.html">Installation using Isaac Sim pip (experimental)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/binaries_installation.html">Installation using Isaac Sim Binaries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/verifying_installation.html">Verifying the Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/setup/installation/cloud_installation.html">Running Isaac Lab in the Cloud</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/developer.html">Developer’s Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/sample.html">Running Existing Scripts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/setup/template.html">Building your Own Project</a></li>
@@ -218,11 +226,20 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../../source/migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
+</ul>
+</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../../source/tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -240,8 +257,9 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating an RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
 </ul>
@@ -512,6 +530,23 @@ document.write(`
 <span class="sd">    manager.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">fixed_tendon_names</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The names of the fixed tendons from the scene entity. Defaults to None.</span>
+
+<span class="sd">    The names can be either joint names or a regular expression matching the joint names.</span>
+
+<span class="sd">    These are converted to fixed tendon indices on initialization of the manager and passed to the term</span>
+<span class="sd">    function as a list of fixed tendon indices under :attr:`fixed_tendon_ids`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">fixed_tendon_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means</span>
+<span class="sd">    all the fixed tendons in the asset (if present).</span>
+
+<span class="sd">    If :attr:`fixed_tendon_names` is specified, this is filled in automatically on initialization of the</span>
+<span class="sd">    manager.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">body_names</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The names of the bodies from the asset required by the term. Defaults to None.</span>
 
@@ -555,12 +590,23 @@ document.write(`
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: If the scene entity is not found.</span>
 <span class="sd">            ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.</span>
+<span class="sd">            ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.</span>
 <span class="sd">            ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if the entity is valid</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">scene</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;The scene entity &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; does not exist. Available entities: </span><span class="si">{</span><span class="n">scene</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
 
+        <span class="c1"># convert joint names to indices based on regex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_joint_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
+
+        <span class="c1"># convert fixed tendon names to indices based on regex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_fixed_tendon_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span>
+
+        <span class="c1"># convert body names to indices based on regex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_resolve_body_names</span><span class="p">(</span><span class="n">scene</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_resolve_joint_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
         <span class="c1"># convert joint names to indices based on regex</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">entity</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -594,6 +640,48 @@ document.write(`
                     <span class="bp">self</span><span class="o">.</span><span class="n">joint_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">joint_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]</span>
 
+    <span class="k">def</span> <span class="nf">_resolve_fixed_tendon_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
+        <span class="c1"># convert tendon names to indices based on regex</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">entity</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="c1"># -- if both are not their default values, check if they are valid</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">]</span>
+                <span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">find_fixed_tendons</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">preserve_order</span>
+                <span class="p">)</span>
+                <span class="n">fixed_tendon_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="ow">or</span> <span class="n">fixed_tendon_names</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Both &#39;fixed_tendon_names&#39; and &#39;fixed_tendon_ids&#39; are specified, and are not consistent.&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">from joint names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">fixed_tendon_ids</span><span class="si">}</span><span class="s2">]&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">from joint ids: </span><span class="si">{</span><span class="n">fixed_tendon_names</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="si">}</span><span class="s2">]&quot;</span>
+                        <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Hint: Use either &#39;fixed_tendon_names&#39; or &#39;fixed_tendon_ids&#39; to avoid confusion.&quot;</span>
+                    <span class="p">)</span>
+            <span class="c1"># -- from fixed tendon names to fixed tendon indices</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entity</span><span class="o">.</span><span class="n">find_fixed_tendons</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">preserve_order</span>
+                <span class="p">)</span>
+                <span class="c1"># performance optimization (slice offers faster indexing than list of indices)</span>
+                <span class="c1"># only all fixed tendon in the entity order are selected</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">)</span> <span class="o">==</span> <span class="n">entity</span><span class="o">.</span><span class="n">num_fixed_tendons</span>
+                    <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="o">==</span> <span class="n">entity</span><span class="o">.</span><span class="n">fixed_tendon_names</span>
+                <span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+            <span class="c1"># -- from fixed tendon indices to fixed tendon names</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">fixed_tendon_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_tendon_ids</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_resolve_body_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveScene</span><span class="p">):</span>
         <span class="c1"># convert body names to indices based on regex</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">entity</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -625,7 +713,7 @@ document.write(`
             <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">body_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span></div></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">entity</span><span class="o">.</span><span class="n">body_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_ids</span><span class="p">]</span></div>
 </pre></div>
 
                 </article>
@@ -673,7 +761,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 01, 2024.
+  Last updated on Jun 02, 2024.
   <br/>
 </p>
   </div>
