@@ -15,7 +15,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import random
 import torch
 import unittest
 
@@ -42,8 +41,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
                     cls.registered_tasks.append(task_spec.id)
         # sort environments by name
         cls.registered_tasks.sort()
-        # pick four environments randomly to test
-        cls.registered_tasks = random.sample(cls.registered_tasks, 4)
+        cls.registered_tasks = cls.registered_tasks[:4]
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
 
