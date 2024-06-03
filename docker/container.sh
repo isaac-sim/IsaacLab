@@ -34,6 +34,7 @@ print_help () {
     echo -e "\tstop [profile]              Stop the docker container and remove it."
     echo -e "\tpush [profile]              Push the docker image to the cluster."
     echo -e "\tjob [profile] [job_args]    Submit a job to the cluster."
+    echo -e "\tconfig [profile]            Parse, resolve and render compose file in canonical format."
     echo -e "\n"
     echo -e "[profile] is the optional container profile specification and [job_args] optional arguments specific"
     echo -e "to the executed script"
@@ -257,7 +258,7 @@ profile_arg="$2" # Capture the second argument as the potential profile argument
 
 # Check mode argument and resolve the container profile
 case $mode in
-    build|start|enter|copy|stop|push)
+    build|start|enter|copy|stop|push|config)
         resolve_image_extension "$profile_arg" true
         ;;
     job)
@@ -299,10 +300,11 @@ case $mode in
     copy)
         # Check that desired container is running, exit if it isn't
         is_container_running isaac-lab-$container_profile
+        DOCKER_ISAACLAB_PATH=$(docker exec isaac-lab-$container_profile printenv DOCKER_ISAACLAB_PATH)
         echo "[INFO] Copying artifacts from the 'isaac-lab-$container_profile' container..."
-        echo -e "\t - /workspace/isaaclab/logs -> ${SCRIPT_DIR}/artifacts/logs"
-        echo -e "\t - /workspace/isaaclab/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
-        echo -e "\t - /workspace/isaaclab/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
+        echo -e "\t - ${DOCKER_ISAACLAB_PATH}/logs -> ${SCRIPT_DIR}/artifacts/logs"
+        echo -e "\t - ${DOCKER_ISAACLAB_PATH}/docs/_build -> ${SCRIPT_DIR}/artifacts/docs/_build"
+        echo -e "\t - ${DOCKER_ISAACLAB_PATH}/data_storage -> ${SCRIPT_DIR}/artifacts/data_storage"
         # enter the script directory
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # We have to remove before copying because repeated copying without deletion
@@ -315,9 +317,9 @@ case $mode in
         mkdir -p ./artifacts/docs
 
         # copy the artifacts
-        docker cp isaac-lab-$container_profile:/workspace/isaaclab/logs ./artifacts/logs
-        docker cp isaac-lab-$container_profile:/workspace/isaaclab/docs/_build ./artifacts/docs/_build
-        docker cp isaac-lab-$container_profile:/workspace/isaaclab/data_storage ./artifacts/data_storage
+        docker cp isaac-lab-$container_profile:${DOCKER_ISAACLAB_PATH}/logs ./artifacts/logs
+        docker cp isaac-lab-$container_profile:${DOCKER_ISAACLAB_PATH}/docs/_build ./artifacts/docs/_build
+        docker cp isaac-lab-$container_profile:${DOCKER_ISAACLAB_PATH}/data_storage ./artifacts/data_storage
         echo -e "\n[INFO] Finished copying the artifacts from the container."
         popd > /dev/null 2>&1
         ;;
@@ -377,6 +379,10 @@ case $mode in
             echo "[INFO] Arguments passed to job script ${@:2}"
             ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:2}"
         fi
+        ;;
+    config)
+        pushd ${SCRIPT_DIR} > /dev/null 2>&1
+        docker compose $add_yamls $add_envs $add_profiles config
         ;;
     *)
         # Not recognized mode
