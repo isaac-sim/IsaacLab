@@ -50,6 +50,7 @@ Guidelines for modifications:
 * Rosario Scalise
 * Shafeef Omar
 * Vladimir Fokow
+* Nuralem Abizov
 
 ## Acknowledgements
 
