@@ -204,7 +204,6 @@ html_css_files = ["custom.css"]
 html_theme_options = {
     "collapse_navigation": True,
     "repository_url": "https://github.com/isaac-sim/IsaacLab",
-    "announcement": "We have now released v0.3.0! Please use the latest version for the best experience.",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,

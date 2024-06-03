@@ -110,7 +110,7 @@ if %errorlevel% equ 0 (
     echo [INFO] Conda environment named '%env_name%' already exists.
 ) else (
     echo [INFO] Creating conda environment named '%env_name%'...
-    call conda env create --name %env_name% -f %build_path%\environment.yml
+    call conda create -y --name %env_name% python=3.10
 )
 rem cache current paths for later
 set "cache_pythonpath=%PYTHONPATH%"
