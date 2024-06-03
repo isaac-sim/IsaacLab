@@ -268,10 +268,10 @@ This configuration removes most collision meshes to speed up simulation.
 """
 
 
-# TODO change the file storage path. You should donwload the USD model here: https://drive.google.com/file/d/1Q3mGT_evSa66C-ByiMM6XJ-AFAjzYvrd/view?usp=sharing
+# TODO change the file storage path. The assets path is https://github.com/abizovnuralem/g1_assets
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="YOU_PATH/g1.usd",
+        usd_path="/home/brimo/Desktop/updated_isaac_lab/IsaacLab/g1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
