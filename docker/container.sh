@@ -25,19 +25,24 @@ fi
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Isaac Lab."
-    echo -e "\noptional arguments:"
-    echo -e "\t-h, --help                  Display the help content."
-    echo -e "\tstart [profile]             Build the docker image and create the container in detached mode."
-    echo -e "\tenter [profile]             Begin a new bash process within an existing Isaac Lab container."
-    echo -e "\tcopy [profile]              Copy build and logs artifacts from the container to the host machine."
-    echo -e "\tstop [profile]              Stop the docker container and remove it."
-    echo -e "\tpush [profile]              Push the docker image to the cluster."
-    echo -e "\tjob [profile] [job_args]    Submit a job to the cluster."
-    echo -e "\tconfig [profile]            Parse, resolve and render compose file in canonical format."
-    echo -e "\n"
-    echo -e "[profile] is the optional container profile specification and [job_args] optional arguments specific"
-    echo -e "to the executed script"
+    echo -e "\nusage: $(basename "$0") [-h] [mode] [options] -- Utility for handling docker in Isaac Lab."
+    echo -e "\nmode:"
+    echo -e "\t-h, --help                    Display the help content."
+    echo -e "\tstart [profile] [options]     Build the docker image and create the container in detached mode."
+    echo -e "\tenter [profile]               Begin a new bash process within an existing Isaac Lab container."
+    echo -e "\tcopy [profile]                Copy build and logs artifacts from the container to the host machine."
+    echo -e "\tstop [profile] [options]      Stop the docker container and remove it."
+    echo -e "\tpush [profile]                Push the docker image to the cluster."
+    echo -e "\tjob [profile] [job_args]      Submit a job to the cluster."
+    echo -e "\tconfig [profile] [options]    Parse, resolve and render compose file in canonical format."
+    echo -e "\nmode arguments:"
+    echo -e "\t[profile] is the optional container profile specification."
+    echo -e "\t[job_args] are optional arguments specific to the executed script."
+    echo -e "\noptions:"
+    echo -e "\t[-ay, --add_yaml] allows additional .yaml files to be passed to the docker compose command. .yamls will "
+    echo -e "\t                  be merged with docker-compose.yaml in the order in which they are provided."
+    echo -e "\t[-ae, --add_env] allows additional .env files to be passed to the docker compose command. .env will be"
+    echo -e "\t                 merged with .env.base in the order in which they are provided."
     echo -e "\n" >&2
 }
 
@@ -113,8 +118,8 @@ resolve_image_extension() {
     # check if a .env.$container_profile file exists
     # if the argument is necessary a profile, then the file must exists otherwise an info is printed
     if [ "$necessary_profile" = true ] && [ ! -f $SCRIPT_DIR/.env.$container_profile ]; then
-        echo "[Error] The profile '$container_profile' has no .env.$container_profile file!" >&2;
-        exit 1
+        echo "[WARN] The profile '$container_profile' has no .env.$container_profile file!" >&2;
+        echo "[INFO] .env.$container_profile should be added through --add_envs" >&2;
     elif [ ! -f $SCRIPT_DIR/.env.$container_profile ]; then
         echo "[INFO] No .env.$container_profile found, assume second argument is no profile! Will use default container!" >&2;
         container_profile="base"
@@ -131,7 +136,11 @@ resolve_image_extension() {
     if [ "$container_profile" != "base" ]; then
         # We have to load multiple .env files here in order to combine
         # them for the args from base required for extensions, (i.e. DOCKER_USER_HOME)
-        add_envs="$add_envs --env-file .env.$container_profile"
+        env_file=".env.$container_profile"
+        # Check if the file exists
+        if [ -f "$SCRIPT_DIR/$env_file" ]; then
+            add_envs="$add_envs --env-file $env_file"
+        fi
     fi
 }
 
@@ -231,6 +240,46 @@ x11_cleanup() {
     fi
 }
 
+parse_key_equal_to_value() {
+    local value="${1#*=}"
+    if [ ${value} == ${1} ]; then
+        value=""
+    fi
+    echo ${value}
+}
+
+process_mode_args() {
+    while [ $# -gt 0 ]; do
+        case $1 in
+            -ay*|--add_yaml*)
+                local value=$(parse_key_equal_to_value ${1})
+                shift
+                if [ -z ${value} ]; then
+                    value=${1}
+                    shift
+                fi
+                echo "$add_yamls --file ${value}"
+                add_yamls="$add_yamls --file ${value}"
+                ;;
+            -ae*|--add_env*)
+                local value=$(parse_key_equal_to_value ${1})
+                shift
+                if [ -z ${value} ]; then
+                    value=${1}
+                    shift
+                fi
+                echo "$add_envs --env-file ${value}"
+                add_envs="$add_envs --env-file ${value}"
+                ;;
+            *)
+                echo "Unknown argument: $1"
+                print_help
+                exit 1
+                ;;
+        esac
+    done
+}
+
 #==
 # Main
 #==
@@ -264,6 +313,10 @@ case $mode in
     job)
         resolve_image_extension "$profile_arg" false
         ;;
+    -h)
+        print_help
+        exit 0
+        ;;
     *)
         # Not recognized mode
         echo "[Error] Invalid command provided: $mode"
@@ -278,6 +331,7 @@ echo "[INFO] Using container profile: $container_profile"
 # resolve mode
 case $mode in
     start)
+        process_mode_args "${@:3}"
         echo "[INFO] Building the docker image and starting the container isaac-lab-$container_profile in the background..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         # Determine if we want x11 forwarding enabled
@@ -285,8 +339,8 @@ case $mode in
         # We have to build the base image as a separate step,
         # in case we are building a profile which depends
         # upon
-        docker compose --file docker-compose.yaml --env-file .env.base build isaac-lab-base
-        docker compose $add_yamls $add_profiles $add_envs up --detach --build --remove-orphans
+        docker compose $add_yamls $add_envs build isaac-lab-base
+        docker compose $add_yamls $add_envs $add_profiles up --detach --build --remove-orphans
         popd > /dev/null 2>&1
         ;;
     enter)
@@ -324,11 +378,12 @@ case $mode in
         popd > /dev/null 2>&1
         ;;
     stop)
+        process_mode_args "${@:3}"
         # Check that desired container is running, exit if it isn't
         is_container_running isaac-lab-$container_profile
         echo "[INFO] Stopping the launched docker container isaac-lab-$container_profile..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker compose --file docker-compose.yaml $add_profiles $add_envs down
+        docker compose $add_yamls $add_envs $add_profiles down
         x11_cleanup
         popd > /dev/null 2>&1
         ;;
@@ -381,6 +436,7 @@ case $mode in
         fi
         ;;
     config)
+        process_mode_args "${@:3}"
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
         docker compose $add_yamls $add_envs $add_profiles config
         ;;
