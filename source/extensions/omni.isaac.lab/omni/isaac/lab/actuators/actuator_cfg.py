@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
 from collections.abc import Iterable
 from dataclasses import MISSING
 from typing import Literal
@@ -152,4 +153,43 @@ class ActuatorNetMLPCfg(DCMotorCfg):
 
     The index *0* corresponds to current time-step, while *n* corresponds to n-th
     time-step in the past. The allocated history length is `max(input_idx) + 1`.
+    """
+
+
+@configclass
+class DelayedPDActuatorCfg(IdealPDActuatorCfg):
+    """Configuration for a delayed PD actuator."""
+
+    class_type: type = actuator_pd.DelayedPDActuator
+
+    min_num_time_lags: int = 0
+    """Minimum number of physics time-steps that the actuator command may be delayed."""
+
+    max_num_time_lags: int = 0
+    """Maximum number of physics time-steps that the actuator command may be delayed."""
+
+    num_time_lags: int = 0
+    """The number of physics time-steps that the actuator command will be delayed.
+
+    Note:
+        This values cannot be greater than `max_num_time_lags`.
+    """
+
+
+@configclass
+class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
+    """Configuration for a remotized PD actuator.
+
+    Note:
+        The torque output limits for this actuator is derived from a linear interpolation of a lookup table
+        in :attr:`joint_parameter_lookup` describing the relationship between joint angles and the output torques.
+    """
+
+    class_type: type = actuator_pd.RemotizedPDActuator
+
+    joint_parameter_lookup: torch.Tensor = MISSING
+    """Joint parameter lookup table. Shape is (num_lookup_points, 3).
+
+    The tensor describes relationship between the joint angle (rad), the transmission ratio (in/out),
+    and the output torque (N*m).
     """
