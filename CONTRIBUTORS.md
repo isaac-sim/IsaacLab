@@ -43,6 +43,7 @@ Guidelines for modifications:
 * Kourosh Darvish
 * Lorenz Wellhausen
 * Muhong Guo
+* Nuralem Abizov
 * Özhan Özen
 * Qinxi Yu
 * René Zurbrügg
@@ -50,7 +51,6 @@ Guidelines for modifications:
 * Rosario Scalise
 * Shafeef Omar
 * Vladimir Fokow
-* Nuralem Abizov
 
 ## Acknowledgements
 
