@@ -11,8 +11,8 @@ import torch
 class LinearInterpolation:
     """Linearly interpolates a sampled scalar function ``y = f(x)`` where :math:`f: R -> R`.
 
-    It assumes that the function's domain, X, is sampled in an ascending order. For the query points out the
-    sampling range of X, the class does a zero-order-hold extrapolation based on the boundary values.
+    It assumes that the function's domain, X, is sampled in an ascending order. For the query points out of
+    the sampling range of X, the class does a zero-order-hold extrapolation based on the boundary values.
     """
 
     def __init__(self, x: torch.Tensor, y: torch.Tensor, device: str):
