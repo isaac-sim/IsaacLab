@@ -268,10 +268,9 @@ This configuration removes most collision meshes to speed up simulation.
 """
 
 
-# TODO change the file storage path. The assets path is https://github.com/abizovnuralem/g1_assets
 G1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path="/home/brimo/Desktop/updated_isaac_lab/IsaacLab/g1.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
