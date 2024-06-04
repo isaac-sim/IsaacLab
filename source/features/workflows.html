@@ -545,9 +545,6 @@ document.write(`
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based-environments">Manager-Based Environments</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environments">Direct Environments</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tiled-rendering">Tiled Rendering</a></li>
 </ul>
             </nav>
         </div>
@@ -681,78 +678,6 @@ within the task class instead of abstracted with the use the Managers.</p>
 <a class="reference external" href="../tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a>.</p>
 </div>
 </section>
-<section id="multi-gpu-training">
-<h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this heading">#</a></h2>
-<p>For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
-This is possible in Isaac Lab with the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> RL library through the use of the
-<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework.
-In this workflow, <code class="docutils literal notranslate"><span class="pre">torch.distributed</span></code> is used to launch multiple processes of training, where the number of
-processes must be equal to or less than the number of GPUs available. Each process runs on
-a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
-Each process collects its own rollouts during the training process and has its own copy of the policy
-network. During training, gradients are aggregated across the processes and broadcasted back to the process
-at the end of the epoch.</p>
-<img alt="Multi-GPU training paradigm" class="align-center" src="../../_images/multigpu.png" />
-<p>To train with multiple GPUs, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</section>
-<section id="multi-node-training">
-<h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this heading">#</a></h2>
-<p>To scale up training beyond multiple GPUs on a single machine, it is also possible to train across multiple nodes.
-To train across multiple nodes/machines, it is required to launch an individual process on each node.
-For the master node, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs, and <code class="docutils literal notranslate"><span class="pre">--nnodes</span></code> represents the number of nodes:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-<p>Note that the port (<code class="docutils literal notranslate"><span class="pre">5555</span></code>) can be replaced with any other available port.</p>
-<p>For non-master nodes, use the following command, replacing <code class="docutils literal notranslate"><span class="pre">--node_rank</span></code> with the index of each machine:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-<p>For more details on multi-node training with PyTorch, please visit the <a class="reference external" href="https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html">PyTorch documentation</a>. As mentioned in the PyTorch documentation, “multinode training is bottlenecked by inter-node communication latencies”. When this latency is high, it is possible multi-node training will perform worse than running on a single node instance.</p>
-</section>
-<section id="tiled-rendering">
-<h2>Tiled Rendering<a class="headerlink" href="#tiled-rendering" title="Permalink to this heading">#</a></h2>
-<p>Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
-This is useful for reinforcement learning environments requiring vision in the loop.
-Tiled rendering works by concatenating camera outputs from multiple cameras and rending
-one single large image instead of multiple smaller images that would have been produced
-by each individual camera. This reduces the amount of time required for rendering and
-provides a more efficient API for working with vision data.</p>
-<p>Isaac Lab provides tiled rendering APIs for RGB and depth data through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a>
-class. Configurations for the tiled rendering APIs can be defined through the <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg" title="omni.isaac.lab.sensors.TiledCameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCameraCfg</span></code></a>
-class, specifying parameters such as the regex expression for all camera paths, the transform
-for the cameras, the desired data type, the type of cameras to add to the scene, and the camera
-resolution.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tiled_camera</span><span class="p">:</span> <span class="n">TiledCameraCfg</span> <span class="o">=</span> <span class="n">TiledCameraCfg</span><span class="p">(</span>
-    <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Camera&quot;</span><span class="p">,</span>
-    <span class="n">offset</span><span class="o">=</span><span class="n">TiledCameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">7.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9945</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1045</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">),</span>
-    <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">],</span>
-    <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
-        <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)</span>
-    <span class="p">),</span>
-    <span class="n">width</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-    <span class="n">height</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<p>To access the tiled rendering interface, a <a class="reference internal" href="../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera" title="omni.isaac.lab.sensors.TiledCamera"><code class="xref py py-class docutils literal notranslate"><span class="pre">TiledCamera</span></code></a> object can be created and used
-to retrieve data from the cameras.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">tiled_camera</span> <span class="o">=</span> <span class="n">TiledCamera</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">tiled_camera</span><span class="p">)</span>
-<span class="n">data_type</span> <span class="o">=</span> <span class="s2">&quot;rgb&quot;</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="n">data_type</span><span class="p">]</span>
-</pre></div>
-</div>
-<p>The returned data will be transformed into the shape (num_cameras, height, width, num_channels), which
-can be used directly as observation for reinforcement learning.</p>
-<p>When working with rendering, make sure to add the <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> argument when launching the
-environment. For example:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-RGB-Camera-Direct-v0<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras
-</pre></div>
-</div>
-</section>
 </section>
 
 
@@ -802,9 +727,6 @@ environment. For example:</p>
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based-environments">Manager-Based Environments</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environments">Direct Environments</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tiled-rendering">Tiled Rendering</a></li>
 </ul>
   </nav></div>
 

@@ -99,11 +99,11 @@ USD basics <https://www.sidefx.com/docs/houdini/solaris/usd.html>`__ by
 Houdini, which is a 3D animation software.
 Make sure to go through the following sections:
 
--  `Quick example <https://www.sidefx.com/docs/houdini/solaris/usd.html%23quick-example>`__
--  `Attributes and primvars <https://www.sidefx.com/docs/houdini/solaris/usd.html%23attrs>`__
--  `Composition <https://www.sidefx.com/docs/houdini/solaris/usd.html%23compose>`__
--  `Schemas <https://www.sidefx.com/docs/houdini/solaris/usd.html%23schemas>`__
--  `Instances <https://www.sidefx.com/docs/houdini/solaris/usd.html%23instancing>`__
+-  `Quick example <https://www.sidefx.com/docs/houdini/solaris/usd.html#quick-example>`__
+-  `Attributes and primvars <https://www.sidefx.com/docs/houdini/solaris/usd.html#attrs>`__
+-  `Composition <https://www.sidefx.com/docs/houdini/solaris/usd.html#compose>`__
+-  `Schemas <https://www.sidefx.com/docs/houdini/solaris/usd.html#schemas>`__
+-  `Instances <https://www.sidefx.com/docs/houdini/solaris/usd.html#instancing>`__
    and `Scene-graph Instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`__
 
 As a test of understanding, make sure you can answer the following:
