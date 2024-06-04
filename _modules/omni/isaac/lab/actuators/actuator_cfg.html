@@ -104,9 +104,6 @@
   <div class="pst-async-banner-revealer d-none">
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
-<aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">We have now released v0.3.0! Please use the latest version for the best experience.</div>
-</aside>
 
   
     <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
@@ -489,6 +486,7 @@ document.write(`
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
+<span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterable</span>
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Literal</span>
@@ -639,6 +637,45 @@ document.write(`
 <span class="sd">    The index *0* corresponds to current time-step, while *n* corresponds to n-th</span>
 <span class="sd">    time-step in the past. The allocated history length is `max(input_idx) + 1`.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DelayedPDActuatorCfg</span><span class="p">(</span><span class="n">IdealPDActuatorCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a delayed PD actuator.&quot;&quot;&quot;</span>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">DelayedPDActuator</span>
+
+    <span class="n">min_num_time_lags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum number of physics time-steps that the actuator command may be delayed.&quot;&quot;&quot;</span>
+
+    <span class="n">max_num_time_lags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum number of physics time-steps that the actuator command may be delayed.&quot;&quot;&quot;</span>
+
+    <span class="n">num_time_lags</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The number of physics time-steps that the actuator command will be delayed.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This values cannot be greater than `max_num_time_lags`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">RemotizedPDActuatorCfg</span><span class="p">(</span><span class="n">DelayedPDActuatorCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a remotized PD actuator.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The torque output limits for this actuator is derived from a linear interpolation of a lookup table</span>
+<span class="sd">        in :attr:`joint_parameter_lookup` describing the relationship between joint angles and the output torques.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">actuator_pd</span><span class="o">.</span><span class="n">RemotizedPDActuator</span>
+
+    <span class="n">joint_parameter_lookup</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint parameter lookup table. Shape is (num_lookup_points, 3).</span>
+
+<span class="sd">    The tensor describes relationship between the joint angle (rad), the transmission ratio (in/out),</span>
+<span class="sd">    and the output torque (N*m).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 </pre></div>
 
                 </article>

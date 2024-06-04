@@ -104,9 +104,6 @@
   <div class="pst-async-banner-revealer d-none">
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
-<aside class="bd-header-announcement" aria-label="Announcement">
-  <div class="bd-header-announcement__content">We have now released v0.3.0! Please use the latest version for the best experience.</div>
-</aside>
 
   
     <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
@@ -497,10 +494,18 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">omni.isaac.core.utils.types</span> <span class="kn">import</span> <span class="n">ArticulationActions</span>
 
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">DelayBuffer</span><span class="p">,</span> <span class="n">LinearInterpolation</span>
+
 <span class="kn">from</span> <span class="nn">.actuator_base</span> <span class="kn">import</span> <span class="n">ActuatorBase</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.actuator_cfg</span> <span class="kn">import</span> <span class="n">DCMotorCfg</span><span class="p">,</span> <span class="n">IdealPDActuatorCfg</span><span class="p">,</span> <span class="n">ImplicitActuatorCfg</span>
+    <span class="kn">from</span> <span class="nn">.actuator_cfg</span> <span class="kn">import</span> <span class="p">(</span>
+        <span class="n">DCMotorCfg</span><span class="p">,</span>
+        <span class="n">DelayedPDActuatorCfg</span><span class="p">,</span>
+        <span class="n">IdealPDActuatorCfg</span><span class="p">,</span>
+        <span class="n">ImplicitActuatorCfg</span><span class="p">,</span>
+        <span class="n">RemotizedPDActuatorCfg</span><span class="p">,</span>
+    <span class="p">)</span>
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -696,6 +701,141 @@ document.write(`
 
         <span class="c1"># clip the torques based on the motor limits</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">effort</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="n">min_effort</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">DelayedPDActuator</span><span class="p">(</span><span class="n">IdealPDActuator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ideal PD actuator with delayed data.</span>
+
+<span class="sd">    The DelayedPDActuator has configurable minimum and maximum time lag values, which are used to initialize a</span>
+<span class="sd">    DelayBuffer to hold a queue of pending actuator commands. On reset, a value time_lags will be randomly sampled</span>
+<span class="sd">    from the min and max time lag bounds. At every physics step, the most recent actuation value is pushed to the</span>
+<span class="sd">    DelayBuffer, but the final actuation value applied to simulation will be `time_lags` physics steps in the past.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">cfg</span><span class="p">:</span> <span class="n">DelayedPDActuatorCfg</span><span class="p">,</span>
+        <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">effort_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+        <span class="n">velocity_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span>
+            <span class="n">joint_names</span><span class="p">,</span>
+            <span class="n">joint_ids</span><span class="p">,</span>
+            <span class="n">num_envs</span><span class="p">,</span>
+            <span class="n">device</span><span class="p">,</span>
+            <span class="n">stiffness</span><span class="p">,</span>
+            <span class="n">damping</span><span class="p">,</span>
+            <span class="n">armature</span><span class="p">,</span>
+            <span class="n">friction</span><span class="p">,</span>
+            <span class="n">effort_limit</span><span class="p">,</span>
+            <span class="n">velocity_limit</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># instantiate the delay buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span> <span class="o">=</span> <span class="n">DelayBuffer</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_num_time_lags</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocities_delay_buffer</span> <span class="o">=</span> <span class="n">DelayBuffer</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_num_time_lags</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">efforts_delay_buffer</span> <span class="o">=</span> <span class="n">DelayBuffer</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_num_time_lags</span><span class="p">,</span> <span class="n">num_envs</span><span class="o">=</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="c1"># all of the envs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># number of environments (since env_ids can be a slice)</span>
+        <span class="n">env_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+        <span class="c1"># set a new random delay for environments in env_ids</span>
+        <span class="n">time_lags</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span><span class="o">.</span><span class="n">time_lags</span>
+        <span class="n">time_lags</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+            <span class="n">low</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">min_num_time_lags</span><span class="p">,</span>
+            <span class="n">high</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_num_time_lags</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="n">env_size</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># set delays</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span><span class="o">.</span><span class="n">set_time_lag</span><span class="p">(</span><span class="n">time_lags</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocities_delay_buffer</span><span class="o">.</span><span class="n">set_time_lag</span><span class="p">(</span><span class="n">time_lags</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">efforts_delay_buffer</span><span class="o">.</span><span class="n">set_time_lag</span><span class="p">(</span><span class="n">time_lags</span><span class="p">)</span>
+        <span class="c1"># reset buffers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">velocities_delay_buffer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">efforts_delay_buffer</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
+        <span class="c1"># apply delay based on the delay the model for all the setpoints</span>
+        <span class="n">control_action</span><span class="o">.</span><span class="n">joint_positions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">positions_delay_buffer</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="o">.</span><span class="n">joint_positions</span><span class="p">)</span>
+        <span class="n">control_action</span><span class="o">.</span><span class="n">joint_velocities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">velocities_delay_buffer</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="o">.</span><span class="n">joint_velocities</span><span class="p">)</span>
+        <span class="n">control_action</span><span class="o">.</span><span class="n">joint_efforts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">efforts_delay_buffer</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="o">.</span><span class="n">joint_efforts</span><span class="p">)</span>
+        <span class="c1"># compte actuator model</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">RemotizedPDActuator</span><span class="p">(</span><span class="n">DelayedPDActuator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ideal PD actuator with angle dependent torque limits.</span>
+
+<span class="sd">    The torque limits for this actuator are applied by querying a lookup table describing the relationship between</span>
+<span class="sd">    the joint angle and the maximum output torque.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">cfg</span><span class="p">:</span> <span class="n">RemotizedPDActuatorCfg</span><span class="p">,</span>
+        <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">effort_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+        <span class="n">velocity_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># remove effort and velocity box constraints from the base class</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">effort_limit</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span>
+        <span class="n">cfg</span><span class="o">.</span><span class="n">velocity_limit</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span>
+        <span class="c1"># call the base method and set default effort_limit and velocity_limit to inf</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">cfg</span><span class="p">,</span> <span class="n">joint_names</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">stiffness</span><span class="p">,</span> <span class="n">damping</span><span class="p">,</span> <span class="n">armature</span><span class="p">,</span> <span class="n">friction</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">inf</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">joint_parameter_lookup</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="c1"># define remotized joint torque limit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_torque_limit</span> <span class="o">=</span> <span class="n">LinearInterpolation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">angle_samples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_torque_samples</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">angle_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transmission_ratio_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">max_torque_samples</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_parameter_lookup</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">compute</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">control_action</span><span class="p">:</span> <span class="n">ArticulationActions</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArticulationActions</span><span class="p">:</span>
+        <span class="c1"># call the base method</span>
+        <span class="n">control_action</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">control_action</span><span class="p">,</span> <span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">)</span>
+        <span class="c1"># compute the absolute torque limits for the current joint positions</span>
+        <span class="n">abs_torque_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_torque_limit</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">)</span>
+        <span class="c1"># apply the limits</span>
+        <span class="n">control_action</span><span class="o">.</span><span class="n">joint_efforts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span>
+            <span class="n">control_action</span><span class="o">.</span><span class="n">joint_efforts</span><span class="p">,</span> <span class="nb">min</span><span class="o">=-</span><span class="n">abs_torque_limits</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">abs_torque_limits</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">applied_effort</span> <span class="o">=</span> <span class="n">control_action</span><span class="o">.</span><span class="n">joint_efforts</span>
+        <span class="k">return</span> <span class="n">control_action</span>
 </pre></div>
 
                 </article>
