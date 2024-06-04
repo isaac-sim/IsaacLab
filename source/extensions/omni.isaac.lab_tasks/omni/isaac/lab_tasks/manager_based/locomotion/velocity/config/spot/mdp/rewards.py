@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
     from omni.isaac.lab.managers import RewardTermCfg
 
+
 # -- Task Rewards
 
 

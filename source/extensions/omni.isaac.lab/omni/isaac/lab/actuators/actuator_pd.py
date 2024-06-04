@@ -223,7 +223,7 @@ class DCMotor(IdealPDActuator):
 class DelayedPDActuator(IdealPDActuator):
     """Ideal PD actuator with delayed data.
 
-    The DelayedPDActuator has configurable minimum and maximum time lag values, which is used to initialize a
+    The DelayedPDActuator has configurable minimum and maximum time lag values, which are used to initialize a
     DelayBuffer to hold a queue of pending actuator commands. On reset, a value time_lags will be randomly sampled
     from the min and max time lag bounds. At every physics step, the most recent actuation value is pushed to the
     DelayBuffer, but the final actuation value applied to simulation will be `time_lags` physics steps in the past.
@@ -299,7 +299,7 @@ class DelayedPDActuator(IdealPDActuator):
 class RemotizedPDActuator(DelayedPDActuator):
     """Ideal PD actuator with angle dependent torque limits.
 
-    The torque limits for this actuator is applied by querying a lookup table describing the relationship between
+    The torque limits for this actuator are applied by querying a lookup table describing the relationship between
     the joint angle and the maximum output torque.
     """
 

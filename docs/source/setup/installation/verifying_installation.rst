@@ -67,7 +67,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: bash
 
          # Isaac Sim root directory
-         export ISAACSIM_PATH="${HOME}/.local/share/ov/pkg/isaac_sim-4.0"
+         export ISAACSIM_PATH="${HOME}/.local/share/ov/pkg/isaac-sim-4.0.0"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
@@ -76,7 +76,7 @@ variables to your terminal for the remaining of the installation instructions:
       .. code:: batch
 
          :: Isaac Sim root directory
-         set ISAACSIM_PATH="C:\Users\user\AppData\Local\ov\pkg\isaac_sim-4.0"
+         set ISAACSIM_PATH="C:\Users\user\AppData\Local\ov\pkg\isaac-sim-4.0.0"
          :: Isaac Sim python executable
          set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH%\python.bat"
 
