@@ -21,11 +21,6 @@ simulation capabilities for photo-realistic scenes and fast and accurate simulat
 Please refer to our [documentation page](https://isaac-sim.github.io/IsaacLab) to learn more about the
 installation steps, features, tutorials, and how to set up your project with Isaac Lab.
 
-## Announcements
-
-* [03.06.2024] [**v1.0.0**](https://github.com/isaac-sim/IsaacLab/releases/tag/v1.0.0):
-  Initial Isaac Lab release. Support for Isaac Sim 4.0, improvements and bug fixes.
-
 ## Contributing to Isaac Lab
 
 We wholeheartedly welcome contributions from the community to make this framework mature and useful for everyone.
@@ -51,7 +46,7 @@ The Isaac Lab framework is released under [BSD-3 License](LICENSE). The license 
 
 ## Acknowledgement
 
-Isaac Lab used [Orbit](https://isaac-orbit.github.io/) as a starting point and we would appreciate if you would cite it in academic publications as well:
+Isaac Lab development initiated from the [Orbit](https://isaac-orbit.github.io/) framework. We would appreciate if you would cite it in academic publications as well:
 
 ```
 @article{mittal2023orbit,
