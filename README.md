@@ -53,6 +53,7 @@ The Isaac Lab framework is released under [BSD-3 License](LICENSE). The license 
 
 Isaac Lab used [Orbit](https://isaac-orbit.github.io/) as a starting point and we would appreciate if you would cite it in academic publications as well:
 
+```
 @article{mittal2023orbit,
    author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
    journal={IEEE Robotics and Automation Letters},
@@ -63,3 +64,4 @@ Isaac Lab used [Orbit](https://isaac-orbit.github.io/) as a starting point and w
    pages={3740-3747},
    doi={10.1109/LRA.2023.3270034}
 }
+```
