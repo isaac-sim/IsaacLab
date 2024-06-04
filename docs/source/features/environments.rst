@@ -111,39 +111,41 @@ Environments based on legged locomotion tasks.
 .. table::
     :widths: 33 37 30
 
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | World                        | Environment ID                               | Description                                                             |
-    +==============================+==============================================+=========================================================================+
-    | |velocity-flat-anymal-b|     | |velocity-flat-anymal-b-link|                | Track a velocity command on flat terrain with the Anymal B robot        |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot       |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-anymal-c|     | | |velocity-flat-anymal-c-link|              | Track a velocity command on flat terrain with the Anymal C robot        |
-    |                              | | |velocity-flat-anymal-c-direct-link|       |                                                                         |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-anymal-c|    | | |velocity-rough-anymal-c-link|             | Track a velocity command on rough terrain with the Anymal C robot       |
-    |                              | | |velocity-rough-anymal-c-direct-link|      |                                                                         |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot        |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot       |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot      |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot     |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot     |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot    |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot     |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot    |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-flat-h1|           | |velocity-flat-h1-link|                      | Track a velocity command on flat terrain with the Unitree H1 robot      |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
-    | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot     |
-    +------------------------------+----------------------------------------------+-------------------------------------------------------------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | World                        | Environment ID                               | Description                                                                  |
+    +==============================+==============================================+==============================================================================+
+    | |velocity-flat-anymal-b|     | |velocity-flat-anymal-b-link|                | Track a velocity command on flat terrain with the Anymal B robot             |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-anymal-c|     | | |velocity-flat-anymal-c-link|              | Track a velocity command on flat terrain with the Anymal C robot             |
+    |                              | | |velocity-flat-anymal-c-direct-link|       |                                                                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-anymal-c|    | | |velocity-rough-anymal-c-link|             | Track a velocity command on rough terrain with the Anymal C robot            |
+    |                              | | |velocity-rough-anymal-c-direct-link|      |                                                                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot            |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot           |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot         |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot         |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-spot|         | |velocity-flat-spot-link|                    | Track a velocity command on flat terrain with the Boston Dynamics Spot robot |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-h1|           | |velocity-flat-h1-link|                      | Track a velocity command on flat terrain with the Unitree H1 robot           |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -166,6 +168,8 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go2/flat_env_cfg.py>`__
 .. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-Unitree-Go2-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/unitree_go2/rough_env_cfg.py>`__
 
+.. |velocity-flat-spot-link| replace:: `Isaac-Velocity-Flat-Spot-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py>`__
+
 .. |velocity-flat-h1-link| replace:: `Isaac-Velocity-Flat-H1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/h1/flat_env_cfg.py>`__
 .. |velocity-rough-h1-link| replace:: `Isaac-Velocity-Rough-H1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/h1/rough_env_cfg.py>`__
 
@@ -182,6 +186,7 @@ Environments based on legged locomotion tasks.
 .. |velocity-rough-unitree-go1| image:: ../_static/tasks/locomotion/go1_rough.jpg
 .. |velocity-flat-unitree-go2| image:: ../_static/tasks/locomotion/go2_flat.jpg
 .. |velocity-rough-unitree-go2| image:: ../_static/tasks/locomotion/go2_rough.jpg
+.. |velocity-flat-spot| image:: ../_static/tasks/locomotion/spot_flat.jpg
 .. |velocity-flat-h1| image:: ../_static/tasks/locomotion/h1_flat.jpg
 .. |velocity-rough-h1| image:: ../_static/tasks/locomotion/h1_rough.jpg
 
