@@ -22,13 +22,8 @@ installation steps, features, tutorials, and how to set up your project with Isa
 
 ## Announcements
 
-* [17.04.2024] [**v0.3.0**](https://github.com/isaac-sim/IsaacLab/releases/tag/v0.3.0):
-  Several improvements and bug fixes to the framework. Includes cabinet opening and dexterous manipulation environments,
-  terrain-aware patch sampling, and animation recording.
-
-* [22.12.2023] [**v0.2.0**](https://github.com/isaac-sim/IsaacLab/releases/tag/v0.2.0):
-  Significant breaking updates to enhance the modularity and user-friendliness of the framework. Also includes
-  procedural terrain generation, warp-based custom ray-casters, and legged-locomotion environments.
+* [03.06.2024] [**v1.0.0**](https://github.com/isaac-sim/IsaacLab/releases/tag/v1.0.0):
+  Initial Isaac Lab release. Support for Isaac Sim 4.0, improvements and bug fixes.
 
 ## Contributing to Isaac Lab
 
@@ -49,8 +44,21 @@ or opening a question on its [forums](https://forums.developer.nvidia.com/c/agx-
 * Please use GitHub [Discussions](https://github.com/isaac-sim/IsaacLab/discussions) for discussing ideas, asking questions, and requests for new features.
 * Github [Issues](https://github.com/isaac-sim/IsaacLab/issues) should only be used to track executable pieces of work with a definite scope and a clear deliverable. These can be fixing bugs, documentation issues, new features, or general updates.
 
-## Acknowledgement
-
-NVIDIA Isaac Sim is available freely under [individual license](https://www.nvidia.com/en-us/omniverse/download/). For more information about its license terms, please check [here](https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement).
+## License
 
 The Isaac Lab framework is released under [BSD-3 License](LICENSE). The license files of its dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
+
+## Acknowledgement
+
+Isaac Lab used [Orbit](https://isaac-orbit.github.io/) as a starting point and we would appreciate if you would cite it in academic publications as well:
+
+@article{mittal2023orbit,
+   author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
+   journal={IEEE Robotics and Automation Letters},
+   title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
+   year={2023},
+   volume={8},
+   number={6},
+   pages={3740-3747},
+   doi={10.1109/LRA.2023.3270034}
+}
