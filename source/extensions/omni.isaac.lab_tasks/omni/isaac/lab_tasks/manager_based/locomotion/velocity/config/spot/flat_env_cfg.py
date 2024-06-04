@@ -189,7 +189,12 @@ class SpotRewardsCfg:
     air_time = RewardTermCfg(
         func=spot_mdp.air_time_reward,
         weight=5.0,
-        params={"mode_time": 0.3, "velocity_threshold": 0.5, "asset_cfg": SceneEntityCfg("robot"), "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+        params={
+            "mode_time": 0.3,
+            "velocity_threshold": 0.5,
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+        },
     )
     base_angular_velocity = RewardTermCfg(
         func=spot_mdp.base_angular_velocity_reward,
@@ -254,7 +259,11 @@ class SpotRewardsCfg:
     joint_pos = RewardTermCfg(
         func=spot_mdp.joint_position_penalty,
         weight=-0.7,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*"), "stand_still_scale": 5.0, "velocity_threshold": 0.5},
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stand_still_scale": 5.0,
+            "velocity_threshold": 0.5,
+        },
     )
     joint_torques = RewardTermCfg(
         func=spot_mdp.joint_torques_penalty,

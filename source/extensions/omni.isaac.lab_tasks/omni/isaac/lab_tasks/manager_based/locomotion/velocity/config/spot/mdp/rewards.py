@@ -20,7 +20,13 @@ if TYPE_CHECKING:
 # -- Task Rewards
 
 
-def air_time_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg, mode_time: float, velocity_threshold: float) -> torch.Tensor:
+def air_time_reward(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+    mode_time: float,
+    velocity_threshold: float,
+) -> torch.Tensor:
     """Reward longer feet air and contact time"""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -36,7 +42,11 @@ def air_time_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cf
     stance_cmd_reward = torch.clip(current_contact_time - current_air_time, -mode_time, mode_time)
     cmd = torch.norm(env.command_manager.get_command("base_velocity"), dim=1).unsqueeze(dim=1).expand(-1, 4)
     body_vel = torch.linalg.norm(asset.data.root_lin_vel_b[:, :2], dim=1).unsqueeze(dim=1).expand(-1, 4)
-    reward = torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), torch.where(t_max < mode_time, t_min, 0), stance_cmd_reward)
+    reward = torch.where(
+        torch.logical_or(cmd > 0.0, body_vel > velocity_threshold),
+        torch.where(t_max < mode_time, t_min, 0),
+        stance_cmd_reward,
+    )
     return torch.sum(reward, dim=1)
 
 
@@ -98,7 +108,16 @@ class GaitReward(ManagerTermBase):
         synced_feet_pair_1 = self.contact_sensor.find_bodies(synced_feet_pair_names[1])[0]
         self.synced_feet_pairs = [synced_feet_pair_0, synced_feet_pair_1]
 
-    def __call__(self, env: ManagerBasedRLEnv, std: float, max_err: float, velocity_threshold: float, synced_feet_pair_names, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        std: float,
+        max_err: float,
+        velocity_threshold: float,
+        synced_feet_pair_names,
+        asset_cfg: SceneEntityCfg,
+        sensor_cfg: SceneEntityCfg,
+    ) -> torch.Tensor:
         """Compute the reward.
 
         This reward is defined as a multiplication between six terms where two of them enforce pair feet
@@ -122,7 +141,9 @@ class GaitReward(ManagerTermBase):
         # only enforce gait if cmd > 0
         cmd = torch.norm(env.command_manager.get_command("base_velocity"), dim=1)
         body_vel = torch.linalg.norm(self.asset.data.root_lin_vel_b[:, :2], dim=1)
-        return torch.where(torch.logical_or(cmd > 0.0, body_vel > self.velocity_threshold), sync_reward * async_reward, 0.0)
+        return torch.where(
+            torch.logical_or(cmd > 0.0, body_vel > self.velocity_threshold), sync_reward * async_reward, 0.0
+        )
 
     def _sync_reward_func(self, foot_0: int, foot_1: int) -> torch.Tensor:
         """Reward synchronization of two feet."""
@@ -221,7 +242,9 @@ def joint_acceleration_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg
     return torch.linalg.norm((asset.data.joint_acc), dim=1)
 
 
-def joint_position_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, stand_still_scale: float, velocity_threshold: float) -> torch.Tensor:
+def joint_position_penalty(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, stand_still_scale: float, velocity_threshold: float
+) -> torch.Tensor:
     """Penalize joint position error from default on the articulation."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
