@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy",
-    "torch>=2.2.2",
+    "torch==2.2.2",
     "prettytable==3.3.0",
     "tensordict",
     "toml",
@@ -31,6 +31,8 @@ INSTALL_REQUIRES = [
     "trimesh",
     "pyglet<2",
 ]
+
+PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
 
 # Installation operation
 setup(
@@ -45,6 +47,7 @@ setup(
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
+    dependency_links=PYTORCH_INDEX_URL,
     packages=["omni.isaac.lab"],
     classifiers=[
         "Natural Language :: English",

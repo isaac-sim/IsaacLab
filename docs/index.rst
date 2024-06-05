@@ -31,9 +31,25 @@ For more information about the framework, please refer to the `paper <https://ar
 License
 =======
 
-NVIDIA Isaac Sim is provided under the NVIDIA End User License Agreement. However, the
-Isaac Lab framework is open-sourced under the BSD-3-Clause license.
+The Isaac Lab framework is open-sourced under the BSD-3-Clause license.
 Please refer to :ref:`license` for more details.
+
+Acknowledgement
+===============
+Isaac Lab development initiated from the `Orbit <https://isaac-orbit.github.io/>`_ framework. We would appreciate if you would cite it in academic publications as well:
+
+.. code:: bibtex
+
+   @article{mittal2023orbit,
+      author={Mittal, Mayank and Yu, Calvin and Yu, Qinxi and Liu, Jingzhou and Rudin, Nikita and Hoeller, David and Yuan, Jia Lin and Singh, Ritvik and Guo, Yunrong and Mazhar, Hammad and Mandlekar, Ajay and Babich, Buck and State, Gavriel and Hutter, Marco and Garg, Animesh},
+      journal={IEEE Robotics and Automation Letters},
+      title={Orbit: A Unified Simulation Framework for Interactive Robot Learning Environments},
+      year={2023},
+      volume={8},
+      number={6},
+      pages={3740-3747},
+      doi={10.1109/LRA.2023.3270034}
+   }
 
 
 Table of Contents
