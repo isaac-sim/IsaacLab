@@ -258,7 +258,6 @@ process_mode_args() {
                     value=${1}
                     shift
                 fi
-                echo "$add_yamls --file ${value}"
                 add_yamls="$add_yamls --file ${value}"
                 ;;
             -ae*|--add_env*)
@@ -268,7 +267,6 @@ process_mode_args() {
                     value=${1}
                     shift
                 fi
-                echo "$add_envs --env-file ${value}"
                 add_envs="$add_envs --env-file ${value}"
                 ;;
             *)
