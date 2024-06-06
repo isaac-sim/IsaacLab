@@ -64,7 +64,7 @@ class SpotCommandsCfg:
         heading_command=False,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-2.0, 4.0), lin_vel_y=(-1.5, 1.5), ang_vel_z=(-2.0, 2.0)
+            lin_vel_x=(-2.0, 3.0), lin_vel_y=(-1.5, 1.5), ang_vel_z=(-2.0, 2.0)
         ),
     )
 
@@ -189,7 +189,12 @@ class SpotRewardsCfg:
     air_time = RewardTermCfg(
         func=spot_mdp.air_time_reward,
         weight=5.0,
-        params={"mode_time": 0.3, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+        params={
+            "mode_time": 0.3,
+            "velocity_threshold": 0.5,
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+        },
     )
     base_angular_velocity = RewardTermCfg(
         func=spot_mdp.base_angular_velocity_reward,
@@ -212,9 +217,16 @@ class SpotRewardsCfg:
         },
     )
     gait = RewardTermCfg(
-        func=spot_mdp.gait_reward,
+        func=spot_mdp.GaitReward,
         weight=10.0,
-        params={"std": 0.1, "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
+        params={
+            "std": 0.1,
+            "max_err": 0.2,
+            "velocity_threshold": 0.5,
+            "synced_feet_pair_names": (("fl_foot", "hr_foot"), ("fr_foot", "hl_foot")),
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces"),
+        },
     )
 
     # -- penalties
@@ -247,7 +259,11 @@ class SpotRewardsCfg:
     joint_pos = RewardTermCfg(
         func=spot_mdp.joint_position_penalty,
         weight=-0.7,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*"), "stand_still_scale": 5.0},
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stand_still_scale": 5.0,
+            "velocity_threshold": 0.5,
+        },
     )
     joint_torques = RewardTermCfg(
         func=spot_mdp.joint_torques_penalty,
