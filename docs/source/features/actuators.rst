@@ -47,7 +47,7 @@ Actuator groups
 ---------------
 
 The actuator models by themselves are computational blocks that take as inputs the desired joint commands
-and output the the joint commands to apply into the simulator. They do not contain any knowledge about the
+and output the joint commands to apply into the simulator. They do not contain any knowledge about the
 joints they are acting on themselves. These are handled by the :class:`omni.isaac.lab.assets.Articulation`
 class, which wraps around the physics engine's articulation class.
 
