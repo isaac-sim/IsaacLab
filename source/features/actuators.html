@@ -594,7 +594,7 @@ are the desired joint positions, velocities and torques commands. The parameters
 <section id="actuator-groups">
 <h2>Actuator groups<a class="headerlink" href="#actuator-groups" title="Permalink to this heading">#</a></h2>
 <p>The actuator models by themselves are computational blocks that take as inputs the desired joint commands
-and output the the joint commands to apply into the simulator. They do not contain any knowledge about the
+and output the joint commands to apply into the simulator. They do not contain any knowledge about the
 joints they are acting on themselves. These are handled by the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.assets.Articulation</span></code></a>
 class, which wraps around the physics engine’s articulation class.</p>
 <p>Actuator are collected as a set of actuated joints on an articulation that are using the same actuator model.
