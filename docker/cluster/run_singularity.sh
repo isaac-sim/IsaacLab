@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "(run_singularity.py): Called on compute node with container profile $1 and arguments ${@:2}"
+echo "(run_singularity.py): Called on compute node from current orbit directory $1 with container profile $2 and arguments ${@:3}"
 
 #==
 # Helper functions
@@ -41,13 +41,15 @@ setup_directories
 # copy all cache files
 cp -r $CLUSTER_ISAAC_SIM_CACHE_DIR $TMPDIR
 
-# copy orbit source code
+# make sure logs directory exists (in the permanent orbit directory)
 mkdir -p "$CLUSTER_ORBIT_DIR/logs"
 touch "$CLUSTER_ORBIT_DIR/logs/.keep"
-cp -r $CLUSTER_ORBIT_DIR $TMPDIR
+
+# copy the temporary orbit directory with the latest changes to the compute node
+cp -r $1 $TMPDIR
 
 # copy container to the compute node
-tar -xf $CLUSTER_SIF_PATH/$1.tar  -C $TMPDIR
+tar -xf $CLUSTER_SIF_PATH/$2.tar  -C $TMPDIR
 
 # execute command in singularity container
 # NOTE: ORBIT_PATH is normally set in `orbit.sh` but we directly call the isaac-sim python because we sync the entire
@@ -63,8 +65,8 @@ singularity exec \
     -B $TMPDIR/docker-isaac-sim/documents:${DOCKER_USER_HOME}/Documents:rw \
     -B $TMPDIR/orbit:/workspace/orbit:rw \
     -B $CLUSTER_ORBIT_DIR/logs:/workspace/orbit/logs:rw \
-    --nv --writable --containall $TMPDIR/$1.sif \
-    bash -c "export ORBIT_PATH=/workspace/orbit && cd /workspace/orbit && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:2}"
+    --nv --writable --containall $TMPDIR/$2.sif \
+    bash -c "export ORBIT_PATH=/workspace/orbit && cd /workspace/orbit && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:3}"
 
 # copy resulting cache files back to host
 cp -r $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
