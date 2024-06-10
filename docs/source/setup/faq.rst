@@ -80,8 +80,8 @@ to Isaac Lab, please reach out to us.
 .. _PhysX: https://developer.nvidia.com/physx-sdk
 .. _Isaac Sim: https://developer.nvidia.com/isaac-sim
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
-.. _IsaacGymEnvs: https://github.com/NVIDIA-Omniverse/IsaacGymEnvs
-.. _OmniIsaacGymEnvs: https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs
+.. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
+.. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs
 .. _Orbit: https://isaac-orbit.github.io/orbit
 .. _Isaac Automator: https://github.com/isaac-sim/IsaacAutomator
 .. _migration guides: ../migration/index.html

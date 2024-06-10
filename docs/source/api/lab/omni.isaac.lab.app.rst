@@ -28,6 +28,12 @@ The following details the behavior of the class based on the environment variabl
   * ``LIVESTREAM=2`` enables streaming  via the `WebRTC Livestream`_ extension. This allows users to
     connect in a browser using the WebRTC protocol.
 
+  .. note::
+
+    Each Isaac Sim instance can only connect to one streaming client.
+    Connecting to an Isaac Sim instance that is currently serving a streaming client
+    results in an error for the second user.
+
 * **Enable cameras**: If the environment variable ``ENABLE_CAMERAS`` is set to 1, then the
   cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
   viewport and camera images.
