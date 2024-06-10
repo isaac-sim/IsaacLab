@@ -828,7 +828,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">position</span>
@@ -860,7 +860,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">stiffness</span>
@@ -890,7 +890,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_damping</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">damping</span>
@@ -918,7 +918,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># move tensor to cpu if needed</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
@@ -949,7 +949,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_armature</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">armature</span>
@@ -976,7 +976,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_friction</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">joint_friction</span>
@@ -1004,7 +1004,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">limits</span>
@@ -1034,7 +1034,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_pos_target</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span></div>
@@ -1058,7 +1058,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_vel_target</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span></div>
@@ -1082,7 +1082,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_effort_target</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span></div>
@@ -1109,7 +1109,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set stiffness</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">stiffness</span></div>
@@ -1136,7 +1136,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set damping</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_damping</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">damping</span></div>
@@ -1163,7 +1163,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set limit_stiffness</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_limit_stiffness</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">limit_stiffness</span></div>
@@ -1190,7 +1190,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set limit</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_limit</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">limit</span></div>
@@ -1217,7 +1217,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set rest_length</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_rest_length</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">rest_length</span></div>
@@ -1244,7 +1244,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">fixed_tendon_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">fixed_tendon_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fixed_tendon_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set offset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">fixed_tendon_offset</span><span class="p">[</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">fixed_tendon_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">offset</span></div>
