@@ -10,6 +10,8 @@ The result is a fully configured remote desktop cloud workstation, which can be 
 Installing Isaac Automator
 --------------------------
 
+For the most update-to-date and complete installation instructions, please refer to `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation>`__.
+
 To use Isaac Automator, first clone the repo:
 
 .. code-block:: bash
@@ -49,9 +51,31 @@ Running Isaac Automator
 
 To run Isaac Automator, first build the Isaac Automator container:
 
-.. code-block:: bash
+.. tabs::
 
-   ./build
+  .. tab:: Linux
+      .. code-block:: bash
+
+         ./build
+
+  .. tab:: Windows
+      .. code-block:: bash
+
+         docker build --platform linux/x86_64 -t isa .
+
+Next, enter the automator container:
+
+.. tabs::
+
+  .. tab:: Linux
+      .. code-block:: bash
+
+          ./run
+
+  .. tab:: Windows
+      .. code-block:: bash
+
+          docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
 
 Next, run the deployed script for your preferred cloud:
 

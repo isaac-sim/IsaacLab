@@ -11,6 +11,8 @@ Tiled Rendering
 
     This feature is only available from Isaac Sim version 4.0.0.
 
+    Tiled rendering requires heavy memory resources. We recommend running at most 256 cameras in the scene.
+
 Tiled rendering APIs provide a vectorized interface for collecting data from camera sensors.
 This is useful for reinforcement learning environments requiring vision in the loop.
 Tiled rendering works by concatenating camera outputs from multiple cameras and rendering

@@ -56,7 +56,7 @@
     <link rel="prev" title="API Reference" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 06, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 10, 2024"/>
   </head>
   
   
@@ -600,6 +600,12 @@ connect through the Omniverse Streaming Client.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">LIVESTREAM=2</span></code> enables streaming  via the <a class="reference external" href="https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html#isaac-sim-setup-livestream-websocket">WebRTC Livestream</a> extension. This allows users to
 connect in a browser using the WebRTC protocol.</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Each Isaac Sim instance can only connect to one streaming client.
+Connecting to an Isaac Sim instance that is currently serving a streaming client
+results in an error for the second user.</p>
+</div>
 </li>
 <li><p><strong>Enable cameras</strong>: If the environment variable <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> is set to 1, then the
 cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
@@ -870,7 +876,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 06, 2024.
+  Last updated on Jun 10, 2024.
   <br/>
 </p>
   </div>

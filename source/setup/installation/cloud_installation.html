@@ -46,6 +46,7 @@
     <script src="../../../_static/sphinx_highlight.js"></script>
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/tabs.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/setup/installation/cloud_installation';</script>
@@ -56,7 +57,7 @@
     <link rel="prev" title="Verifying the Installation" href="verifying_installation.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 06, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 10, 2024"/>
   </head>
   
   
@@ -565,6 +566,7 @@ Isaac Automator allows for quick deployment of Isaac Sim and Isaac Lab onto the 
 <p>The result is a fully configured remote desktop cloud workstation, which can be used for development and testing of Isaac Lab within minutes and on a budget. Isaac Automator supports variety of GPU instances and stop-start functionality to save on cloud costs and a variety of tools to aid the workflow (like uploading and downloading data, autorun, deployment management, etc).</p>
 <section id="installing-isaac-automator">
 <h2>Installing Isaac Automator<a class="headerlink" href="#installing-isaac-automator" title="Permalink to this heading">#</a></h2>
+<p>For the most update-to-date and complete installation instructions, please refer to <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation">Isaac Automator</a>.</p>
 <p>To use Isaac Automator, first clone the repo:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacAutomator.git
 </pre></div>
@@ -601,9 +603,23 @@ Password: &lt;Your NGC API Key&gt;
 <section id="running-isaac-automator">
 <h2>Running Isaac Automator<a class="headerlink" href="#running-isaac-automator" title="Permalink to this heading">#</a></h2>
 <p>To run Isaac Automator, first build the Isaac Automator container:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Linux</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Windows</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build
 </pre></div>
 </div>
+</div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--platform<span class="w"> </span>linux/x86_64<span class="w"> </span>-t<span class="w"> </span>isa<span class="w"> </span>.
+</pre></div>
+</div>
+</div></div>
+<p>Next, enter the automator container:</p>
+<div class="sphinx-tabs docutils container">
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">Linux</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">Windows</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run
+</pre></div>
+</div>
+</div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--platform<span class="w"> </span>linux/x86_64<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span>-v<span class="w"> </span>.:/app<span class="w"> </span>isa<span class="w"> </span>bash
+</pre></div>
+</div>
+</div></div>
 <p>Next, run the deployed script for your preferred cloud:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># AWS</span>
 ./deploy-aws
@@ -725,7 +741,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 06, 2024.
+  Last updated on Jun 10, 2024.
   <br/>
 </p>
   </div>
