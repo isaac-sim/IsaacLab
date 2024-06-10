@@ -12,18 +12,16 @@ from collections.abc import Sequence
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.envs import DirectRLEnv
+from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
 from omni.isaac.lab.markers import VisualizationMarkers
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
-from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
+class InHandManipulationEnv(DirectRLEnv):
+    cfg: DirectRLEnvCfg
 
-class ShadowHandEnv(DirectRLEnv):
-    cfg: ShadowHandEnvCfg
-
-    def __init__(self, cfg: ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.num_hand_dofs = self.hand.num_joints
@@ -281,10 +279,10 @@ class ShadowHandEnv(DirectRLEnv):
         #   Relative target orientation
         obs = torch.cat(
             (
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 0:15
-                self.object_pos,  # 15:18
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 18:22
-                self.actions,  # 22:42
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 0:15 (SH)
+                self.object_pos,  # 15:18 (SH)
+                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 18:22 (SH)
+                self.actions,  # 22:42 (SH)
             ),
             dim=-1,
         )
@@ -295,23 +293,23 @@ class ShadowHandEnv(DirectRLEnv):
         obs = torch.cat(
             (
                 # hand
-                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),  # 0:24
-                self.cfg.vel_obs_scale * self.hand_dof_vel,  # 24:48
+                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),  # 0:24 (SH)
+                self.cfg.vel_obs_scale * self.hand_dof_vel,  # 24:48 (SH)
                 # object
-                self.object_pos,  # 48:51
-                self.object_rot,  # 51:55
-                self.object_linvel,  # 55:58
-                self.cfg.vel_obs_scale * self.object_angvel,  # 58:61
+                self.object_pos,  # 48:51 (SH)
+                self.object_rot,  # 51:55 (SH)
+                self.object_linvel,  # 55:58 (SH)
+                self.cfg.vel_obs_scale * self.object_angvel,  # 58:61 (SH)
                 # goal
-                self.in_hand_pos,  # 61:64
-                self.goal_rot,  # 64:68
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 68:72
+                self.in_hand_pos,  # 61:64 (SH)
+                self.goal_rot,  # 64:68 (SH)
+                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 68:72 (SH)
                 # fingertips
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 72:87
-                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),  # 87:107
-                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),  # 107:137
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 72:87 (SH)
+                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),  # 87:107 (SH)
+                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),  # 107:137 (SH)
                 # actions
-                self.actions,  # 137:157
+                self.actions,  # 137:157 (SH)
             ),
             dim=-1,
         )
@@ -321,25 +319,25 @@ class ShadowHandEnv(DirectRLEnv):
         states = torch.cat(
             (
                 # hand
-                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),  # 0:24
-                self.cfg.vel_obs_scale * self.hand_dof_vel,  # 24:48
+                unscale(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),  # 0:24 (SH)
+                self.cfg.vel_obs_scale * self.hand_dof_vel,  # 24:48 (SH)
                 # object
-                self.object_pos,  # 48:51
-                self.object_rot,  # 51:55
-                self.object_linvel,  # 55:58
-                self.cfg.vel_obs_scale * self.object_angvel,  # 58:61
+                self.object_pos,  # 48:51 (SH)
+                self.object_rot,  # 51:55 (SH)
+                self.object_linvel,  # 55:58 (SH)
+                self.cfg.vel_obs_scale * self.object_angvel,  # 58:61 (SH)
                 # goal
-                self.in_hand_pos,  # 61:64
-                self.goal_rot,  # 64:68
-                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 68:72
+                self.in_hand_pos,  # 61:64 (SH)
+                self.goal_rot,  # 64:68 (SH)
+                quat_mul(self.object_rot, quat_conjugate(self.goal_rot)),  # 68:72 (SH)
                 # fingertips
-                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 72:87
-                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),  # 87:107
-                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),  # 107:137
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),  # 72:87 (SH)
+                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),  # 87:107 (SH)
+                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),  # 107:137 (SH)
                 self.cfg.force_torque_obs_scale
-                * self.fingertip_force_sensors.view(self.num_envs, self.num_fingertips * 6),  # 137:167
+                * self.fingertip_force_sensors.view(self.num_envs, self.num_fingertips * 6),  # 137:167 (SH)
                 # actions
-                self.actions,  # 167:187
+                self.actions,  # 167:187 (SH)
             ),
             dim=-1,
         )
