@@ -264,7 +264,7 @@ class DirectRLEnv(gym.Env):
 
         # add action noise
         if self.cfg.action_noise_model:
-            action = self._action_noise_model.apply(action.clone())
+            action = self._action_noise_model.apply(action)
 
         # process actions
         self._pre_physics_step(action)

@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.17.12 (2024-06-10)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Performance improvements for material randomization in events.
+
 
 0.17.11 (2024-05-30)
 ~~~~~~~~~~~~~~~~~~~~

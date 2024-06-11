@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 import warnings
 from typing import TYPE_CHECKING, Literal
@@ -80,20 +81,20 @@ def randomize_rigid_body_material(
     materials = asset.root_physx_view.get_material_properties()
 
     # sample material properties from the given ranges
-    material_samples = torch.zeros(materials[env_ids].shape)
-    material_samples[..., 0].uniform_(*static_friction_range)
-    material_samples[..., 1].uniform_(*dynamic_friction_range)
-    material_samples[..., 2].uniform_(*restitution_range)
+    material_samples = np.zeros(materials[env_ids].shape)
+    material_samples[..., 0] = np.random.uniform(*static_friction_range)
+    material_samples[..., 1] = np.random.uniform(*dynamic_friction_range)
+    material_samples[..., 2] = np.random.uniform(*restitution_range)
 
     # create uniform range tensor for bucketing
-    lo = torch.tensor([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]], device="cpu")
-    hi = torch.tensor([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]], device="cpu")
+    lo = np.array([static_friction_range[0], dynamic_friction_range[0], restitution_range[0]])
+    hi = np.array([static_friction_range[1], dynamic_friction_range[1], restitution_range[1]])
 
     # to avoid 64k material limit in physx, we bucket materials by binning randomized material properties
     # into buckets based on the number of buckets specified
     for d in range(3):
-        buckets = torch.tensor([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)], device="cpu")
-        material_samples[..., d] = buckets[torch.searchsorted(buckets, material_samples[..., d].contiguous()) - 1]
+        buckets = np.array([(hi[d] - lo[d]) * i / num_buckets + lo[d] for i in range(num_buckets)])
+        material_samples[..., d] = buckets[np.searchsorted(buckets, material_samples[..., d]) - 1]
 
     # update material buffer with new samples
     if isinstance(asset, Articulation) and asset_cfg.body_ids != slice(None):
@@ -114,9 +115,11 @@ def randomize_rigid_body_material(
             # assign the new materials
             # material ids are of shape: num_env_ids x num_shapes
             # material_buckets are of shape: num_buckets x 3
-            materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
+            materials[env_ids, start_idx:end_idx] = torch.from_numpy(material_samples[:, start_idx:end_idx]).to(
+                dtype=torch.float
+            )
     else:
-        materials[env_ids] = material_samples
+        materials[env_ids] = torch.from_numpy(material_samples).to(dtype=torch.float)
 
     # apply to simulation
     asset.root_physx_view.set_material_properties(materials, env_ids)
