@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.7.6 (2024-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Allegro-Hand-Direct-v0``, ``Isaac-Allegro-Hand-OpenAI-FF-Direct-v0``, ``Isaac-Allegro-Hand-OpenAI-LSTM-Direct-v0`` environments.
+
+
 0.7.5 (2024-05-31)
 ~~~~~~~~~~~~~~~~~~
 
