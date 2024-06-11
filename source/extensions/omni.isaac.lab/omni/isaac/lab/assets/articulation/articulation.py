@@ -862,7 +862,7 @@ class Articulation(RigidObject):
         if set(physx_body_names) != set(self.body_names):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
 
-            # container for data access
+        # container for data access
         self._data = ArticulationData(self.root_physx_view, self.device)
 
         # create buffers
