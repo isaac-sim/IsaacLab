@@ -197,7 +197,7 @@ class TestDifferentialIKController(unittest.TestCase):
             robot.set_joint_position_target(joint_pos_des, arm_joint_ids)
             robot.write_data_to_sim()
             # perform step
-            self.sim.step(render=False)
+            self.sim.step()
             # update buffers
             robot.update(sim_dt)
 

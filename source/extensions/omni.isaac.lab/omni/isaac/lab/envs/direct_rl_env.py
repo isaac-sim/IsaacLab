@@ -275,12 +275,9 @@ class DirectRLEnv(gym.Env):
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            self.sim.step()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
-        # perform rendering if gui is enabled
-        if self.sim.has_gui() or self.sim.has_rtx_sensors():
-            self.sim.render()
 
         # post-step:
         # -- update env counters (used for curriculum generation)

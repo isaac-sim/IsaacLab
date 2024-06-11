@@ -205,3 +205,4 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.sim.dt = 1.0 / 60.0
+        self.sim.render_interval = self.decimation

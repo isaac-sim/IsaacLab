@@ -214,12 +214,15 @@ class SimulationContext(_SimulationContext):
         super().__init__(
             stage_units_in_meters=1.0,
             physics_dt=self.cfg.dt,
-            rendering_dt=self.cfg.dt * self.cfg.substeps,
+            rendering_dt=self.cfg.dt * self.cfg.render_interval,
             backend="torch",
             sim_params=sim_params,
             physics_prim_path=self.cfg.physics_prim_path,
             device=self.cfg.device,
         )
+
+        # counter for simulation steps
+        self._step_count = 0
 
     """
     Operations - New.
@@ -383,15 +386,14 @@ class SimulationContext(_SimulationContext):
             for _ in range(2):
                 self.render()
 
-    def step(self, render: bool = True):
-        """Steps the physics simulation with the pre-defined time-step.
+    def step(self):
+        """Steps the simulation with the pre-defined time-step.
+
+        This function steps the physics simulation and renders the scene with the specified interval.
 
         .. note::
             This function blocks if the timeline is paused. It only returns when the timeline is playing.
 
-        Args:
-            render: Whether to render the scene after stepping the physics simulation.
-                If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
@@ -408,7 +410,13 @@ class SimulationContext(_SimulationContext):
             self.app.update()
 
         # step the simulation
-        super().step(render=render)
+        super().step(render=False)
+
+        self._step_count += 1
+
+        # perform rendering if gui is enabled
+        if self._step_count % self.cfg.render_interval == 0 and (self.has_gui() or self.has_rtx_sensors()):
+            self.render()
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
@@ -467,6 +475,9 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
+        self.set_setting("/app/player/playSimulations", False)
+        self._app.update()
+        self.set_setting("/app/player/playSimulations", True)
         # set additional physx parameters and bind material
         self._set_additional_physx_params()
         # load flatcache/fabric interface

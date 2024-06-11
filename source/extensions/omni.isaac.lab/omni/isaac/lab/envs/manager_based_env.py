@@ -87,7 +87,7 @@ class ManagerBasedEnv:
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.substeps}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
         print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
         print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
@@ -258,12 +258,9 @@ class ManagerBasedEnv:
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
-            self.sim.step(render=False)
+            self.sim.step()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
-        # perform rendering if gui is enabled
-        if self.sim.has_gui() or self.sim.has_rtx_sensors():
-            self.sim.render()
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:

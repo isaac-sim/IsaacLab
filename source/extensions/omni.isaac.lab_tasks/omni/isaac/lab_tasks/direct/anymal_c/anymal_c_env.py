@@ -25,9 +25,18 @@ from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: sk
 
 @configclass
 class AnymalCFlatEnvCfg(DirectRLEnvCfg):
+    # env
+    episode_length_s = 20.0
+    decimation = 4
+    action_scale = 0.5
+    num_actions = 12
+    num_observations = 48
+    num_states = 0
+
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 200,
+        render_interval=decimation,
         disable_contact_processing=True,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -59,14 +68,6 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
     )
-
-    # env
-    episode_length_s = 20.0
-    decimation = 4
-    action_scale = 0.5
-    num_actions = 12
-    num_observations = 48
-    num_states = 0
 
     # reward scales
     lin_vel_reward_scale = 1.0

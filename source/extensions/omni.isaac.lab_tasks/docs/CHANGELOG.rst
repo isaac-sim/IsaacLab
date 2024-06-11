@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.7.6 (2024-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the tasks to use the renamed attribute :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+
+
 0.7.5 (2024-05-31)
 ~~~~~~~~~~~~~~~~~~
 
