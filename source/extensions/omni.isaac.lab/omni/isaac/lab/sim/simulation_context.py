@@ -387,7 +387,7 @@ class SimulationContext(_SimulationContext):
                 self.render()
 
     def step(self):
-        """Steps the simulation with the pre-defined time-step.
+        """Steps the simulation.
 
         This function steps the physics simulation and renders the scene with the specified interval.
 
@@ -414,7 +414,6 @@ class SimulationContext(_SimulationContext):
 
         self._step_count += 1
 
-        # perform rendering if gui is enabled
         if self._step_count % self.cfg.render_interval == 0 and (self.has_gui() or self.has_rtx_sensors()):
             self.render()
 
