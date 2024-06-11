@@ -6,10 +6,27 @@
 import torch
 from dataclasses import dataclass
 
+import omni.physics.tensors.impl.api as physx
+
+import omni.isaac.lab.utils.math as math_utils
+
 
 @dataclass
+class LazyBuffer:
+    data: torch.Tensor = torch.Tensor()
+    update_timestamp: float = -1.0
+
+
 class RigidObjectData:
     """Data container for a rigid object."""
+
+    def __init__(self, root_physx_view: physx.RigidBodyView, device):
+        self.device = device
+        self.time_stamp = 0.0
+        self._root_physx_view: physx.RigidBodyView = root_physx_view
+
+    def update(self, dt: float):
+        self.time_stamp += dt
 
     ##
     # Properties.
@@ -29,16 +46,54 @@ class RigidObjectData:
     # Frame states.
     ##
 
-    root_state_w: torch.Tensor = None
+    _root_state_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def root_state_w(self):
+        if self._root_state_w.update_timestamp < self.time_stamp:
+            pose = self._root_physx_view.get_transforms()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_velocities()
+            self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_state_w.update_timestamp = self.time_stamp
+        return self._root_state_w.data
+
     """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
 
-    root_vel_b: torch.Tensor = None
-    """Root velocity `[lin_vel, ang_vel]` in base frame. Shape is (num_instances, 6)."""
+    _root_vel_b: LazyBuffer = LazyBuffer()
 
-    projected_gravity_b: torch.Tensor = None
+    @property
+    def root_vel_b(self):
+        if self._root_vel_b.update_timestamp < self.time_stamp:
+            root_lin_vel_b = math_utils.quat_rotate_inverse(self.root_quat_w, self.root_lin_vel_w)
+            root_ang_vel_b = math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
+            self._root_vel_b.data = torch.cat((root_lin_vel_b, root_ang_vel_b), dim=-1)
+            self._root_vel_b.update_timestamp = self.time_stamp
+        return self._root_vel_b.data
+
+    _projected_gravity_b: LazyBuffer = LazyBuffer()
+
+    @property
+    def projected_gravity_b(self):
+        if self._projected_gravity_b.update_timestamp < self.time_stamp:
+            gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
+            self._projected_gravity_b.data = math_utils.quat_rotate_inverse(self.root_quat_w, gravity_vec_w)
+            self._projected_gravity_b.update_timestamp = self.time_stamp
+        return self._projected_gravity_b.data
+
     """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
 
-    heading_w: torch.Tensor = None
+    _heading_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def heading_w(self):
+        if self._heading_w.update_timestamp < self.time_stamp:
+            forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+            forward_w = math_utils.quat_apply(self.root_quat_w, forward_vec_b)
+            self._heading_w.data = torch.atan2(forward_w[:, 1], forward_w[:, 0])
+            self._heading_w.update_timestamp = self.time_stamp
+        return self._heading_w.data
+
     """Yaw heading of the base frame (in radians). Shape is (num_instances,).
 
     Note:
@@ -46,11 +101,27 @@ class RigidObjectData:
         frame is along x-direction, i.e. :math:`(1, 0, 0)`.
     """
 
-    body_state_w: torch.Tensor = None
-    """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-    Shape is (num_instances, num_bodies, 13)."""
+    _body_state_w: LazyBuffer = LazyBuffer()
 
-    body_acc_w: torch.Tensor = None
+    @property
+    def body_state_w(self):
+        if self._body_state_w.update_timestamp < self.time_stamp:
+            self._body_state_w.data = self.root_state_w.view(-1, 1, 13)
+            self._body_state_w.update_timestamp = self.time_stamp
+        return self._body_state_w.data
+
+    """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+    Shape is (num_instances, 1, 13)."""
+
+    _body_acc_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def body_acc_w(self):
+        if self._body_acc_w.update_timestamp < self.time_stamp:
+            self._body_state_w.data = torch.zeros(self._root_physx_view.count, 1, 6, device=self.device)
+            self._body_state_w.update_timestamp = self.time_stamp
+        return self._body_state_w.data
+
     """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).
 
     Note:

@@ -6,12 +6,45 @@
 import torch
 from dataclasses import dataclass
 
-from ..rigid_object import RigidObjectData
+import omni.physics.tensors.impl.api as physx
+
+import omni.isaac.lab.utils.math as math_utils
+
+from ..rigid_object import LazyBuffer, RigidObjectData
 
 
 @dataclass
 class ArticulationData(RigidObjectData):
     """Data container for an articulation."""
+
+    def __init__(self, root_physx_view: physx.ArticulationView, device):
+        super().__init__(root_physx_view, device)
+        self._root_physx_view: physx.ArticulationView = root_physx_view
+
+    @property
+    def root_state_w(self):
+        if self._root_state_w.update_timestamp < self.time_stamp:
+            pose = self._root_physx_view.get_root_transforms()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_root_velocities()
+            self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_state_w.update_timestamp = self.time_stamp
+        return self._root_state_w.data
+
+    """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
+
+    @property
+    def body_state_w(self):
+        if self._body_state_w.update_timestamp < self.time_stamp:
+            poses = self._root_physx_view.get_link_transforms()
+            poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
+            velocities = self._root_physx_view.get_link_velocities()
+            self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
+            self._body_state_w.update_timestamp = self.time_stamp
+        return self._body_state_w.data
+
+    """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+    Shape is (num_instances, num_bodies, 13)."""
 
     ##
     # Properties.
@@ -34,13 +67,37 @@ class ArticulationData(RigidObjectData):
     # Joint states <- From simulation.
     ##
 
-    joint_pos: torch.Tensor = None
+    _joint_pos: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_pos(self):
+        if self._joint_pos.update_timestamp < self.time_stamp:
+            self._joint_pos.data = self._root_physx_view.get_dof_positions()
+            self._joint_pos.update_timestamp = self.time_stamp
+        return self._joint_pos.data
+
     """Joint positions of all joints. Shape is (num_instances, num_joints)."""
 
-    joint_vel: torch.Tensor = None
+    _joint_vel: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_vel(self):
+        if self._joint_vel.update_timestamp < self.time_stamp:
+            self._joint_vel.data = self._root_physx_view.get_dof_velocities()
+            self._joint_vel.update_timestamp = self.time_stamp
+        return self._joint_vel.data
+
     """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
 
-    joint_acc: torch.Tensor = None
+    _joint_acc: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_acc(self):
+        if self._joint_acc.update_timestamp < self.time_stamp:
+            self._joint_acc.data = self._root_physx_view.get_dof_velocities()
+            self._joint_acc.update_timestamp = self.time_stamp
+        return self._joint_acc.data
+
     """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
 
     ##

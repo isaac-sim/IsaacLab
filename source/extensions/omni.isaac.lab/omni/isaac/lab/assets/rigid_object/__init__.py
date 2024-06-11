@@ -7,4 +7,4 @@
 
 from .rigid_object import RigidObject
 from .rigid_object_cfg import RigidObjectCfg
-from .rigid_object_data import RigidObjectData
+from .rigid_object_data import LazyBuffer, RigidObjectData
