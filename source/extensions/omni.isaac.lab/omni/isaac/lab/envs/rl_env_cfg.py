@@ -182,3 +182,6 @@ class DirectRLEnvCfg(ManagerBasedEnvCfg):
     """Settings for adding noise to the observation buffer.
        Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
     """
+
+    min_randomization_freq_s: float = 0.0
+    """Minimum interval time in seconds in which all "reset" mode randomization terms are applied."""

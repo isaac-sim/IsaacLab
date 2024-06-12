@@ -154,6 +154,7 @@ class DirectRLEnv(gym.Env):
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
         self.actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.sim.device)
+        self.time_since_last_reset_randomization_s = torch.zeros(self.num_envs, device=self.device, dtype=torch.float) + self.cfg.min_randomization_freq_s
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
 
@@ -479,7 +480,11 @@ class DirectRLEnv(gym.Env):
         # apply events such as randomizations for environments that need a reset
         if self.cfg.events:
             if "reset" in self.event_manager.available_modes:
-                self.event_manager.apply(env_ids=env_ids, mode="reset")
+                self.time_since_last_reset_randomization_s += self.step_dt
+                env_ids = env_ids[self.time_since_last_reset_randomization_s[env_ids] >= self.cfg.min_randomization_freq_s]
+                self.time_since_last_reset_randomization_s[env_ids] = 0
+                if len(env_ids) > 0:
+                    self.event_manager.apply(env_ids=env_ids, mode="reset", dt=self.step_dt)
         if self.cfg.action_noise_model:
             self._action_noise_model.reset(env_ids)
         if self.cfg.observation_noise_model:

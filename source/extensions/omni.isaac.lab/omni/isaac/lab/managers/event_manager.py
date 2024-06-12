@@ -172,6 +172,22 @@ class EventManager(ManagerBase):
                     if len(env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
                         time_left[env_ids] = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
+            # check for minimum frequency for reset
+            elif mode == "reset":
+                if dt is None:
+                    raise ValueError(
+                        f"Event mode '{mode}' requires the time step of the environment"
+                        " to be passed to the event manager."
+                    )
+                self._reset_mode_time_until_next_reset[index] -= dt
+                if env_ids is not None and len(env_ids) > 0 and term_cfg.min_frequency > 0:
+                    time_left = self._reset_mode_time_until_next_reset[index]
+                    env_ids = env_ids[time_left[env_ids] <= 0.0]
+                    if len(env_ids) > 0:
+                        time_left[env_ids] = term_cfg.min_frequency
+                    else:
+                        # no need to call func to sample
+                        continue
             # call the event term
             term_cfg.func(self._env, env_ids, **term_cfg.params)
 
@@ -235,6 +251,8 @@ class EventManager(ManagerBase):
         self._interval_mode_time_left: list[torch.Tensor] = list()
         # global timer for "interval" mode for global properties
         self._interval_mode_time_global: list[torch.Tensor] = list()
+        # buffer to store the time until next reset for each environment for "reset" mode with minimum frequency
+        self._reset_mode_time_until_next_reset: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -285,6 +303,10 @@ class EventManager(ManagerBase):
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_mode_time_left.append(time_left)
+
+            elif term_cfg.mode == "reset":
+                time_left = torch.zeros(self.num_envs, device=self.device)
+                self._reset_mode_time_until_next_reset.append(time_left)
 
 
 class RandomizationManager(EventManager):

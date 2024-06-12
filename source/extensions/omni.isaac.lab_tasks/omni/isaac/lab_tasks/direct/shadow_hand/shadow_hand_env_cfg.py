@@ -261,6 +261,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     force_torque_obs_scale = 10.0
     # domain randomization config
     events: EventCfg = EventCfg()
+    min_randomization_freq_s = 36.0
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
     action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
         noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),

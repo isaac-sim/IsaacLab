@@ -324,7 +324,7 @@ class ManagerBasedEnv:
         self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.available_modes:
-            self.event_manager.apply(env_ids=env_ids, mode="reset")
+            self.event_manager.apply(env_ids=env_ids, mode="reset", dt=self.step_dt)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
