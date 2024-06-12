@@ -22,15 +22,19 @@ class RigidObjectData:
 
     def __init__(self, root_physx_view: physx.RigidBodyView, device):
         self.device = device
-        self.time_stamp = 0.0
+        self._time_stamp = 0.0
         self._root_physx_view: physx.RigidBodyView = root_physx_view
 
         self._gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
         self._forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
         self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
 
+        # Initialize the lazy buffers.
+        self._root_state_w: LazyBuffer = LazyBuffer()
+        self._body_acc_w: LazyBuffer = LazyBuffer()
+
     def update(self, dt: float):
-        self.time_stamp += dt
+        self._time_stamp += dt
         # Trigger an update of the body acceleration buffer at a higher frequency since we do finite differencing.
         self.body_acc_w
 
@@ -54,15 +58,13 @@ class RigidObjectData:
     @property
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
-        if self._root_state_w.update_timestamp < self.time_stamp:
+        if self._root_state_w.update_timestamp < self._time_stamp:
             pose = self._root_physx_view.get_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_velocities()
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._root_state_w.update_timestamp = self.time_stamp
+            self._root_state_w.update_timestamp = self._time_stamp
         return self._root_state_w.data
-
-    _root_state_w: LazyBuffer = LazyBuffer()
 
     @property
     def body_state_w(self):
@@ -72,15 +74,13 @@ class RigidObjectData:
     @property
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
-        if self._body_acc_w.update_timestamp < self.time_stamp:
+        if self._body_acc_w.update_timestamp < self._time_stamp:
             self._body_acc_w.data = (self.body_vel_w - self._previous_body_vel_w) / (
-                self.time_stamp - self._body_acc_w.update_timestamp
+                self._time_stamp - self._body_acc_w.update_timestamp
             )
             self._previous_body_vel_w[:] = self.body_vel_w
-            self._body_acc_w.update_timestamp = self.time_stamp
+            self._body_acc_w.update_timestamp = self._time_stamp
         return self._body_acc_w.data
-
-    _body_acc_w: LazyBuffer = LazyBuffer()
 
     @property
     def projected_gravity_b(self):

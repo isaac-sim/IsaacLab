@@ -21,8 +21,14 @@ class ArticulationData(RigidObjectData):
 
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
+        # Initialize the lazy buffers.
+        self._body_state_w: LazyBuffer = LazyBuffer()
+        self._joint_pos: LazyBuffer = LazyBuffer()
+        self._joint_acc: LazyBuffer = LazyBuffer()
+        self._joint_vel: LazyBuffer = LazyBuffer()
+
     def update(self, dt: float):
-        self.time_stamp += dt
+        self._time_stamp += dt
         # Trigger an update of the joint acceleration buffer at a higher frequency since we do finite differencing.
         self.joint_acc
 
@@ -184,34 +190,32 @@ class ArticulationData(RigidObjectData):
     @property
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
-        if self._root_state_w.update_timestamp < self.time_stamp:
+        if self._root_state_w.update_timestamp < self._time_stamp:
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities()
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._root_state_w.update_timestamp = self.time_stamp
+            self._root_state_w.update_timestamp = self._time_stamp
         return self._root_state_w.data
 
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13)."""
-        if self._body_state_w.update_timestamp < self.time_stamp:
+        if self._body_state_w.update_timestamp < self._time_stamp:
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             velocities = self._root_physx_view.get_link_velocities()
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
-            self._body_state_w.update_timestamp = self.time_stamp
+            self._body_state_w.update_timestamp = self._time_stamp
         return self._body_state_w.data
-
-    _body_state_w: LazyBuffer = LazyBuffer()
 
     @property
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6)."""
-        if self._body_acc_w.update_timestamp < self.time_stamp:
+        if self._body_acc_w.update_timestamp < self._time_stamp:
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
-            self._body_acc_w.update_timestamp = self.time_stamp
+            self._body_acc_w.update_timestamp = self._time_stamp
         return self._body_acc_w.data
 
     @property
@@ -227,32 +231,26 @@ class ArticulationData(RigidObjectData):
     @property
     def joint_pos(self):
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_pos.update_timestamp < self.time_stamp:
+        if self._joint_pos.update_timestamp < self._time_stamp:
             self._joint_pos.data = self._root_physx_view.get_dof_positions()
-            self._joint_pos.update_timestamp = self.time_stamp
+            self._joint_pos.update_timestamp = self._time_stamp
         return self._joint_pos.data
-
-    _joint_pos: LazyBuffer = LazyBuffer()
 
     @property
     def joint_vel(self):
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_vel.update_timestamp < self.time_stamp:
+        if self._joint_vel.update_timestamp < self._time_stamp:
             self._joint_vel.data = self._root_physx_view.get_dof_velocities()
-            self._joint_vel.update_timestamp = self.time_stamp
+            self._joint_vel.update_timestamp = self._time_stamp
         return self._joint_vel.data
-
-    _joint_vel: LazyBuffer = LazyBuffer()
 
     @property
     def joint_acc(self):
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_acc.update_timestamp < self.time_stamp:
+        if self._joint_acc.update_timestamp < self._time_stamp:
             self._joint_acc.data = (self.joint_vel - self._previous_joint_vel) / (
-                self.time_stamp - self._joint_acc.update_timestamp
+                self._time_stamp - self._joint_acc.update_timestamp
             )
             self._previous_joint_vel[:] = self.joint_vel
-            self._joint_acc.update_timestamp = self.time_stamp
+            self._joint_acc.update_timestamp = self._time_stamp
         return self._joint_acc.data
-
-    _joint_acc: LazyBuffer = LazyBuffer()
