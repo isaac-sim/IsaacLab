@@ -27,9 +27,12 @@ class RigidObjectData:
 
         self._gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
         self._forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        self._previous_body_vel_w = self._root_physx_view.get_velocities().clone()
 
     def update(self, dt: float):
         self.time_stamp += dt
+        # Trigger an update of the body acceleration buffer at a higher frequency since we do finite differencing.
+        self.body_acc_w
 
     body_names: list[str] = None
     """Body names in the order parsed by the simulation view."""
@@ -65,6 +68,19 @@ class RigidObjectData:
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13)."""
         return self.root_state_w.view(-1, 1, 13)
+
+    _body_acc_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def body_acc_w(self):
+        """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
+        if self._body_acc_w.update_timestamp < self.time_stamp:
+            self._body_acc_w.data = (self.body_vel_w - self._previous_body_vel_w) / (
+                self.time_stamp - self._body_acc_w.update_timestamp
+            )
+            self._previous_body_vel_w[:] = self.body_vel_w
+            self._body_acc_w.update_timestamp = self.time_stamp
+        return self._body_acc_w.data
 
     @property
     def projected_gravity_b(self):

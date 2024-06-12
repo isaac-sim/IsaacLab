@@ -22,7 +22,7 @@ class ArticulationData(RigidObjectData):
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
     def update(self, dt: float):
-        super().update(dt)
+        self.time_stamp += dt
         # Trigger an update of the joint acceleration buffer at a higher frequency since we do finite differencing.
         self.joint_acc
 
@@ -205,8 +205,6 @@ class ArticulationData(RigidObjectData):
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
             self._body_state_w.update_timestamp = self.time_stamp
         return self._body_state_w.data
-
-    _body_acc_w: LazyBuffer = LazyBuffer()
 
     @property
     def body_acc_w(self):
