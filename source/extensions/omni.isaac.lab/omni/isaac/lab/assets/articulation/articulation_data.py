@@ -192,8 +192,6 @@ class ArticulationData(RigidObjectData):
             self._root_state_w.update_timestamp = self.time_stamp
         return self._root_state_w.data
 
-    _body_state_w: LazyBuffer = LazyBuffer()
-
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
@@ -206,6 +204,8 @@ class ArticulationData(RigidObjectData):
             self._body_state_w.update_timestamp = self.time_stamp
         return self._body_state_w.data
 
+    _body_state_w: LazyBuffer = LazyBuffer()
+
     @property
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6)."""
@@ -213,8 +213,6 @@ class ArticulationData(RigidObjectData):
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
             self._body_acc_w.update_timestamp = self.time_stamp
         return self._body_acc_w.data
-
-    _joint_pos: LazyBuffer = LazyBuffer()
 
     @property
     def body_lin_acc_w(self) -> torch.Tensor:
@@ -234,7 +232,7 @@ class ArticulationData(RigidObjectData):
             self._joint_pos.update_timestamp = self.time_stamp
         return self._joint_pos.data
 
-    _joint_vel: LazyBuffer = LazyBuffer()
+    _joint_pos: LazyBuffer = LazyBuffer()
 
     @property
     def joint_vel(self):
@@ -244,7 +242,7 @@ class ArticulationData(RigidObjectData):
             self._joint_vel.update_timestamp = self.time_stamp
         return self._joint_vel.data
 
-    _joint_acc: LazyBuffer = LazyBuffer()
+    _joint_vel: LazyBuffer = LazyBuffer()
 
     @property
     def joint_acc(self):
@@ -256,3 +254,5 @@ class ArticulationData(RigidObjectData):
             self._previous_joint_vel[:] = self.joint_vel
             self._joint_acc.update_timestamp = self.time_stamp
         return self._joint_acc.data
+
+    _joint_acc: LazyBuffer = LazyBuffer()

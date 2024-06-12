@@ -27,7 +27,7 @@ class RigidObjectData:
 
         self._gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
         self._forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
-        self._previous_body_vel_w = self._root_physx_view.get_velocities().clone()
+        self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
 
     def update(self, dt: float):
         self.time_stamp += dt
@@ -51,8 +51,6 @@ class RigidObjectData:
     # Properties.
     ##
 
-    _root_state_w: LazyBuffer = LazyBuffer()
-
     @property
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
@@ -64,12 +62,12 @@ class RigidObjectData:
             self._root_state_w.update_timestamp = self.time_stamp
         return self._root_state_w.data
 
+    _root_state_w: LazyBuffer = LazyBuffer()
+
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13)."""
         return self.root_state_w.view(-1, 1, 13)
-
-    _body_acc_w: LazyBuffer = LazyBuffer()
 
     @property
     def body_acc_w(self):
@@ -81,6 +79,8 @@ class RigidObjectData:
             self._previous_body_vel_w[:] = self.body_vel_w
             self._body_acc_w.update_timestamp = self.time_stamp
         return self._body_acc_w.data
+
+    _body_acc_w: LazyBuffer = LazyBuffer()
 
     @property
     def projected_gravity_b(self):

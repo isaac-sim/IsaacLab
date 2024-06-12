@@ -855,8 +855,6 @@ class Articulation(RigidObject):
     def _create_buffers(self):
         # allocate buffers
         super()._create_buffers()
-        # history buffers
-        # self._previous_joint_vel = torch.zeros(self.num_instances, self.num_joints, device=self.device)
 
         # asset data
         # -- properties
