@@ -57,7 +57,7 @@
     <link rel="prev" title="Installation Guide" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 10, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 12, 2024"/>
   </head>
   
   
@@ -572,6 +572,11 @@ If errors occur, please report them to the
 <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html">Isaac Sim Forums</a>
 and install Isaac Sim from pre-built binaries.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
+To check the GLIBC version on your system, use command <code class="docutils literal notranslate"><span class="pre">ldd</span> <span class="pre">--version</span></code>.</p>
+</div>
 <ul>
 <li><p>To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
 Ensure that the python version of the virtual environment is <strong>Python 3.10</strong>.</p>
@@ -600,7 +605,7 @@ isaaclab<span class="se">\S</span>cripts<span class="se">\a</span>ctivate
 </div></div>
 </li>
 <li><p>Then, install the Isaac Sim packages necessary for running Isaac Lab:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacsim-rl<span class="w"> </span>isaacsim-replicator<span class="w"> </span>--index-url<span class="w"> </span>https://pypi.nvidia.com/
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>isaacsim-rl<span class="w"> </span>isaacsim-replicator<span class="w"> </span>isaacsim-extscache-physics<span class="w"> </span>isaacsim-extscache-kit-sdk<span class="w"> </span>isaacsim-extscache-kit<span class="w"> </span>isaacsim-app<span class="w"> </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com
 </pre></div>
 </div>
 </li>
@@ -786,7 +791,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 10, 2024.
+  Last updated on Jun 12, 2024.
   <br/>
 </p>
   </div>
