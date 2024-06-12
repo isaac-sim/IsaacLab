@@ -115,7 +115,7 @@ class RigidObject(AssetBase):
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
         # reset last body vel
-        self._last_body_vel_w[env_ids] = 0.0
+        # self._last_body_vel_w[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -335,19 +335,12 @@ class RigidObject(AssetBase):
         self._ALL_BODY_INDICES = torch.arange(
             self.root_physx_view.count * self.num_bodies, dtype=torch.long, device=self.device
         )
-        self.GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.num_instances, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, 1)
         # external forces and torques
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
-        # asset data
-        # -- properties
         self._data.body_names = self.body_names
-        self._data.default_root_state = torch.zeros_like(self._data.root_state_w)
-        self._data.default_root_state[:, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
-        # mass
         self._data.default_mass = self.root_physx_view.get_masses().clone()
 
     def _process_cfg(self):

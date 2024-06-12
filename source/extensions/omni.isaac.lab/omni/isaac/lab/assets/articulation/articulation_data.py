@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-from dataclasses import dataclass
 
 import omni.physics.tensors.impl.api as physx
 
@@ -13,13 +12,19 @@ import omni.isaac.lab.utils.math as math_utils
 from ..rigid_object import LazyBuffer, RigidObjectData
 
 
-@dataclass
 class ArticulationData(RigidObjectData):
     """Data container for an articulation."""
 
     def __init__(self, root_physx_view: physx.ArticulationView, device):
         super().__init__(root_physx_view, device)
         self._root_physx_view: physx.ArticulationView = root_physx_view
+
+        self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
+
+    def update(self, dt: float):
+        super().update(dt)
+        # Trigger an update of the joint acceleration buffer at a higher frequency since we do finite differencing.
+        self.joint_acc
 
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
@@ -201,7 +206,27 @@ class ArticulationData(RigidObjectData):
             self._body_state_w.update_timestamp = self.time_stamp
         return self._body_state_w.data
 
+    _body_acc_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def body_acc_w(self):
+        """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6)."""
+        if self._body_acc_w.update_timestamp < self.time_stamp:
+            self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
+            self._body_acc_w.update_timestamp = self.time_stamp
+        return self._body_acc_w.data
+
     _joint_pos: LazyBuffer = LazyBuffer()
+
+    @property
+    def body_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 0:3]
+
+    @property
+    def body_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 3:6]
 
     @property
     def joint_pos(self):
@@ -227,6 +252,9 @@ class ArticulationData(RigidObjectData):
     def joint_acc(self):
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
         if self._joint_acc.update_timestamp < self.time_stamp:
-            self._joint_acc.data = self._root_physx_view.get_dof_velocities()
+            self._joint_acc.data = (self.joint_vel - self._previous_joint_vel) / (
+                self.time_stamp - self._joint_acc.update_timestamp
+            )
+            self._previous_joint_vel[:] = self.joint_vel
             self._joint_acc.update_timestamp = self.time_stamp
         return self._joint_acc.data

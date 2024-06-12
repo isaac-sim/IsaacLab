@@ -294,6 +294,7 @@ class Articulation(RigidObject):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
@@ -324,7 +325,7 @@ class Articulation(RigidObject):
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
-        # self._previous_joint_vel[env_ids, joint_ids] = velocity
+        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)

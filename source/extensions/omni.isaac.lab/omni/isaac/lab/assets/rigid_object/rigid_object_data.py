@@ -17,7 +17,6 @@ class LazyBuffer:
     update_timestamp: float = -1.0
 
 
-@dataclass
 class RigidObjectData:
     """Data container for a rigid object."""
 
@@ -83,20 +82,6 @@ class RigidObjectData:
         forward_w = math_utils.quat_apply(self.root_quat_w, self._forward_vec_b)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
-    _body_acc_w: LazyBuffer = LazyBuffer()
-
-    @property
-    def body_acc_w(self):
-        """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).
-
-        Note:
-            This quantity is computed based on the rigid body state from the last step.
-        """
-        # if self._body_acc_w.update_timestamp < self.time_stamp:
-        #     self._body_state_w.data = torch.zeros(self._root_physx_view.count, 1, 6, device=self.device)
-        #     self._body_state_w.update_timestamp = self.time_stamp
-        return torch.zeros(self._root_physx_view.count, 1, 6, device=self.device)
-
     @property
     def root_pos_w(self) -> torch.Tensor:
         """Root position in simulation world frame. Shape is (num_instances, 3)."""
@@ -156,13 +141,3 @@ class RigidObjectData:
     def body_ang_vel_w(self) -> torch.Tensor:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
         return self.body_state_w[..., 10:13]
-
-    @property
-    def body_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
-        return self.body_acc_w[..., 0:3]
-
-    @property
-    def body_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
-        return self.body_acc_w[..., 3:6]
