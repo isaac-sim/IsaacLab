@@ -21,40 +21,11 @@ class ArticulationData(RigidObjectData):
         super().__init__(root_physx_view, device)
         self._root_physx_view: physx.ArticulationView = root_physx_view
 
-    @property
-    def root_state_w(self):
-        if self._root_state_w.update_timestamp < self.time_stamp:
-            pose = self._root_physx_view.get_root_transforms()
-            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
-            velocity = self._root_physx_view.get_root_velocities()
-            self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._root_state_w.update_timestamp = self.time_stamp
-        return self._root_state_w.data
-
-    """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
-
-    @property
-    def body_state_w(self):
-        if self._body_state_w.update_timestamp < self.time_stamp:
-            poses = self._root_physx_view.get_link_transforms()
-            poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
-            velocities = self._root_physx_view.get_link_velocities()
-            self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
-            self._body_state_w.update_timestamp = self.time_stamp
-        return self._body_state_w.data
-
-    """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-    Shape is (num_instances, num_bodies, 13)."""
-
-    ##
-    # Properties.
-    ##
-
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
 
     ##
-    # Default states.
+    # Defaults.
     ##
 
     default_joint_pos: torch.Tensor = None
@@ -63,42 +34,38 @@ class ArticulationData(RigidObjectData):
     default_joint_vel: torch.Tensor = None
     """Default joint velocities of all joints. Shape is (num_instances, num_joints)."""
 
-    ##
-    # Joint states <- From simulation.
-    ##
+    default_joint_stiffness: torch.Tensor = None
+    """Default joint stiffness of all joints. Shape is (num_instances, num_joints)."""
 
-    _joint_pos: LazyBuffer = LazyBuffer()
+    default_joint_damping: torch.Tensor = None
+    """Default joint damping of all joints. Shape is (num_instances, num_joints)."""
 
-    @property
-    def joint_pos(self):
-        if self._joint_pos.update_timestamp < self.time_stamp:
-            self._joint_pos.data = self._root_physx_view.get_dof_positions()
-            self._joint_pos.update_timestamp = self.time_stamp
-        return self._joint_pos.data
+    default_joint_armature: torch.Tensor = None
+    """Default joint armature of all joints. Shape is (num_instances, num_joints)."""
 
-    """Joint positions of all joints. Shape is (num_instances, num_joints)."""
+    default_joint_friction: torch.Tensor = None
+    """Default joint friction of all joints. Shape is (num_instances, num_joints)."""
 
-    _joint_vel: LazyBuffer = LazyBuffer()
+    default_joint_limits: torch.Tensor = None
+    """Default joint limits of all joints. Shape is (num_instances, num_joints, 2)."""
 
-    @property
-    def joint_vel(self):
-        if self._joint_vel.update_timestamp < self.time_stamp:
-            self._joint_vel.data = self._root_physx_view.get_dof_velocities()
-            self._joint_vel.update_timestamp = self.time_stamp
-        return self._joint_vel.data
+    default_fixed_tendon_stiffness: torch.Tensor = None
+    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
 
-    """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
+    default_fixed_tendon_damping: torch.Tensor = None
+    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons)."""
 
-    _joint_acc: LazyBuffer = LazyBuffer()
+    default_fixed_tendon_limit_stiffness: torch.Tensor = None
+    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
 
-    @property
-    def joint_acc(self):
-        if self._joint_acc.update_timestamp < self.time_stamp:
-            self._joint_acc.data = self._root_physx_view.get_dof_velocities()
-            self._joint_acc.update_timestamp = self.time_stamp
-        return self._joint_acc.data
+    default_fixed_tendon_rest_length: torch.Tensor = None
+    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons)."""
 
-    """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
+    default_fixed_tendon_offset: torch.Tensor = None
+    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons)."""
+
+    default_fixed_tendon_limit: torch.Tensor = None
+    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
     # Joint commands -- Set into simulation.
@@ -129,44 +96,6 @@ class ArticulationData(RigidObjectData):
     """
 
     ##
-    # Joint properties.
-    ##
-
-    joint_stiffness: torch.Tensor = None
-    """Joint stiffness provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_damping: torch.Tensor = None
-    """Joint damping provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_armature: torch.Tensor = None
-    """Joint armature provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_friction: torch.Tensor = None
-    """Joint friction provided to simulation. Shape is (num_instances, num_joints)."""
-
-    joint_limits: torch.Tensor = None
-    """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
-
-    ##
-    # Default joint properties
-    ##
-
-    default_joint_stiffness: torch.Tensor = None
-    """Default joint stiffness of all joints. Shape is (num_instances, num_joints)."""
-
-    default_joint_damping: torch.Tensor = None
-    """Default joint damping of all joints. Shape is (num_instances, num_joints)."""
-
-    default_joint_armature: torch.Tensor = None
-    """Default joint armature of all joints. Shape is (num_instances, num_joints)."""
-
-    default_joint_friction: torch.Tensor = None
-    """Default joint friction of all joints. Shape is (num_instances, num_joints)."""
-
-    default_joint_limits: torch.Tensor = None
-    """Default joint limits of all joints. Shape is (num_instances, num_joints, 2)."""
-
-    ##
     # Joint commands -- Explicit actuators.
     ##
 
@@ -188,6 +117,25 @@ class ArticulationData(RigidObjectData):
 
     Note: The torques are zero for implicit actuator models.
     """
+
+    ##
+    # Joint properties.
+    ##
+
+    joint_stiffness: torch.Tensor = None
+    """Joint stiffness provided to simulation. Shape is (num_instances, num_joints)."""
+
+    joint_damping: torch.Tensor = None
+    """Joint damping provided to simulation. Shape is (num_instances, num_joints)."""
+
+    joint_armature: torch.Tensor = None
+    """Joint armature provided to simulation. Shape is (num_instances, num_joints)."""
+
+    joint_friction: torch.Tensor = None
+    """Joint friction provided to simulation. Shape is (num_instances, num_joints)."""
+
+    joint_limits: torch.Tensor = None
+    """Joint limits provided to simulation. Shape is (num_instances, num_joints, 2)."""
 
     ##
     # Fixed tendon properties.
@@ -212,28 +160,6 @@ class ArticulationData(RigidObjectData):
     """Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2)."""
 
     ##
-    # Default fixed tendon properties
-    ##
-
-    default_fixed_tendon_stiffness: torch.Tensor = None
-    """Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
-
-    default_fixed_tendon_damping: torch.Tensor = None
-    """Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons)."""
-
-    default_fixed_tendon_limit_stiffness: torch.Tensor = None
-    """Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons)."""
-
-    default_fixed_tendon_rest_length: torch.Tensor = None
-    """Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons)."""
-
-    default_fixed_tendon_offset: torch.Tensor = None
-    """Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons)."""
-
-    default_fixed_tendon_limit: torch.Tensor = None
-    """Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2)."""
-
-    ##
     # Other Data.
     ##
 
@@ -245,3 +171,62 @@ class ArticulationData(RigidObjectData):
 
     gear_ratio: torch.Tensor = None
     """Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints)."""
+
+    ##
+    # Properties.
+    ##
+
+    @property
+    def root_state_w(self):
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
+        if self._root_state_w.update_timestamp < self.time_stamp:
+            pose = self._root_physx_view.get_root_transforms().clone()
+            pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
+            velocity = self._root_physx_view.get_root_velocities()
+            self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
+            self._root_state_w.update_timestamp = self.time_stamp
+        return self._root_state_w.data
+
+    _body_state_w: LazyBuffer = LazyBuffer()
+
+    @property
+    def body_state_w(self):
+        """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
+        Shape is (num_instances, num_bodies, 13)."""
+        if self._body_state_w.update_timestamp < self.time_stamp:
+            poses = self._root_physx_view.get_link_transforms().clone()
+            poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
+            velocities = self._root_physx_view.get_link_velocities()
+            self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
+            self._body_state_w.update_timestamp = self.time_stamp
+        return self._body_state_w.data
+
+    _joint_pos: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_pos(self):
+        """Joint positions of all joints. Shape is (num_instances, num_joints)."""
+        if self._joint_pos.update_timestamp < self.time_stamp:
+            self._joint_pos.data = self._root_physx_view.get_dof_positions()
+            self._joint_pos.update_timestamp = self.time_stamp
+        return self._joint_pos.data
+
+    _joint_vel: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_vel(self):
+        """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
+        if self._joint_vel.update_timestamp < self.time_stamp:
+            self._joint_vel.data = self._root_physx_view.get_dof_velocities()
+            self._joint_vel.update_timestamp = self.time_stamp
+        return self._joint_vel.data
+
+    _joint_acc: LazyBuffer = LazyBuffer()
+
+    @property
+    def joint_acc(self):
+        """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
+        if self._joint_acc.update_timestamp < self.time_stamp:
+            self._joint_acc.data = self._root_physx_view.get_dof_velocities()
+            self._joint_acc.update_timestamp = self.time_stamp
+        return self._joint_acc.data

@@ -95,8 +95,6 @@ class Articulation(RigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # container for data access
-        # self._data = ArticulationData()
         # data for storing actuator group
         self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
@@ -204,31 +202,6 @@ class Articulation(RigidObject):
         if self._has_implicit_actuators:
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
             self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
-
-    def update(self, dt: float):
-        self._data.update(dt)
-        # # -- root state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        # self._data.root_state_w[:, :7] = self.root_physx_view.get_root_transforms()
-        # self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
-        # self._data.root_state_w[:, 7:] = self.root_physx_view.get_root_velocities()
-
-        # # -- body-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        # self._data.body_state_w[..., :7] = self.root_physx_view.get_link_transforms()
-        # self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
-        # self._data.body_state_w[..., 7:] = self.root_physx_view.get_link_velocities()
-
-        # # -- joint states
-        # self._data.joint_pos[:] = self.root_physx_view.get_dof_positions()
-        # self._data.joint_vel[:] = self.root_physx_view.get_dof_velocities()
-        # if dt > 0.0:
-        #     self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
-
-        # # -- update common data
-        # # note: these are computed in the base class
-        # self._update_common_data(dt)
-
-        # # -- update history buffers
-        # self._previous_joint_vel[:] = self._data.joint_vel[:]
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -887,10 +860,7 @@ class Articulation(RigidObject):
         # asset data
         # -- properties
         self._data.joint_names = self.joint_names
-        # -- joint states
-        # self._data._joint_pos.data = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        # self._data.joint_vel = torch.zeros_like(self._data.joint_pos)
-        # self._data.joint_acc = torch.zeros_like(self._data.joint_pos)
+
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
         # -- joint commands
