@@ -146,6 +146,10 @@ Environments based on legged locomotion tasks.
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
     | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot          |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-flat-g1|           | |velocity-flat-g1-link|                      | Track a velocity command on flat terrain with the Unitree G1 robot           |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
+    | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -173,6 +177,9 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-h1-link| replace:: `Isaac-Velocity-Flat-H1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/h1/flat_env_cfg.py>`__
 .. |velocity-rough-h1-link| replace:: `Isaac-Velocity-Rough-H1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/h1/rough_env_cfg.py>`__
 
+.. |velocity-flat-g1-link| replace:: `Isaac-Velocity-Flat-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/g1/flat_env_cfg.py>`__
+.. |velocity-rough-g1-link| replace:: `Isaac-Velocity-Rough-G1-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/locomotion/velocity/config/g1/rough_env_cfg.py>`__
+
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -189,6 +196,8 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-spot| image:: ../_static/tasks/locomotion/spot_flat.jpg
 .. |velocity-flat-h1| image:: ../_static/tasks/locomotion/h1_flat.jpg
 .. |velocity-rough-h1| image:: ../_static/tasks/locomotion/h1_rough.jpg
+.. |velocity-flat-g1| image:: ../_static/tasks/locomotion/g1_flat.jpg
+.. |velocity-rough-g1| image:: ../_static/tasks/locomotion/g1_rough.jpg
 
 Navigation
 ----------

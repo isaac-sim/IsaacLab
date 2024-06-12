@@ -37,6 +37,7 @@ from omni.isaac.lab.sim import SimulationContext
 ##
 from omni.isaac.lab_assets.cassie import CASSIE_CFG  # isort:skip
 from omni.isaac.lab_assets import H1_CFG  # isort:skip
+from omni.isaac.lab_assets import G1_CFG  # isort:skip
 
 
 def main():
@@ -60,11 +61,13 @@ def main():
     origins = torch.tensor([
         [0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
+        [0.0, 2.0, 0.0],
     ])
     # Robots
     cassie = Articulation(CASSIE_CFG.replace(prim_path="/World/Cassie"))
     h1 = Articulation(H1_CFG.replace(prim_path="/World/H1"))
-    robots = [cassie, h1]
+    g1 = Articulation(G1_CFG.replace(prim_path="/World/G1"))
+    robots = [cassie, h1, g1]
 
     # Play the simulator
     sim.reset()

@@ -345,7 +345,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
@@ -377,7 +377,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_stiffness[env_ids, joint_ids] = stiffness
@@ -407,7 +407,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_damping[env_ids, joint_ids] = damping
@@ -435,7 +435,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # move tensor to cpu if needed
         if isinstance(limits, torch.Tensor):
@@ -466,7 +466,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_armature[env_ids, joint_ids] = armature
@@ -493,7 +493,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_friction[env_ids, joint_ids] = joint_friction
@@ -521,7 +521,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
         self._data.joint_limits[env_ids, joint_ids] = limits
@@ -551,7 +551,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_pos_target[env_ids, joint_ids] = target
@@ -575,7 +575,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_vel_target[env_ids, joint_ids] = target
@@ -599,7 +599,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
@@ -626,7 +626,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set stiffness
         self._data.fixed_tendon_stiffness[env_ids, fixed_tendon_ids] = stiffness
@@ -653,7 +653,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set damping
         self._data.fixed_tendon_damping[env_ids, fixed_tendon_ids] = damping
@@ -680,7 +680,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit_stiffness
         self._data.fixed_tendon_limit_stiffness[env_ids, fixed_tendon_ids] = limit_stiffness
@@ -707,7 +707,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set limit
         self._data.fixed_tendon_limit[env_ids, fixed_tendon_ids] = limit
@@ -734,7 +734,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set rest_length
         self._data.fixed_tendon_rest_length[env_ids, fixed_tendon_ids] = rest_length
@@ -761,7 +761,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if fixed_tendon_ids is None:
             fixed_tendon_ids = slice(None)
-        elif env_ids != slice(None):
+        if env_ids != slice(None) and fixed_tendon_ids != slice(None):
             env_ids = env_ids[:, None]
         # set offset
         self._data.fixed_tendon_offset[env_ids, fixed_tendon_ids] = offset
