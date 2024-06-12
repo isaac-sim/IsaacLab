@@ -321,11 +321,10 @@ class TestRigidObject(unittest.TestCase):
                                 # reset object
                                 cube_object.reset()
 
-                                # Reset should zero external forces and torques and set last body velocity to zero
+                                # Reset should zero external forces and torques
                                 self.assertFalse(cube_object.has_external_wrench)
                                 self.assertEqual(torch.count_nonzero(cube_object._external_force_b), 0)
                                 self.assertEqual(torch.count_nonzero(cube_object._external_torque_b), 0)
-                                self.assertEqual(torch.count_nonzero(cube_object._last_body_vel_w), 0)
 
     def test_rigid_body_set_material_properties(self):
         """Test getting and setting material properties of rigid object."""

@@ -114,8 +114,6 @@ class RigidObject(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
-        # reset last body vel
-        # self._last_body_vel_w[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -208,7 +206,7 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data._previous_body_vel_w[env_ids] = root_velocity.clone()
+        self._data._previous_body_vel_w[env_ids, 0] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
