@@ -56,8 +56,6 @@ class RigidObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # container for data access
-        self._data = RigidObjectData()
 
     """
     Properties
@@ -116,8 +114,6 @@ class RigidObject(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
-        # reset last body vel
-        self._last_body_vel_w[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -137,16 +133,7 @@ class RigidObject(AssetBase):
             )
 
     def update(self, dt: float):
-        # -- root-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.root_state_w[:, :7] = self.root_physx_view.get_transforms()
-        self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
-        self._data.root_state_w[:, 7:] = self.root_physx_view.get_velocities()
-
-        # -- body-state (note: for rigid objects, we only have one body so we just copy the root state)
-        self._data.body_state_w[:] = self._data.root_state_w.view(-1, self.num_bodies, 13)
-
-        # -- update common data
-        self._update_common_data(dt)
+        self._data.update(dt)
 
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
@@ -219,6 +206,8 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data._previous_body_vel_w[env_ids, 0] = root_velocity.clone()
+        self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
@@ -329,6 +318,9 @@ class RigidObject(AssetBase):
         carb.log_info(f"Number of bodies: {self.num_bodies}")
         carb.log_info(f"Body names: {self.body_names}")
 
+        # container for data access
+        self._data = RigidObjectData(self.root_physx_view, self.device)
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -343,35 +335,12 @@ class RigidObject(AssetBase):
         self._ALL_BODY_INDICES = torch.arange(
             self.root_physx_view.count * self.num_bodies, dtype=torch.long, device=self.device
         )
-        self.GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self.num_instances, 1)
-        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, 1)
         # external forces and torques
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
-        # asset data
-        # -- properties
         self._data.body_names = self.body_names
-        # -- root states
-        self._data.root_state_w = torch.zeros(self.num_instances, 13, device=self.device)
-        self._data.root_state_w[:, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
-        self._data.default_root_state = torch.zeros_like(self._data.root_state_w)
-        self._data.default_root_state[:, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
-        # -- body states
-        self._data.body_state_w = torch.zeros(self.num_instances, self.num_bodies, 13, device=self.device)
-        self._data.body_state_w[:, :, 3] = 1.0  # set default quaternion to (1, 0, 0, 0)
-        # -- post-computed
-        self._data.root_vel_b = torch.zeros(self.num_instances, 6, device=self.device)
-        self._data.projected_gravity_b = torch.zeros(self.num_instances, 3, device=self.device)
-        self._data.heading_w = torch.zeros(self.num_instances, device=self.device)
-        self._data.body_acc_w = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
-
-        # history buffers for quantities
-        # -- used to compute body accelerations numerically
-        self._last_body_vel_w = torch.zeros(self.num_instances, self.num_bodies, 6, device=self.device)
-
-        # mass
         self._data.default_mass = self.root_physx_view.get_masses().clone()
 
     def _process_cfg(self):
@@ -387,29 +356,6 @@ class RigidObject(AssetBase):
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
         self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
-
-    def _update_common_data(self, dt: float):
-        """Update common quantities related to rigid objects.
-
-        Note:
-            This has been separated from the update function to allow for the child classes to
-            override the update function without having to worry about updating the common data.
-        """
-        # -- body acceleration
-        if dt > 0.0:
-            self._data.body_acc_w[:] = (self._data.body_state_w[..., 7:] - self._last_body_vel_w) / dt
-        self._last_body_vel_w[:] = self._data.body_state_w[..., 7:]
-        # -- root state in body frame
-        self._data.root_vel_b[:, 0:3] = math_utils.quat_rotate_inverse(
-            self._data.root_quat_w, self._data.root_lin_vel_w
-        )
-        self._data.root_vel_b[:, 3:6] = math_utils.quat_rotate_inverse(
-            self._data.root_quat_w, self._data.root_ang_vel_w
-        )
-        self._data.projected_gravity_b[:] = math_utils.quat_rotate_inverse(self._data.root_quat_w, self.GRAVITY_VEC_W)
-        # -- heading direction of root
-        forward_w = math_utils.quat_apply(self._data.root_quat_w, self.FORWARD_VEC_B)
-        self._data.heading_w[:] = torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     """
     Internal simulation callbacks.

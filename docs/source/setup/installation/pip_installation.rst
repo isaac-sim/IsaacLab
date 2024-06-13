@@ -12,6 +12,11 @@ Installing Isaac Sim
    `Isaac Sim Forums <https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html>`_
    and install Isaac Sim from pre-built binaries.
 
+.. note::
+
+   Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
+   To check the GLIBC version on your system, use command ``ldd --version``.
+
 
 -  To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
    Ensure that the python version of the virtual environment is **Python 3.10**.
@@ -57,7 +62,7 @@ Installing Isaac Sim
 
    .. code-block:: bash
 
-      pip install isaacsim-rl isaacsim-replicator --index-url https://pypi.nvidia.com/
+      pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
 
 
 Installing Isaac Lab
