@@ -8,8 +8,9 @@ import torch
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
+from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
-from ..rigid_object import LazyBuffer, RigidObjectData
+from ..rigid_object import RigidObjectData
 
 
 class ArticulationData(RigidObjectData):
@@ -22,10 +23,10 @@ class ArticulationData(RigidObjectData):
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
         # Initialize the lazy buffers.
-        self._body_state_w: LazyBuffer = LazyBuffer()
-        self._joint_pos: LazyBuffer = LazyBuffer()
-        self._joint_acc: LazyBuffer = LazyBuffer()
-        self._joint_vel: LazyBuffer = LazyBuffer()
+        self._body_state_w: TimestampedBuffer = TimestampedBuffer()
+        self._joint_pos: TimestampedBuffer = TimestampedBuffer()
+        self._joint_acc: TimestampedBuffer = TimestampedBuffer()
+        self._joint_vel: TimestampedBuffer = TimestampedBuffer()
 
     def update(self, dt: float):
         self._time_stamp += dt

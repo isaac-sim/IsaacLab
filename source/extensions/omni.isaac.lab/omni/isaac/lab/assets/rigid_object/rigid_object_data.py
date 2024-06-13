@@ -4,17 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-from dataclasses import dataclass
 
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
-
-
-@dataclass
-class LazyBuffer:
-    data: torch.Tensor = torch.Tensor()
-    update_timestamp: float = -1.0
+from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
 
 class RigidObjectData:
@@ -30,8 +24,8 @@ class RigidObjectData:
         self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
 
         # Initialize the lazy buffers.
-        self._root_state_w: LazyBuffer = LazyBuffer()
-        self._body_acc_w: LazyBuffer = LazyBuffer()
+        self._root_state_w: TimestampedBuffer = TimestampedBuffer()
+        self._body_acc_w: TimestampedBuffer = TimestampedBuffer()
 
     def update(self, dt: float):
         self._time_stamp += dt
