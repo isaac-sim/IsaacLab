@@ -230,7 +230,7 @@ class Articulation(RigidObject):
     ) -> tuple[list[int], list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
-        Please see the :func:`omni.isaac.orbit.utils.string.resolve_matching_names` function for more information
+        Please see the :func:`omni.isaac.lab.utils.string.resolve_matching_names` function for more information
         on the name matching.
 
         Args:
