@@ -7,7 +7,7 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed :class:`omni.isaac.lab.envs.mdp.Event` reset_root_state_uniform has has logic setting position and orientation.
+* Fixed the orientation reset logic in :func:`omni.isaac.lab.envs.mdp.events.reset_root_state_uniform` to make it relative to the default orientation.
   Earlier, the :attr:`omni.isaac.lab.envs.mdp.Event` position was set in relative mode and orientation is set in 
   absolute mode
 
