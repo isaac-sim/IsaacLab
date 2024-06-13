@@ -7,7 +7,8 @@ Changelog
 Fixed
 ^^^^^
 
-* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect.
+* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect and rendering
+  would happen once every env.step() when active.
 
 Changed
 ^^^^^^^
