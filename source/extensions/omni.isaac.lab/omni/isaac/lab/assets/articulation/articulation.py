@@ -95,8 +95,6 @@ class Articulation(RigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # container for data access
-        self._data = ArticulationData()
         # data for storing actuator group
         self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
@@ -205,30 +203,6 @@ class Articulation(RigidObject):
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
             self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
-    def update(self, dt: float):
-        # -- root state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.root_state_w[:, :7] = self.root_physx_view.get_root_transforms()
-        self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
-        self._data.root_state_w[:, 7:] = self.root_physx_view.get_root_velocities()
-
-        # -- body-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.body_state_w[..., :7] = self.root_physx_view.get_link_transforms()
-        self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
-        self._data.body_state_w[..., 7:] = self.root_physx_view.get_link_velocities()
-
-        # -- joint states
-        self._data.joint_pos[:] = self.root_physx_view.get_dof_positions()
-        self._data.joint_vel[:] = self.root_physx_view.get_dof_velocities()
-        if dt > 0.0:
-            self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
-
-        # -- update common data
-        # note: these are computed in the base class
-        self._update_common_data(dt)
-
-        # -- update history buffers
-        self._previous_joint_vel[:] = self._data.joint_vel[:]
-
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
@@ -320,6 +294,7 @@ class Articulation(RigidObject):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
@@ -350,7 +325,7 @@ class Articulation(RigidObject):
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
-        self._previous_joint_vel[env_ids, joint_ids] = velocity
+        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
@@ -861,6 +836,9 @@ class Articulation(RigidObject):
         if set(physx_body_names) != set(self.body_names):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
 
+        # container for data access
+        self._data = ArticulationData(self.root_physx_view, self.device)
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -877,30 +855,25 @@ class Articulation(RigidObject):
     def _create_buffers(self):
         # allocate buffers
         super()._create_buffers()
-        # history buffers
-        self._previous_joint_vel = torch.zeros(self.num_instances, self.num_joints, device=self.device)
 
         # asset data
         # -- properties
         self._data.joint_names = self.joint_names
-        # -- joint states
-        self._data.joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.joint_vel = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_acc = torch.zeros_like(self._data.joint_pos)
-        self._data.default_joint_pos = torch.zeros_like(self._data.joint_pos)
-        self._data.default_joint_vel = torch.zeros_like(self._data.joint_pos)
+
+        self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
         # -- joint commands
-        self._data.joint_pos_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_vel_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_effort_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_stiffness = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_damping = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_armature = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_friction = torch.zeros_like(self._data.joint_pos)
+        self._data.joint_pos_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_vel_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_effort_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_stiffness = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_damping = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_armature = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_friction = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         # -- joint commands (explicit)
-        self._data.computed_torque = torch.zeros_like(self._data.joint_pos)
-        self._data.applied_torque = torch.zeros_like(self._data.joint_pos)
+        self._data.computed_torque = torch.zeros_like(self._data.default_joint_pos)
+        self._data.applied_torque = torch.zeros_like(self._data.default_joint_pos)
         # -- tendons
         if self.num_fixed_tendons > 0:
             self._data.fixed_tendon_stiffness = torch.zeros(
