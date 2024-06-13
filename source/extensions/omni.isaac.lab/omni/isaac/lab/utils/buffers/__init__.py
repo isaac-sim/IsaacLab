@@ -7,3 +7,4 @@
 
 from .circular_buffer import BatchedCircularBuffer
 from .delay_buffer import DelayBuffer
+from .timestamped_buffer import TimestampedBuffer

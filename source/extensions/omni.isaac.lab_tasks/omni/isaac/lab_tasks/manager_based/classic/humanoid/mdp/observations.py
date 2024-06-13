@@ -34,7 +34,7 @@ def base_up_proj(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # compute base up vector
-    base_up_vec = math_utils.quat_rotate(asset.data.root_quat_w, -asset.GRAVITY_VEC_W)
+    base_up_vec = -asset.data.projected_gravity_b
 
     return base_up_vec[:, 2].unsqueeze(-1)
 
@@ -50,7 +50,7 @@ def base_heading_proj(
     to_target_pos[:, 2] = 0.0
     to_target_dir = math_utils.normalize(to_target_pos)
     # compute base forward vector
-    heading_vec = math_utils.quat_rotate(asset.data.root_quat_w, asset.FORWARD_VEC_B)
+    heading_vec = math_utils.quat_rotate(asset.data.root_quat_w, asset.data.forward_vec_b)
     # compute dot product between heading and target direction
     heading_proj = torch.bmm(heading_vec.view(env.num_envs, 1, 3), to_target_dir.view(env.num_envs, 3, 1))
 
