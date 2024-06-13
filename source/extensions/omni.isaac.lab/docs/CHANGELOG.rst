@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.17.13 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the orientation reset logic in :func:`omni.isaac.lab.envs.mdp.events.reset_root_state_uniform` to make it relative to the default orientation.
+  Earlier, the position was sampled relative to the default and the orientation not.
+
+
+0.17.12 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`omni.isaac.lab.utils.buffers.TimestampedBuffer` to store timestamped data.
+
+Changed
+^^^^^^^
+
+* Added time-stamped buffers in the classes :class:`omni.isaac.lab.assets.RigidObjectData` and :class:`omni.isaac.lab.assets.ArticulationData`
+  to update some values lazily and avoid unnecessary computations between physics updates. Before, all the data was always
+  updated at every step, even if it was not used by the task.
+
 
 0.17.11 (2024-05-30)
 ~~~~~~~~~~~~~~~~~~~~
