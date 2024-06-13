@@ -8,7 +8,7 @@ Fixed
 ^^^^^
 
 * Fixed the orientation reset logic in :func:`omni.isaac.lab.envs.mdp.events.reset_root_state_uniform` to make it relative to the default orientation.
-  Earlier, the :attr:`omni.isaac.lab.envs.mdp.Event` position was set in relative mode and orientation is set in 
+  Earlier, the position was sampled relative to the default and the orientation not. 
   absolute mode
 
 0.17.11 (2024-05-30)
