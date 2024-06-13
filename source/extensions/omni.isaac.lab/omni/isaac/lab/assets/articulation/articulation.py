@@ -846,7 +846,7 @@ class Articulation(RigidObject):
         prim_paths = self._body_physx_view.prim_paths[: self.num_bodies]
         body_view_body_names = [path.split("/")[-1] for path in prim_paths]
         # -- mapping from articulation view to body view
-        self._body_view_ordering = [body_view_body_names.index(name) for name in root_view_body_names]
+        self._body_view_ordering = [root_view_body_names.index(name) for name in body_view_body_names]
         self._body_view_ordering = torch.tensor(self._body_view_ordering, dtype=torch.long, device=self.device)
 
         # log information about the articulation
