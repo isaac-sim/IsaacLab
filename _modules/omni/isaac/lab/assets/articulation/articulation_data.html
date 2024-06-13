@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 13, 2024"/>
   </head>
   
   
@@ -487,24 +487,40 @@ document.write(`
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
+
+<span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.buffers</span> <span class="kn">import</span> <span class="n">TimestampedBuffer</span>
 
 <span class="kn">from</span> <span class="nn">..rigid_object</span> <span class="kn">import</span> <span class="n">RigidObjectData</span>
 
 
-<div class="viewcode-block" id="ArticulationData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData">[docs]</a><span class="nd">@dataclass</span>
-<span class="k">class</span> <span class="nc">ArticulationData</span><span class="p">(</span><span class="n">RigidObjectData</span><span class="p">):</span>
+<div class="viewcode-block" id="ArticulationData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData">[docs]</a><span class="k">class</span> <span class="nc">ArticulationData</span><span class="p">(</span><span class="n">RigidObjectData</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for an articulation.&quot;&quot;&quot;</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Properties.</span>
-    <span class="c1">##</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">root_physx_view</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span> <span class="o">=</span> <span class="n">root_physx_view</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_dof_velocities</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+        <span class="c1"># Initialize the lazy buffers.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span> <span class="o">+=</span> <span class="n">dt</span>
+        <span class="c1"># Trigger an update of the joint acceleration buffer at a higher frequency since we do finite differencing.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_acc</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint names in the order parsed by the simulation view.&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Default states.</span>
+    <span class="c1"># Defaults.</span>
     <span class="c1">##</span>
 
     <span class="n">default_joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
@@ -513,18 +529,38 @@ document.write(`
     <span class="n">default_joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint velocities of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Joint states &lt;- From simulation.</span>
-    <span class="c1">##</span>
+    <span class="n">default_joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint stiffness of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
-    <span class="n">joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint positions of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+    <span class="n">default_joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint damping of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
-    <span class="n">joint_vel</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint velocities of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+    <span class="n">default_joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint armature of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
-    <span class="n">joint_acc</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint acceleration of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+    <span class="n">default_joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint friction of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">default_joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint limits of all joints. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
+
+    <span class="n">default_fixed_tendon_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Joint commands -- Set into simulation.</span>
@@ -555,44 +591,6 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Joint properties.</span>
-    <span class="c1">##</span>
-
-    <span class="n">joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint stiffness provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint damping provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint armature provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint friction provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint limits provided to simulation. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
-    <span class="c1"># Default joint properties</span>
-    <span class="c1">##</span>
-
-    <span class="n">default_joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint stiffness of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">default_joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint damping of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">default_joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint armature of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">default_joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint friction of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
-
-    <span class="n">default_joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint limits of all joints. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
     <span class="c1"># Joint commands -- Explicit actuators.</span>
     <span class="c1">##</span>
 
@@ -614,6 +612,25 @@ document.write(`
 
 <span class="sd">    Note: The torques are zero for implicit actuator models.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Joint properties.</span>
+    <span class="c1">##</span>
+
+    <span class="n">joint_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint stiffness provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint damping provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_armature</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint armature provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_friction</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint friction provided to simulation. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="n">joint_limits</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint limits provided to simulation. Shape is (num_instances, num_joints, 2).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Fixed tendon properties.</span>
@@ -638,28 +655,6 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Fixed tendon limits provided to simulation. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Default fixed tendon properties</span>
-    <span class="c1">##</span>
-
-    <span class="n">default_fixed_tendon_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
-
-    <span class="n">default_fixed_tendon_damping</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon damping of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
-
-    <span class="n">default_fixed_tendon_limit_stiffness</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limit stiffness of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
-
-    <span class="n">default_fixed_tendon_rest_length</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon rest length of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
-
-    <span class="n">default_fixed_tendon_offset</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon offset of all tendons. Shape is (num_instances, num_fixed_tendons).&quot;&quot;&quot;</span>
-
-    <span class="n">default_fixed_tendon_limit</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default tendon limits of all tendons. Shape is (num_instances, num_fixed_tendons, 2).&quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
     <span class="c1"># Other Data.</span>
     <span class="c1">##</span>
 
@@ -670,7 +665,79 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint velocity limits for all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
 
     <span class="n">gear_ratio</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gear ratio for relating motor torques to applied Joint torques. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Properties.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_root_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">pose</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_root_velocities</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pose</span><span class="p">,</span> <span class="n">velocity</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.</span>
+<span class="sd">        Shape is (num_instances, num_bodies, 13).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="n">poses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">poses</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">poses</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+            <span class="n">velocities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_velocities</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">poses</span><span class="p">,</span> <span class="n">velocities</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_accelerations</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">joint_pos</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint positions of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_dof_positions</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">joint_vel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint velocities of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_dof_velocities</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">joint_acc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint acceleration of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">update_timestamp</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span></div>
 </pre></div>
 
                 </article>
@@ -718,7 +785,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 12, 2024.
+  Last updated on Jun 13, 2024.
   <br/>
 </p>
   </div>

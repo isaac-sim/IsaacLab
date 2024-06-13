@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 13, 2024"/>
   </head>
   
   
@@ -487,69 +487,93 @@ document.write(`
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
+
+<span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.buffers</span> <span class="kn">import</span> <span class="n">TimestampedBuffer</span>
 
 
-<div class="viewcode-block" id="RigidObjectData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData">[docs]</a><span class="nd">@dataclass</span>
-<span class="k">class</span> <span class="nc">RigidObjectData</span><span class="p">:</span>
+<div class="viewcode-block" id="RigidObjectData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectData">[docs]</a><span class="k">class</span> <span class="nc">RigidObjectData</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for a rigid object.&quot;&quot;&quot;</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Properties.</span>
-    <span class="c1">##</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span><span class="p">,</span> <span class="n">device</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span> <span class="o">=</span> <span class="n">root_physx_view</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">gravity_vec_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">forward_vec_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># Initialize the lazy buffers.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="p">:</span> <span class="n">TimestampedBuffer</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span> <span class="o">+=</span> <span class="n">dt</span>
+        <span class="c1"># Trigger an update of the body acceleration buffer at a higher frequency since we do finite differencing.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span>
 
     <span class="n">body_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Body names in the order parsed by the simulation view.&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
-    <span class="c1"># Default states.</span>
+    <span class="c1"># Defaults.</span>
     <span class="c1">##</span>
 
     <span class="n">default_root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
 
-    <span class="c1">##</span>
-    <span class="c1"># Frame states.</span>
-    <span class="c1">##</span>
-
-    <span class="n">root_state_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
-
-    <span class="n">root_vel_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Root velocity `[lin_vel, ang_vel]` in base frame. Shape is (num_instances, 6).&quot;&quot;&quot;</span>
-
-    <span class="n">projected_gravity_b</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Projection of the gravity direction on base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
-
-    <span class="n">heading_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Yaw heading of the base frame (in radians). Shape is (num_instances,).</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        This quantity is computed by assuming that the forward-direction of the base</span>
-<span class="sd">        frame is along x-direction, i.e. :math:`(1, 0, 0)`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">body_state_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.</span>
-<span class="sd">    Shape is (num_instances, num_bodies, 13).&quot;&quot;&quot;</span>
-
-    <span class="n">body_acc_w</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        This quantity is computed based on the rigid body state from the last step.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="c1">##</span>
-    <span class="c1"># Default rigid body properties</span>
-    <span class="c1">##</span>
-
     <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot; Default mass provided by simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
 
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Properties</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1">##</span>
+    <span class="c1"># Properties.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">pose</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
+            <span class="n">velocity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_velocities</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">pose</span><span class="p">,</span> <span class="n">velocity</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, 1, 6).&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_vel_w</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">update_timestamp</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_vel_w</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">update_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_stamp</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">projected_gravity_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Projection of the gravity direction on base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gravity_vec_w</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">heading_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Yaw heading of the base frame (in radians). Shape is (num_instances,).</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This quantity is computed by assuming that the forward-direction of the base</span>
+<span class="sd">            frame is along x-direction, i.e. :math:`(1, 0, 0)`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">forward_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">forward_vec_b</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -579,12 +603,12 @@ document.write(`
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_vel_b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_lin_vel_w</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in base world frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_vel_b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_ang_vel_w</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -609,17 +633,7 @@ document.write(`
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span></div>
 </pre></div>
 
                 </article>
@@ -667,7 +681,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 12, 2024.
+  Last updated on Jun 13, 2024.
   <br/>
 </p>
   </div>
