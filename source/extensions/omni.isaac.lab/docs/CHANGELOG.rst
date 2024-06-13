@@ -8,6 +8,7 @@ Changed
 ^^^^^^^
 
 * Performance improvements for material randomization in events.
+* Added minimum randomization frequency for reset mode randomizations.
 
 
 0.17.13 (2024-06-13)
