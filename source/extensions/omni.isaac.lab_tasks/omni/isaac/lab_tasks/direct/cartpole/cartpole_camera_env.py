@@ -11,15 +11,13 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 
-from torchvision.utils import make_grid, save_image
-
 from omni.isaac.lab_assets.cartpole import CARTPOLE_CFG
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg
+from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils import configclass
@@ -178,8 +176,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         observations = {"policy": self._tiled_camera.data.output[data_type].clone()}
 
         if self.cfg.write_image_to_file:
-            img = observations["policy"].permute(0, 3, 1, 2)
-            save_image(make_grid(img, nrow=16), f"cartpole_export.png")
+            save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
 
         return observations
 
