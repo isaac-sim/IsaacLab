@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.7.6 (2024-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added option to save images for Cartpole Camera environment.
+
+
 0.7.5 (2024-05-31)
 ~~~~~~~~~~~~~~~~~~
 
