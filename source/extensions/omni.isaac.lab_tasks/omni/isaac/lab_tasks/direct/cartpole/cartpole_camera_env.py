@@ -11,6 +11,8 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 
+from torchvision.utils import make_grid, save_image
+
 from omni.isaac.lab_assets.cartpole import CARTPOLE_CFG
 
 import omni.isaac.lab.sim as sim_utils
@@ -45,6 +47,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         width=80,
         height=80,
     )
+    write_image_to_file = False
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -73,6 +76,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_vel = -0.005
 
 
+@configclass
 class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
@@ -172,6 +176,11 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
         observations = {"policy": self._tiled_camera.data.output[data_type].clone()}
+
+        if self.cfg.write_image_to_file:
+            img = observations["policy"].permute(0, 3, 1, 2)
+            save_image(make_grid(img, nrow=16), f"cartpole_export.png")
+
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
