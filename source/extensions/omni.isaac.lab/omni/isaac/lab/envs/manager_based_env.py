@@ -95,8 +95,8 @@ class ManagerBasedEnv:
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step.\n"
-                f"If this is not intended, set the render interval to be equal to the decimation."
+                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
+                "If this is not intended, set the render interval to be equal to the decimation."
             )
             carb.log_warn(msg)
 

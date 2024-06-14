@@ -101,7 +101,7 @@ class DirectRLEnv(gym.Env):
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
                 f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
-                f"If this is not intended, set the render interval to be equal to the decimation."
+                "If this is not intended, set the render interval to be equal to the decimation."
             )
             carb.log_warn(msg)
 
