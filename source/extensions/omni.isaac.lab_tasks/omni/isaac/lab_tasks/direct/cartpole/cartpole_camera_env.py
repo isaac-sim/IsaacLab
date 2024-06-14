@@ -17,7 +17,7 @@ import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg
+from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from omni.isaac.lab.utils import configclass
@@ -45,6 +45,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         width=80,
         height=80,
     )
+    write_image_to_file = False
 
     # change viewer settings
     viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -73,6 +74,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_vel = -0.005
 
 
+@configclass
 class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
     tiled_camera: TiledCameraCfg = TiledCameraCfg(
@@ -172,6 +174,10 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
         observations = {"policy": self._tiled_camera.data.output[data_type].clone()}
+
+        if self.cfg.write_image_to_file:
+            save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
+
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
