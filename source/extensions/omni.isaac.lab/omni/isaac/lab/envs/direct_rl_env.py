@@ -16,6 +16,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
+import carb
 import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
@@ -95,6 +96,14 @@ class DirectRLEnv(gym.Env):
         print(f"\tEnvironment step-size : {self.step_dt}")
         print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
         print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
+
+        if self.cfg.sim.render_interval < self.cfg.decimation:
+            msg = (
+                f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
+                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
+                f"If this is not intended, set the render interval to be equal to the decimation."
+            )
+            carb.log_warn(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation"):
