@@ -181,28 +181,28 @@ class Lidar(SensorBase):
         env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
-        r"""Set the pose of the camera w.r.t. the world frame using specified convention.
+        r"""Set the pose of the lidar w.r.t. the world frame using specified convention.
 
-        Since different fields use different conventions for camera orientations, the method allows users to
-        set the camera poses in the specified convention. Possible conventions are:
+        Since different fields use different conventions for lidar orientations, the method allows users to
+        set the lidar poses in the specified convention. Possible conventions are:
 
-        - :obj:`"opengl"` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.Camera) convention
+        - :obj:`"opengl"` - forward axis: -Z - up axis +Y - Offset is applied in the OpenGL (Usd.lidar) convention
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.orbit.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`omni.isaac.orbit.sensors.lidar.utils.convert_orientation_convention` for more details
         on the conventions.
 
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
-                Defaults to None, in which case the camera position in not changed.
+                Defaults to None, in which case the lidar position in not changed.
             orientations: The quaternion orientation in (w, x, y, z). Shape is (N, 4).
-                Defaults to None, in which case the camera orientation in not changed.
+                Defaults to None, in which case the lidar orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+            RuntimeError: If the lidar prim is not set. Need to call :meth:`initialize` method first.
         """
         # resolve env_ids
         if env_ids is None:
@@ -231,21 +231,21 @@ class Lidar(SensorBase):
         targets: torch.Tensor,
         env_ids: Sequence[int] | None = None,
     ):
-        """Set the poses of the camera from the eye position and look-at target position.
+        """Set the poses of the lidar from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is (N, 3).
+            eyes: The positions of the lidar's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
+            RuntimeError: If the lidar prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # set camera poses using the view
+        # set lidar poses using the view
         orientations = quat_from_matrix(
             create_rotation_matrix_from_view(eyes, targets, device=self._device)
         )
@@ -263,7 +263,7 @@ class Lidar(SensorBase):
         if env_ids is None:
             env_ids = self._ALL_INDICES
         # reset the data
-        # note: this recomputation is useful if one performs randomization on the camera poses.
+        # note: this recomputation is useful if one performs randomization on the lidar poses.
         self._update_poses(env_ids)
         # self._update_intrinsic_matrices(env_ids)
         # Reset the frame count
