@@ -194,11 +194,11 @@ Extension Dependency Management
 Certain extensions may have dependencies which need to be installed before the extension can be run.
 While Python dependencies can be expressed via the ``INSTALL_REQUIRES`` array in ``setup.py``, we need
 a separate installation pipeline to handle non-Python dependencies. We have therefore created
-an additional setup procedure, ``./isaaclab.sh --install-deps {dep_type}``, which scans the ``extension.toml``
-file of the directories under ``source/extensions`` for ``apt`` and ``rosdep`` dependencies.
+an additional setup procedure, ``python tools/install_deps.py {dep_type} {extensions_dir}``, which scans the ``extension.toml``
+file of the directories under the ``{extensions_dir}`` (such as ``${ISAACLAB_PATH}/source/extensions``) for ``apt`` and ``rosdep`` dependencies.
 
 This example ``extension.toml`` has both ``apt_deps`` and ``ros_ws`` specified, so both
-``apt`` and ``rosdep`` packages will be installed if ``./isaaclab.sh --install-deps all``
+``apt`` and ``rosdep`` packages will be installed if ``python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions``
 is passed:
 
 .. code-block:: toml
