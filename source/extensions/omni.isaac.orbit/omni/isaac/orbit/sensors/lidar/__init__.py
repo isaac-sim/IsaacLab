@@ -1,9 +1,6 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for LiDAR wrapper around USD camera prim."""
+
+"""Sub-module for lidar wrapper around USD lidar prim."""
 
 from .lidar import Lidar
 from .lidar_cfg import LidarCfg
