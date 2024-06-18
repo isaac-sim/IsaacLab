@@ -231,7 +231,7 @@ The terrain can then be added to the scene in ``_setup_scene(self)`` by referenc
 Actors
 ------
 
-Isaac Lab and Isaac Sim both use the `USD (Universal Scene Description) <https://github.com/PixarAnimationStudios/OpenUSD>`_ library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer tools described in the `Importing a New Asset <../../how-to/import_new_asset.rst>`_ tutorial.
+Isaac Lab and Isaac Sim both use the `USD (Universal Scene Description) <https://github.com/PixarAnimationStudios/OpenUSD>`_ library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer tools described in the `Importing a New Asset <../how-to/import_new_asset.html>`_ tutorial.
 
 Each Articulation and Rigid Body actor can also have its own config class. The :class:`~omni.isaac.lab.assets.ArticulationCfg` can be
 used to define parameters for articulation actors, including file path, simulation parameters, actuator properties, and initial states.

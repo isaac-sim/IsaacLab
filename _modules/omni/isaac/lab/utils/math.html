@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 14, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 18, 2024"/>
   </head>
   
   
@@ -982,9 +982,6 @@ document.write(`
 
 <span class="sd">    Returns:</span>
 <span class="sd">        The difference between the two quaternions. Shape is (N, 3).</span>
-
-<span class="sd">    Reference:</span>
-<span class="sd">        https://docs.leggedrobotics.com/kindr/cheatsheet_latest.pdf</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">quat_diff</span> <span class="o">=</span> <span class="n">quat_mul</span><span class="p">(</span><span class="n">q1</span><span class="p">,</span> <span class="n">quat_conjugate</span><span class="p">(</span><span class="n">q2</span><span class="p">))</span>  <span class="c1"># q1 * q2^-1</span>
     <span class="n">re</span> <span class="o">=</span> <span class="n">quat_diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># real part, q = [w, x, y, z] = [re, im]</span>
@@ -1826,7 +1823,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 14, 2024.
+  Last updated on Jun 18, 2024.
   <br/>
 </p>
   </div>

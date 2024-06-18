@@ -174,6 +174,6 @@ The above will, in addition, also render videos of the training progress and sto
 .. _Singularity: https://docs.sylabs.io/guides/2.6/user-guide/index.html
 .. _ETH Zurich Euler: https://scicomp.ethz.ch/wiki/Euler
 .. _apptainer: https://apptainer.org/
-.. _documentation: www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages
-.. _SLURM documentation: www.slurm.schedmd.com/sbatch.html
+.. _documentation: https://www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages
+.. _SLURM documentation: https://www.slurm.schedmd.com/sbatch.html
 .. _forum post: https://forums.docker.com/t/trouble-after-upgrade-to-docker-ce-25-0-1-on-debian-12/139613

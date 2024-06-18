@@ -56,7 +56,7 @@
     <link rel="prev" title="Docker Guide" href="docker.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 14, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 18, 2024"/>
   </head>
   
   
@@ -586,7 +586,7 @@ documentation.</p>
 <h2>Setup Instructions<a class="headerlink" href="#setup-instructions" title="Permalink to this heading">#</a></h2>
 <p>In order to export the Docker Image to a singularity image, <a class="reference external" href="https://apptainer.org/">apptainer</a> is required.
 A detailed overview of the installation procedure for <code class="docutils literal notranslate"><span class="pre">apptainer</span></code> can be found in its
-<a class="reference external" href="www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages">documentation</a>. For convenience, we summarize the steps here for a local installation:</p>
+<a class="reference external" href="https://www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages">documentation</a>. For convenience, we summarize the steps here for a local installation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>update
 sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>software-properties-common
 sudo<span class="w"> </span>add-apt-repository<span class="w"> </span>-y<span class="w"> </span>ppa:apptainer/ppa
@@ -664,7 +664,7 @@ access by removing the flag in <code class="docutils literal notranslate"><span 
 <h3>Defining the job parameters<a class="headerlink" href="#defining-the-job-parameters" title="Permalink to this heading">#</a></h3>
 <p>The job parameters are defined inside the <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job.sh</span></code>.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
-the time limit. For more information, please check the <a class="reference external" href="www.slurm.schedmd.com/sbatch.html">SLURM documentation</a>.</p>
+the time limit. For more information, please check the <a class="reference external" href="https://www.slurm.schedmd.com/sbatch.html">SLURM documentation</a>.</p>
 <p>The default configuration is as follows:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">12</span><span class="c1">#SBATCH --cpus-per-task=8</span>
 <span class="linenos">13</span><span class="c1">#SBATCH --gpus=rtx_3090:1</span>
@@ -803,7 +803,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 14, 2024.
+  Last updated on Jun 18, 2024.
   <br/>
 </p>
   </div>
