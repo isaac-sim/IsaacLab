@@ -41,7 +41,7 @@ extract_python_exe() {
     else
         if pip show isaacsim-rl > /dev/null 2>&1; then
             # use current python executable
-            python_exe=$(which python)
+            python_exe=$(which python3.10)
         else
             # use python from kit
             local python_exe=${build_path}/python.sh
