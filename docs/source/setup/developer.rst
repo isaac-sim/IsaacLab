@@ -11,6 +11,7 @@ using VSCode.
 Setting up Visual Studio Code
 -----------------------------
 
+The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
 The ``Isaac Lab`` repository includes the VSCode settings to easily allow setting
 up your development environment. These are included in the ``.vscode`` directory
 and include the following files:
@@ -50,7 +51,7 @@ For more information on VSCode support for Omniverse, please refer to the
 following links:
 
 * `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_advanced_python_debugging.html>`__
+* `Debugging with VSCode <https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_python_debugging.html>`__
 
 
 Configuring the python interpreter
