@@ -8,7 +8,7 @@ from .utils import convert_orientation_convention
 
 @dataclass
 class LidarData:
-    """Data container for the LiDAR sensor."""
+    """Data container for the lidar sensor."""
 
     ##
     # Frame state.

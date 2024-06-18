@@ -16,7 +16,7 @@ from .lidar import Lidar
 
 @configclass 
 class LidarCfg(SensorBaseCfg):
-    """Configuration for a camera sensor."""
+    """Configuration for a lidar sensor."""
 
     @configclass
     class OffsetCfg:
