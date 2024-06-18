@@ -19,7 +19,7 @@ Dictionary <-> Class operations.
 """
 
 
-def class_to_dict(obj: object) -> dict[str, Any]:
+def class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Note:
@@ -27,6 +27,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
 
     Args:
         obj: An instance of a class to convert.
+        replace_slices_with_strings: If True, replaces slice objects with their string representations.
+            Defaults to False.
 
     Raises:
         ValueError: When input argument is not an object.
@@ -51,15 +53,17 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # check if attribute is callable -- function
         if callable(value):
             data[key] = callable_to_string(value)
+        elif replace_slices_with_strings and isinstance(value, slice):
+            data[key] = str(value)
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):
-            data[key] = class_to_dict(value)
+            data[key] = class_to_dict(value, replace_slices_with_strings)
         else:
             data[key] = value
     return data
 
 
-def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
+def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slices: bool = True, _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -67,6 +71,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     Args:
         obj: An instance of a class to update.
         data: Input dictionary to update from.
+        replace_strings_with_slices: If True, replaces string representations of slices with slice objects.
         _ns: Namespace of the current object. This is useful for nested configuration
             classes or dictionaries. Defaults to "".
 
@@ -79,39 +84,38 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
         # key_ns is the full namespace of the key
         key_ns = _ns + "/" + key
         # check if key is present in the object
-        if hasattr(obj, key):
-            obj_mem = getattr(obj, key)
-            if isinstance(obj_mem, Mapping):
-                # Note: We don't handle two-level nested dictionaries. Just use configclass if this is needed.
-                # iterate over the dictionary to look for callable values
-                for k, v in obj_mem.items():
-                    if callable(v):
-                        value[k] = string_to_callable(value[k])
-                setattr(obj, key, value)
-            elif isinstance(value, Mapping):
+        if hasattr(obj, key) or isinstance(obj, dict):
+            obj_mem = obj[key] if isinstance(obj, dict) else getattr(obj, key)
+            if isinstance(value, Mapping):
                 # recursively call if it is a dictionary
-                update_class_from_dict(obj_mem, value, _ns=key_ns)
-            elif isinstance(value, Iterable) and not isinstance(value, str):
+                update_class_from_dict(obj_mem, value, replace_strings_with_slices, _ns=key_ns)
+                continue
+            if isinstance(value, Iterable) and not isinstance(value, str):
                 # check length of value to be safe
                 if len(obj_mem) != len(value) and obj_mem is not None:
                     raise ValueError(
                         f"[Config]: Incorrect length under namespace: {key_ns}."
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
+                if isinstance(obj_mem, tuple):
+                    value = tuple(value)
                 # set value
-                setattr(obj, key, value)
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
-                setattr(obj, key, value)
+            elif replace_strings_with_slices and value == str(slice(None)):
+                value = slice(None)
             elif isinstance(value, type(obj_mem)):
-                # check that they are type-safe
-                setattr(obj, key, value)
+                pass
             else:
                 raise ValueError(
                     f"[Config]: Incorrect type under namespace: {key_ns}."
                     f" Expected: {type(obj_mem)}, Received: {type(value)}."
                 )
+            if isinstance(obj, dict):
+                obj[key] = value
+            else:
+                setattr(obj, key, value)
         else:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
 

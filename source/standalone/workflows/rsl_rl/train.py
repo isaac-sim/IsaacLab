@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import sys
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -32,7 +33,10 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+args_cli, remaining = parser.parse_known_args()
+# clear out sys.argv
+sys.argv = [sys.argv[0]] + remaining
+sys.argc = len(sys.argv)
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -45,14 +49,20 @@ import os
 import torch
 from datetime import datetime
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 from rsl_rl.runners import OnPolicyRunner
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import get_checkpoint_path, parse_env_cfg
+from omni.isaac.lab_tasks.utils import (
+    get_checkpoint_path,
+    load_cfg_from_registry,
+    register_cfg_to_hydra,
+    update_env_cfg,
+)
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -61,12 +71,19 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 
-def main():
+@hydra.main(config_path=None, config_name=args_cli.task, version_base="1.3")
+def main(hydra_env_cfg: DictConfig):
     """Train with RSL-RL agent."""
-    # parse configuration
-    env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(
-        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+    # convert to a native dictionary
+    hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
+    env_cfg = load_cfg_from_registry(args_cli.task, "env_cfg_entry_point")
+    # update the configuration with the hydra command line arguments
+    env_cfg.from_dict(hydra_env_cfg, replace_strings_with_slices=True)
+    # update the configuration with the command line arguments
+    env_cfg = update_env_cfg(
+        env_cfg, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
+
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
     # specify directory for logging experiments
@@ -128,6 +145,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # register the task to hydra
+    register_cfg_to_hydra(args_cli.task)
     # run the main function
     main()
     # close sim app
