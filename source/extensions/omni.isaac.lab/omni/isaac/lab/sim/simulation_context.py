@@ -221,9 +221,6 @@ class SimulationContext(_SimulationContext):
             device=self.cfg.device,
         )
 
-        # counter for simulation steps
-        self._step_count = 0
-
     """
     Operations - New.
     """
@@ -386,14 +383,15 @@ class SimulationContext(_SimulationContext):
             for _ in range(2):
                 self.render()
 
-    def step(self):
+    def step(self, render: bool = True):
         """Steps the simulation.
-
-        This function steps the physics simulation and renders the scene with the specified interval.
 
         .. note::
             This function blocks if the timeline is paused. It only returns when the timeline is playing.
 
+        Args:
+            render: Whether to render the scene after stepping the physics simulation.
+                    If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
@@ -410,12 +408,7 @@ class SimulationContext(_SimulationContext):
             self.app.update()
 
         # step the simulation
-        super().step(render=False)
-
-        self._step_count += 1
-
-        if self._step_count % self.cfg.render_interval == 0 and (self.has_gui() or self.has_rtx_sensors()):
-            self.render()
+        super().step(render=render)
 
     def render(self, mode: RenderMode | None = None):
         """Refreshes the rendering components including UI elements and view-ports depending on the render mode.
@@ -474,6 +467,8 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
+        # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+        # when in headless mode
         self.set_setting("/app/player/playSimulations", False)
         self._app.update()
         self.set_setting("/app/player/playSimulations", True)

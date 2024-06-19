@@ -465,7 +465,7 @@ class TestContactSensor(unittest.TestCase):
         # write data to simulation
         self.scene.write_data_to_sim()
         # simulate
-        self.sim.step()
+        self.sim.step(render=False)
         # update buffers at sim dt
         self.scene.update(dt=self.sim_dt)
 

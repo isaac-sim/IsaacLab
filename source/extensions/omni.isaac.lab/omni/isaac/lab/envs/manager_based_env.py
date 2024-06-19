@@ -100,6 +100,9 @@ class ManagerBasedEnv:
             )
             carb.log_warn(msg)
 
+        # counter for simulation steps
+        self._step_counter = 0
+
         # generate scene
         with Timer("[INFO]: Time taken for scene creation"):
             self.scene = InteractiveScene(self.cfg.scene)
@@ -261,12 +264,16 @@ class ManagerBasedEnv:
         self.action_manager.process_action(action)
         # perform physics stepping
         for _ in range(self.cfg.decimation):
+            self._step_counter += 1
             # set actions into buffers
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
+            render = self._step_counter % self.cfg.sim.render_interval == 0 and (
+                self.sim.has_gui() or self.sim.has_rtx_sensors()
+            )
             # simulate
-            self.sim.step()
+            self.sim.step(render=render)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
