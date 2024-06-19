@@ -14,7 +14,7 @@ Changed
 ^^^^^^^
 
 * Renamed :attr:`omni.isaac.lab.sim.SimulationCfg.substeps` to :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
-  The render logic is now integrated in :meth:`omni.isaac.lab.sim.SimulationContext.step`.
+  The render logic is now integrated in the decimation loop of the environment.
 
 
 0.17.13 (2024-06-13)
