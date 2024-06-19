@@ -243,7 +243,7 @@ class SimulationContext(_SimulationContext):
 
         For more information, please check `NVIDIA RTX documentation`_.
 
-        .. _NVIDIA RTX documentation: https://www.nvidia.com/design-visualization/solutions/rendering/
+        .. _NVIDIA RTX documentation: https://developer.nvidia.com/rendering-technologies
         """
         return self._settings.get_as_bool("/isaaclab/render/rtx_sensors")
 
