@@ -54,7 +54,7 @@ Using Omniverse USD Composer
 Materials and MDL
 
 -  `Five Things to Know About Materials in NVIDIA Omniverse <https://youtu.be/C0HmcQXaENc>`__
--  `How to apply materials? <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html%23applying-materials>`__
+-  `How to apply materials? <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html#applying-materials>`__
 
 Omniverse Physics and PhysX SDK
 
@@ -120,5 +120,5 @@ Part 3: More Resources
 - `Omniverse Glossary of Terms <https://docs.omniverse.nvidia.com/isaacsim/latest/common/glossary-of-terms.html>`__
 - `Omniverse Code Samples <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref.html>`__
 - `PhysX Collider Compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
-- `PhysX Limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/features/physics/physX_limitations.html>`__
+- `PhysX Limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/simulation_fundamentals.html#omni-physics-and-physx-limitations>`__
 - `PhysX Documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.

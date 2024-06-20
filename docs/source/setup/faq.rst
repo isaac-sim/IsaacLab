@@ -82,6 +82,6 @@ to Isaac Lab, please reach out to us.
 .. _Isaac Gym: https://developer.nvidia.com/isaac-gym
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs
-.. _Orbit: https://isaac-orbit.github.io/orbit
+.. _Orbit: https://isaac-orbit.github.io/
 .. _Isaac Automator: https://github.com/isaac-sim/IsaacAutomator
 .. _migration guides: ../migration/index.html
