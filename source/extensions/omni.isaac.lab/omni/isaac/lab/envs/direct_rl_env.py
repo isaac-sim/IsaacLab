@@ -20,13 +20,13 @@ import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.envs.types import VecEnvObs, VecEnvStepReturn
 from omni.isaac.lab.managers import EventManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
 from omni.isaac.lab.utils.timer import Timer
 
+from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 

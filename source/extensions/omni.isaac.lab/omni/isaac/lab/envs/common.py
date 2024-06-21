@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from typing import Dict, Literal
+from typing import Literal
 
 import omni.isaac.lab.envs.mdp as mdp
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
