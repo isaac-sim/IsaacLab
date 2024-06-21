@@ -6,8 +6,31 @@ Task Design Workflows
 
 .. currentmodule:: omni.isaac.lab
 
-Reinforcement learning environments can be implemented using two different workflows: Manager-based and Direct.
-This page outlines the two workflows, explaining their benefits and usecases.
+Environments define the interface between the agent and the simulation. In the simplest case, the environment provides
+the agent with the current observations and executes the actions provided by the agent. In a Markov Decision Process
+(MDP) formulation, the environment can also provide additional information such as the current reward, done flag, and
+information about the current episode.
+
+While the environment interface is simple to understand, its implementation can vary significantly depending on the
+complexity of the task. In the context of reinforcement learning (RL), the environment implementation can be broken down
+into several components, such as the reward function, observation function, termination function, and reset function.
+Each of these components can be implemented in different ways depending on the complexity of the task and the desired
+level of modularity.
+
+We provide two different workflows for designing environments with the framework:
+
+* **Manager-based**: The environment is decomposed into individual components (or managers) that handle different
+  aspects of the environment (such as computing observations, applying actions, and applying randomization). The
+  user defines configuration classes for each component and the environment is responsible for coordinating the
+  managers and calling their functions.
+* **Direct**: The user defines a single class that implements the entire environment directly without the need for
+  separate managers. This class is responsible for computing observations, applying actions, and computing rewards.
+
+Both workflows have their own advantages and disadvantages. The manager-based workflow is more modular and allows
+different components of the environment to be swapped out easily. This is useful when prototyping the environment
+and experimenting with different configurations. On the other hand, the direct workflow is more efficient and allows
+for more fine-grained control over the environment logic. This is useful when optimizing the environment for performance
+or when implementing complex logic that is difficult to decompose into separate components.
 
 
 Manager-Based Environments
@@ -32,41 +55,22 @@ or ``RewardCfg``. The entry point of the environment becomes the base class :cla
 which will process the main task config and iterate through the individual configuration classes that are defined
 in the task config class.
 
-An example of implementing the reward function for the Cartpole task using the manager-based implementation is as follow:
+.. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
+    :icon: plus
 
-.. code-block:: python
+    The following class is a part of the Cartpole environment configuration class. The :class:`RewardsCfg` class
+    defines individual terms that compose the reward function. Each reward term is defined by its function
+    implementation, weight and additional parameters to be passed to the function. Users can define multiple
+    reward terms and their weights to be used in the reward function.
 
-    @configclass
-    class RewardsCfg:
-        """Reward terms for the MDP."""
-
-        # (1) Constant running reward
-        alive = RewTerm(func=mdp.is_alive, weight=1.0)
-        # (2) Failure penalty
-        terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
-        # (3) Primary task: keep pole upright
-        pole_pos = RewTerm(
-            func=mdp.joint_pos_target_l2,
-            weight=-1.0,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
-        )
-        # (4) Shaping tasks: lower cart velocity
-        cart_vel = RewTerm(
-            func=mdp.joint_vel_l1,
-            weight=-0.01,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
-        )
-        # (5) Shaping tasks: lower pole angular velocity
-        pole_vel = RewTerm(
-            func=mdp.joint_vel_l1,
-            weight=-0.005,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
-        )
+    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
+        :language: python
+        :pyobject: RewardsCfg
 
 .. seealso::
 
-    We provide a more detailed tutorial for setting up a RL environment using the manager-based workflow at
-    `Creating a manager-based RL Environment <../tutorials/03_envs/create_rl_env.html>`_.
+    We provide a more detailed tutorial for setting up an environment using the manager-based workflow at
+    :ref:`tutorial-create-manager-rl-env`.
 
 
 Direct Environments
@@ -86,53 +90,29 @@ task class that inherits from the base class :class:`envs.DirectRLEnv`. This cla
 task logics, including setting up the scene, processing the actions, computing resets, rewards, and observations.
 
 This approach may bring more performance benefits for the environment, as it allows implementing large chunks
-of logic with optimized frameworks such as `PyTorch Jit <https://pytorch.org/docs/stable/jit.html>`_ or
+of logic with optimized frameworks such as `PyTorch JIT <https://pytorch.org/docs/stable/jit.html>`_ or
 `Warp <https://github.com/NVIDIA/warp>`_. This may be important when scaling up training for large and complex
 environments. Additionally, data may be cached in class variables and reused in multiple APIs for the class.
 This method provides more transparency in the implementations of the environments, as logic is defined
 within the task class instead of abstracted with the use the Managers.
 
-An example of implementing the reward function for the Cartpole task using the Direct-style implementation is as follow:
+.. dropdown:: Example for defining the reward function for the Cartpole task using the direct-style
+    :icon: plus
+    
+    The following function is a part of the Cartpole environment class and is responsible for computing the rewards.
 
-.. code-block:: python
+    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+        :language: python
+        :pyobject: CartpoleEnv._get_rewards
+        :dedent: 4
 
-   def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
-            self.cfg.rew_scale_alive,
-            self.cfg.rew_scale_terminated,
-            self.cfg.rew_scale_pole_pos,
-            self.cfg.rew_scale_cart_vel,
-            self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._cart_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
-            self.reset_terminated,
-        )
-        return total_reward
+    It calls the :meth:`compute_rewards` function which is Torch JIT compiled for performance benefits.
 
-   @torch.jit.script
-   def compute_rewards(
-       rew_scale_alive: float,
-       rew_scale_terminated: float,
-       rew_scale_pole_pos: float,
-       rew_scale_cart_vel: float,
-       rew_scale_pole_vel: float,
-       pole_pos: torch.Tensor,
-       pole_vel: torch.Tensor,
-       cart_pos: torch.Tensor,
-       cart_vel: torch.Tensor,
-       reset_terminated: torch.Tensor,
-   ):
-       rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-       rew_termination = rew_scale_terminated * reset_terminated.float()
-       rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos), dim=-1)
-       rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel), dim=-1)
-       rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel), dim=-1)
-       total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
-       return total_reward
+    .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
+        :language: python
+        :pyobject: compute_rewards
 
 .. seealso::
 
     We provide a more detailed tutorial for setting up a RL environment using the direct workflow at
-    `Creating a Direct Workflow RL Environment <../tutorials/03_envs/create_direct_rl_env.html>`_.
+    :ref:`tutorial-create-direct-rl-env`.

@@ -11,17 +11,24 @@ observations and executes the actions provided by the agent. However, the
 environment can also provide additional information such as the current
 reward, done flag, and information about the current episode.
 
-Based on these, there are two types of task design patterns:
+There are two types of environment designing workflows:
 
-* **Manager-based workflow**: This workflow decomposes the environment into
-  individual components (or managers) that handle different aspects of the
-  environment (such as computing observations, applying actions, and applying
-  randomization). The environment is responsible for mainly coordinating
-  the managers and calling their functions.
-* **Direct workflow**: This workflow provides a more direct interface to the
-  task designing. The environment is implemented into a single class that directly
-  handles all the necessary functionality without the need for additional
-  managers.
+* **Manager-based**: The environment is decomposed into individual components (or managers)
+  for different aspects (such as computing observations, applying actions, and applying
+  randomization. The users mainly configure the managers and the environment coordinates the
+  managers and calls their functions.
+* **Direct**: The user implements all the necessary functionality directly into a single class
+  directly without the need for additional managers.
+
+Based on these workflows, there are the following environment classes:
+
+* :class:`ManagerBasedEnv`: The manager-based workflow base environment which only provides the
+  agent with the current observations and executes the actions provided by the agent.
+* :class:`ManagerBasedRLEnv`: The manager-based workflow RL task environment which besides the
+  functionality of the base environment also provides additional Markov Decision Process (MDP)
+  related information such as the current reward, done flag, and information.
+* :class:`DirectRLEnv`: The direct workflow RL task environment which provides implementations for
+  implementing scene setup, computing dones, performing resets, and computing reward and observation.
 
 For more information about the workflow design patterns, see the `Task Design Workflows`_ section.
 
