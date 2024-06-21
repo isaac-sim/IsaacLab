@@ -7,7 +7,7 @@ from dataclasses import MISSING
 
 from omni.isaac.lab.utils import configclass
 
-from .base_env_cfg import ManagerBasedEnvCfg
+from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ManagerBasedRLEnvWindow
 
 

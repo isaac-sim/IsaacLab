@@ -19,7 +19,7 @@ from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardMan
 
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from .types import VecEnvStepReturn
+from .common import VecEnvStepReturn
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):

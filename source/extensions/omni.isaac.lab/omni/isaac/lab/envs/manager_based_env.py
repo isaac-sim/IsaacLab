@@ -12,7 +12,6 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.envs.types import VecEnvObs
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
@@ -20,6 +19,7 @@ from omni.isaac.lab.utils.timer import Timer
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
+from .common import VecEnvObs
 
 
 class ManagerBasedEnv:

@@ -9,9 +9,6 @@ Task Design Workflows
 Reinforcement learning environments can be implemented using two different workflows: Manager-based and Direct.
 This page outlines the two workflows, explaining their benefits and usecases.
 
-In addition, multi-GPU and multi-node reinforcement learning support is explained, along with the tiled rendering API,
-which can be used for efficient vectorized rendering across environments.
-
 
 Manager-Based Environments
 --------------------------
