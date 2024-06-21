@@ -27,7 +27,7 @@ from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
 from omni.isaac.lab.utils.timer import Timer
 
-from .rl_env_cfg import DirectRLEnvCfg
+from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 
 

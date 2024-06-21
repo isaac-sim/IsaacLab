@@ -18,7 +18,7 @@ from omni.isaac.version import get_version
 from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 
 from .manager_based_env import ManagerBasedEnv
-from .rl_env_cfg import ManagerBasedRLEnvCfg
+from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from .types import VecEnvStepReturn
 
 

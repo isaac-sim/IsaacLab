@@ -82,6 +82,7 @@ class ManagerBasedEnvCfg:
     # simulation settings
     viewer: ViewerCfg = ViewerCfg()
     """Viewer configuration. Default is ViewerCfg()."""
+
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
