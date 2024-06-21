@@ -8,14 +8,14 @@ from __future__ import annotations
 import torch
 from typing import Dict, Literal
 
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
 import omni.isaac.lab.envs.mdp as mdp
-
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.utils import configclass
 
 ##
 # Configuration.
 ##
+
 
 @configclass
 class ViewerCfg:
@@ -75,7 +75,7 @@ class DefaultEventManagerCfg:
 # Types.
 ##
 
-VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]
+VecEnvObs = dict[str, torch.Tensor | dict[str, torch.Tensor]]
 """Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.
@@ -98,7 +98,7 @@ Note:
 
 """
 
-VecEnvStepReturn = tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, Dict]
+VecEnvStepReturn = tuple[VecEnvObs, torch.Tensor, torch.Tensor, torch.Tensor, dict]
 """The environment signals processed at the end of each step.
 
 The tuple contains batched information for each sub-environment. The information is stored in the following order:
