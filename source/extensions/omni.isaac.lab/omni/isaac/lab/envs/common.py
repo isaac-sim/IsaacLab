@@ -75,7 +75,7 @@ class DefaultEventManagerCfg:
 # Types.
 ##
 
-VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]  # type: ignore
+VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]
 """Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.
