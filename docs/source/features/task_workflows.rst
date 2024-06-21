@@ -36,24 +36,29 @@ or when implementing complex logic that is difficult to decompose into separate 
 Manager-Based Environments
 --------------------------
 
-Manager-based environments promote modular implementations of reinforcement learning tasks
-through the use of Managers. Each component of the task, such as rewards, observations, termination
-can all be specified as individual configuration classes that are then passed to the corresponding
-manager classes. Each manager is responsible for parsing the configurations and processing
-the contents specified in each config class. The manager implementations are taken care of by
-the base class :class:`envs.ManagerBasedRLEnv`.
+A majority of environment implementations follow a similar structure. The environment processes the input actions,
+steps through the simulation, computes observations and reward signals, applies randomization, and resets the terminated
+environments. Motivated by this, the environment can be decomposed into individual components that handle each of these tasks.
+For example, the observation manager is responsible for computing the observations, the reward manager is responsible for
+computing the rewards, and the termination manager is responsible for computing the termination signal. This approach
+is known as the manager-based environment design in the framework.
 
-With this approach, it is simple to switch implementations of some components in the task
-while leaving the remaining of the code intact. This is desirable when collaborating with others
-on implementing a reinforcement learning environment, where contributors may choose to use
-different combinations of configurations for the reinforcement learning components of the task.
+Manager-based environments promote modular implementations of tasks by decomposing the task into individual
+components that are managed by separate classes. Each component of the task, such as rewards, observations,
+termination can all be specified as individual configuration classes that are then passed to the corresponding
+manager classes. The manager is then responsible for parsing the configurations and processing the contents specified
+in its configuration instance.
 
-A class definition of a manager-based environment consists of defining a task configuration class that
-inherits from :class:`envs.ManagerBasedRLEnvCfg`. This class should contain variables assigned to various
-configuration classes for each of the components of the RL task, such as the ``ObservationCfg``
-or ``RewardCfg``. The entry point of the environment becomes the base class :class:`envs.ManagerBasedRLEnv`,
-which will process the main task config and iterate through the individual configuration classes that are defined
-in the task config class.
+The coordination between the different managers is orchestrated by the class :class:`envs.ManagerBasedRLEnv`.
+It takes in a task configuration class instance (:class:`envs.ManagerBasedRLEnvCfg`) that contains the configurations
+for each of the components of the task. Based on the configurations, the scene is set up and the task is initialized.
+Afterwards, while stepping through the environment, all the managers are called sequentially to perform the necessary
+operations.
+
+For their own tasks, we expect the user to mainly define the task configuration class and use the existing
+:class:`envs.ManagerBasedRLEnv` class for the task implementation. The task configuration class should inherit from
+the base class :class:`envs.ManagerBasedRLEnvCfg` and contain variables assigned to various configuration classes
+for each component (such as the ``ObservationCfg`` and ``RewardCfg``).
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
     :icon: plus
@@ -67,6 +72,13 @@ in the task config class.
         :language: python
         :pyobject: RewardsCfg
 
+
+Through this approach, it is possible to easily vary the implementations of the task by switching some components
+while leaving the remaining of the code intact. This flexibility is desirable when prototyping the environment and
+experimenting with different configurations. It also allows for easy collaborating with others on implementing an
+environment, since contributors may choose to use different combinations of configurations for their own task
+specifications.
+
 .. seealso::
 
     We provide a more detailed tutorial for setting up an environment using the manager-based workflow at
@@ -76,25 +88,18 @@ in the task config class.
 Direct Environments
 -------------------
 
-The direct-style environment more closely aligns with traditional implementations of reinforcement learning environments,
-where a single script implements the reward function, observation function, resets, and all other components
-of the environment. This approach does not use the Manager classes. Instead, users are left with the freedom
-to implement the APIs from the base class :class:`envs.DirectRLEnv`. For users migrating from the IsaacGymEnvs
-or OmniIsaacGymEnvs framework, this workflow will have a closer implementation to the previous frameworks.
+The direct-style environment aligns more closely with traditional implementations of environments,
+where a single script directly implements the reward function, observation function, resets, and all the other components
+of the environment. This approach does not require the manager classes. Instead, users are provided the complete freedom
+to implement their task through the APIs from the base class :class:`envs.DirectRLEnv`. For users migrating from the `IsaacGymEnvs`_
+and `OmniIsaacGymEnvs`_ framework, this workflow may be more familiar.
 
-When defining an environment following the direct-style implementation, a task configuration class inheriting from
-:class:`envs.DirectRLEnvCfg` is used for defining task environment configuration variables, such as the number
-of observations and actions. Adding configuration classes for the managers are not required and will not be processed
-by the base class. In addition to the configuration class, the logic of the task should be defined in a new
-task class that inherits from the base class :class:`envs.DirectRLEnv`. This class will then implement the main
-task logics, including setting up the scene, processing the actions, computing resets, rewards, and observations.
-
-This approach may bring more performance benefits for the environment, as it allows implementing large chunks
-of logic with optimized frameworks such as `PyTorch JIT <https://pytorch.org/docs/stable/jit.html>`_ or
-`Warp <https://github.com/NVIDIA/warp>`_. This may be important when scaling up training for large and complex
-environments. Additionally, data may be cached in class variables and reused in multiple APIs for the class.
-This method provides more transparency in the implementations of the environments, as logic is defined
-within the task class instead of abstracted with the use the Managers.
+When defining an environment with the direct-style implementation, the user is expected to define a single class that
+implements the entire environment. The task class should inherit from the base class :class:`envs.DirectRLEnv` and is
+configured with a task configuration class that inherits from :class:`envs.DirectRLEnvCfg`. The task configuration class
+is used for defining task environment configuration variables, such as the number of observations and actions. In their
+task class, users are responsible for implementing the main task logics, such as setting up the scene, processing the
+actions, computing resets, rewards, and observations.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the direct-style
     :icon: plus
@@ -112,7 +117,20 @@ within the task class instead of abstracted with the use the Managers.
         :language: python
         :pyobject: compute_rewards
 
+This approach provides more transparency in the implementations of the environments, as logic is defined within the task
+class instead of abstracted with the use of managers. This may be beneficial when implementing complex logic that is
+difficult to decompose into separate components. Additionally, the direct-style implementation may bring more performance
+benefits for the environment, as it allows implementing large chunks of logic with optimized frameworks such as
+`PyTorch JIT`_ or `Warp`_. This may be valuable when scaling up training tremendously which requires optimizing individual
+operations in the environment.
+
 .. seealso::
 
     We provide a more detailed tutorial for setting up a RL environment using the direct workflow at
     :ref:`tutorial-create-direct-rl-env`.
+
+
+.. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
+.. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs
+.. _Pytorch JIT: https://pytorch.org/docs/stable/jit.html
+.. _Warp: https://github.com/NVIDIA/warp
