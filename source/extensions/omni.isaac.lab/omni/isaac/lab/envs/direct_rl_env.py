@@ -32,9 +32,9 @@ from .ui import ViewportCameraController
 
 
 class DirectRLEnv(gym.Env):
-    """The superclass for the direct workflow reinforcement learning-based environments.
+    """The superclass for the direct workflow to design environments.
 
-    This class implements the core functionality for reinforcement learning-based
+    This class implements the core functionality for reinforcement learning (RL)
     environments. It is designed to be used with any RL library. The class is designed
     to be used with vectorized environments, i.e., the environment is expected to be run
     in parallel with multiple sub-environments.
@@ -69,6 +69,8 @@ class DirectRLEnv(gym.Env):
 
         Args:
             cfg: The configuration object for the environment.
+            render_mode: The render mode for the environment. Defaults to None, which
+                is similar to ``"human"``.
 
         Raises:
             RuntimeError: If a simulation context already exists. The environment must always create one

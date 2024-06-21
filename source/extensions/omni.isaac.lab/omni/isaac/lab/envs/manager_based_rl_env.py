@@ -84,9 +84,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
+
         # perform events at the start of the simulation
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
+
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
