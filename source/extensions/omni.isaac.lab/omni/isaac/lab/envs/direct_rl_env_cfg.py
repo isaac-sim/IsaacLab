@@ -8,15 +8,18 @@ from dataclasses import MISSING
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.noise.noise_cfg import NoiseModelCfg
+from omni.isaac.lab.utils.noise import NoiseModelCfg
 
-from .manager_based_env_cfg import ViewerCfg
+from .common import DefaultEventManagerCfg, ViewerCfg
 from .ui import BaseEnvWindow
 
 
 @configclass
 class DirectRLEnvCfg:
-    """Configuration for a reinforcement learning environment with the direct workflow."""
+    """Configuration for an RL environment defined with the direct workflow.
+
+    Please refer to the :class:`omni.isaac.lab.envs.direct_rl_env.DirectRLEnv` class for more details.
+    """
 
     # simulation settings
     viewer: ViewerCfg = ViewerCfg()
@@ -45,14 +48,6 @@ class DirectRLEnvCfg:
     This means that the control action is updated every 10 simulation steps.
     """
 
-    # environment settings
-    scene: InteractiveSceneCfg = MISSING
-    """Scene settings.
-
-    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
-    """
-
-    # general settings
     is_finite_horizon: bool = False
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
@@ -88,29 +83,39 @@ class DirectRLEnvCfg:
     then the episode length in steps is 100.
     """
 
+    # environment settings
+    scene: InteractiveSceneCfg = MISSING
+    """Scene settings.
+
+    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
+    """
+
+    events: object = DefaultEventManagerCfg()
+    """Event settings. Defaults to the basic configuration that resets the scene to its default state.
+
+    Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
+    """
+
     num_observations: int = MISSING
-    """The size of the observation for each environment."""
+    """The dimension of the observation space from each environment instance."""
 
     num_states: int = 0
-    """The size of the state-space for each environment. Default is 0.
+    """The dimension of the state-space from each environment instance. Default is 0, which means no state-space is defined.
 
-    This is used for asymmetric actor-critic and defines the observation space for the critic.
-    """
-
-    num_actions: int = MISSING
-    """The size of the action space for each environment."""
-
-    events: object = None
-    """Settings for specifying domain randomization terms during training.
-       Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
-    """
-
-    action_noise_model: NoiseModelCfg | None = None
-    """Settings for adding noise to the action buffer.
-       Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
+    This is useful for asymmetric actor-critic and defines the observation space for the critic.
     """
 
     observation_noise_model: NoiseModelCfg | None = None
-    """Settings for adding noise to the observation buffer.
-       Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
+    """The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.
+
+    Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
+    """
+
+    num_actions: int = MISSING
+    """The dimension of the action space for each environment."""
+
+    action_noise_model: NoiseModelCfg | None = None
+    """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.
+
+    Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
     """
