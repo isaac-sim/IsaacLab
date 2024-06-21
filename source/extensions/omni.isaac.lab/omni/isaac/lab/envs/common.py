@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import torch
-from typing import Literal, Dict
+from typing import Dict, Literal
 
 import omni.isaac.lab.envs.mdp as mdp
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
@@ -75,7 +75,7 @@ class DefaultEventManagerCfg:
 # Types.
 ##
 
-VecEnvObs = Dict[str, torch.Tensor | Dict[str, torch.Tensor]]  # type: ignore
+VecEnvObs = dict[str, torch.Tensor | dict[str, torch.Tensor]]  # type: ignore
 """Observation returned by the environment.
 
 The observations are stored in a dictionary. The keys are the group to which the observations belong.

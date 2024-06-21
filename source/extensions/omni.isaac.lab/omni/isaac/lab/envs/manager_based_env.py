@@ -17,9 +17,9 @@ from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
 
+from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
-from .common import VecEnvObs
 
 
 class ManagerBasedEnv:

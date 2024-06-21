@@ -98,7 +98,7 @@ within the task class instead of abstracted with the use the Managers.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the direct-style
     :icon: plus
-    
+
     The following function is a part of the Cartpole environment class and is responsible for computing the rewards.
 
     .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_env.py
