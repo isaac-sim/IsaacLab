@@ -10,7 +10,7 @@ from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.noise import NoiseModelCfg
 
-from .common import DefaultEventManagerCfg, ViewerCfg
+from .common import ViewerCfg
 from .ui import BaseEnvWindow
 
 
@@ -90,8 +90,8 @@ class DirectRLEnvCfg:
     Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
     """
 
-    events: object = DefaultEventManagerCfg()
-    """Event settings. Defaults to the basic configuration that resets the scene to its default state.
+    events: object = None
+    """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """

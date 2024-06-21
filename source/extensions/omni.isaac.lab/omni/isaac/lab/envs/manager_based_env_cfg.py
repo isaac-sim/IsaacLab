@@ -11,12 +11,25 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from dataclasses import MISSING
 
+import omni.isaac.lab.envs.mdp as mdp
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import SimulationCfg
 from omni.isaac.lab.utils import configclass
 
-from .common import DefaultEventManagerCfg, ViewerCfg
+from .common import ViewerCfg
 from .ui import BaseEnvWindow
+
+
+@configclass
+class DefaultEventManagerCfg:
+    """Configuration of the default event manager.
+
+    This manager is used to reset the scene to a default state. The default state is specified
+    by the scene configuration.
+    """
+
+    reset_scene_to_default = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
 @configclass

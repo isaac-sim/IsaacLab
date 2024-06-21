@@ -8,8 +8,6 @@ from __future__ import annotations
 import torch
 from typing import Dict, Literal
 
-import omni.isaac.lab.envs.mdp as mdp
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.utils import configclass
 
 ##
@@ -58,17 +56,6 @@ class ViewerCfg:
 
     This quantity is only effective if :attr:`origin` is set to "asset_root".
     """
-
-
-@configclass
-class DefaultEventManagerCfg:
-    """Configuration of the default event manager.
-
-    This manager is used to reset the scene to a default state. The default state is specified
-    by the scene configuration.
-    """
-
-    reset_scene_to_default = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
 
 ##
