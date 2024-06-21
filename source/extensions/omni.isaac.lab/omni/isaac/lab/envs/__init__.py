@@ -30,9 +30,10 @@ In addition, RL task environments can use the direct workflow implementation:
 """
 
 from . import mdp, ui
-from .base_env_cfg import ManagerBasedEnvCfg, ViewerCfg
 from .direct_rl_env import DirectRLEnv
+from .direct_rl_env_cfg import DirectRLEnvCfg
 from .manager_based_env import ManagerBasedEnv
+from .manager_based_env_cfg import ManagerBasedEnvCfg, ViewerCfg
 from .manager_based_rl_env import ManagerBasedRLEnv
-from .rl_env_cfg import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from .types import VecEnvObs, VecEnvStepReturn
