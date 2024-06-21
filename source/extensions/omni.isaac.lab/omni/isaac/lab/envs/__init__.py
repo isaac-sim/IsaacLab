@@ -25,7 +25,7 @@ Based on these, there are two types of task design patterns:
 
 For more information about the workflow design patterns, see the `Task Design Workflows`_ section.
 
-.. `Task Design Workflows`_: https://isaac-sim.github.io/IsaacLab/source/features/workflows.html
+.. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/workflows.html
 """
 
 from . import mdp, ui
