@@ -69,7 +69,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
-   source/features/workflows
+   source/features/task_workflows
    source/features/multi_gpu
    source/features/tiled_rendering
    source/features/environments
