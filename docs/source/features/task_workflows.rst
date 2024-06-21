@@ -47,7 +47,7 @@ Manager-based environments promote modular implementations of tasks by decomposi
 components that are managed by separate classes. Each component of the task, such as rewards, observations,
 termination can all be specified as individual configuration classes that are then passed to the corresponding
 manager classes. The manager is then responsible for parsing the configurations and processing the contents specified
-in its configuration instance.
+in its configuration.
 
 The coordination between the different managers is orchestrated by the class :class:`envs.ManagerBasedRLEnv`.
 It takes in a task configuration class instance (:class:`envs.ManagerBasedRLEnvCfg`) that contains the configurations
@@ -94,12 +94,10 @@ of the environment. This approach does not require the manager classes. Instead,
 to implement their task through the APIs from the base class :class:`envs.DirectRLEnv`. For users migrating from the `IsaacGymEnvs`_
 and `OmniIsaacGymEnvs`_ framework, this workflow may be more familiar.
 
-When defining an environment with the direct-style implementation, the user is expected to define a single class that
-implements the entire environment. The task class should inherit from the base class :class:`envs.DirectRLEnv` and is
-configured with a task configuration class that inherits from :class:`envs.DirectRLEnvCfg`. The task configuration class
-is used for defining task environment configuration variables, such as the number of observations and actions. In their
-task class, users are responsible for implementing the main task logics, such as setting up the scene, processing the
-actions, computing resets, rewards, and observations.
+When defining an environment with the direct-style implementation, we expect the user define a single class that
+implements the entire environment. The task class should inherit from the base :class:`envs.DirectRLEnv` class and should
+have its corresponding configuration class that inherits from :class:`envs.DirectRLEnvCfg`. The task class is responsible
+for setting up the scene, processing the actions, computing the rewards, observations, resets, and termination signals.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the direct-style
     :icon: plus
