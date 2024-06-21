@@ -11,22 +11,21 @@ observations and executes the actions provided by the agent. However, the
 environment can also provide additional information such as the current
 reward, done flag, and information about the current episode.
 
-Based on these, there are two types of environments:
+Based on these, there are two types of task design patterns:
 
-* :class:`ManagerBasedEnv`: The manager-based workflow base environment which
-  only provides the agent with the
-  current observations and executes the actions provided by the agent.
-* :class:`ManagerBasedRLEnv`: The manager-based workflow RL task environment which
-  besides the functionality of
-  the base environment also provides additional Markov Decision Process (MDP)
-  related information such as the current reward, done flag, and information.
+* **Manager-based workflow**: This workflow decomposes the environment into
+  individual components (or managers) that handle different aspects of the
+  environment (such as computing observations, applying actions, and applying
+  randomization). The environment is responsible for mainly coordinating
+  the managers and calling their functions.
+* **Direct workflow**: This workflow provides a more direct interface to the
+  task designing. The environment is implemented into a single class that directly
+  handles all the necessary functionality without the need for additional
+  managers.
 
-In addition, RL task environments can use the direct workflow implementation:
+For more information about the workflow design patterns, see the `Task Design Workflows`_ section.
 
-* :class:`DirectRLEnv`: The direct workflow RL task environment which provides implementations
-  for implementing scene setup, computing dones, performing resets, and computing
-  reward and observation.
-
+.. `Task Design Workflows`_: https://isaac-sim.github.io/IsaacLab/source/features/workflows.html
 """
 
 from . import mdp, ui
