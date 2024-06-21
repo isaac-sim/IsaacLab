@@ -240,7 +240,7 @@ class ManagerBasedEnv:
         The environment steps forward at a fixed time-step, while the physics simulation is
         decimated at a lower time-step. This is to ensure that the simulation is stable. These two
         time-steps can be configured independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.physics_dt` (physics time-step).
+        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
         Args:
