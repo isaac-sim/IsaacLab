@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import torch
 
 import omni.isaac.lab.sim as sim_utils
@@ -157,6 +158,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     sim_time = 0.0
     count = 0
 
+    # Create output directory to save images
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+    os.makedirs(output_dir, exist_ok=True)
+
     # Simulate physics
     while simulation_app.is_running():
         # Reset
@@ -213,35 +218,46 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         print("Received shape of normals: ", scene["raycast_camera"].data.output["normals"].shape)
         print("Received shape of distance_to_camera: ", scene["raycast_camera"].data.output["distance_to_camera"].shape)
 
-        # show images
+        # compare generated RGB images across different cameras
         rgb_images = [scene["camera"].data.output["rgb"][0, :, :, :3], scene["tiled_camera"].data.output["rgb"][0]]
+        save_images_grid(
+            rgb_images,
+            subtitles=["Camera", "TiledCamera"],
+            title="RGB Image: Cam0",
+            filename=os.path.join(output_dir, "rgb_images.png"),
+        )
+
+        # compare generated Depth images across different cameras
         depth_images = [
             scene["camera"].data.output["distance_to_image_plane"][0],
             scene["tiled_camera"].data.output["depth"][0, :, :, 0],
             scene["raycast_camera"].data.output["distance_to_image_plane"][0],
         ]
-
-        # compare generated RGB images across different cameras
-        save_images_grid(
-            rgb_images, nrow=1, subtitles=["Camera", "TiledCamera"], title="RGB Image", filename="rgb_images.png"
-        )
-        # compare generated Depth images across different cameras
         save_images_grid(
             depth_images,
-            nrow=1,
             cmap="turbo",
             subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
-            title="Depth Image",
-            filename="depth_images.png",
+            title="Depth Image: Cam0",
+            filename=os.path.join(output_dir, "depth_images.png"),
         )
 
         # save all tiled RGB images
-        tiled_images = scene["tiled_camera"].data.output["rgb"]
-        save_images_grid(tiled_images, nrow=1, subtitles=["0", "1"], title="RGB Image", filename="tiled_rgb_images.png")
+        tiled_images = scene["tiled_camera"].data.output["rgb"][:2]
+        save_images_grid(
+            tiled_images,
+            subtitles=["Cam0", "Cam1"],
+            title="Tiled RGB Image",
+            filename=os.path.join(output_dir, "tiled_rgb_images.png"),
+        )
 
         # save all camera RGB images
-        cam_images = scene["camera"].data.output["rgb"][..., :3]
-        save_images_grid(cam_images, nrow=1, subtitles=["0", "1"], title="RGB Image", filename="cam_rgb_images.png")
+        cam_images = scene["camera"].data.output["rgb"][:2, ..., :3]
+        save_images_grid(
+            cam_images,
+            subtitles=["Cam0", "Cam1"],
+            title="Camera RGB Image",
+            filename=os.path.join(output_dir, "cam_rgb_images.png"),
+        )
 
 
 def main():
