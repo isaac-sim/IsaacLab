@@ -5,17 +5,17 @@
 
 from __future__ import annotations
 
-from omni.isaac.lab_assets import HUMANOID_CFG
+from isaaclab_assets import HUMANOID_CFG
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg
-from omni.isaac.lab.envs import DirectRLEnvCfg
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.terrains import TerrainImporterCfg
-from omni.isaac.lab.utils import configclass
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 
-from omni.isaac.lab_tasks.direct.locomotion.locomotion_env import LocomotionEnv
+from isaaclab_tasks.direct.locomotion.locomotion_env import LocomotionEnv
 
 
 @configclass

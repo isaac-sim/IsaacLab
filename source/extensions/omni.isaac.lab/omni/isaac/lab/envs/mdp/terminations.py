@@ -5,7 +5,7 @@
 
 """Common functions that can be used to activate certain terminations.
 
-The functions can be passed to the :class:`omni.isaac.lab.managers.TerminationTermCfg` object to enable
+The functions can be passed to the :class:`isaaclab.managers.TerminationTermCfg` object to enable
 the termination introduced by the function.
 """
 
@@ -14,13 +14,13 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import ContactSensor
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
-    from omni.isaac.lab.managers.command_manager import CommandTerm
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers.command_manager import CommandTerm
 
 """
 MDP terminations.

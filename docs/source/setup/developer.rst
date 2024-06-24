@@ -93,9 +93,9 @@ The ``Isaac Lab`` repository is structured as follows:
    ├── docs
    ├── source
    │   ├── extensions
-   │   │   ├── omni.isaac.lab
-   │   │   ├── omni.isaac.lab_assets
-   │   │   └── omni.isaac.lab_tasks
+   │   │   ├── isaaclab
+   │   │   ├── isaaclab_assets
+   │   │   └── isaaclab_tasks
    │   ├── standalone
    │   │   ├── demos
    │   │   ├── environments
@@ -198,15 +198,15 @@ enabled that load the python module and run the python application. While this i
 workflow, it is not always possible to use this workflow. For example, for robot learning, it is
 essential to have complete control over simulation stepping and all the other functionalities
 instead of asynchronously waiting for the simulator to step. In such cases, it is necessary to
-write a standalone application that launches the simulator using :class:`~omni.isaac.lab.app.AppLauncher`
-and allows complete control over the simulation through the :class:`~omni.isaac.lab.sim.SimulationContext`
+write a standalone application that launches the simulator using :class:`~isaaclab.app.AppLauncher`
+and allows complete control over the simulation through the :class:`~isaaclab.sim.SimulationContext`
 class.
 
 .. code:: python
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.lab.app import AppLauncher
+   from isaaclab.app import AppLauncher
 
    # launch omniverse app
    app_launcher = AppLauncher(headless=False)
@@ -215,7 +215,7 @@ class.
 
    """Rest everything follows."""
 
-   from omni.isaac.lab.sim import SimulationContext
+   from isaaclab.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
@@ -234,8 +234,8 @@ class.
 The ``source/standalone`` directory contains various standalone applications designed using the extensions
 provided by ``Isaac Lab``. These applications are written in python and are structured as follows:
 
-* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.lab``.
-* **environments**: Contains applications for running environments defined in ``omni.isaac.lab_tasks`` with different agents.
+* **demos**: Contains various demo applications that showcase the core framework ``isaaclab``.
+* **environments**: Contains applications for running environments defined in ``isaaclab_tasks`` with different agents.
   These include a random policy, zero-action policy, teleoperation or scripted state machines.
 * **tools**: Contains applications for using the tools provided by the framework. These include converting assets, generating
   datasets, etc.

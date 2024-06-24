@@ -18,10 +18,10 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab/omni/isaac/lab"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/extensions/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/extensions/isaaclab/isaaclab"))
+sys.path.insert(0, os.path.abspath("../source/extensions/isaaclab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/extensions/isaaclab_tasks/isaaclab_tasks"))
 
 # -- Project information -----------------------------------------------------
 

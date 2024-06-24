@@ -11,11 +11,11 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from dataclasses import MISSING
 
-import omni.isaac.lab.envs.mdp as mdp
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.utils import configclass
+import isaaclab.envs.mdp as mdp
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
 
 from .common import ViewerCfg
 from .ui import BaseEnvWindow
@@ -51,7 +51,7 @@ class ManagerBasedEnvCfg:
 
     Note:
         If you want to make your own UI window, you can create a class that inherits from
-        from :class:`omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set
+        from :class:`isaaclab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set
         this attribute to your class type.
     """
 
@@ -67,25 +67,25 @@ class ManagerBasedEnvCfg:
     scene: InteractiveSceneCfg = MISSING
     """Scene settings.
 
-    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
+    Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
     """
 
     observations: object = MISSING
     """Observation space settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.ObservationManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.ObservationManager` class for more details.
     """
 
     actions: object = MISSING
     """Action space settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.ActionManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.ActionManager` class for more details.
     """
 
     events: object = DefaultEventManagerCfg()
     """Event settings. Defaults to the basic configuration that resets the scene to its default state.
 
-    Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.EventManager` class for more details.
     """
 
     randomization: object | None = None

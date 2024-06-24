@@ -1,7 +1,7 @@
 Registering an Environment
 ==========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorial, we learned how to create a custom cartpole environment. We manually
 created an instance of the environment by importing the environment class and its configuration
@@ -71,9 +71,9 @@ Manager-Based Environments
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For manager-based environments, the following shows the registration
-call for the cartpole environment in the ``omni.isaac.lab_tasks.manager_based.classic.cartpole`` sub-package:
+call for the cartpole environment in the ``isaaclab_tasks.manager_based.classic.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/__init__.py
+.. literalinclude:: ../../../../source/extensions/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/__init__.py
    :language: python
    :lines: 10-
    :emphasize-lines: 4, 11, 12, 15
@@ -88,11 +88,11 @@ and difficult to read.
 
 The ``entry_point`` argument is the entry point to the environment class. The entry point is a string
 of the form ``<module>:<class>``. In the case of the cartpole environment, the entry point is
-``omni.isaac.lab.envs:ManagerBasedRLEnv``. The entry point is used to import the environment class
+``isaaclab.envs:ManagerBasedRLEnv``. The entry point is used to import the environment class
 when creating the environment instance.
 
 The ``env_cfg_entry_point`` argument specifies the default configuration for the environment. The default
-configuration is loaded using the :meth:`omni.isaac.lab_tasks.utils.parse_env_cfg` function.
+configuration is loaded using the :meth:`isaaclab_tasks.utils.parse_env_cfg` function.
 It is then passed to the :meth:`gymnasium.make` function to create the environment instance.
 The configuration entry point can be both a YAML file or a python configuration class.
 
@@ -100,15 +100,15 @@ Direct Environments
 ^^^^^^^^^^^^^^^^^^^
 
 For direct-based environments, the environment registration follows a similar pattern. Instead of
-registering the environment's entry point as the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class,
+registering the environment's entry point as the :class:`~isaaclab.envs.ManagerBasedRLEnv` class,
 we register the environment's entry point as the implementation class of the environment.
 Additionally, we add the suffix ``-Direct`` to the environment name to differentiate it from the
 manager-based environments.
 
 As an example, the following shows the registration call for the cartpole environment in the
-``omni.isaac.lab_tasks.direct.cartpole`` sub-package:
+``isaaclab_tasks.direct.cartpole`` sub-package:
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/__init__.py
+.. literalinclude:: ../../../../source/extensions/isaaclab_tasks/isaaclab_tasks/direct/cartpole/__init__.py
    :language: python
    :lines: 10-31
    :emphasize-lines: 5, 12, 13, 16
@@ -117,14 +117,14 @@ As an example, the following shows the registration call for the cartpole enviro
 Creating the environment
 ------------------------
 
-To inform the ``gym`` registry with all the environments provided by the ``omni.isaac.lab_tasks``
+To inform the ``gym`` registry with all the environments provided by the ``isaaclab_tasks``
 extension, we must import the module at the start of the script. This will execute the ``__init__.py``
 file which iterates over all the sub-packages and registers their respective environments.
 
 .. literalinclude:: ../../../../source/standalone/environments/random_agent.py
    :language: python
-   :start-at: import omni.isaac.lab_tasks  # noqa: F401
-   :end-at: import omni.isaac.lab_tasks  # noqa: F401
+   :start-at: import isaaclab_tasks  # noqa: F401
+   :end-at: import isaaclab_tasks  # noqa: F401
 
 In this tutorial, the task name is read from the command line. The task name is used to parse
 the default configuration as well as to create the environment instance. In addition, other

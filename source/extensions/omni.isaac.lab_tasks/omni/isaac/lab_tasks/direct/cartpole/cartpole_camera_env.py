@@ -11,17 +11,17 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 
-from omni.isaac.lab_assets.cartpole import CARTPOLE_CFG
+from isaaclab_assets.cartpole import CARTPOLE_CFG
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg
-from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
-from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.math import sample_uniform
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils import configclass
+from isaaclab.utils.math import sample_uniform
 
 
 @configclass

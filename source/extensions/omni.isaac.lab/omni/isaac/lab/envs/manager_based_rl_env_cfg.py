@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ManagerBasedRLEnvWindow
@@ -58,23 +58,23 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     rewards: object = MISSING
     """Reward settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.RewardManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.RewardManager` class for more details.
     """
 
     terminations: object = MISSING
     """Termination settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.TerminationManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.TerminationManager` class for more details.
     """
 
     curriculum: object = MISSING
     """Curriculum settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.CurriculumManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.CurriculumManager` class for more details.
     """
 
     commands: object = MISSING
     """Command settings.
 
-    Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.
     """

@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from omni.isaac.lab.markers import VisualizationMarkersCfg
-from omni.isaac.lab.markers.config import CONTACT_SENSOR_MARKER_CFG
-from omni.isaac.lab.utils import configclass
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.markers.config import CONTACT_SENSOR_MARKER_CFG
+from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .contact_sensor import ContactSensor

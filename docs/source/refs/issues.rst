@@ -68,7 +68,7 @@ environment.
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
+When using the :class:`isaaclab.sensors.Camera` sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
@@ -77,7 +77,7 @@ its pose:
 
 .. code-block:: python
 
-    from omni.isaac.lab.sim import SimulationContext
+    from isaaclab.sim import SimulationContext
 
     sim = SimulationContext.instance()
 

@@ -41,7 +41,7 @@ optional arguments:
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Utility to convert a mesh file into USD format.")
@@ -87,10 +87,10 @@ import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.app
 
-from omni.isaac.lab.sim.converters import MeshConverter, MeshConverterCfg
-from omni.isaac.lab.sim.schemas import schemas_cfg
-from omni.isaac.lab.utils.assets import check_file_path
-from omni.isaac.lab.utils.dict import print_dict
+from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
+from isaaclab.sim.schemas import schemas_cfg
+from isaaclab.utils.assets import check_file_path
+from isaaclab.utils.dict import print_dict
 
 
 def main():

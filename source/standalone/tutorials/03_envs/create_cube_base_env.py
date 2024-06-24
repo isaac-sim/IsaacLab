@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a floating cube environment.")
@@ -43,18 +43,18 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.lab.envs.mdp as mdp
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
-from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
-from omni.isaac.lab.managers import ActionTerm, ActionTermCfg
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
-from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.terrains import TerrainImporterCfg
-from omni.isaac.lab.utils import configclass
+import isaaclab.envs.mdp as mdp
+import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.managers import ActionTerm, ActionTermCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 
 ##
 # Custom action term

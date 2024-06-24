@@ -17,7 +17,7 @@ from . import agents, ant_env_cfg
 
 gym.register(
     id="Isaac-Ant-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ant_env_cfg.AntEnvCfg,

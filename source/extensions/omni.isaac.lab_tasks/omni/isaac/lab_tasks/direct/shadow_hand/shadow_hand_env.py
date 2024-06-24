@@ -10,12 +10,12 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.envs import DirectRLEnv
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from omni.isaac.lab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.envs import DirectRLEnv
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
 from .shadow_hand_env_cfg import ShadowHandEnvCfg
 

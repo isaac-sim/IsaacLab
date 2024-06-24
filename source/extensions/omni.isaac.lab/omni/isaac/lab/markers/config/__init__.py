@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.markers.visualization_markers import VisualizationMarkersCfg
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.markers.visualization_markers import VisualizationMarkersCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Sensors.

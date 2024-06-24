@@ -3,7 +3,7 @@
 Adding sensors on a robot
 =========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 While the asset classes allow us to create and simulate the physical embodiment of the robot,

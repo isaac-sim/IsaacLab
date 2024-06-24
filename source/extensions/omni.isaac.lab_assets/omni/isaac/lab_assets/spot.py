@@ -13,10 +13,10 @@ The following configuration parameters are available:
 
 import torch
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
-from omni.isaac.lab.assets.articulation import ArticulationCfg
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
 joint_parameter_lookup = torch.tensor([

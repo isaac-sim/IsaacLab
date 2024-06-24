@@ -14,7 +14,7 @@ USD stage if the spawn configuration is not None. The spawn configuration is def
 :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path` is
 an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is
 spawned at the configured path. For more information on the spawn configuration, see the
-:mod:`omni.isaac.lab.sim.spawners` module.
+:mod:`isaaclab.sim.spawners` module.
 
 The asset class also registers callbacks for the stage play/stop events. These are used to
 construct the physics handles for the asset as the physics engine is only available when the

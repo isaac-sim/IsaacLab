@@ -17,11 +17,11 @@ import warp as wp
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom, UsdPhysics
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.terrains.trimesh.utils import make_plane
-from omni.isaac.lab.utils.math import convert_quat, quat_apply, quat_apply_yaw
-from omni.isaac.lab.utils.warp import convert_to_warp_mesh, raycast_mesh
+import isaaclab.sim as sim_utils
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.terrains.trimesh.utils import make_plane
+from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
 from .ray_caster_data import RayCasterData

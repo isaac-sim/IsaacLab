@@ -23,7 +23,7 @@ random data in a dataset.
    import os
    import torch
 
-   from omni.isaac.lab_tasks.utils.data_collector import RobomimicDataCollector
+   from isaaclab_tasks.utils.data_collector import RobomimicDataCollector
 
    # name of the environment (needed by robomimic)
    task_name = "Isaac-Franka-Lift-v0"

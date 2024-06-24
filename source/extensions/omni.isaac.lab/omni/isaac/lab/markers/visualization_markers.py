@@ -28,10 +28,10 @@ import omni.kit.commands
 import omni.physx.scripts.utils as physx_utils
 from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sim.spawners import SpawnerCfg
-from omni.isaac.lab.utils.configclass import configclass
-from omni.isaac.lab.utils.math import convert_quat
+import isaaclab.sim as sim_utils
+from isaaclab.sim.spawners import SpawnerCfg
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import convert_quat
 
 
 @configclass
@@ -80,8 +80,8 @@ class VisualizationMarkers:
 
         .. code-block:: python
 
-            import omni.isaac.lab.sim as sim_utils
-            from omni.isaac.lab.markers import VisualizationMarkersCfg, VisualizationMarkers
+            import isaaclab.sim as sim_utils
+            from isaaclab.markers import VisualizationMarkersCfg, VisualizationMarkers
 
             # Create the markers configuration
             # This creates two marker prototypes, "marker1" and "marker2" which are spheres with a radius of 1.0.

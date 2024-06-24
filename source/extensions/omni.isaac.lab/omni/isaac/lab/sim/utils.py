@@ -19,7 +19,7 @@ import omni.kit.commands
 from omni.isaac.cloner import Cloner
 from pxr import PhysxSchema, Sdf, Semantics, Usd, UsdGeom, UsdPhysics, UsdShade
 
-from omni.isaac.lab.utils.string import to_camel_case
+from isaaclab.utils.string import to_camel_case
 
 from . import schemas
 

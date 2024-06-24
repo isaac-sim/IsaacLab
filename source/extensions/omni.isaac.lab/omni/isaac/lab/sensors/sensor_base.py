@@ -5,7 +5,7 @@
 
 """Base class for sensors.
 
-This class defines an interface for sensors similar to how the :class:`omni.isaac.lab.assets.AssetBase` class works.
+This class defines an interface for sensors similar to how the :class:`isaaclab.assets.AssetBase` class works.
 Each sensor class should inherit from this class and implement the abstract methods.
 """
 
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 import omni.kit.app
 import omni.timeline
 
-import omni.isaac.lab.sim as sim_utils
+import isaaclab.sim as sim_utils
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg

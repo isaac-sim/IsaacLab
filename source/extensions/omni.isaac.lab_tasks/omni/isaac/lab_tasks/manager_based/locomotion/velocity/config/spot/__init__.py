@@ -13,7 +13,7 @@ from . import agents, flat_env_cfg
 
 gym.register(
     id="Isaac-Velocity-Flat-Spot-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.SpotFlatEnvCfg,
@@ -23,7 +23,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Flat-Spot-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.SpotFlatEnvCfg_PLAY,

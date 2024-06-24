@@ -32,7 +32,7 @@ class SimulationContext(_SimulationContext):
     The simulation context helps control various simulation aspects. This includes:
 
     * configure the simulator with different settings such as the physics time-step, the number of physics substeps,
-      and the physics solver parameters (for more information, see :class:`omni.isaac.lab.sim.SimulationCfg`)
+      and the physics solver parameters (for more information, see :class:`isaaclab.sim.SimulationCfg`)
     * playing, pausing, stepping and stopping the simulation
     * adding and removing callbacks to different simulation events such as physics stepping, rendering, etc.
 
@@ -651,7 +651,7 @@ def build_simulation_context(
         gravity_enabled: Whether to enable gravity in the simulation. Defaults to True.
         device: Device to run the simulation on. Defaults to "cuda:0".
         dt: Time step for the simulation: Defaults to 0.01.
-        sim_cfg: :class:`omni.isaac.lab.sim.SimulationCfg` to use for the simulation. Defaults to None.
+        sim_cfg: :class:`isaaclab.sim.SimulationCfg` to use for the simulation. Defaults to None.
         add_ground_plane: Whether to add a ground plane to the simulation. Defaults to False.
         add_lighting: Whether to add a dome light to the simulation. Defaults to False.
         auto_add_lighting: Whether to automatically add a dome light to the simulation if the simulation has a GUI.

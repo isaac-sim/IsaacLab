@@ -20,7 +20,7 @@ This script demonstrates the different camera sensors that can be attached to a 
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates the different camera sensor implementations.")
@@ -42,19 +42,19 @@ import numpy as np
 import os
 import torch
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg
-from omni.isaac.lab.sensors.ray_caster import patterns
-from omni.isaac.lab.terrains import TerrainImporterCfg
-from omni.isaac.lab.utils import configclass
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg
+from isaaclab.sensors.ray_caster import patterns
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
-from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass

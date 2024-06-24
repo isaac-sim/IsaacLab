@@ -18,7 +18,7 @@ from .quadcopter_env import QuadcopterEnv, QuadcopterEnvCfg
 
 gym.register(
     id="Isaac-Quadcopter-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.quadcopter:QuadcopterEnv",
+    entry_point="isaaclab_tasks.direct.quadcopter:QuadcopterEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": QuadcopterEnvCfg,

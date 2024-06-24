@@ -9,7 +9,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg
+    from isaaclab_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg
 
 
 def add_rsl_rl_args(parser: argparse.ArgumentParser):
@@ -48,7 +48,7 @@ def parse_rsl_rl_cfg(task_name: str, args_cli: argparse.Namespace) -> RslRlOnPol
     Returns:
         The parsed configuration for RSL-RL agent based on inputs.
     """
-    from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     # load the default configuration
     rslrl_cfg: RslRlOnPolicyRunnerCfg = load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point")

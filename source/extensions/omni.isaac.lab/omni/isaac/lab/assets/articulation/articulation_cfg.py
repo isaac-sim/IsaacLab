@@ -5,8 +5,8 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.actuators import ActuatorBaseCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.actuators import ActuatorBaseCfg
+from isaaclab.utils import configclass
 
 from ..rigid_object import RigidObjectCfg
 from .articulation import Articulation

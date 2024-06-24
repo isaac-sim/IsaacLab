@@ -18,7 +18,7 @@ from .anymal_c_env import AnymalCEnv, AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 
 gym.register(
     id="Isaac-Velocity-Flat-Anymal-C-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.anymal_c:AnymalCEnv",
+    entry_point="isaaclab_tasks.direct.anymal_c:AnymalCEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": AnymalCFlatEnvCfg,
@@ -30,7 +30,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Rough-Anymal-C-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.anymal_c:AnymalCEnv",
+    entry_point="isaaclab_tasks.direct.anymal_c:AnymalCEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": AnymalCRoughEnvCfg,

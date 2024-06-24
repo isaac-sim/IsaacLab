@@ -256,7 +256,7 @@ while [[ $# -gt 0 ]]; do
                 shift # past argument
             fi
             # install the rl-frameworks specified
-            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
+            ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/isaaclab_tasks["${framework_name}"]
             shift # past argument
             ;;
         -c|--conda)

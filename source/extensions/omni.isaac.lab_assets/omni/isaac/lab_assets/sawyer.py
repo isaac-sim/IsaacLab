@@ -12,10 +12,10 @@ The following configuration parameters are available:
 Reference: https://github.com/RethinkRobotics/sawyer_robot
 """
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.actuators import ImplicitActuatorCfg
-from omni.isaac.lab.assets.articulation import ArticulationCfg
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration

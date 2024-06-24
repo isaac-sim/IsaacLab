@@ -7,22 +7,22 @@ from __future__ import annotations
 
 import torch
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg
-from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
-from omni.isaac.lab.envs.ui import BaseEnvWindow
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.terrains import TerrainImporterCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.math import subtract_frame_transforms
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation, ArticulationCfg
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.envs.ui import BaseEnvWindow
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.math import subtract_frame_transforms
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets import CRAZYFLIE_CFG  # isort: skip
-from omni.isaac.lab.markers import CUBOID_MARKER_CFG  # isort: skip
+from isaaclab_assets import CRAZYFLIE_CFG  # isort: skip
+from isaaclab.markers import CUBOID_MARKER_CFG  # isort: skip
 
 
 class QuadcopterEnvWindow(BaseEnvWindow):

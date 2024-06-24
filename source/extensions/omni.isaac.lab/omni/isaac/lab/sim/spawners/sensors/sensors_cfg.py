@@ -6,8 +6,8 @@
 from collections.abc import Callable
 from typing import Literal
 
-from omni.isaac.lab.sim.spawners.spawner_cfg import SpawnerCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
+from isaaclab.utils import configclass
 
 from . import sensors
 

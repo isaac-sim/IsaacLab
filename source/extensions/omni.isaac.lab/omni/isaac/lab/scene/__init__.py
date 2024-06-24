@@ -22,7 +22,7 @@ The interactive scene performs the following tasks:
 The interactive scene can be passed around to different modules in the framework to perform different tasks.
 For instance, computing the observations based on the state of the scene, or randomizing the scene, or applying
 actions to the scene. All these are handled by different "managers" in the framework. Please refer to the
-:mod:`omni.isaac.lab.managers` sub-package for more details.
+:mod:`isaaclab.managers` sub-package for more details.
 """
 
 from .interactive_scene import InteractiveScene

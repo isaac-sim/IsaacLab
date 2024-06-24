@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass
 
 from .rough_env_cfg import G1RoughEnvCfg
 

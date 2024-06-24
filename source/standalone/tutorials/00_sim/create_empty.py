@@ -17,7 +17,7 @@
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
@@ -31,7 +31,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 def main():

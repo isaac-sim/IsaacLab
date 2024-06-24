@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.managers
+﻿isaaclab.managers
 =======================
 
-.. automodule:: omni.isaac.lab.managers
+.. automodule:: isaaclab.managers
 
   .. rubric:: Classes
 

@@ -6,8 +6,8 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from omni.isaac.lab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
+from isaaclab.utils import configclass
 
 
 @configclass

@@ -12,7 +12,7 @@ for RL-Games :class:`Runner` class:
 
     from rl_games.common import env_configurations, vecenv
 
-    from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+    from isaaclab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     # configuration parameters
     rl_device = "cuda:0"
@@ -41,7 +41,7 @@ import torch
 from rl_games.common import env_configurations
 from rl_games.common.vecenv import IVecEnv
 
-from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv, VecEnvObs
+from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv, VecEnvObs
 
 """
 Vectorized environment wrapper.

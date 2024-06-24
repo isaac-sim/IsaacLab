@@ -8,11 +8,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from omni.isaac.lab.sim import converters, schemas
-from omni.isaac.lab.sim.spawners import materials
-from omni.isaac.lab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim import converters, schemas
+from isaaclab.sim.spawners import materials
+from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import from_files
 
@@ -73,7 +73,7 @@ class UsdFileCfg(FileCfg):
     """Variants to select from in the input USD file. Defaults to None, in which case no variants are applied.
 
     This can either be a configclass object, in which case each attribute is used as a variant set name and its specified value,
-    or a dictionary mapping between the two. Please check the :meth:`~omni.isaac.lab.sim.utils.select_usd_variants` function
+    or a dictionary mapping between the two. Please check the :meth:`~isaaclab.sim.utils.select_usd_variants` function
     for more information.
     """
 

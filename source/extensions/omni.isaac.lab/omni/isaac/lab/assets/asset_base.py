@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import omni.kit.app
 import omni.timeline
 
-import omni.isaac.lab.sim as sim_utils
+import isaaclab.sim as sim_utils
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -37,7 +37,7 @@ class AssetBase(ABC):
     is defined in the :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path`
     is an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is spawned
     at the configured path. For more information on the spawn configuration, see the
-    :mod:`omni.isaac.lab.sim.spawners` module.
+    :mod:`isaaclab.sim.spawners` module.
 
     Unlike Isaac Sim interface, where one usually needs to call the
     :meth:`omni.isaac.core.prims.XFormPrimView.initialize` method to initialize the PhysX handles, the asset

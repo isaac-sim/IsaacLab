@@ -13,8 +13,8 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.noise import NoiseCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import NoiseCfg
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -63,7 +63,7 @@ class ActionTermCfg:
     class_type: type[ActionTerm] = MISSING
     """The associated action term class.
 
-    The class should inherit from :class:`omni.isaac.lab.managers.action_manager.ActionTerm`.
+    The class should inherit from :class:`isaaclab.managers.action_manager.ActionTerm`.
     """
 
     asset_name: str = MISSING
@@ -89,7 +89,7 @@ class CommandTermCfg:
     class_type: type[CommandTerm] = MISSING
     """The associated command term class to use.
 
-    The class should inherit from :class:`omni.isaac.lab.managers.command_manager.CommandTerm`.
+    The class should inherit from :class:`isaaclab.managers.command_manager.CommandTerm`.
     """
 
     resampling_time_range: tuple[float, float] = MISSING

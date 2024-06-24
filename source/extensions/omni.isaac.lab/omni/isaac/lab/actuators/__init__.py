@@ -17,9 +17,9 @@ There are two main categories of actuator models that are supported:
   - **Physics-based**: Derives the motor models based on first-principles.
   - **Neural Network-based**: Learned motor models from actuator data.
 
-Every actuator model inherits from the :class:`omni.isaac.lab.actuators.ActuatorBase` class,
+Every actuator model inherits from the :class:`isaaclab.actuators.ActuatorBase` class,
 which defines the common interface for all actuator models. The actuator models are handled
-and called by the :class:`omni.isaac.lab.assets.Articulation` class.
+and called by the :class:`isaaclab.assets.Articulation` class.
 """
 
 from .actuator_base import ActuatorBase

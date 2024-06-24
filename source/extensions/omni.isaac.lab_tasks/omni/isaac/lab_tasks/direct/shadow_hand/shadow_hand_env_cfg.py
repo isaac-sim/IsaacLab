@@ -4,21 +4,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from omni.isaac.lab_assets.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.shadow_hand import SHADOW_HAND_CFG
 
-import omni.isaac.lab.envs.mdp as mdp
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, RigidObjectCfg
-from omni.isaac.lab.envs import DirectRLEnvCfg
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.markers import VisualizationMarkersCfg
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
-from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
+import isaaclab.envs.mdp as mdp
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 
 @configclass

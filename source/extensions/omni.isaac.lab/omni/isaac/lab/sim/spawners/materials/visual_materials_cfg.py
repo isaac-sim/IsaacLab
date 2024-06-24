@@ -6,7 +6,7 @@
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from . import visual_materials
 
@@ -60,7 +60,7 @@ class MdlFileCfg(VisualMaterialCfg):
     To use these materials, you can set the path of the material in the nucleus directory
     using the ``{NVIDIA_NUCLEUS_DIR}`` variable. This is internally resolved to the path of the
     NVIDIA Nucleus directory on the host machine through the attribute
-    :attr:`omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR`.
+    :attr:`isaaclab.utils.assets.NVIDIA_NUCLEUS_DIR`.
 
     For example, to use the "Aluminum_Anodized" material, you can set the path to:
     ``{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl``.

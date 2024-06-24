@@ -17,7 +17,7 @@ from .franka_cabinet_env import FrankaCabinetEnv, FrankaCabinetEnvCfg
 
 gym.register(
     id="Isaac-Franka-Cabinet-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.franka_cabinet:FrankaCabinetEnv",
+    entry_point="isaaclab_tasks.direct.franka_cabinet:FrankaCabinetEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": FrankaCabinetEnvCfg,

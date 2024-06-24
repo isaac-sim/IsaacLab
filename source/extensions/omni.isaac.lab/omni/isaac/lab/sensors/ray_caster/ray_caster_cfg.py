@@ -8,9 +8,9 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.markers import VisualizationMarkersCfg
-from omni.isaac.lab.markers.config import RAY_CASTER_MARKER_CFG
-from omni.isaac.lab.utils import configclass
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg

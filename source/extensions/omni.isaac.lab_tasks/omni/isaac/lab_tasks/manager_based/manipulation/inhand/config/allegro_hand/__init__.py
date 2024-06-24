@@ -17,7 +17,7 @@ from . import agents, allegro_env_cfg
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": allegro_env_cfg.AllegroCubeEnvCfg,
@@ -29,7 +29,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": allegro_env_cfg.AllegroCubeEnvCfg_PLAY,
@@ -45,7 +45,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-NoVelObs-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": allegro_env_cfg.AllegroCubeNoVelObsEnvCfg,
@@ -57,7 +57,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-NoVelObs-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": allegro_env_cfg.AllegroCubeNoVelObsEnvCfg_PLAY,

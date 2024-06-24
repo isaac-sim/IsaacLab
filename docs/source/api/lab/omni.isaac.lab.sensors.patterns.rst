@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.sensors.patterns
+﻿isaaclab.sensors.patterns
 ===============================
 
-.. automodule:: omni.isaac.lab.sensors.patterns
+.. automodule:: isaaclab.sensors.patterns
 
   .. rubric:: Classes
 
@@ -23,7 +23,7 @@ Pattern Base
 Grid Pattern
 ------------
 
-.. autofunction:: omni.isaac.lab.sensors.patterns.grid_pattern
+.. autofunction:: isaaclab.sensors.patterns.grid_pattern
 
 .. autoclass:: GridPatternCfg
     :members:
@@ -33,7 +33,7 @@ Grid Pattern
 Pinhole Camera Pattern
 ----------------------
 
-.. autofunction:: omni.isaac.lab.sensors.patterns.pinhole_camera_pattern
+.. autofunction:: isaaclab.sensors.patterns.pinhole_camera_pattern
 
 .. autoclass:: PinholeCameraPatternCfg
     :members:
@@ -43,7 +43,7 @@ Pinhole Camera Pattern
 RS-Bpearl Pattern
 -----------------
 
-.. autofunction:: omni.isaac.lab.sensors.patterns.bpearl_pattern
+.. autofunction:: isaaclab.sensors.patterns.bpearl_pattern
 
 .. autoclass:: BpearlPatternCfg
     :members:

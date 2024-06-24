@@ -2,7 +2,7 @@ Creating a Scene
 ================
 
 With the basic concepts of the framework covered, the tutorials move to a more intuitive scene
-interface that uses the :class:`~omni.isaac.lab.scene.InteractiveScene` class. This class
+interface that uses the :class:`~isaaclab.scene.InteractiveScene` class. This class
 provides a higher level abstraction for creating scenes easily.
 
 .. toctree::

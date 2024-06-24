@@ -3,7 +3,7 @@
 From OmniIsaacGymEnvs
 =====================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 `OmniIsaacGymEnvs`_ was a reinforcement learning framework using the Isaac Sim platform.
@@ -17,8 +17,8 @@ Task Config Setup
 ~~~~~~~~~~~~~~~~~
 
 In OmniIsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified
-using a specialized Python class :class:`~omni.isaac.lab.utils.configclass`. The
-:class:`~omni.isaac.lab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
+using a specialized Python class :class:`~isaaclab.utils.configclass`. The
+:class:`~isaaclab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
 Each environment should specify its own config class annotated by ``@configclass`` that inherits from the
 :class:`~envs.DirectRLEnvCfg` class, which can include simulation parameters, environment scene parameters,
 robot parameters, and task-specific parameters.
@@ -27,9 +27,9 @@ Below is an example skeleton of a task config class:
 
 .. code-block:: python
 
-   from omni.isaac.lab.envs import DirectRLEnvCfg
-   from omni.isaac.lab.scene import InteractiveSceneCfg
-   from omni.isaac.lab.sim import SimulationCfg
+   from isaaclab.envs import DirectRLEnvCfg
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sim import SimulationCfg
 
    @configclass
    class MyEnvCfg(DirectRLEnvCfg):
@@ -51,10 +51,10 @@ Below is an example skeleton of a task config class:
 Simulation Config
 -----------------
 
-Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class,
-which is a :class:`~omni.isaac.lab.utils.configclass` module that holds simulation parameters such as ``dt``,
+Simulation related parameters are defined as part of the :class:`~isaaclab.sim.SimulationCfg` class,
+which is a :class:`~isaaclab.utils.configclass` module that holds simulation parameters such as ``dt``,
 ``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
-:class:`~omni.isaac.lab.sim.SimulationCfg`.
+:class:`~isaaclab.sim.SimulationCfg`.
 
 Simulation parameters for articulations and rigid bodies such as ``num_position_iterations``, ``num_velocity_iterations``,
 ``contact_offset``, ``rest_offset``, ``bounce_threshold_velocity``, ``max_depenetration_velocity`` can all
@@ -63,7 +63,7 @@ be specified on a per-actor basis in the config class for each individual articu
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access
+and the number of actors in the environment. The :class:`~isaaclab.sim.PhysxCfg` class provides access
 for setting the GPU buffer dimensions.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
@@ -120,9 +120,9 @@ Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part o
 Scene Config
 ------------
 
-The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
+The :class:`~isaaclab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
 such as the number of environments and the spacing between environments. Each task config must have a variable named
-``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
+``scene`` defined that holds the type :class:`~isaaclab.scene.InteractiveSceneCfg`.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -229,7 +229,7 @@ In addition to the above example, more sophisticated ground planes can be define
 
 .. code-block:: python
 
-   from omni.isaac.lab.terrains import TerrainImporterCfg
+   from isaaclab.terrains import TerrainImporterCfg
 
    terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -259,13 +259,13 @@ Actors
 ------
 
 In Isaac Lab, each Articulation and Rigid Body actor can have its own config class. The
-:class:`~omni.isaac.lab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
+:class:`~isaaclab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
 including file path, simulation parameters, actuator properties, and initial states.
 
 .. code-block::python
 
-   from omni.isaac.lab.actuators import ImplicitActuatorCfg
-   from omni.isaac.lab.assets import ArticulationCfg
+   from isaaclab.actuators import ImplicitActuatorCfg
+   from isaaclab.assets import ArticulationCfg
 
    CARTPOLE_CFG = ArticulationCfg(
        spawn=sim_utils.UsdFileCfg(
@@ -303,9 +303,9 @@ including file path, simulation parameters, actuator properties, and initial sta
    )
 
 Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene
-by specifying the path to the robot file. In addition, the :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg`
+by specifying the path to the robot file. In addition, the :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg`
 class can be used to specify simulation properties for the rigid bodies in the articulation. Similarly, the
-:class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify simulation properties
+:class:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify simulation properties
 for the articulation. The joint properties are now specified as part of the ``actuators`` dictionary using
 :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into regex expressions or
 provided as a list of names or expressions.
@@ -397,7 +397,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
 
     gym.register(
         id="Isaac-Cartpole-Direct-v0",
-        entry_point="omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv",
+        entry_point="isaaclab_tasks.direct_workflow.cartpole:CartpoleEnv",
         disable_env_checker=True,
         kwargs={
             "env_cfg_entry_point": CartpoleEnvCfg,
@@ -834,7 +834,7 @@ Domain Randomization
 ~~~~~~~~~~~~~~~~~~~~
 
 In OmniIsaacGymEnvs, domain randomization was specified through the task ``.yaml`` config file.
-In Isaac Lab, the domain randomization configuration uses the :class:`~omni.isaac.lab.utils.configclass` module
+In Isaac Lab, the domain randomization configuration uses the :class:`~isaaclab.utils.configclass` module
 to specify a configuration class consisting of :class:`~managers.EventTermCfg` variables.
 
 Below is an example of a configuration class for domain randomization:

@@ -9,7 +9,7 @@
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on running the cartpole RL environment.")
@@ -28,9 +28,9 @@ simulation_app = app_launcher.app
 
 import torch
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv
+from isaaclab.envs import ManagerBasedRLEnv
 
-from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 
 
 def main():

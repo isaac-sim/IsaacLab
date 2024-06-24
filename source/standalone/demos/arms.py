@@ -17,7 +17,7 @@ This script demonstrates different single-arm manipulators.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different single-arm manipulators.")
@@ -37,15 +37,15 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
 ##
 # isort: off
-from omni.isaac.lab_assets import (
+from isaaclab_assets import (
     FRANKA_PANDA_CFG,
     UR10_CFG,
     KINOVA_JACO2_N7S300_CFG,

@@ -21,7 +21,7 @@ For instance, to wrap an environment in the `Stable-Baselines3`_ wrapper, you ca
 
 .. code-block:: python
 
-   from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+   from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
    env = Sb3VecEnvWrapper(env)
 

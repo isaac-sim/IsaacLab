@@ -538,7 +538,7 @@ def modify_joint_drive_properties(
     .. caution::
 
         We highly recommend modifying joint properties of articulations through the functionalities in the
-        :mod:`omni.isaac.lab.actuators` module. The methods here are for setting simulation low-level
+        :mod:`isaaclab.actuators` module. The methods here are for setting simulation low-level
         properties only.
 
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html

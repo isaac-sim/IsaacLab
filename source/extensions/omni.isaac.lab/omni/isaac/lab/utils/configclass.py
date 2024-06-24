@@ -46,7 +46,7 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING
 
-        from omni.isaac.lab.utils.configclass import configclass
+        from isaaclab.utils.configclass import configclass
 
 
         @configclass

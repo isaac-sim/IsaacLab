@@ -48,10 +48,10 @@ known_third_party = [
     "carb",
 ]
 # Imports from this repository
-known_first_party = "omni.isaac.lab"
-known_assets_firstparty = "omni.isaac.lab_assets"
+known_first_party = "isaaclab"
+known_assets_firstparty = "isaaclab_assets"
 known_extra_firstparty = [
-    "omni.isaac.lab_tasks"
+    "isaaclab_tasks"
 ]
 # Imports from the local folder
 known_local_folder = "config"
@@ -90,4 +90,4 @@ quiet-level = 0
 # the world list should always have words in lower case
 ignore-words-list = "haa,slq,collapsable"
 # todo: this is hack to deal with incorrect spelling of "Environment" in the Isaac Sim grid world asset
-exclude-file = "source/extensions/omni.isaac.lab/omni/isaac/lab/sim/spawners/from_files/from_files.py"
+exclude-file = "source/extensions/isaaclab/isaaclab/sim/spawners/from_files/from_files.py"

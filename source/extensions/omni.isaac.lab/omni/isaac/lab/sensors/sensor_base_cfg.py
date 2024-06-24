@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from .sensor_base import SensorBase
 
@@ -17,7 +17,7 @@ class SensorBaseCfg:
     class_type: type[SensorBase] = MISSING
     """The associated sensor class.
 
-    The class should inherit from :class:`omni.isaac.lab.sensors.sensor_base.SensorBase`.
+    The class should inherit from :class:`isaaclab.sensors.sensor_base.SensorBase`.
     """
 
     prim_path: str = MISSING

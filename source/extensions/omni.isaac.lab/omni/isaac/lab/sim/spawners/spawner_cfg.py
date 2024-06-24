@@ -10,8 +10,8 @@ from dataclasses import MISSING
 
 from pxr import Usd
 
-from omni.isaac.lab.sim import schemas
-from omni.isaac.lab.utils import configclass
+from isaaclab.sim import schemas
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -22,7 +22,7 @@ class SpawnerCfg:
     prim path to spawn the asset at, the configuration instance and transformation, and returns the
     prim path of the spawned asset.
 
-    The function is typically decorated with :func:`omni.isaac.lab.sim.spawner.utils.clone` decorator
+    The function is typically decorated with :func:`isaaclab.sim.spawner.utils.clone` decorator
     that checks if input prim path is a regex expression and spawns the asset at all matching prims.
     For this, the decorator uses the Cloner API from Isaac Sim and handles the :attr:`copy_from_source`
     parameter.

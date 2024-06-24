@@ -13,7 +13,7 @@ from . import agents, navigation_env_cfg
 
 gym.register(
     id="Isaac-Navigation-Flat-Anymal-C-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": navigation_env_cfg.NavigationEnvCfg,
@@ -23,7 +23,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Navigation-Flat-Anymal-C-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": navigation_env_cfg.NavigationEnvCfg_PLAY,

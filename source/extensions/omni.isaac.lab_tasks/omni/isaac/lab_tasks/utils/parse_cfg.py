@@ -13,8 +13,8 @@ import os
 import re
 import yaml
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
-from omni.isaac.lab.utils import update_class_from_dict, update_dict
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.utils import update_class_from_dict, update_dict
 
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | ManagerBasedRLEnvCfg:
@@ -37,7 +37,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Manag
 
     .. code-block:: python
 
-        from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         cfg = load_cfg_from_registry("My-Awesome-Task-v0", "env_entry_point_cfg")
 

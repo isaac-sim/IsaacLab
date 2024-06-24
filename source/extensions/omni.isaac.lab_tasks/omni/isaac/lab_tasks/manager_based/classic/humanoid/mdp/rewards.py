@@ -8,15 +8,15 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-import omni.isaac.lab.utils.math as math_utils
-import omni.isaac.lab.utils.string as string_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+import isaaclab.utils.math as math_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.assets import Articulation
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 
 from . import observations as obs
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 def upright_posture_bonus(

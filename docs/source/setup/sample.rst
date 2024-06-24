@@ -4,7 +4,7 @@ Running Existing Scripts
 Showroom
 --------
 
-The main core interface extension in Isaac Lab ``omni.isaac.lab`` provides
+The main core interface extension in Isaac Lab ``isaaclab`` provides
 the main modules for actuators, objects, robots and sensors. We provide
 a list of demo scripts and tutorials. These showcase how to use the provided
 interfaces within a code in a minimal way.
@@ -45,7 +45,7 @@ Workflows
 ---------
 
 With Isaac Lab, we also provide a suite of benchmark environments included
-in the ``omni.isaac.lab_tasks`` extension. We use the OpenAI Gym registry
+in the ``isaaclab_tasks`` extension. We use the OpenAI Gym registry
 to register these environments. For each environment, we provide a default
 configuration file that defines the scene, observations, rewards and action spaces.
 

@@ -19,7 +19,7 @@ from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
 
 gym.register(
     id="Isaac-Cartpole-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv",
+    entry_point="isaaclab_tasks.direct.cartpole:CartpoleEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": CartpoleEnvCfg,
@@ -32,7 +32,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-RGB-Camera-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleCameraEnv",
+    entry_point="isaaclab_tasks.direct.cartpole:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": CartpoleRGBCameraEnvCfg,
@@ -42,7 +42,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Cartpole-Depth-Camera-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleCameraEnv",
+    entry_point="isaaclab_tasks.direct.cartpole:CartpoleCameraEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": CartpoleDepthCameraEnvCfg,

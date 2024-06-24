@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.managers import CommandTerm
+from isaaclab.managers import CommandTerm
 
 if TYPE_CHECKING:
     from .commands_cfg import NullCommandCfg

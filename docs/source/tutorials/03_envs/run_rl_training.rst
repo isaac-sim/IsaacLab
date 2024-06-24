@@ -1,7 +1,7 @@
 Training with an RL Agent
 =========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorials, we covered how to define an RL task environment, register
 it into the ``gym`` registry, and interact with it using a random agent. We now move
@@ -18,7 +18,7 @@ For example, `Stable-Baselines3`_ expects the environment to conform to its
 `RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
 solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
 Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
+These are specified in the :mod:`isaaclab_tasks.utils.wrappers` module.
 
 In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
 cartpole balancing task.
@@ -46,7 +46,7 @@ For this tutorial, we use the training script from `Stable-Baselines3`_ workflow
 The Code Explained
 ------------------
 
-.. currentmodule:: omni.isaac.lab_tasks.utils
+.. currentmodule:: isaaclab_tasks.utils
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating
@@ -107,7 +107,7 @@ using any video player.
 Interactive execution
 """""""""""""""""""""
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 While the above two methods are useful for training the agent, they don't allow you to interact with the
 simulation to see what is happening. In this case, you can ignore the ``--headless`` flag and run the

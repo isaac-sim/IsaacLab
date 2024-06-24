@@ -9,7 +9,7 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 .. code-block:: python
 
-    from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from isaaclab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
     env = Sb3VecEnvWrapper(env)
 
@@ -27,7 +27,7 @@ from typing import Any
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
 
-from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
 Configuration Parser.

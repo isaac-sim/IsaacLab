@@ -11,8 +11,8 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 from pxr import Sdf, Usd
 
-from omni.isaac.lab.sim.utils import clone
-from omni.isaac.lab.utils import to_camel_case
+from isaaclab.sim.utils import clone
+from isaaclab.utils import to_camel_case
 
 if TYPE_CHECKING:
     from . import sensors_cfg

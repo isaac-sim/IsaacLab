@@ -12,7 +12,7 @@ from . import agents, flat_env_cfg, rough_env_cfg
 
 gym.register(
     id="Isaac-Velocity-Flat-Anymal-B-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.AnymalBFlatEnvCfg,
@@ -23,7 +23,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Flat-Anymal-B-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.AnymalBFlatEnvCfg_PLAY,
@@ -34,7 +34,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Rough-Anymal-B-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": rough_env_cfg.AnymalBRoughEnvCfg,
@@ -45,7 +45,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Velocity-Rough-Anymal-B-Play-v0",
-    entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": rough_env_cfg.AnymalBRoughEnvCfg_PLAY,

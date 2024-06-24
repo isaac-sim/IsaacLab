@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING
 
 import omni.kit.app
 
-from omni.isaac.lab.assets import AssetBase
+from isaaclab.assets import AssetBase
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):

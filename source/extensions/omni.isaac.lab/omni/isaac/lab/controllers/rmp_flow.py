@@ -12,7 +12,7 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.motion_generation import ArticulationMotionPolicy
 from omni.isaac.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

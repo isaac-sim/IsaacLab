@@ -19,10 +19,10 @@ import omni.usd
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils import to_camel_case
-from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import quat_from_matrix
+import isaaclab.sim as sim_utils
+from isaaclab.utils import to_camel_case
+from isaaclab.utils.array import convert_to_torch
+from isaaclab.utils.math import quat_from_matrix
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -279,7 +279,7 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`isaaclab.sensors.camera.utils.convert_orientation_convention` for more details
         on the conventions.
 
         Args:

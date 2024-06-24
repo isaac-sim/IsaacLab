@@ -13,7 +13,7 @@ This script demonstrates how to simulate a quadcopter.
 import argparse
 import torch
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a quadcopter.")
@@ -28,14 +28,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.sim import SimulationContext
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
+from isaaclab.sim import SimulationContext
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets import CRAZYFLIE_CFG  # isort:skip
+from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 
 
 def main():

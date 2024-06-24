@@ -8,8 +8,8 @@
 import torch
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.envs import ManagerBasedRLEnv
-from omni.isaac.lab.managers import SceneEntityCfg
+from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from .commands import InHandReOrientationCommand

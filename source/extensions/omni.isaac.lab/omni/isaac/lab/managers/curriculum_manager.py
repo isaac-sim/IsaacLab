@@ -16,7 +16,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 class CurriculumManager(ManagerBase):

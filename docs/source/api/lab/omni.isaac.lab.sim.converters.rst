@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.sim.converters
+﻿isaaclab.sim.converters
 =============================
 
-.. automodule:: omni.isaac.lab.sim.converters
+.. automodule:: isaaclab.sim.converters
 
   .. rubric:: Classes
 

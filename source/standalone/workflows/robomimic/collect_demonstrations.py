@@ -9,7 +9,7 @@
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Collect demonstrations for Isaac Lab environments.")
@@ -35,14 +35,14 @@ import gymnasium as gym
 import os
 import torch
 
-from omni.isaac.lab.devices import Se3Keyboard, Se3SpaceMouse
-from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
-from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
+from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
-from omni.isaac.lab_tasks.utils.data_collector import RobomimicDataCollector
-from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.manager_based.manipulation.lift import mdp
+from isaaclab_tasks.utils.data_collector import RobomimicDataCollector
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
 def pre_process_actions(delta_pose: torch.Tensor, gripper_command: bool) -> torch.Tensor:

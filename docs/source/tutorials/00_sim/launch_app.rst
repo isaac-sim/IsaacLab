@@ -1,7 +1,7 @@
 Deep-dive into AppLauncher
 ==========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In this tutorial, we will dive into the :class:`app.AppLauncher` class to configure the simulator using
 CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
@@ -113,7 +113,7 @@ Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 As noted in the help message, the :class:`~app.AppLauncher` arguments (``--livestream``, ``--headless``)
-have corresponding environment variables (envar) as well. These are detailed in :mod:`omni.isaac.lab.app`
+have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.
 
@@ -124,7 +124,7 @@ as we will demonstrate later in this tutorial.
 
 These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`,
 with one exception, ``--enable_cameras``. This setting sets the rendering pipeline to use the
-offscreen renderer. However, this setting is only compatible with the :class:`omni.isaac.lab.sim.SimulationContext`.
+offscreen renderer. However, this setting is only compatible with the :class:`isaaclab.sim.SimulationContext`.
 It will not work with Isaac Sim's :class:`omni.isaac.core.simulation_context.SimulationContext` class.
 For more information on this flag, please see the :class:`~app.AppLauncher` API documentation.
 

@@ -14,9 +14,9 @@ import carb
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.math as math_utils
-import omni.isaac.lab.utils.string as string_utils
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
+import isaaclab.utils.string as string_utils
 
 from ..asset_base import AssetBase
 from .rigid_object_data import RigidObjectData
@@ -138,7 +138,7 @@ class RigidObject(AssetBase):
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
-        Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
 
         Args:

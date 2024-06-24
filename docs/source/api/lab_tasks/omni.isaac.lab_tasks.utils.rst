@@ -1,7 +1,7 @@
-﻿omni.isaac.lab_tasks.utils
+﻿isaaclab_tasks.utils
 ==========================
 
-.. automodule:: omni.isaac.lab_tasks.utils
+.. automodule:: isaaclab_tasks.utils
    :members:
    :imported-members:
 

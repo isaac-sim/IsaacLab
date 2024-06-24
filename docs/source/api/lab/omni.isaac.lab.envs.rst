@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.envs
+﻿isaaclab.envs
 ===================
 
-.. automodule:: omni.isaac.lab.envs
+.. automodule:: isaaclab.envs
 
   .. rubric:: Submodules
 

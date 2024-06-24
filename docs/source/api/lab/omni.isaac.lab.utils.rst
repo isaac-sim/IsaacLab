@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.utils
+﻿isaaclab.utils
 ====================
 
-.. automodule:: omni.isaac.lab.utils
+.. automodule:: isaaclab.utils
 
    .. Rubric:: Submodules
 
@@ -28,14 +28,14 @@
 Configuration class
 ~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.configclass
+.. automodule:: isaaclab.utils.configclass
    :members:
    :show-inheritance:
 
 IO operations
 ~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.io
+.. automodule:: isaaclab.utils.io
    :members:
    :imported-members:
    :show-inheritance:
@@ -43,21 +43,21 @@ IO operations
 Array operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.array
+.. automodule:: isaaclab.utils.array
    :members:
    :show-inheritance:
 
 Asset operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.assets
+.. automodule:: isaaclab.utils.assets
    :members:
    :show-inheritance:
 
 Buffer operations
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.buffers
+.. automodule:: isaaclab.utils.buffers
    :members:
    :imported-members:
    :inherited-members:
@@ -66,14 +66,14 @@ Buffer operations
 Dictionary operations
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.dict
+.. automodule:: isaaclab.utils.dict
    :members:
    :show-inheritance:
 
 Interpolation operations
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.interpolation
+.. automodule:: isaaclab.utils.interpolation
    :members:
    :imported-members:
    :inherited-members:
@@ -82,7 +82,7 @@ Interpolation operations
 Math operations
 ~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.math
+.. automodule:: isaaclab.utils.math
    :members:
    :inherited-members:
    :show-inheritance:
@@ -90,7 +90,7 @@ Math operations
 Noise operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.noise
+.. automodule:: isaaclab.utils.noise
    :members:
    :imported-members:
    :inherited-members:
@@ -100,21 +100,21 @@ Noise operations
 String operations
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.string
+.. automodule:: isaaclab.utils.string
    :members:
    :show-inheritance:
 
 Timer operations
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.timer
+.. automodule:: isaaclab.utils.timer
    :members:
    :show-inheritance:
 
 Warp operations
 ~~~~~~~~~~~~~~~
 
-.. automodule:: omni.isaac.lab.utils.warp
+.. automodule:: isaaclab.utils.warp
    :members:
    :imported-members:
    :show-inheritance:

@@ -18,7 +18,7 @@ from .ant_env import AntEnv, AntEnvCfg
 
 gym.register(
     id="Isaac-Ant-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.ant:AntEnv",
+    entry_point="isaaclab_tasks.direct.ant:AntEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": AntEnvCfg,

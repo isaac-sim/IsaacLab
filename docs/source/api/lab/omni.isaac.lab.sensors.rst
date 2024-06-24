@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.sensors
+﻿isaaclab.sensors
 ======================
 
-.. automodule:: omni.isaac.lab.sensors
+.. automodule:: isaaclab.sensors
 
   .. rubric:: Submodules
 

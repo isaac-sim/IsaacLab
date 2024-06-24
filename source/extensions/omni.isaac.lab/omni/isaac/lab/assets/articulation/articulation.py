@@ -20,10 +20,10 @@ import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.utils.types import ArticulationActions
 from pxr import PhysxSchema, UsdPhysics
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.math as math_utils
-import omni.isaac.lab.utils.string as string_utils
-from omni.isaac.lab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 
 from ..rigid_object import RigidObject
 from .articulation_data import ArticulationData
@@ -56,7 +56,7 @@ class Articulation(RigidObject):
 
     The articulation class also provides the functionality to augment the simulation of an articulated
     system with custom actuator models. These models can either be explicit or implicit, as detailed in
-    the :mod:`omni.isaac.lab.actuators` module. The actuator models are specified using the
+    the :mod:`isaaclab.actuators` module. The actuator models are specified using the
     :attr:`ArticulationCfg.actuators` attribute. These are then parsed and used to initialize the
     corresponding actuator models, when the simulation is played.
 
@@ -219,7 +219,7 @@ class Articulation(RigidObject):
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
 
-        Please see the :func:`omni.isaac.lab.utils.string.resolve_matching_names` function for more information
+        Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
         on the name matching.
 
         Args:
@@ -241,7 +241,7 @@ class Articulation(RigidObject):
     ) -> tuple[list[int], list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
-        Please see the :func:`omni.isaac.lab.utils.string.resolve_matching_names` function for more information
+        Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
         on the name matching.
 
         Args:

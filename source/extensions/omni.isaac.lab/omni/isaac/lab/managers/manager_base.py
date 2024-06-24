@@ -13,14 +13,14 @@ from typing import TYPE_CHECKING, Any
 
 import carb
 
-import omni.isaac.lab.utils.string as string_utils
-from omni.isaac.lab.utils import string_to_callable
+import isaaclab.utils.string as string_utils
+from isaaclab.utils import string_to_callable
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):
@@ -37,8 +37,8 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from omni.isaac.lab.utils import configclass
-        from omni.isaac.lab.utils.mdp import ManagerBase, ManagerTermBaseCfg
+        from isaaclab.utils import configclass
+        from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
         @configclass
         class MyManagerCfg:
@@ -172,7 +172,7 @@ class ManagerBase(ABC):
         specified as regular expressions or a list of regular expressions. The search is
         performed on the active terms in the manager.
 
-        Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
         information on the name matching.
 
         Args:

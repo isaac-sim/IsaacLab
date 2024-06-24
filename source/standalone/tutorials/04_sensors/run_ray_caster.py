@@ -17,7 +17,7 @@ This script demonstrates how to use the ray-caster sensor.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -35,11 +35,11 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
-from omni.isaac.lab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.timer import Timer
+import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.timer import Timer
 
 
 def define_sensor() -> RayCaster:

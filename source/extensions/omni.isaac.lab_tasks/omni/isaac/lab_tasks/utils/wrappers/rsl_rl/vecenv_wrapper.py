@@ -9,7 +9,7 @@ The following example shows how to wrap an environment for RSL-RL:
 
 .. code-block:: python
 
-    from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
 
     env = RslRlVecEnvWrapper(env)
 
@@ -21,7 +21,7 @@ import torch
 
 from rsl_rl.env import VecEnv
 
-from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 
 class RslRlVecEnvWrapper(VecEnv):

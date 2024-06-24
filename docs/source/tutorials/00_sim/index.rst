@@ -2,8 +2,8 @@ Setting up a Simple Simulation
 ==============================
 
 These tutorials show you how to launch the simulation with different settings and spawn objects in the
-simulated scene. They cover the following APIs: :class:`~omni.isaac.lab.app.AppLauncher`,
-:class:`~omni.isaac.lab.sim.SimulationContext`, and :class:`~omni.isaac.lab.sim.spawners`.
+simulated scene. They cover the following APIs: :class:`~isaaclab.app.AppLauncher`,
+:class:`~isaaclab.sim.SimulationContext`, and :class:`~isaaclab.sim.spawners`.
 
 .. toctree::
     :maxdepth: 1

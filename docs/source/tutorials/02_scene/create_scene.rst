@@ -3,7 +3,7 @@
 Using the Interactive Scene
 ===========================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 So far in the tutorials, we manually spawned assets into the simulation and created
 object instances to interact with them. However, as the complexity of the scene
@@ -157,5 +157,5 @@ scene with multiple assets. We also saw how to use the ``num_envs`` argument
 to clone the scene for multiple environments.
 
 There are many more example usages of the :class:`scene.InteractiveSceneCfg` in the tasks found
-under the ``omni.isaac.lab_tasks`` extension. Please check out the source code to see
+under the ``isaaclab_tasks`` extension. Please check out the source code to see
 how they are used for more complex scenes.

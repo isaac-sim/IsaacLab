@@ -1,7 +1,7 @@
 Making a physics prim fixed in the simulation
 =============================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 When a USD prim has physics schemas applied on it, it is affected by physics simulation.
 This means that the prim can move, rotate, and collide with other prims in the simulation world.
@@ -21,7 +21,7 @@ For instance, to spawn a cone static in the simulation world, the following code
 
 .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     cone_spawn_cfg = sim_utils.ConeCfg(
         radius=0.15,
@@ -46,7 +46,7 @@ the following code can be used:
 
 .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     cone_spawn_cfg = sim_utils.ConeCfg(
         radius=0.15,
@@ -77,8 +77,8 @@ For instance, to spawn an ANYmal robot and make it static in the simulation worl
 
 .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    import isaaclab.sim as sim_utils
+    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     anymal_spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",

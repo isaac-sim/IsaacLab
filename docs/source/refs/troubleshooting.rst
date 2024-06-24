@@ -94,20 +94,20 @@ exceeds the size of the buffers, the simulation will fail with an error such as 
     parameter to 3072, otherwise the simulation will miss interactions
 
 In this case, you need to increase the size of the buffers passed to the
-:class:`~omni.isaac.lab.sim.SimulationContext` class. The size of the buffers can be increased by setting
-the :attr:`~omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
-:class:`~omni.isaac.lab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
+:class:`~isaaclab.sim.SimulationContext` class. The size of the buffers can be increased by setting
+the :attr:`~isaaclab.sim.PhysxCfg.gpu_found_lost_pairs_capacity` parameter in the
+:class:`~isaaclab.sim.PhysxCfg` class. For example, to increase the size of the buffers to
 4096, you can use the following code:
 
 .. code:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     sim_cfg = sim_utils.SimulationConfig()
     sim_cfg.physx.gpu_found_lost_pairs_capacity = 4096
     sim = SimulationContext(sim_params=sim_cfg)
 
-Please see the documentation for :class:`~omni.isaac.lab.sim.SimulationCfg` for more details
+Please see the documentation for :class:`~isaaclab.sim.SimulationCfg` for more details
 on the parameters that can be used to configure the simulation.
 
 

@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.core.utils.types import ArticulationActions
 
-from omni.isaac.lab.utils.assets import read_file
+from isaaclab.utils.assets import read_file
 
 from .actuator_pd import DCMotor
 

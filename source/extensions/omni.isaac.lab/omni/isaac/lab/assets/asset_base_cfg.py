@@ -6,8 +6,8 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from omni.isaac.lab.sim import SpawnerCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.sim import SpawnerCfg
+from isaaclab.utils import configclass
 
 from .asset_base import AssetBase
 
@@ -42,7 +42,7 @@ class AssetBaseCfg:
     class_type: type[AssetBase] = MISSING
     """The associated asset class.
 
-    The class should inherit from :class:`omni.isaac.lab.assets.asset_base.AssetBase`.
+    The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
     """
 
     prim_path: str = MISSING

@@ -17,7 +17,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -37,18 +37,18 @@ import torch
 
 import omni.isaac.debug_draw._debug_draw as omni_debug_draw
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import FRAME_MARKER_CFG
-from omni.isaac.lab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
-from omni.isaac.lab.sim import SimulationContext
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
+from isaaclab.assets import Articulation
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
+from isaaclab.sim import SimulationContext
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from isaaclab_assets.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 def define_sensor() -> FrameTransformer:

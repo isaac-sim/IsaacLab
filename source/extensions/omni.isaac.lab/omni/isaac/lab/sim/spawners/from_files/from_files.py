@@ -13,8 +13,8 @@ import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 from pxr import Gf, Sdf, Usd
 
-from omni.isaac.lab.sim import converters, schemas
-from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
+from isaaclab.sim import converters, schemas
+from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, select_usd_variants
 
 if TYPE_CHECKING:
     from . import from_files_cfg

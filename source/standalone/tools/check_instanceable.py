@@ -44,7 +44,7 @@ import argparse
 import contextlib
 import os
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Utility to empirically check if asset in instanced properly.")
@@ -69,8 +69,8 @@ from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 
-from omni.isaac.lab.utils import Timer
-from omni.isaac.lab.utils.assets import check_file_path
+from isaaclab.utils import Timer
+from isaaclab.utils.assets import check_file_path
 
 
 def main():

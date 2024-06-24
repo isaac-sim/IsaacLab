@@ -9,7 +9,7 @@
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Isaac Lab environments.")
@@ -37,8 +37,8 @@ import robomimic  # noqa: F401
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import parse_env_cfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():

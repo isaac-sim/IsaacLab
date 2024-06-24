@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.sensors.camera import CameraData
-from omni.isaac.lab.sensors.camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
-from omni.isaac.lab.utils.warp import raycast_mesh
+import isaaclab.utils.math as math_utils
+from isaaclab.sensors.camera import CameraData
+from isaaclab.sensors.camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
+from isaaclab.utils.warp import raycast_mesh
 
 from .ray_caster import RayCaster
 
@@ -29,7 +29,7 @@ class RayCasterCamera(RayCaster):
 
     The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor has the same interface as the
-    :class:`omni.isaac.lab.sensors.Camera` that implements the camera class through USD camera prims.
+    :class:`isaaclab.sensors.Camera` that implements the camera class through USD camera prims.
     However, this class provides a faster image generation. The sensor converts meshes from the list of
     primitive paths provided in the configuration to Warp meshes. The camera then ray-casts against these
     Warp meshes only.
@@ -170,7 +170,7 @@ class RayCasterCamera(RayCaster):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`omni.isaac.lab.sensors.camera.utils.convert_orientation_convention` for more details
+        See :meth:`isaaclab.sensors.camera.utils.convert_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -313,7 +313,7 @@ class RayCasterCamera(RayCaster):
                 f"RayCasterCamera class does not support the following sensor types: {common_elements}."
                 "\n\tThis is because these sensor types cannot be obtained in a fast way using ''warp''."
                 "\n\tHint: If you need to work with these sensor types, we recommend using the USD camera"
-                " interface from the omni.isaac.lab.sensors.camera module."
+                " interface from the isaaclab.sensors.camera module."
             )
 
     def _create_buffers(self):

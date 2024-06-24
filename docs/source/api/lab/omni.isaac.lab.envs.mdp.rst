@@ -1,20 +1,20 @@
-﻿omni.isaac.lab.envs.mdp
+﻿isaaclab.envs.mdp
 =======================
 
-.. automodule:: omni.isaac.lab.envs.mdp
+.. automodule:: isaaclab.envs.mdp
 
 Observations
 ------------
 
-.. automodule:: omni.isaac.lab.envs.mdp.observations
+.. automodule:: isaaclab.envs.mdp.observations
     :members:
 
 Actions
 -------
 
-.. automodule:: omni.isaac.lab.envs.mdp.actions
+.. automodule:: isaaclab.envs.mdp.actions
 
-.. automodule:: omni.isaac.lab.envs.mdp.actions.actions_cfg
+.. automodule:: isaaclab.envs.mdp.actions.actions_cfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, class_type
@@ -22,15 +22,15 @@ Actions
 Events
 ------
 
-.. automodule:: omni.isaac.lab.envs.mdp.events
+.. automodule:: isaaclab.envs.mdp.events
     :members:
 
 Commands
 --------
 
-.. automodule:: omni.isaac.lab.envs.mdp.commands
+.. automodule:: isaaclab.envs.mdp.commands
 
-.. automodule:: omni.isaac.lab.envs.mdp.commands.commands_cfg
+.. automodule:: isaaclab.envs.mdp.commands.commands_cfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, class_type
@@ -38,17 +38,17 @@ Commands
 Rewards
 -------
 
-.. automodule:: omni.isaac.lab.envs.mdp.rewards
+.. automodule:: isaaclab.envs.mdp.rewards
     :members:
 
 Terminations
 ------------
 
-.. automodule:: omni.isaac.lab.envs.mdp.terminations
+.. automodule:: isaaclab.envs.mdp.terminations
     :members:
 
 Curriculum
 ----------
 
-.. automodule:: omni.isaac.lab.envs.mdp.curriculums
+.. automodule:: isaaclab.envs.mdp.curriculums
     :members:

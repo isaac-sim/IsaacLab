@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.core.utils.types import ArticulationActions
 
-from omni.isaac.lab.utils import DelayBuffer, LinearInterpolation
+from isaaclab.utils import DelayBuffer, LinearInterpolation
 
 from .actuator_base import ActuatorBase
 

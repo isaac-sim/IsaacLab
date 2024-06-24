@@ -36,12 +36,12 @@ Args:
 
 This file has been modified from the original version in the following ways:
 
-* Added import of AppLauncher from omni.isaac.lab.app to resolve the configuration to load for training.
+* Added import of AppLauncher from isaaclab.app to resolve the configuration to load for training.
 """
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -72,7 +72,7 @@ from robomimic.config import config_factory
 from robomimic.utils.log_utils import DataLogger, PrintLogger
 
 # Needed so that environment is registered
-import omni.isaac.lab_tasks  # noqa: F401
+import isaaclab_tasks  # noqa: F401
 
 
 def train(config, device):

@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 
 import carb
 
-import omni.isaac.lab.utils.math as math_utils
-import omni.isaac.lab.utils.string as string_utils
-from omni.isaac.lab.assets.articulation import Articulation
-from omni.isaac.lab.managers.action_manager import ActionTerm
+import isaaclab.utils.math as math_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.assets.articulation import Articulation
+from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
     from . import actions_cfg
 

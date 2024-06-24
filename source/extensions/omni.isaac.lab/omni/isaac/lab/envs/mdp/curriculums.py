@@ -5,7 +5,7 @@
 
 """Common functions that can be used to create curriculum for the learning environment.
 
-The functions can be passed to the :class:`omni.isaac.lab.managers.CurriculumTermCfg` object to enable
+The functions can be passed to the :class:`isaaclab.managers.CurriculumTermCfg` object to enable
 the curriculum introduced by the function.
 """
 
@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 def modify_reward_weight(env: ManagerBasedRLEnv, env_ids: Sequence[int], term_name: str, weight: float, num_steps: int):

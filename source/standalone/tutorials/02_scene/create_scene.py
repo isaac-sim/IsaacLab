@@ -17,7 +17,7 @@
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on using the interactive scene interface.")
@@ -35,16 +35,16 @@ simulation_app = app_launcher.app
 
 import torch
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.sim import SimulationContext
-from omni.isaac.lab.utils import configclass
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sim import SimulationContext
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets import CARTPOLE_CFG  # isort:skip
+from isaaclab_assets import CARTPOLE_CFG  # isort:skip
 
 
 @configclass

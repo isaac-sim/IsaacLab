@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.controllers
+﻿isaaclab.controllers
 ==========================
 
-.. automodule:: omni.isaac.lab.controllers
+.. automodule:: isaaclab.controllers
 
   .. rubric:: Classes
 

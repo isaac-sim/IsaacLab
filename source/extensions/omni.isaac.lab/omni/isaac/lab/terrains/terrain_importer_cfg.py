@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils import configclass
+import isaaclab.sim as sim_utils
+from isaaclab.utils import configclass
 
 from .terrain_importer import TerrainImporter
 
@@ -24,7 +24,7 @@ class TerrainImporterCfg:
     class_type: type = TerrainImporter
     """The class to use for the terrain importer.
 
-    Defaults to :class:`omni.isaac.lab.terrains.terrain_importer.TerrainImporter`.
+    Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.
     """
 
     collision_group: int = -1

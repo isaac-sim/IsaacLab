@@ -1,7 +1,7 @@
 Using a task-space controller
 =============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorials, we have joint-space controllers to control the robot. However, in many
 cases, it is more intuitive to control the robot using a task-space controller. For example, if we

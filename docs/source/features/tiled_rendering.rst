@@ -1,7 +1,7 @@
 Tiled Rendering and Recording
 =============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 Tiled Rendering

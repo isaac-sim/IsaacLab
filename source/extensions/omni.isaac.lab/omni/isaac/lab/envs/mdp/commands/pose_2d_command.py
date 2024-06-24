@@ -11,15 +11,15 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.managers import CommandTerm
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import GREEN_ARROW_X_MARKER_CFG
-from omni.isaac.lab.terrains import TerrainImporter
-from omni.isaac.lab.utils.math import quat_from_euler_xyz, quat_rotate_inverse, wrap_to_pi, yaw_quat
+from isaaclab.assets import Articulation
+from isaaclab.managers import CommandTerm
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
+from isaaclab.terrains import TerrainImporter
+from isaaclab.utils.math import quat_from_euler_xyz, quat_rotate_inverse, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
     from .commands_cfg import TerrainBasedPose2dCommandCfg, UniformPose2dCommandCfg
 

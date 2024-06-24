@@ -7,9 +7,9 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.scene import InteractiveScene
-from omni.isaac.lab.utils import configclass
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.scene import InteractiveScene
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -84,7 +84,7 @@ class SceneEntityCfg:
     If False, the ordering of the indices are sorted in ascending order (i.e. the ordering in the entity's joints
     or bodies). Otherwise, the indices are preserved in the order of the specified joint and body names.
 
-    For more details, see the :meth:`omni.isaac.lab.utils.string.resolve_matching_names` function.
+    For more details, see the :meth:`isaaclab.utils.string.resolve_matching_names` function.
 
     .. note::
         This attribute is only used when :attr:`joint_names` or :attr:`body_names` are specified.

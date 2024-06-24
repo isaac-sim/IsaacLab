@@ -23,7 +23,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
@@ -69,13 +69,13 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import RAY_CASTER_MARKER_CFG
-from omni.isaac.lab.sensors.camera import Camera, CameraCfg
-from omni.isaac.lab.sensors.camera.utils import create_pointcloud_from_depth
-from omni.isaac.lab.utils import convert_dict_to_backend
+import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
+from isaaclab.utils import convert_dict_to_backend
 
 
 def define_sensor() -> Camera:

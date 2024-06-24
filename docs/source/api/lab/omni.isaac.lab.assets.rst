@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.assets
+﻿isaaclab.assets
 =====================
 
-.. automodule:: omni.isaac.lab.assets
+.. automodule:: isaaclab.assets
 
   .. rubric:: Classes
 
@@ -16,7 +16,7 @@
     ArticulationData
     ArticulationCfg
 
-.. currentmodule:: omni.isaac.lab.assets
+.. currentmodule:: isaaclab.assets
 
 Asset Base
 ----------

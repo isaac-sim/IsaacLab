@@ -9,13 +9,13 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.managers import ManagerTermBase, SceneEntityCfg
-from omni.isaac.lab.sensors import ContactSensor
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.sensors import ContactSensor
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
-    from omni.isaac.lab.managers import RewardTermCfg
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import RewardTermCfg
 
 
 # -- Task Rewards

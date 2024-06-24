@@ -3,27 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.terrains as terrain_gen
-from omni.isaac.lab.envs import ViewerCfg
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
-from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.lab.managers import RewardTermCfg, SceneEntityCfg
-from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
-from omni.isaac.lab.terrains import TerrainImporterCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+import isaaclab.sim as sim_utils
+import isaaclab.terrains as terrain_gen
+from isaaclab.envs import ViewerCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg, SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
-import omni.isaac.lab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
-import omni.isaac.lab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
+import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.spot import SPOT_CFG  # isort: skip
+from isaaclab_assets.spot import SPOT_CFG  # isort: skip
 
 
 COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(

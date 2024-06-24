@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils.configclass import configclass
+from isaaclab.utils.configclass import configclass
 
 
 @configclass
@@ -25,13 +25,13 @@ class InteractiveSceneCfg:
 
     .. code-block:: python
 
-        import omni.isaac.lab.sim as sim_utils
-        from omni.isaac.lab.assets import AssetBaseCfg
-        from omni.isaac.lab.scene import InteractiveSceneCfg
-        from omni.isaac.lab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from omni.isaac.lab.utils import configclass
+        import isaaclab.sim as sim_utils
+        from isaaclab.assets import AssetBaseCfg
+        from isaaclab.scene import InteractiveSceneCfg
+        from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
+        from isaaclab.utils import configclass
 
-        from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG
+        from isaaclab_assets.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):

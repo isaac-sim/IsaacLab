@@ -9,7 +9,7 @@ The following example shows how to wrap an environment for skrl:
 
 .. code-block:: python
 
-    from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
+    from isaaclab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
     env = SkrlVecEnvWrapper(env)
 
@@ -31,7 +31,7 @@ from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F4
 from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
 from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
 
-from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
 Configuration Parser.

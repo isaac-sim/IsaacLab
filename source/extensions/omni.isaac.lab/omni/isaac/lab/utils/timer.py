@@ -34,7 +34,7 @@ class Timer(ContextDecorator):
 
         import time
 
-        from omni.isaac.lab.utils.timer import Timer
+        from isaaclab.utils.timer import Timer
 
         timer = Timer()
         timer.start()
@@ -51,7 +51,7 @@ class Timer(ContextDecorator):
 
         import time
 
-        from omni.isaac.lab.utils.timer import Timer
+        from isaaclab.utils.timer import Timer
 
         with Timer() as timer:
             time.sleep(1)

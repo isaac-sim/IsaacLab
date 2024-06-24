@@ -13,7 +13,7 @@ Usage:
 .. code-block:: python
 
     import torch
-    from omni.isaac.lab.utils.noise import AdditiveGaussianNoiseCfg
+    from isaaclab.utils.noise import AdditiveGaussianNoiseCfg
 
     # create a random tensor
     my_tensor = torch.rand(128, 128, device="cuda")

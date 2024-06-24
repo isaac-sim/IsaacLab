@@ -11,9 +11,9 @@ import pathlib
 import random
 from datetime import datetime
 
-from omni.isaac.lab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from omni.isaac.lab.utils.assets import check_file_path
-from omni.isaac.lab.utils.io import dump_yaml
+from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
+from isaaclab.utils.assets import check_file_path
+from isaaclab.utils.io import dump_yaml
 
 
 class AssetConverterBase(abc.ABC):

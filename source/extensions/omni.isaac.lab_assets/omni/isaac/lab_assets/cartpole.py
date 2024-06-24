@@ -6,10 +6,10 @@
 """Configuration for a simple Cartpole robot."""
 
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.actuators import ImplicitActuatorCfg
-from omni.isaac.lab.assets import ArticulationCfg
-from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration

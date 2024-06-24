@@ -5,10 +5,10 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.scene import InteractiveSceneCfg
-from omni.isaac.lab.sim import SimulationCfg
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.noise import NoiseModelCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import ViewerCfg
 from .ui import BaseEnvWindow
@@ -18,7 +18,7 @@ from .ui import BaseEnvWindow
 class DirectRLEnvCfg:
     """Configuration for an RL environment defined with the direct workflow.
 
-    Please refer to the :class:`omni.isaac.lab.envs.direct_rl_env.DirectRLEnv` class for more details.
+    Please refer to the :class:`isaaclab.envs.direct_rl_env.DirectRLEnv` class for more details.
     """
 
     # simulation settings
@@ -36,7 +36,7 @@ class DirectRLEnvCfg:
 
     Note:
         If you want to make your own UI window, you can create a class that inherits from
-        from :class:`omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set
+        from :class:`isaaclab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set
         this attribute to your class type.
     """
 
@@ -87,13 +87,13 @@ class DirectRLEnvCfg:
     scene: InteractiveSceneCfg = MISSING
     """Scene settings.
 
-    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.
+    Please refer to the :class:`isaaclab.scene.InteractiveSceneCfg` class for more details.
     """
 
     events: object = None
     """Event settings. Defaults to None, in which case no events are applied through the event manager.
 
-    Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
+    Please refer to the :class:`isaaclab.managers.EventManager` class for more details.
     """
 
     num_observations: int = MISSING
@@ -108,7 +108,7 @@ class DirectRLEnvCfg:
     observation_noise_model: NoiseModelCfg | None = None
     """The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.
 
-    Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
+    Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
 
     num_actions: int = MISSING
@@ -117,5 +117,5 @@ class DirectRLEnvCfg:
     action_noise_model: NoiseModelCfg | None = None
     """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.
 
-    Please refer to the :class:`omni.isaac.lab.utils.noise.NoiseModel` class for more details.
+    Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """

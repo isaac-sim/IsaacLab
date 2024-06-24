@@ -11,7 +11,7 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from typing import Literal
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from .spawners.materials import RigidBodyMaterialCfg
 

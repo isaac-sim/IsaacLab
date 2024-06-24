@@ -8,12 +8,12 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.assets import RigidObject
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
+from isaaclab.assets import RigidObject
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg) -> torch.Tensor:

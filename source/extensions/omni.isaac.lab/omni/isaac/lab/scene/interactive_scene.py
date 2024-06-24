@@ -14,10 +14,10 @@ from omni.isaac.cloner import GridCloner
 from omni.isaac.core.prims import XFormPrimView
 from pxr import PhysxSchema
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
-from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
-from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 from .interactive_scene_cfg import InteractiveSceneCfg
 
@@ -34,10 +34,10 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        from omni.isaac.lab.scene import InteractiveSceneCfg
-        from omni.isaac.lab.utils import configclass
+        from isaaclab.scene import InteractiveSceneCfg
+        from isaaclab.utils import configclass
 
-        from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG
+        from isaaclab_assets.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
@@ -48,7 +48,7 @@ class InteractiveScene:
 
     .. code-block:: python
 
-        from omni.isaac.lab.scene import InteractiveScene
+        from isaaclab.scene import InteractiveScene
 
         # create 128 environments
         scene = InteractiveScene(cfg=MySceneCfg(num_envs=128))
@@ -63,7 +63,7 @@ class InteractiveScene:
         resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
         simulation. The scene does not perform any task specific to the entity. For example, it does not apply
         actions to the robot or compute observations from the robot. These tasks are handled by different
-        modules called "managers" in the framework. Please refer to the :mod:`omni.isaac.lab.managers` sub-package
+        modules called "managers" in the framework. Please refer to the :mod:`isaaclab.managers` sub-package
         for more details.
     """
 

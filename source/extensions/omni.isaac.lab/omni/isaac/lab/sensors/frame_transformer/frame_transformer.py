@@ -13,9 +13,9 @@ import carb
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.utils.math import (
+import isaaclab.sim as sim_utils
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.math import (
     combine_frame_transforms,
     convert_quat,
     is_identity_pose,

@@ -6,8 +6,8 @@
 import math
 from dataclasses import MISSING
 
-from omni.isaac.lab.managers import CommandTermCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.managers import CommandTermCfg
+from isaaclab.utils import configclass
 
 from .null_command import NullCommand
 from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand

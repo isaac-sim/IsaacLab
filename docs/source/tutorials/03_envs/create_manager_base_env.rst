@@ -4,7 +4,7 @@
 Creating a Manager-Based Base Environment
 =========================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a

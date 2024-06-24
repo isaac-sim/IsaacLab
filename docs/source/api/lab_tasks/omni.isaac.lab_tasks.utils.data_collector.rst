@@ -1,7 +1,7 @@
-﻿omni.isaac.lab_tasks.utils.data_collector
+﻿isaaclab_tasks.utils.data_collector
 =========================================
 
-.. automodule:: omni.isaac.lab_tasks.utils.data_collector
+.. automodule:: isaaclab_tasks.utils.data_collector
 
     .. Rubric:: Classes
 

@@ -4,7 +4,7 @@
 Interacting with a rigid object
 ===============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 In the previous tutorials, we learned the essential workings of the standalone script and how to
 spawn different objects (or *prims*) into the simulation. This tutorial shows how to create and interact

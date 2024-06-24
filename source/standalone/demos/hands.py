@@ -17,7 +17,7 @@ This script demonstrates different dexterous hands.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different dexterous hands.")
@@ -37,14 +37,14 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.allegro import ALLEGRO_HAND_CFG  # isort:skip
-from omni.isaac.lab_assets.shadow_hand import SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets.allegro import ALLEGRO_HAND_CFG  # isort:skip
+from isaaclab_assets.shadow_hand import SHADOW_HAND_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

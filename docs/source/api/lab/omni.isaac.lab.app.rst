@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.app
+﻿isaaclab.app
 ==================
 
-.. automodule:: omni.isaac.lab.app
+.. automodule:: isaaclab.app
 
    .. rubric:: Classes
 
@@ -44,7 +44,7 @@ The following details the behavior of the class based on the environment variabl
   .. note::
 
       The off-screen rendering pipeline only works when used in conjunction with the
-      :class:`omni.isaac.lab.sim.SimulationContext` class. This is because the off-screen rendering
+      :class:`isaaclab.sim.SimulationContext` class. This is because the off-screen rendering
       pipeline enables flags that are internally used by the SimulationContext class.
 
 
@@ -77,7 +77,7 @@ The following snippet shows how use the :class:`AppLauncher` in different ways:
 
    import argparser
 
-   from omni.isaac.lab.app import AppLauncher
+   from isaaclab.app import AppLauncher
 
    # add argparse arguments
    parser = argparse.ArgumentParser()

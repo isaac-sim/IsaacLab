@@ -18,7 +18,7 @@ class TimestampedBuffer:
 
     The buffer is useful for creating lazy buffers that only update the data when it is outdated. This can be
     useful when the data is expensive to compute or retrieve. For example usage, refer to the data classes in
-    the :mod:`omni.isaac.lab.assets` module.
+    the :mod:`isaaclab.assets` module.
     """
 
     data: torch.Tensor = None  # type: ignore

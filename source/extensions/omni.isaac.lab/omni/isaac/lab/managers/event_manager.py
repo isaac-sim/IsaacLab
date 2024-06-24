@@ -19,7 +19,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 class EventManager(ManagerBase):

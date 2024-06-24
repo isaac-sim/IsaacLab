@@ -17,7 +17,7 @@ import warp as wp
 from omni.isaac.core.prims import XFormPrimView
 from pxr import UsdGeom
 
-from omni.isaac.lab.utils.warp.kernels import reshape_tiled_image
+from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from ..sensor_base import SensorBase
 from .camera import Camera

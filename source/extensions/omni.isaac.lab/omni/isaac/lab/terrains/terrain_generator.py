@@ -10,10 +10,10 @@ import trimesh
 
 import carb
 
-from omni.isaac.lab.utils.dict import dict_to_md5_hash
-from omni.isaac.lab.utils.io import dump_yaml
-from omni.isaac.lab.utils.timer import Timer
-from omni.isaac.lab.utils.warp import convert_to_warp_mesh
+from isaaclab.utils.dict import dict_to_md5_hash
+from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.timer import Timer
+from isaaclab.utils.warp import convert_to_warp_mesh
 
 from .height_field import HfTerrainBaseCfg
 from .terrain_generator_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg, TerrainGeneratorCfg

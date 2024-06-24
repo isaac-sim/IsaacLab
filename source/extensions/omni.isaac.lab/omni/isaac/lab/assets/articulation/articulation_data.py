@@ -7,8 +7,8 @@ import torch
 
 import omni.physics.tensors.impl.api as physx
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.utils.buffers import TimestampedBuffer
+import isaaclab.utils.math as math_utils
+from isaaclab.utils.buffers import TimestampedBuffer
 
 from ..rigid_object import RigidObjectData
 

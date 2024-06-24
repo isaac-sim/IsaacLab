@@ -19,8 +19,8 @@ import omni.isaac.core.utils.stage as stage_utils
 import warp as wp
 from pxr import UsdGeom
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.utils.array import TensorData, convert_to_torch
+import isaaclab.utils.math as math_utils
+from isaaclab.utils.array import TensorData, convert_to_torch
 
 """
 Depth <-> Pointcloud conversions.

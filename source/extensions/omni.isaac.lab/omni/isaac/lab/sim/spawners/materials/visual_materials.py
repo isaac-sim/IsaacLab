@@ -11,8 +11,8 @@ import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
 from pxr import Usd
 
-from omni.isaac.lab.sim.utils import clone, safe_set_attribute_on_usd_prim
-from omni.isaac.lab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
+from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg

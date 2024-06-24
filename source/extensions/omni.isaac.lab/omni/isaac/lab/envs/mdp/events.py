@@ -8,7 +8,7 @@
 Events include anything related to altering the simulation state. This includes changing the physics
 materials, applying external forces, and resetting the state of the asset.
 
-The functions can be passed to the :class:`omni.isaac.lab.managers.EventTermCfg` object to enable
+The functions can be passed to the :class:`isaaclab.managers.EventTermCfg` object to enable
 the event introduced by the function.
 """
 
@@ -20,15 +20,15 @@ from typing import TYPE_CHECKING, Literal
 
 import carb
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.actuators import ImplicitActuator
-from omni.isaac.lab.assets import Articulation, RigidObject
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.terrains import TerrainImporter
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
+from isaaclab.actuators import ImplicitActuator
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.terrains import TerrainImporter
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def randomize_rigid_body_material(

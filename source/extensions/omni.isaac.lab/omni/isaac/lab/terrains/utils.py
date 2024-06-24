@@ -12,7 +12,7 @@ import trimesh
 
 import warp as wp
 
-from omni.isaac.lab.utils.warp import raycast_mesh
+from isaaclab.utils.warp import raycast_mesh
 
 
 def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
@@ -82,7 +82,7 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     import omni.isaac.core.utils.prims as prim_utils
     from pxr import UsdGeom
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
     # create parent prim
     prim_utils.create_prim(prim_path, "Xform")

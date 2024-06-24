@@ -18,7 +18,7 @@ This script demonstrates how to run IsaacSim via the AppLauncher
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on running IsaacSim via the AppLauncher.")
@@ -41,7 +41,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.lab.sim as sim_utils
+import isaaclab.sim as sim_utils
 
 
 def design_scene():

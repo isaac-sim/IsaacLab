@@ -8,7 +8,7 @@
 import os
 import yaml
 
-from omni.isaac.lab.utils import class_to_dict
+from isaaclab.utils import class_to_dict
 
 
 def load_yaml(filename: str) -> dict:

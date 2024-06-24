@@ -1,7 +1,7 @@
-﻿omni.isaac.lab.sim
+﻿isaaclab.sim
 ==================
 
-.. automodule:: omni.isaac.lab.sim
+.. automodule:: isaaclab.sim
 
   .. rubric:: Submodules
 
@@ -54,6 +54,6 @@ Simulation Context Builder
 Utilities
 ---------
 
-.. automodule:: omni.isaac.lab.sim.utils
+.. automodule:: isaaclab.sim.utils
   :members:
   :show-inheritance:

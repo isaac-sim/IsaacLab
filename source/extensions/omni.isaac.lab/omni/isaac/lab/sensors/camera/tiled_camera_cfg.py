@@ -6,8 +6,8 @@
 from dataclasses import MISSING
 from typing import Literal
 
-from omni.isaac.lab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from omni.isaac.lab.utils import configclass
+from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
+from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .tiled_camera import TiledCamera

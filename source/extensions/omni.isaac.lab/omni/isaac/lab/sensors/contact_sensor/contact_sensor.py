@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING
 import omni.physics.tensors.impl.api as physx
 from pxr import PhysxSchema
 
-import omni.isaac.lab.sim as sim_utils
-import omni.isaac.lab.utils.string as string_utils
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.utils.math import convert_quat
+import isaaclab.sim as sim_utils
+import isaaclab.utils.string as string_utils
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.math import convert_quat
 
 from ..sensor_base import SensorBase
 from .contact_sensor_data import ContactSensorData
@@ -34,7 +34,7 @@ class ContactSensor(SensorBase):
     It relies on the `PhysX ContactReporter`_ API to be activated on the rigid bodies.
 
     To enable the contact reporter on a rigid body, please make sure to enable the
-    :attr:`omni.isaac.lab.sim.spawner.RigidObjectSpawnerCfg.activate_contact_sensors` on your
+    :attr:`isaaclab.sim.spawner.RigidObjectSpawnerCfg.activate_contact_sensors` on your
     asset spawner configuration. This will enable the contact reporter on all the rigid bodies
     in the asset.
 

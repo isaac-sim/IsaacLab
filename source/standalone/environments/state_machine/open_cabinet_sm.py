@@ -19,7 +19,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for cabinet environments.")
@@ -47,11 +47,11 @@ from collections.abc import Sequence
 import carb
 import warp as wp
 
-from omni.isaac.lab.sensors import FrameTransformer
+from isaaclab.sensors import FrameTransformer
 
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
-from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
 wp.init()

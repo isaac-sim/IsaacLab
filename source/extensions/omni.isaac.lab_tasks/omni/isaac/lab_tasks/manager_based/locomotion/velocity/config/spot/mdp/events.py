@@ -6,7 +6,7 @@
 
 """This sub-module contains the functions that can be used to enable Spot randomizations.
 
-The functions can be passed to the :class:`omni.isaac.lab.managers.EventTermCfg` object to enable
+The functions can be passed to the :class:`isaaclab.managers.EventTermCfg` object to enable
 the randomization introduced by the function.
 """
 
@@ -15,12 +15,12 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.utils.math import sample_uniform
+from isaaclab.assets import Articulation
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def reset_joints_around_default(

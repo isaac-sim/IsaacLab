@@ -1,7 +1,7 @@
 Creating Visualization Markers
 ==============================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Visualization markers are useful to debug the state of the environment. They can be used to visualize
 the frames, commands, and other information in the simulation.

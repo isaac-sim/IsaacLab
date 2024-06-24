@@ -8,14 +8,14 @@ import unittest
 
 """Launch Isaac Sim Simulator first."""
 
-from omni.isaac.lab.app import AppLauncher, run_tests
+from isaaclab.app import AppLauncher, run_tests
 
 # launch omniverse app in headless mode
 simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows from here."""
 
-from omni.isaac.lab.utils import CircularBuffer
+from isaaclab.utils import CircularBuffer
 
 
 class TestCircularBuffer(unittest.TestCase):

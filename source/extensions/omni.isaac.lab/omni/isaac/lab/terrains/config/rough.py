@@ -5,7 +5,7 @@
 
 """Configuration for custom terrains."""
 
-import omni.isaac.lab.terrains as terrain_gen
+import isaaclab.terrains as terrain_gen
 
 from ..terrain_generator_cfg import TerrainGeneratorCfg
 

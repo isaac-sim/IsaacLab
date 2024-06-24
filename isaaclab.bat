@@ -265,7 +265,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\isaaclab_tasks[!framework_name!]
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in omni.isaac.rl/source directory
@@ -296,7 +296,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\isaaclab_tasks[!framework_name!]
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided

@@ -21,11 +21,11 @@ import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.managers import EventManager
-from omni.isaac.lab.scene import InteractiveScene
-from omni.isaac.lab.sim import SimulationContext
-from omni.isaac.lab.utils.noise import NoiseModel
-from omni.isaac.lab.utils.timer import Timer
+from isaaclab.managers import EventManager
+from isaaclab.scene import InteractiveScene
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.noise import NoiseModel
+from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
@@ -529,7 +529,7 @@ class DirectRLEnv(gym.Env):
         """Setup the scene for the environment.
 
         This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`omni.isaac.lab.scene.InteractiveSceneCfg` or through
+        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
         directly creating the scene objects and registering them with the scene manager.
 
         We leave the implementation of this function to the derived classes. If the environment does not require

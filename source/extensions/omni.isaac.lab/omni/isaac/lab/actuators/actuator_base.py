@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from omni.isaac.core.utils.types import ArticulationActions
 
-import omni.isaac.lab.utils.string as string_utils
+import isaaclab.utils.string as string_utils
 
 if TYPE_CHECKING:
     from .actuator_cfg import ActuatorBaseCfg
@@ -34,7 +34,7 @@ class ActuatorBase(ABC):
     for which the actuator model is applied. These names can be specified as regular expressions, which
     are matched against the joint names in the articulation.
 
-    To see how the class is used, check the :class:`omni.isaac.lab.assets.Articulation` class.
+    To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
 
     computed_effort: torch.Tensor

@@ -15,8 +15,8 @@ There are two main ways of using the spawners:
 
    .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    import isaaclab.sim as sim_utils
+    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
@@ -29,8 +29,8 @@ There are two main ways of using the spawners:
 
    .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    import isaaclab.sim as sim_utils
+    from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
     cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
@@ -44,7 +44,7 @@ class and the function call in a single line of code.
 
 Depending on the type of prim, the spawning-functions can also deal with the creation of prims
 over multiple prim path. These need to be provided as a regex prim path expressions, which are
-resolved based on the parent prim paths using the :meth:`omni.isaac.lab.sim.utils.clone` function decorator.
+resolved based on the parent prim paths using the :meth:`isaaclab.sim.utils.clone` function decorator.
 For example:
 
 * ``/World/Table_[1,2]/Robot`` will create the prims ``/World/Table_1/Robot`` and ``/World/Table_2/Robot``

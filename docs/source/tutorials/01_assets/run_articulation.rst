@@ -3,7 +3,7 @@
 Interacting with an articulation
 ================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 
 This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the

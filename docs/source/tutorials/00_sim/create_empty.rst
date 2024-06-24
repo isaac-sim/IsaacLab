@@ -1,7 +1,7 @@
 Creating an empty scene
 =======================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
 empty scene in Isaac Lab and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
@@ -56,12 +56,12 @@ Importing python modules
 Once the simulation app is running, it is possible to import different Python modules from
 Isaac Sim and other libraries. Here we import the following module:
 
-* :mod:`omni.isaac.lab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
+* :mod:`isaaclab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/create_empty.py
    :language: python
-   :start-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
-   :end-at: from omni.isaac.lab.sim import SimulationCfg, SimulationContext
+   :start-at: from isaaclab.sim import SimulationCfg, SimulationContext
+   :end-at: from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 Configuring the simulation context

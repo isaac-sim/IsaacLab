@@ -11,12 +11,12 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING, Literal
 
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from omni.isaac.lab.utils.math import sample_uniform
+from isaaclab.assets import Articulation
+from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 class reset_joints_within_limits_range(ManagerTermBase):

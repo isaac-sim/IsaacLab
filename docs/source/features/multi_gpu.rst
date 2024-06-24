@@ -1,7 +1,7 @@
 Multi-GPU and Multi-Node Training
 =================================
 
-.. currentmodule:: omni.isaac.lab
+.. currentmodule:: isaaclab
 
 Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
 available for RL-Games and skrl libraries workflows. We are working on extending this feature to

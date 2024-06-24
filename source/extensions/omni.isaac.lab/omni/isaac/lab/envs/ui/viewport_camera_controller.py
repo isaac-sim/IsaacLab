@@ -16,7 +16,7 @@ import omni.kit.app
 import omni.timeline
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
+    from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ViewerCfg
 
 
 class ViewportCameraController:

@@ -11,13 +11,13 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.assets import RigidObject
-from omni.isaac.lab.managers import CommandTerm
-from omni.isaac.lab.markers.visualization_markers import VisualizationMarkers
+import isaaclab.utils.math as math_utils
+from isaaclab.assets import RigidObject
+from isaaclab.managers import CommandTerm
+from isaaclab.markers.visualization_markers import VisualizationMarkers
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
     from .commands_cfg import InHandReOrientationCommandCfg
 

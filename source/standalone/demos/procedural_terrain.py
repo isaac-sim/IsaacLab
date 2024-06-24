@@ -31,7 +31,7 @@ Example usage:
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates procedural terrain generation.")
@@ -68,15 +68,15 @@ simulation_app = app_launcher.app
 import random
 import torch
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import AssetBase
-from omni.isaac.lab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBase
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 
 
 def design_scene() -> tuple[dict, torch.Tensor]:

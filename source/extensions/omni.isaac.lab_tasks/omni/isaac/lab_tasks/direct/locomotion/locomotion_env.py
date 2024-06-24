@@ -10,9 +10,9 @@ import torch
 import omni.isaac.core.utils.torch as torch_utils
 from omni.isaac.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 
 
 def normalize_angle(x):

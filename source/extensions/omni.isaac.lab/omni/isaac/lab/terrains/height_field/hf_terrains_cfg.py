@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from ..terrain_generator_cfg import SubTerrainBaseCfg
 from . import hf_terrains

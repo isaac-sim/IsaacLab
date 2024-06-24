@@ -19,7 +19,7 @@ from .shadow_hand_env_cfg import ShadowHandEnvCfg, ShadowHandOpenAIEnvCfg
 
 gym.register(
     id="Isaac-Shadow-Hand-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.shadow_hand:ShadowHandEnv",
+    entry_point="isaaclab_tasks.direct.shadow_hand:ShadowHandEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ShadowHandEnvCfg,
@@ -30,7 +30,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Shadow-Hand-OpenAI-FF-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.shadow_hand:ShadowHandEnv",
+    entry_point="isaaclab_tasks.direct.shadow_hand:ShadowHandEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ShadowHandOpenAIEnvCfg,
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0",
-    entry_point="omni.isaac.lab_tasks.direct.shadow_hand:ShadowHandEnv",
+    entry_point="isaaclab_tasks.direct.shadow_hand:ShadowHandEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": ShadowHandOpenAIEnvCfg,

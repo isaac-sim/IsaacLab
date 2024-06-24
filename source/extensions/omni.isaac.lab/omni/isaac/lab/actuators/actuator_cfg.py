@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from dataclasses import MISSING
 from typing import Literal
 
-from omni.isaac.lab.utils import configclass
+from isaaclab.utils import configclass
 
 from . import actuator_net, actuator_pd
 from .actuator_base import ActuatorBase
@@ -21,7 +21,7 @@ class ActuatorBaseCfg:
     class_type: type[ActuatorBase] = MISSING
     """The associated actuator class.
 
-    The class should inherit from :class:`omni.isaac.lab.actuators.ActuatorBase`.
+    The class should inherit from :class:`isaaclab.actuators.ActuatorBase`.
     """
 
     joint_names_expr: list[str] = MISSING

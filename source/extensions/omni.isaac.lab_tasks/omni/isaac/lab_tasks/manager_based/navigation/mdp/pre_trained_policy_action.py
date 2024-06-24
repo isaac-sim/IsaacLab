@@ -9,16 +9,16 @@ import torch
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import omni.isaac.lab.utils.math as math_utils
-from omni.isaac.lab.assets import Articulation
-from omni.isaac.lab.managers import ActionTerm, ActionTermCfg, ObservationGroupCfg, ObservationManager
-from omni.isaac.lab.markers import VisualizationMarkers
-from omni.isaac.lab.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-from omni.isaac.lab.utils import configclass
-from omni.isaac.lab.utils.assets import check_file_path, read_file
+import isaaclab.utils.math as math_utils
+from isaaclab.assets import Articulation
+from isaaclab.managers import ActionTerm, ActionTermCfg, ObservationGroupCfg, ObservationManager
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import check_file_path, read_file
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedRLEnv
 
 
 class PreTrainedPolicyAction(ActionTerm):

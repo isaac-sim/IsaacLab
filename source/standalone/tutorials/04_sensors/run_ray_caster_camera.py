@@ -19,7 +19,7 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the ray-cast camera sensor.")
@@ -41,11 +41,11 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
-from omni.isaac.lab.utils import convert_dict_to_backend
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.math import project_points, unproject_depth
+import isaaclab.sim as sim_utils
+from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
+from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.math import project_points, unproject_depth
 
 
 def define_sensor() -> RayCasterCamera:

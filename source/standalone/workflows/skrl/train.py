@@ -15,7 +15,7 @@ a more user-friendly way.
 
 import argparse
 
-from omni.isaac.lab.app import AppLauncher
+from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
@@ -58,12 +58,12 @@ from skrl.trainers.torch import SequentialTrainer
 from skrl.utils import set_seed
 from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
 
-from omni.isaac.lab.utils.dict import print_dict
-from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
+from isaaclab.utils.dict import print_dict
+from isaaclab.utils.io import dump_pickle, dump_yaml
 
-import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import load_cfg_from_registry, parse_env_cfg
-from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
 
 
 def main():

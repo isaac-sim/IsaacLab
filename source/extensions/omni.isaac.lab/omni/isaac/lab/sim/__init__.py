@@ -22,7 +22,7 @@ To make it convenient to use the module, we recommend importing the module as fo
 
 .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
+    import isaaclab.sim as sim_utils
 
 """
 

@@ -12,10 +12,10 @@ import omni.usd
 from omni.isaac.core.utils.extensions import enable_extension
 from pxr import Usd, UsdGeom, UsdPhysics, UsdUtils
 
-from omni.isaac.lab.sim.converters.asset_converter_base import AssetConverterBase
-from omni.isaac.lab.sim.converters.mesh_converter_cfg import MeshConverterCfg
-from omni.isaac.lab.sim.schemas import schemas
-from omni.isaac.lab.sim.utils import export_prim_to_file
+from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
+from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
+from isaaclab.sim.schemas import schemas
+from isaaclab.sim.utils import export_prim_to_file
 
 
 class MeshConverter(AssetConverterBase):
