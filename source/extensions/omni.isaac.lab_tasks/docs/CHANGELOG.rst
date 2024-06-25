@@ -46,7 +46,7 @@ Added
 Changed
 ^^^^^^^
 
-* Set default device for RSL RL and SB3 configs to "cuda:0".
+* Made default device for RSL RL and SB3 configs to "cuda:0".
 
 0.7.3 (2024-05-21)
 ~~~~~~~~~~~~~~~~~~
@@ -54,7 +54,7 @@ Changed
 Added
 ^^^^^
 
-* Introduce ``--max_iterations`` argument to training scripts for specifying number of training iterations.
+* Introduced ``--max_iterations`` argument to training scripts for specifying number of training iterations.
 
 0.7.2 (2024-05-13)
 ~~~~~~~~~~~~~~~~~~
@@ -62,7 +62,8 @@ Added
 Added
 ^^^^^
 
-* Add Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
+* Added Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``,
+  and ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
 
 
 0.7.1 (2024-05-09)
@@ -80,7 +81,9 @@ Added
 Changed
 ^^^^^^^
 
-* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`, and :class:`omni.isaac.lab.envs.DirectRLEnv`.
+* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to
+  :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`,
+  and :class:`omni.isaac.lab.envs.DirectRLEnv` respectively.
 * Split environments into ``manager_based`` and ``direct`` folders.
 
 Added

@@ -17,9 +17,9 @@ from omni.isaac.version import get_version
 
 from omni.isaac.lab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 
+from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
-from .rl_env_cfg import ManagerBasedRLEnvCfg
-from .types import VecEnvStepReturn
+from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -84,9 +84,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
+
         # perform events at the start of the simulation
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")
+
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 

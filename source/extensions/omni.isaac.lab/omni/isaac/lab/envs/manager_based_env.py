@@ -12,13 +12,13 @@ from typing import Any
 import carb
 import omni.isaac.core.utils.torch as torch_utils
 
-from omni.isaac.lab.envs.types import VecEnvObs
 from omni.isaac.lab.managers import ActionManager, EventManager, ObservationManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.timer import Timer
 
-from .base_env_cfg import ManagerBasedEnvCfg
+from .common import VecEnvObs
+from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 
 
@@ -251,7 +251,7 @@ class ManagerBasedEnv:
         The environment steps forward at a fixed time-step, while the physics simulation is
         decimated at a lower time-step. This is to ensure that the simulation is stable. These two
         time-steps can be configured independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.physics_dt` (physics time-step).
+        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
         Args:
