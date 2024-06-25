@@ -40,8 +40,8 @@ class RigidObjectData:
         self._sim_timestamp = 0.0
 
         # Initialize constants
-        self.gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
-        self.forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        self.GRAVITY_VEC_W = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
 
         # Initialize buffers for finite differencing
         self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
@@ -116,7 +116,7 @@ class RigidObjectData:
     @property
     def projected_gravity_b(self):
         """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
-        return math_utils.quat_rotate_inverse(self.root_quat_w, self.gravity_vec_w)
+        return math_utils.quat_rotate_inverse(self.root_quat_w, self.GRAVITY_VEC_W)
 
     @property
     def heading_w(self):
@@ -126,7 +126,7 @@ class RigidObjectData:
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
-        forward_w = math_utils.quat_apply(self.root_quat_w, self.forward_vec_b)
+        forward_w = math_utils.quat_apply(self.root_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     @property
