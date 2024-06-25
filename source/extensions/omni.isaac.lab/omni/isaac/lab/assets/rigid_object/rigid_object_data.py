@@ -115,7 +115,12 @@ class RigidObjectData:
 
     @property
     def projected_gravity_b(self):
-        """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
+        """Projection of the gravity direction on base frame. Shape is (num_instances, 3).
+
+        Note:
+            This quantity is computed by assuming that the gravity direction is along the z-direction,
+            i.e. :math:`(0, 0, -1)`.
+        """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.GRAVITY_VEC_W)
 
     @property
