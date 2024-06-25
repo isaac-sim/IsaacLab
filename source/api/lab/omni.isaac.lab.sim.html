@@ -573,7 +573,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg"><code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.dt"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.dt</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.substeps"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render_interval</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>
@@ -790,7 +790,7 @@ the non-<code class="docutils literal notranslate"><span class="pre">_async</spa
 <td><p>Read the simulation setting using the Carbonite SDK.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.step" title="omni.isaac.lab.sim.SimulationContext.step"><code class="xref py py-obj docutils literal notranslate"><span class="pre">step</span></code></a>([render])</p></td>
-<td><p>Steps the physics simulation with the pre-defined time-step.</p></td>
+<td><p>Steps the simulation.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationContext.render" title="omni.isaac.lab.sim.SimulationContext.render"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render</span></code></a>([mode])</p></td>
 <td><p>Refreshes the rendering components including UI elements and view-ports depending on the render mode.</p></td>
@@ -1004,7 +1004,7 @@ documentation.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationContext.step">
 <span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">render</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/simulation_context.html#SimulationContext.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.SimulationContext.step" title="Permalink to this definition">#</a></dt>
-<dd><p>Steps the physics simulation with the pre-defined time-step.</p>
+<dd><p>Steps the simulation.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This function blocks if the timeline is paused. It only returns when the timeline is playing.</p>
@@ -1051,7 +1051,7 @@ background. The rendering components are refreshed based on the render mode.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.dt" title="omni.isaac.lab.sim.SimulationCfg.dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dt</span></code></a></p></td>
 <td><p>The physics simulation time-step (in seconds).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.substeps" title="omni.isaac.lab.sim.SimulationCfg.substeps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">substeps</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_interval</span></code></a></p></td>
 <td><p>The number of physics simulation steps per rendering step.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.gravity" title="omni.isaac.lab.sim.SimulationCfg.gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gravity</span></code></a></p></td>
@@ -1094,8 +1094,8 @@ background. The rendering components are refreshed based on the render mode.</p>
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.substeps">
-<span class="sig-name descname"><span class="pre">substeps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.substeps" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.render_interval">
+<span class="sig-name descname"><span class="pre">render_interval</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.render_interval" title="Permalink to this definition">#</a></dt>
 <dd><p>The number of physics simulation steps per rendering step. Default is 1.</p>
 </dd></dl>
 
@@ -1994,7 +1994,7 @@ selections as follows:</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg"><code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_prim_path</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.dt"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.dt</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.substeps"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.substeps</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render_interval</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>

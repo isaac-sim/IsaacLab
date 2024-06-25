@@ -612,24 +612,24 @@ for scene creation, actions, resets, rewards and observations.</p>
 <span class="linenos"> 23</span>
 <span class="linenos"> 24</span><span class="nd">@configclass</span>
 <span class="linenos"> 25</span><span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">DirectRLEnvCfg</span><span class="p">):</span>
-<span class="linenos"> 26</span>    <span class="c1"># simulation</span>
-<span class="linenos"> 27</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">)</span>
-<span class="linenos"> 28</span>
-<span class="linenos"> 29</span>    <span class="c1"># robot</span>
-<span class="linenos"> 30</span>    <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
-<span class="linenos"> 31</span>    <span class="n">cart_dof_name</span> <span class="o">=</span> <span class="s2">&quot;slider_to_cart&quot;</span>
-<span class="linenos"> 32</span>    <span class="n">pole_dof_name</span> <span class="o">=</span> <span class="s2">&quot;cart_to_pole&quot;</span>
+<span class="linenos"> 26</span>    <span class="c1"># env</span>
+<span class="linenos"> 27</span>    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="linenos"> 28</span>    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
+<span class="linenos"> 29</span>    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">100.0</span>  <span class="c1"># [N]</span>
+<span class="linenos"> 30</span>    <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="linenos"> 31</span>    <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
+<span class="linenos"> 32</span>    <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="linenos"> 33</span>
-<span class="linenos"> 34</span>    <span class="c1"># scene</span>
-<span class="linenos"> 35</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="linenos"> 34</span>    <span class="c1"># simulation</span>
+<span class="linenos"> 35</span>    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span> <span class="n">render_interval</span><span class="o">=</span><span class="n">decimation</span><span class="p">)</span>
 <span class="linenos"> 36</span>
-<span class="linenos"> 37</span>    <span class="c1"># env</span>
-<span class="linenos"> 38</span>    <span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="linenos"> 39</span>    <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
-<span class="linenos"> 40</span>    <span class="n">action_scale</span> <span class="o">=</span> <span class="mf">100.0</span>  <span class="c1"># [N]</span>
-<span class="linenos"> 41</span>    <span class="n">num_actions</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="linenos"> 42</span>    <span class="n">num_observations</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="linenos"> 43</span>    <span class="n">num_states</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="linenos"> 37</span>    <span class="c1"># robot</span>
+<span class="linenos"> 38</span>    <span class="n">robot_cfg</span><span class="p">:</span> <span class="n">ArticulationCfg</span> <span class="o">=</span> <span class="n">CARTPOLE_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Robot&quot;</span><span class="p">)</span>
+<span class="linenos"> 39</span>    <span class="n">cart_dof_name</span> <span class="o">=</span> <span class="s2">&quot;slider_to_cart&quot;</span>
+<span class="linenos"> 40</span>    <span class="n">pole_dof_name</span> <span class="o">=</span> <span class="s2">&quot;cart_to_pole&quot;</span>
+<span class="linenos"> 41</span>
+<span class="linenos"> 42</span>    <span class="c1"># scene</span>
+<span class="linenos"> 43</span>    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="linenos"> 44</span>
 <span class="linenos"> 45</span>    <span class="c1"># reset</span>
 <span class="linenos"> 46</span>    <span class="n">max_cart_pos</span> <span class="o">=</span> <span class="mf">3.0</span>  <span class="c1"># the cart is reset if it exceeds that position [m]</span>

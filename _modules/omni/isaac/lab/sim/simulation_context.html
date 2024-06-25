@@ -697,7 +697,7 @@ document.write(`
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
             <span class="n">stage_units_in_meters</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
             <span class="n">physics_dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span>
-            <span class="n">rendering_dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dt</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">substeps</span><span class="p">,</span>
+            <span class="n">rendering_dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">dt</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">render_interval</span><span class="p">,</span>
             <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">,</span>
             <span class="n">sim_params</span><span class="o">=</span><span class="n">sim_params</span><span class="p">,</span>
             <span class="n">physics_prim_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_prim_path</span><span class="p">,</span>
@@ -867,14 +867,14 @@ document.write(`
                 <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
 
 <div class="viewcode-block" id="SimulationContext.step"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationContext.step">[docs]</a>    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">render</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Steps the physics simulation with the pre-defined time-step.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Steps the simulation.</span>
 
 <span class="sd">        .. note::</span>
 <span class="sd">            This function blocks if the timeline is paused. It only returns when the timeline is playing.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            render: Whether to render the scene after stepping the physics simulation.</span>
-<span class="sd">                If set to False, the scene is not rendered and only the physics simulation is stepped.</span>
+<span class="sd">                    If set to False, the scene is not rendered and only the physics simulation is stepped.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if the simulation timeline is paused. in that case keep stepping until it is playing</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_playing</span><span class="p">():</span>
@@ -950,6 +950,11 @@ document.write(`
 
     <span class="k">def</span> <span class="nf">_init_stage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span><span class="p">:</span>
         <span class="n">_</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_init_stage</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes</span>
+        <span class="c1"># when in headless mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_setting</span><span class="p">(</span><span class="s2">&quot;/app/player/playSimulations&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_app</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_setting</span><span class="p">(</span><span class="s2">&quot;/app/player/playSimulations&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
         <span class="c1"># set additional physx parameters and bind material</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_set_additional_physx_params</span><span class="p">()</span>
         <span class="c1"># load flatcache/fabric interface</span>
