@@ -18,8 +18,6 @@
     Camera
     CameraData
     CameraCfg
-    TiledCamera
-    TiledCameraCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -31,6 +29,8 @@
     RayCasterCfg
     RayCasterCamera
     RayCasterCameraCfg
+    TiledCamera
+    TiledCameraCfg
 
 Sensor Base
 -----------
@@ -61,20 +61,6 @@ USD Camera
     :show-inheritance:
     :exclude-members: __init__, class_type
 
-Tile-Rendered USD Camera
-------------------------
-
-.. autoclass:: TiledCamera
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: TiledCameraCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
 Contact Sensor
 --------------
 
@@ -93,6 +79,7 @@ Contact Sensor
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
 
 Frame Transformer
 -----------------
@@ -146,6 +133,20 @@ Ray-Cast Camera
     :show-inheritance:
 
 .. autoclass:: RayCasterCameraCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Tiled Rendering
+---------------
+
+.. autoclass:: TiledCamera
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: TiledCameraCfg
     :members:
     :inherited-members:
     :show-inheritance:

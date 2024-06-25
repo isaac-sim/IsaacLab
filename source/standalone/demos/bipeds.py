@@ -4,12 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to simulate bipedal robots.
-
-.. code-block:: bash
-
-    # Usage
-    ./isaaclab.sh -p source/standalone/demos/bipeds.py
+This script demonstrates how to simulate a bipedal robot.
 
 """
 
@@ -21,7 +16,7 @@ import torch
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to simulate bipedal robots.")
+parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a bipedal robot.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
