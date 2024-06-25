@@ -12,6 +12,7 @@
       assets
       buffers
       dict
+      interpolation
       math
       noise
       string
@@ -61,13 +62,21 @@ Buffer operations
    :imported-members:
    :inherited-members:
    :show-inheritance:
-   :exclude-members: __init__, func
 
 Dictionary operations
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: omni.isaac.lab.utils.dict
    :members:
+   :show-inheritance:
+
+Interpolation operations
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: omni.isaac.lab.utils.interpolation
+   :members:
+   :imported-members:
+   :inherited-members:
    :show-inheritance:
 
 Math operations
