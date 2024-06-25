@@ -214,7 +214,7 @@ class SimulationContext(_SimulationContext):
         super().__init__(
             stage_units_in_meters=1.0,
             physics_dt=self.cfg.dt,
-            rendering_dt=self.cfg.dt * self.cfg.substeps,
+            rendering_dt=self.cfg.dt * self.cfg.render_interval,
             backend="torch",
             sim_params=sim_params,
             physics_prim_path=self.cfg.physics_prim_path,
@@ -384,14 +384,14 @@ class SimulationContext(_SimulationContext):
                 self.render()
 
     def step(self, render: bool = True):
-        """Steps the physics simulation with the pre-defined time-step.
+        """Steps the simulation.
 
         .. note::
             This function blocks if the timeline is paused. It only returns when the timeline is playing.
 
         Args:
             render: Whether to render the scene after stepping the physics simulation.
-                If set to False, the scene is not rendered and only the physics simulation is stepped.
+                    If set to False, the scene is not rendered and only the physics simulation is stepped.
         """
         # check if the simulation timeline is paused. in that case keep stepping until it is playing
         if not self.is_playing():
@@ -467,6 +467,11 @@ class SimulationContext(_SimulationContext):
 
     def _init_stage(self, *args, **kwargs) -> Usd.Stage:
         _ = super()._init_stage(*args, **kwargs)
+        # a stage update here is needed for the case when physics_dt != rendering_dt, otherwise the app crashes
+        # when in headless mode
+        self.set_setting("/app/player/playSimulations", False)
+        self._app.update()
+        self.set_setting("/app/player/playSimulations", True)
         # set additional physx parameters and bind material
         self._set_additional_physx_params()
         # load flatcache/fabric interface

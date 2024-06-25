@@ -1,15 +1,31 @@
 Changelog
 ---------
 
-0.17.14 (2024-07-21)
-~~~~~~~~~~~~~~~~~~~~
+0.18.1 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Ensured that a parity between class and its configuration class is explicitly visible in the :class:`omni.isaac.lab.envs`
-  module. This makes it easier to follow where definitions are located and how they are related. This should not be
-  a breaking change as the classes are still accessible through the same module.
+* Ensured that a parity between class and its configuration class is explicitly visible in the
+  :mod:`omni.isaac.lab.envs` module. This makes it easier to follow where definitions are located and how
+  they are related. This should not be a breaking change as the classes are still accessible through the same module.
+
+
+0.18.0 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect and rendering
+  would happen once every env.step() when active.
+
+Changed
+^^^^^^^
+
+* Renamed :attr:`omni.isaac.lab.sim.SimulationCfg.substeps` to :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+  The render logic is now integrated in the decimation loop of the environment.
 
 
 0.17.13 (2024-06-13)

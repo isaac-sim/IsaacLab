@@ -594,14 +594,10 @@ class AppLauncher:
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
-        carb_settings_iface.set_string(
-            "/persistent/isaac/asset_root/default",
-            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0",
-        )
-        carb_settings_iface.set_string(
-            "/persistent/isaac/asset_root/nvidia",
-            "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0",
-        )
+        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0"
+        carb_settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
+        carb_settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
+        carb_settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)
 
         # disable physics backwards compatibility check
         carb_settings_iface.set_int(physx_impl.SETTING_BACKWARD_COMPATIBILITY, 0)

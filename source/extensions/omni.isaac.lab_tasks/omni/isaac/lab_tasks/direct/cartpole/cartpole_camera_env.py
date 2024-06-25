@@ -26,8 +26,16 @@ from omni.isaac.lab.utils.math import sample_uniform
 
 @configclass
 class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
+    # env
+    decimation = 2
+    episode_length_s = 5.0
+    action_scale = 100.0  # [N]
+    num_actions = 1
+    num_channels = 3
+    num_states = 0
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
@@ -45,6 +53,7 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
         width=80,
         height=80,
     )
+    num_observations = num_channels * tiled_camera.height * tiled_camera.width
     write_image_to_file = False
 
     # change viewer settings
@@ -52,15 +61,6 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=256, env_spacing=20.0, replicate_physics=True)
-
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    action_scale = 100.0  # [N]
-    num_actions = 1
-    num_channels = 3
-    num_observations = num_channels * tiled_camera.height * tiled_camera.width
-    num_states = 0
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
