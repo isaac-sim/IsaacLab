@@ -25,7 +25,6 @@ from omni.isaac.lab.utils.math import sample_uniform
 
 @configclass
 class FrankaCabinetEnvCfg(DirectRLEnvCfg):
-
     # env
     episode_length_s = 8.3333  # 500 timesteps
     decimation = 2
@@ -33,12 +32,10 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     num_observations = 23
     num_states = 0
 
-    action_scale = 7.5
-    dof_velocity_scale = 0.1
-
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
+        render_interval=decimation,
         disable_contact_processing=True,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -153,6 +150,9 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
             restitution=0.0,
         ),
     )
+
+    action_scale = 7.5
+    dof_velocity_scale = 0.1
 
     # reward scales
     dist_reward_scale = 2.0

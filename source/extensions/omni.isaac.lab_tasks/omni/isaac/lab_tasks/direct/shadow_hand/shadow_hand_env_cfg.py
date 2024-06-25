@@ -110,9 +110,19 @@ class EventCfg:
 
 @configclass
 class ShadowHandEnvCfg(DirectRLEnvCfg):
+    # env
+    decimation = 2
+    episode_length_s = 10.0
+    num_actions = 20
+    num_observations = 157  # (full)
+    num_states = 0
+    asymmetric_obs = False
+    obs_type = "full"
+
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
@@ -190,14 +200,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True)
-    # env
-    decimation = 2
-    episode_length_s = 10.0
-    num_actions = 20
-    num_observations = 157  # (full)
-    num_states = 0
-    asymmetric_obs = False
-    obs_type = "full"
+
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
