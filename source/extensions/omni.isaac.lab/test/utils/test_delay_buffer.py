@@ -44,11 +44,10 @@ class TestDelayBuffer(unittest.TestCase):
             self.assertTrue(torch.all(error == 0))
 
     def test_reset(self):
-        """Test resetting the last two environments after iteration `reset_itr`."""
+        """Test resetting the last two batch indices after iteration `reset_itr`."""
         const_lag: int = 2
         reset_itr = 10
 
-        self.buffer = DelayBuffer(self.history_length, batch_size=self.batch_size, device=self.device)
         self.buffer.set_time_lag(const_lag)
 
         all_data = []
@@ -71,11 +70,10 @@ class TestDelayBuffer(unittest.TestCase):
                 self.assertTrue(torch.all(error2_reset == 0))
 
     def test_random_time_lags(self):
-        """Test random delay."""
+        """Test random delays."""
         max_lag: int = 3
         time_lags = torch.randint(low=0, high=max_lag + 1, size=(self.batch_size,), dtype=torch.int, device=self.device)
 
-        self.buffer = DelayBuffer(self.history_length, batch_size=self.batch_size, device=self.device)
         self.buffer.set_time_lag(time_lags)
 
         all_data = []

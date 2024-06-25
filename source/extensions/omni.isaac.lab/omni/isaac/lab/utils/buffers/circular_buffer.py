@@ -57,6 +57,11 @@ class CircularBuffer:
         return self._batch_size
 
     @property
+    def device(self) -> str:
+        """The device used for processing."""
+        return self._device
+
+    @property
     def max_length(self) -> int:
         """The maximum length of the ring buffer."""
         return int(self._max_len[0].item())
@@ -70,11 +75,6 @@ class CircularBuffer:
         """
         return torch.minimum(self._num_pushes, self._max_len)
 
-    @property
-    def device(self) -> str:
-        """The device used for processing."""
-        return self._device
-
     """
     Operations.
     """
@@ -83,7 +83,7 @@ class CircularBuffer:
         """Reset the circular buffer at the specified batch indices.
 
         Args:
-            batch_ids: Elements to reset in the batch dimension.
+            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
         # resolve all indices
         if batch_ids is None:
