@@ -510,17 +510,27 @@ document.write(`
 
 
 <div class="viewcode-block" id="TiledCamera"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera">[docs]</a><span class="k">class</span> <span class="nc">TiledCamera</span><span class="p">(</span><span class="n">Camera</span><span class="p">):</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The tiled rendering camera sensor for acquiring RGB and depth data.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The tiled rendering based camera sensor for acquiring RGB and depth data.</span>
 
-<span class="sd">    This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.</span>
-<span class="sd">    It ensures that the camera follows the ROS convention for the coordinate system.</span>
+<span class="sd">    This class inherits from the :class:`Camera` class but uses the tiled-rendering API from Replicator to acquire</span>
+<span class="sd">    the visual data. Tiled-rendering concatenates the rendered images from multiple cameras into a single image.</span>
+<span class="sd">    This allows for rendering multiple cameras in parallel and is useful for rendering large scenes with multiple</span>
+<span class="sd">    cameras efficiently.</span>
 
 <span class="sd">    The following sensor types are supported:</span>
 
 <span class="sd">    - ``&quot;rgb&quot;``: A rendered color image.</span>
 <span class="sd">    - ``&quot;depth&quot;``: An image containing the distance to camera optical center.</span>
 
-<span class="sd">    .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html</span>
+<span class="sd">    .. versionadded:: Isaac Sim 4.0</span>
+
+<span class="sd">        This feature is available starting from Isaac Sim 4.0. Before this version, the tiled rendering APIs</span>
+<span class="sd">        were not available.</span>
+
+<span class="sd">    .. attention::</span>
+<span class="sd">        Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the</span>
+<span class="sd">        tiled rendering process. Various ray tracing effects such as reflections, refractions, and shadows may not be</span>
+<span class="sd">        accurately captured in the RGB images. We are currently working on improving the fidelity of the RGB images.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -544,7 +554,9 @@ document.write(`
 
     <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribes from callbacks and detach from the replicator registry.&quot;&quot;&quot;</span>
+        <span class="c1"># unsubscribe from callbacks</span>
         <span class="n">SensorBase</span><span class="o">.</span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c1"># detach from the replicator registry</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_annotator</span><span class="o">.</span><span class="n">detach</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">render_product_paths</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -569,9 +581,10 @@ document.write(`
             <span class="p">)</span>
         <span class="c1"># reset the timestamps</span>
         <span class="n">SensorBase</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># resolve None</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
-        <span class="c1"># Reset the frame count</span>
+            <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># reset the frame count</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -625,37 +638,38 @@ document.write(`
             <span class="n">sensor_prim</span> <span class="o">=</span> <span class="n">UsdGeom</span><span class="o">.</span><span class="n">Camera</span><span class="p">(</span><span class="n">cam_prim</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sensor_prims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sensor_prim</span><span class="p">)</span>
 
+        <span class="c1"># start the orchestrator (if not already started)</span>
         <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">_orchestrator</span><span class="o">.</span><span class="n">_is_started</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">sensor</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">tiled_sensor</span><span class="p">(</span>
+        <span class="c1"># Create a tiled sensor from the camera prims</span>
+        <span class="n">rep_sensor</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">tiled_sensor</span><span class="p">(</span>
             <span class="n">cameras</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">prim_paths</span><span class="p">,</span>
             <span class="n">camera_resolution</span><span class="o">=</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">image_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
             <span class="n">tiled_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tiled_image_shape</span><span class="p">(),</span>
             <span class="n">output_types</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">render_product</span><span class="p">(</span><span class="n">camera</span><span class="o">=</span><span class="n">sensor</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tiled_image_shape</span><span class="p">())</span>
+        <span class="c1"># Get render product</span>
+        <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">create</span><span class="o">.</span><span class="n">render_product</span><span class="p">(</span><span class="n">camera</span><span class="o">=</span><span class="n">rep_sensor</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tiled_image_shape</span><span class="p">())</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">render_prod_path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">render_prod_path</span> <span class="o">=</span> <span class="n">render_prod_path</span><span class="o">.</span><span class="n">path</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">render_prod_path</span><span class="p">]</span>
+        <span class="c1"># Attach the annotator</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_annotator</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">AnnotatorRegistry</span><span class="o">.</span><span class="n">get_annotator</span><span class="p">(</span><span class="s2">&quot;RtxSensorGpu&quot;</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">do_array_copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_annotator</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_render_product_paths</span><span class="p">)</span>
+
         <span class="c1"># Create internal buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_create_buffers</span><span class="p">()</span>
-
-    <span class="k">def</span> <span class="nf">_create_annotator_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Annotator data is not available for the tiled camera sensor.&quot;</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_process_annotator_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
-        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Annotator data is not available for the tiled camera sensor.&quot;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_update_buffers_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]):</span>
         <span class="c1"># Increment frame count</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
         <span class="c1"># Extract the flattened image buffer</span>
         <span class="n">tiled_data_buffer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_annotator</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tiled_data_buffer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
             <span class="n">tiled_data_buffer</span> <span class="o">=</span> <span class="n">wp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tiled_data_buffer</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">tiled_data_buffer</span> <span class="o">=</span> <span class="n">tiled_data_buffer</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
         <span class="c1"># The offset is needed when the buffer contains rgb and depth (the buffer has RGB data first and then depth)</span>
         <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span><span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="k">if</span> <span class="s2">&quot;rgb&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span> <span class="k">else</span> <span class="mi">0</span>
         <span class="k">for</span> <span class="n">data_type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">data_types</span><span class="p">:</span>
@@ -675,17 +689,6 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Private Helpers</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">_tiled_image_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;A tuple containing the dimension of the tiled image.&quot;&quot;&quot;</span>
-        <span class="n">cols</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiling_grid_shape</span><span class="p">()</span>
-        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span> <span class="o">*</span> <span class="n">cols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="n">rows</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">_tiling_grid_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;A tuple containing the tiling grid dimension.&quot;&quot;&quot;</span>
-        <span class="n">cols</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">))</span>
-        <span class="n">rows</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span> <span class="o">/</span> <span class="n">cols</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_check_supported_data_types</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Checks if the data types are supported by the camera.&quot;&quot;&quot;</span>
@@ -717,6 +720,25 @@ document.write(`
                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span>
             <span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">TensorDict</span><span class="p">(</span><span class="n">data_dict</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_tiled_image_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns a tuple containing the dimension of the tiled image.&quot;&quot;&quot;</span>
+        <span class="n">cols</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiling_grid_shape</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">width</span> <span class="o">*</span> <span class="n">cols</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="n">rows</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_tiling_grid_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns a tuple containing the tiling grid dimension.&quot;&quot;&quot;</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span><span class="p">))</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="o">.</span><span class="n">count</span> <span class="o">/</span> <span class="n">cols</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_create_annotator_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># we do not need to create annotator data for the tiled camera sensor</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;This function should not be called for the tiled camera sensor.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_process_annotator_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">,</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="c1"># we do not need to process annotator output for the tiled camera sensor</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;This function should not be called for the tiled camera sensor.&quot;</span><span class="p">)</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal simulation callbacks.</span>

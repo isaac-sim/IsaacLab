@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.sensors.camera.camera_cfg &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.sensors.camera.tiled_camera_cfg &#8212; Isaac Lab documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../../_static/tabs.js"></script>
     <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/camera_cfg';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/tiled_camera_cfg';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../search.html" />
@@ -402,7 +402,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sensors/camera/camera_cfg.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sensors/camera/tiled_camera_cfg.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -480,7 +480,7 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.sensors.camera.camera_cfg</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.sensors.camera.tiled_camera_cfg</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -493,14 +493,14 @@ document.write(`
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
 <span class="kn">from</span> <span class="nn">..sensor_base_cfg</span> <span class="kn">import</span> <span class="n">SensorBaseCfg</span>
-<span class="kn">from</span> <span class="nn">.camera</span> <span class="kn">import</span> <span class="n">Camera</span>
+<span class="kn">from</span> <span class="nn">.tiled_camera</span> <span class="kn">import</span> <span class="n">TiledCamera</span>
 
 
-<div class="viewcode-block" id="CameraCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">CameraCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a camera sensor.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="TiledCameraCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">TiledCameraCfg</span><span class="p">(</span><span class="n">SensorBaseCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a tiled rendering-based camera sensor.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="CameraCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
+<div class="viewcode-block" id="TiledCameraCfg.OffsetCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCameraCfg.OffsetCfg">[docs]</a>    <span class="nd">@configclass</span>
     <span class="k">class</span> <span class="nc">OffsetCfg</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame.&quot;&quot;&quot;</span>
 
@@ -516,10 +516,9 @@ document.write(`
 <span class="sd">        - ``&quot;opengl&quot;`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera) convention.</span>
 <span class="sd">        - ``&quot;ros&quot;``    - forward axis: ``+Z`` - up axis: ``-Y`` - Offset is applied in the ROS convention.</span>
 <span class="sd">        - ``&quot;world&quot;``  - forward axis: ``+X`` - up axis: ``+Z`` - Offset is applied in the World Frame convention.</span>
-
 <span class="sd">        &quot;&quot;&quot;</span></div>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Camera</span>
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">TiledCamera</span>
 
     <span class="n">offset</span><span class="p">:</span> <span class="n">OffsetCfg</span> <span class="o">=</span> <span class="n">OffsetCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The offset pose of the sensor&#39;s frame from the sensor&#39;s parent frame. Defaults to identity.</span>
@@ -539,7 +538,7 @@ document.write(`
     <span class="n">data_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;rgb&quot;</span><span class="p">]</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;List of sensor names/types to enable for the camera. Defaults to [&quot;rgb&quot;].</span>
 
-<span class="sd">    Please refer to the :class:`Camera` class for a list of available data types.</span>
+<span class="sd">    Please refer to the :class:`TiledCamera` class for a list of available data types.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -548,46 +547,12 @@ document.write(`
     <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Height of the image in pixels.&quot;&quot;&quot;</span>
 
-    <span class="n">semantic_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;*:*&quot;</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;A string or a list specifying a semantic filter predicate. Defaults to ``&quot;*:*&quot;``.</span>
+    <span class="n">return_latest_camera_pose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to return the latest camera pose when fetching the camera&#39;s data. Defaults to False.</span>
 
-<span class="sd">    If a string, it should be a disjunctive normal form of (semantic type, labels). For examples:</span>
-
-<span class="sd">    * ``&quot;typeA : labelA &amp; !labelB | labelC , typeB: labelA ; typeC: labelE&quot;``:</span>
-<span class="sd">      All prims with semantic type &quot;typeA&quot; and label &quot;labelA&quot; but not &quot;labelB&quot; or with label &quot;labelC&quot;.</span>
-<span class="sd">      Also, all prims with semantic type &quot;typeB&quot; and label &quot;labelA&quot;, or with semantic type &quot;typeC&quot; and label &quot;labelE&quot;.</span>
-<span class="sd">    * ``&quot;typeA : * ; * : labelA&quot;``: All prims with semantic type &quot;typeA&quot; or with label &quot;labelA&quot;</span>
-
-<span class="sd">    If a list of strings, each string should be a semantic type. The segmentation for prims with</span>
-<span class="sd">    semantics of the specified types will be retrieved. For example, if the list is [&quot;class&quot;], only</span>
-<span class="sd">    the segmentation for prims with semantics of type &quot;class&quot; will be retrieved.</span>
-
-<span class="sd">    .. seealso::</span>
-
-<span class="sd">        For more information on the semantics filter, see the documentation on `Replicator Semantics Schema Editor`_.</span>
-
-<span class="sd">    .. _Replicator Semantics Schema Editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">colorize_semantic_segmentation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to colorize the semantic segmentation images. Defaults to True.</span>
-
-<span class="sd">    If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors</span>
-<span class="sd">    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">colorize_instance_id_segmentation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to colorize the instance ID segmentation images. Defaults to True.</span>
-
-<span class="sd">    If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.</span>
-<span class="sd">    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">colorize_instance_segmentation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to colorize the instance ID segmentation images. Defaults to True.</span>
-
-<span class="sd">    If True, instance segmentation is converted to an image where instance IDs are mapped to colors.</span>
-<span class="sd">    and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.</span>
+<span class="sd">    If True, the latest camera pose is returned in the camera&#39;s data which will slow down performance</span>
+<span class="sd">    due to the use of :class:`XformPrimView`.</span>
+<span class="sd">    If False, the pose of the camera during initialization is returned.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
