@@ -45,7 +45,7 @@ class CircularBuffer:
         self._pointer: int = -1
         # the actual buffer for data storage
         # note: this is initialized on the first call to :meth:`append`
-        self._buffer: torch.Tensor = None
+        self._buffer: torch.Tensor = None  # type: ignore
 
     """
     Properties.
