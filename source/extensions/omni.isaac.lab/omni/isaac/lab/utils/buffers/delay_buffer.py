@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# needed because we concatenate int and torch.Tensor in the type hints
+from __future__ import annotations
+
 import torch
 from collections.abc import Sequence
 
