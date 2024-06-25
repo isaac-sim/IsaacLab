@@ -14,9 +14,27 @@ keywords = ["robotics", "rl", "il", "learning"]
 [dependencies]
 "omni.isaac.lab" = {}
 "omni.isaac.lab_assets" = {}
-"omni.isaac.core" = {}
-"omni.isaac.gym" = {}
-"omni.replicator.isaac" = {}
+
+[python.pipapi]
+requirements = [
+    "h5py",
+    "tensorboard",
+    "stable-baselines3>=2.1",
+    "rl-games==1.6.1",
+    "rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git",
+    "skrl>=1.1.0"
+]
+
+modules = [
+    "h5py",
+    "tensorboard",
+    "stable_baselines3",
+    "rl_games",
+    "rsl_rl",
+    "skrl"
+]
+
+use_online_index=true
 
 [[python.module]]
 name = "omni.isaac.lab_tasks"

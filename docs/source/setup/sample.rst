@@ -122,7 +122,7 @@ Imitation Learning
 
 Using the teleoperation devices, it is also possible to collect data for
 learning from demonstrations (LfD). For this, we support the learning
-framework `Robomimic <https://robomimic.github.io/>`__ and allow saving
+framework `Robomimic <https://robomimic.github.io/>`__ (Linux only) and allow saving
 data in
 `HDF5 <https://robomimic.github.io/docs/tutorials/dataset_contents.html#viewing-hdf5-dataset-structure>`__
 format.
