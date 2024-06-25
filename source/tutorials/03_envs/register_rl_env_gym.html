@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="index.html">Designing an Environment</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
@@ -547,7 +547,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-explained">The Code Explained</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-gym-registry">Using the gym registry</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based-environments">Manager-Based Environments</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environemtns">Direct Environemtns</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environments">Direct Environments</a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-the-environment">Creating the environment</a></li>
@@ -700,7 +700,7 @@ in the environment name, the entry point to the environment class, and the entry
 environment configuration class.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">gymnasium</span></code> registry is a global registry. Hence, it is important to ensure that the
+<p>The <code class="xref py py-mod docutils literal notranslate"><span class="pre">gymnasium</span></code> registry is a global registry. Hence, it is important to ensure that the
 environment names are unique. Otherwise, the registry will throw an error when registering
 the environment.</p>
 </div>
@@ -711,8 +711,8 @@ call for the cartpole environment in the <code class="docutils literal notransla
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">agents</span>
-<span class="kn">from</span> <span class="nn">.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
-
+<span class="hll"><span class="kn">from</span> <span class="nn">.cartpole_env_cfg</span> <span class="kn">import</span> <span class="n">CartpoleEnvCfg</span>
+</span>
 <span class="c1">##</span>
 <span class="c1"># Register Gym environments.</span>
 <span class="c1">##</span>
@@ -747,26 +747,32 @@ configuration is loaded using the <a class="reference internal" href="../../api/
 It is then passed to the <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.make()</span></code> function to create the environment instance.
 The configuration entry point can be both a YAML file or a python configuration class.</p>
 </section>
-<section id="direct-environemtns">
-<h4>Direct Environemtns<a class="headerlink" href="#direct-environemtns" title="Permalink to this heading">#</a></h4>
-<p>For direct-based environments, the following shows the registration call for the cartpole environment
-in the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.cartpole</span></code> sub-package:</p>
+<section id="direct-environments">
+<h4>Direct Environments<a class="headerlink" href="#direct-environments" title="Permalink to this heading">#</a></h4>
+<p>For direct-based environments, the environment registration follows a similar pattern. Instead of
+registering the environment’s entry point as the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code></a> class,
+we register the environment’s entry point as the implementation class of the environment.
+Additionally, we add the suffix <code class="docutils literal notranslate"><span class="pre">-Direct</span></code> to the environment name to differentiate it from the
+manager-based environments.</p>
+<p>As an example, the following shows the registration call for the cartpole environment in the
+<code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.cartpole</span></code> sub-package:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">agents</span>
-<span class="kn">from</span> <span class="nn">.cartpole_env</span> <span class="kn">import</span> <span class="n">CartpoleEnv</span><span class="p">,</span> <span class="n">CartpoleEnvCfg</span>
-
+<span class="kn">from</span> <span class="nn">.cartpole_camera_env</span> <span class="kn">import</span> <span class="n">CartpoleCameraEnv</span><span class="p">,</span> <span class="n">CartpoleDepthCameraEnvCfg</span><span class="p">,</span> <span class="n">CartpoleRGBCameraEnvCfg</span>
+<span class="hll"><span class="kn">from</span> <span class="nn">.cartpole_env</span> <span class="kn">import</span> <span class="n">CartpoleEnv</span><span class="p">,</span> <span class="n">CartpoleEnvCfg</span>
+</span>
 <span class="c1">##</span>
 <span class="c1"># Register Gym environments.</span>
 <span class="c1">##</span>
 
 <span class="n">gym</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
-    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-Direct-v0&quot;</span><span class="p">,</span>
-    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv&quot;</span><span class="p">,</span>
-    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="hll">    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;Isaac-Cartpole-Direct-v0&quot;</span><span class="p">,</span>
+</span><span class="hll">    <span class="n">entry_point</span><span class="o">=</span><span class="s2">&quot;omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv&quot;</span><span class="p">,</span>
+</span>    <span class="n">disable_env_checker</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
-        <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml&quot;</span><span class="p">,</span>
+<span class="hll">        <span class="s2">&quot;env_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">CartpoleEnvCfg</span><span class="p">,</span>
+</span>        <span class="s2">&quot;rl_games_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:rl_games_ppo_cfg.yaml&quot;</span><span class="p">,</span>
         <span class="s2">&quot;rsl_rl_cfg_entry_point&quot;</span><span class="p">:</span> <span class="n">agents</span><span class="o">.</span><span class="n">rsl_rl_ppo_cfg</span><span class="o">.</span><span class="n">CartpolePPORunnerCfg</span><span class="p">,</span>
         <span class="s2">&quot;skrl_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:skrl_ppo_cfg.yaml&quot;</span><span class="p">,</span>
         <span class="s2">&quot;sb3_cfg_entry_point&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">agents</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">:sb3_ppo_cfg.yaml&quot;</span><span class="p">,</span>
@@ -774,22 +780,6 @@ in the <code class="docutils literal notranslate"><span class="pre">omni.isaac.l
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">id</span></code> argument is the name of the environment. As a convention, we name all the environments
-with the prefix <code class="docutils literal notranslate"><span class="pre">Isaac-</span></code> to make it easier to search for them in the registry.
-For direct environments, we also add the suffix <code class="docutils literal notranslate"><span class="pre">-Direct</span></code>. The name of the
-environment is typically followed by the name of the task, and then the name of the robot.
-For instance, for legged locomotion with ANYmal C on flat terrain, the environment is called
-<code class="docutils literal notranslate"><span class="pre">Isaac-Velocity-Flat-Anymal-C-Direct-v0</span></code>. The version number <code class="docutils literal notranslate"><span class="pre">v&lt;N&gt;</span></code> is typically used to specify different
-variations of the same environment. Otherwise, the names of the environments can become too long
-and difficult to read.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">entry_point</span></code> argument is the entry point to the environment class. The entry point is a string
-of the form <code class="docutils literal notranslate"><span class="pre">&lt;module&gt;:&lt;class&gt;</span></code>. In the case of the cartpole environment, the entry point is
-<code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv</span></code>. The entry point is used to import the environment class
-when creating the environment instance.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">env_cfg_entry_point</span></code> argument specifies the default configuration for the environment. The default
-configuration is loaded using the <a class="reference internal" href="../../api/lab_tasks/omni.isaac.lab_tasks.utils.html#omni.isaac.lab_tasks.utils.parse_env_cfg" title="omni.isaac.lab_tasks.utils.parse_env_cfg"><code class="xref py py-meth docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.utils.parse_env_cfg()</span></code></a> function.
-It is then passed to the <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.make()</span></code> function to create the environment instance.
-The configuration entry point can be both a YAML file or a python configuration class.</p>
 </section>
 </section>
 <section id="creating-the-environment">
@@ -821,7 +811,7 @@ and whether to render, are used to override the default configuration.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
 </pre></div>
 </div>
-<p>This should open a stage with everything similar to the previous <a class="reference internal" href="create_rl_env.html#tutorial-create-rl-env"><span class="std std-ref">Creating a Manager-Based RL Environment</span></a> tutorial.
+<p>This should open a stage with everything similar to the <a class="reference internal" href="create_manager_rl_env.html#tutorial-create-manager-rl-env"><span class="std std-ref">Creating a Manager-Based RL Environment</span></a> tutorial.
 To stop the simulation, you can either close the window, or press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> in the terminal.</p>
 <p>In addition, you can also change the simulation device from GPU to CPU by adding the <code class="docutils literal notranslate"><span class="pre">--cpu</span></code> flag:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--cpu
@@ -881,7 +871,7 @@ However, the simulation will run much slower than on the GPU.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-code-explained">The Code Explained</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-gym-registry">Using the gym registry</a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#manager-based-environments">Manager-Based Environments</a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environemtns">Direct Environemtns</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-environments">Direct Environments</a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-the-environment">Creating the environment</a></li>

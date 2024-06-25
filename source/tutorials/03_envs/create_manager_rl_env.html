@@ -48,12 +48,12 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_rl_env';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_manager_rl_env';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Creating a Direct Workflow RL Environment" href="create_direct_rl_env.html" />
-    <link rel="prev" title="Creating a Manager-Based Base Environment" href="create_base_env.html" />
+    <link rel="prev" title="Creating a Manager-Based Base Environment" href="create_manager_base_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Jun 25, 2024"/>
@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
@@ -254,7 +254,7 @@
 </ul>
 </details></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="index.html">Designing an Environment</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="create_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
@@ -402,7 +402,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/tutorials/03_envs/create_rl_env.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/tutorials/03_envs/create_manager_rl_env.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -419,7 +419,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/tutorials/03_envs/create_rl_env.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/tutorials/03_envs/create_manager_rl_env.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -449,7 +449,7 @@
       
       
       
-      <li><a href="../../../_sources/source/tutorials/03_envs/create_rl_env.rst" target="_blank"
+      <li><a href="../../../_sources/source/tutorials/03_envs/create_manager_rl_env.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -566,8 +566,8 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-manager-based-rl-environment">
-<span id="tutorial-create-rl-env"></span><h1>Creating a Manager-Based RL Environment<a class="headerlink" href="#creating-a-manager-based-rl-environment" title="Permalink to this heading">#</a></h1>
-<p>Having learnt how to create a base environment in <a class="reference internal" href="create_base_env.html#tutorial-create-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>, we will now look at how to create a manager-based
+<span id="tutorial-create-manager-rl-env"></span><h1>Creating a Manager-Based RL Environment<a class="headerlink" href="#creating-a-manager-based-rl-environment" title="Permalink to this heading">#</a></h1>
+<p>Having learnt how to create a base environment in <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>, we will now look at how to create a manager-based
 task environment for reinforcement learning.</p>
 <p>The base environment is designed as an sense-act environment where the agent can send commands to the environment
 and receive observations from the environment. This minimal interface is sufficient for many applications such as
@@ -879,7 +879,7 @@ curriculum and commands.</p>
 </details></section>
 <section id="the-code-explained">
 <h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
-<p>We already went through parts of the above in the <a class="reference internal" href="create_base_env.html#tutorial-create-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a> tutorial to learn
+<p>We already went through parts of the above in the <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a> tutorial to learn
 about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.</p>
 <p>In Isaac Lab, we provide various implementations of different terms in the <code class="xref py py-mod docutils literal notranslate"><span class="pre">envs.mdp</span></code> module. We will use
@@ -995,7 +995,7 @@ We use a simple pass-through curriculum to define a curriculum manager that does
 <section id="tying-it-all-together">
 <h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Permalink to this heading">#</a></h3>
 <p>With all the above components defined, we can now create the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg</span></code> configuration for the
-cartpole environment. This is similar to the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg</span></code> defined in <a class="reference internal" href="create_base_env.html#tutorial-create-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>,
+cartpole environment. This is similar to the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg</span></code> defined in <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>,
 only with the added RL components explained in the above sections.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@configclass</span>
 <span class="k">class</span> <span class="nc">CartpoleEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
@@ -1103,7 +1103,7 @@ in the next tutorial.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="create_base_env.html"
+       href="create_manager_base_env.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">

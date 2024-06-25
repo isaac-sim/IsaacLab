@@ -53,7 +53,7 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link rel="next" title="Registering an Environment" href="register_rl_env_gym.html" />
-    <link rel="prev" title="Creating a Manager-Based RL Environment" href="create_rl_env.html" />
+    <link rel="prev" title="Creating a Manager-Based RL Environment" href="create_manager_rl_env.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Jun 25, 2024"/>
@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="index.html">Designing an Environment</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
@@ -569,7 +569,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-direct-workflow-rl-environment">
-<span id="tutorial-create-oige-rl-env"></span><h1>Creating a Direct Workflow RL Environment<a class="headerlink" href="#creating-a-direct-workflow-rl-environment" title="Permalink to this heading">#</a></h1>
+<span id="tutorial-create-direct-rl-env"></span><h1>Creating a Direct Workflow RL Environment<a class="headerlink" href="#creating-a-direct-workflow-rl-environment" title="Permalink to this heading">#</a></h1>
 <p>In addition to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class, which encourages the use of configuration classes
 for more modular environments, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class allows for more direct control
 in the scripting of environment.</p>
@@ -830,7 +830,7 @@ scene, such as ground plane and lights. These operations should be implemented i
 <h3>Defining Rewards<a class="headerlink" href="#defining-rewards" title="Permalink to this heading">#</a></h3>
 <p>Reward function should be defined in the <code class="docutils literal notranslate"><span class="pre">_get_rewards(self)</span></code> API, which returns the reward
 buffer as a return value. Within this function, the task is free to implement the logic of
-the reward function. In this example, we implement a Pytorch jitted function that computes
+the reward function. In this example, we implement a Pytorch JIT function that computes
 the various components of the reward function.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">_get_rewards</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
      <span class="n">total_reward</span> <span class="o">=</span> <span class="n">compute_rewards</span><span class="p">(</span>
@@ -1079,7 +1079,7 @@ in the next tutorial.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="create_rl_env.html"
+       href="create_manager_rl_env.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">

@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source/features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source/features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
@@ -674,11 +674,9 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager">ActionManager (class in omni.isaac.lab.managers)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.actions">actions (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions">actions (omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 
       <ul>
-        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
-</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.actions">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
@@ -812,8 +810,6 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher">AppLauncher (class in omni.isaac.lab.app)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBase.applied_effort">applied_effort (omni.isaac.lab.actuators.ActuatorBase attribute)</a>
 
       <ul>
@@ -828,6 +824,8 @@ document.write(`
         <li><a href="source/api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuator.applied_effort">(omni.isaac.lab.actuators.ImplicitActuator attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.applied_torque">applied_torque (omni.isaac.lab.assets.ArticulationData attribute)</a>
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.applied_torque_limits">applied_torque_limits() (in module omni.isaac.lab.envs.mdp.rewards)</a>
@@ -3563,11 +3561,9 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ObservationManager">ObservationManager (class in omni.isaac.lab.managers)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.observations">observations (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations">observations (omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 
       <ul>
-        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
-</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>
@@ -4417,11 +4413,9 @@ document.write(`
 </li>
       <li><a href="source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.math.random_yaw_orientation">random_yaw_orientation() (in module omni.isaac.lab.utils.math)</a>
 </li>
-      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg.randomization">randomization (omni.isaac.lab.envs.DirectRLEnvCfg attribute)</a>
+      <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization">randomization (omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
 
       <ul>
-        <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization">(omni.isaac.lab.envs.ManagerBasedEnvCfg attribute)</a>
-</li>
         <li><a href="source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.randomization">(omni.isaac.lab.envs.ManagerBasedRLEnvCfg attribute)</a>
 </li>
       </ul></li>

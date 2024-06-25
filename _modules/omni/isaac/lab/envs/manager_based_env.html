@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
@@ -495,13 +495,13 @@ document.write(`
 <span class="kn">import</span> <span class="nn">carb</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.torch</span> <span class="k">as</span> <span class="nn">torch_utils</span>
 
-<span class="kn">from</span> <span class="nn">omni.isaac.lab.envs.types</span> <span class="kn">import</span> <span class="n">VecEnvObs</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">ActionManager</span><span class="p">,</span> <span class="n">EventManager</span><span class="p">,</span> <span class="n">ObservationManager</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveScene</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationContext</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.timer</span> <span class="kn">import</span> <span class="n">Timer</span>
 
-<span class="kn">from</span> <span class="nn">.base_env_cfg</span> <span class="kn">import</span> <span class="n">ManagerBasedEnvCfg</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">VecEnvObs</span>
+<span class="kn">from</span> <span class="nn">.manager_based_env_cfg</span> <span class="kn">import</span> <span class="n">ManagerBasedEnvCfg</span>
 <span class="kn">from</span> <span class="nn">.ui</span> <span class="kn">import</span> <span class="n">ViewportCameraController</span>
 
 
@@ -734,7 +734,7 @@ document.write(`
 <span class="sd">        The environment steps forward at a fixed time-step, while the physics simulation is</span>
 <span class="sd">        decimated at a lower time-step. This is to ensure that the simulation is stable. These two</span>
 <span class="sd">        time-steps can be configured independently using the :attr:`ManagerBasedEnvCfg.decimation` (number of</span>
-<span class="sd">        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.physics_dt` (physics time-step).</span>
+<span class="sd">        simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).</span>
 <span class="sd">        Based on these parameters, the environment time-step is computed as the product of the two.</span>
 
 <span class="sd">        Args:</span>

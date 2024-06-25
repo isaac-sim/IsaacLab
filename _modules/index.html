@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../source/features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../source/features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
@@ -504,10 +504,13 @@ document.write(`
 <li><a href="omni/isaac/lab/devices/keyboard/se3_keyboard.html">omni.isaac.lab.devices.keyboard.se3_keyboard</a></li>
 <li><a href="omni/isaac/lab/devices/spacemouse/se2_spacemouse.html">omni.isaac.lab.devices.spacemouse.se2_spacemouse</a></li>
 <li><a href="omni/isaac/lab/devices/spacemouse/se3_spacemouse.html">omni.isaac.lab.devices.spacemouse.se3_spacemouse</a></li>
-<li><a href="omni/isaac/lab/envs/base_env_cfg.html">omni.isaac.lab.envs.base_env_cfg</a></li>
+<li><a href="omni/isaac/lab/envs/common.html">omni.isaac.lab.envs.common</a></li>
 <li><a href="omni/isaac/lab/envs/direct_rl_env.html">omni.isaac.lab.envs.direct_rl_env</a></li>
+<li><a href="omni/isaac/lab/envs/direct_rl_env_cfg.html">omni.isaac.lab.envs.direct_rl_env_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/manager_based_env.html">omni.isaac.lab.envs.manager_based_env</a></li>
+<li><a href="omni/isaac/lab/envs/manager_based_env_cfg.html">omni.isaac.lab.envs.manager_based_env_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/manager_based_rl_env.html">omni.isaac.lab.envs.manager_based_rl_env</a></li>
+<li><a href="omni/isaac/lab/envs/manager_based_rl_env_cfg.html">omni.isaac.lab.envs.manager_based_rl_env_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/mdp/actions/actions_cfg.html">omni.isaac.lab.envs.mdp.actions.actions_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/mdp/commands/commands_cfg.html">omni.isaac.lab.envs.mdp.commands.commands_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/mdp/curriculums.html">omni.isaac.lab.envs.mdp.curriculums</a></li>
@@ -515,7 +518,6 @@ document.write(`
 <li><a href="omni/isaac/lab/envs/mdp/observations.html">omni.isaac.lab.envs.mdp.observations</a></li>
 <li><a href="omni/isaac/lab/envs/mdp/rewards.html">omni.isaac.lab.envs.mdp.rewards</a></li>
 <li><a href="omni/isaac/lab/envs/mdp/terminations.html">omni.isaac.lab.envs.mdp.terminations</a></li>
-<li><a href="omni/isaac/lab/envs/rl_env_cfg.html">omni.isaac.lab.envs.rl_env_cfg</a></li>
 <li><a href="omni/isaac/lab/envs/ui/base_env_window.html">omni.isaac.lab.envs.ui.base_env_window</a></li>
 <li><a href="omni/isaac/lab/envs/ui/manager_based_rl_env_window.html">omni.isaac.lab.envs.ui.manager_based_rl_env_window</a></li>
 <li><a href="omni/isaac/lab/envs/ui/viewport_camera_controller.html">omni.isaac.lab.envs.ui.viewport_camera_controller</a></li>

@@ -48,11 +48,11 @@
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_base_env';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_manager_base_env';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Creating a Manager-Based RL Environment" href="create_rl_env.html" />
+    <link rel="next" title="Creating a Manager-Based RL Environment" href="create_manager_rl_env.html" />
     <link rel="prev" title="Designing an Environment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
@@ -255,7 +255,7 @@
 </details></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="index.html">Designing an Environment</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="run_rl_training.html">Training with an RL Agent</a></li>
@@ -402,7 +402,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/tutorials/03_envs/create_base_env.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/tutorials/03_envs/create_manager_base_env.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -419,7 +419,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/tutorials/03_envs/create_base_env.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/tutorials/03_envs/create_manager_base_env.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -449,7 +449,7 @@
       
       
       
-      <li><a href="../../../_sources/source/tutorials/03_envs/create_base_env.rst" target="_blank"
+      <li><a href="../../../_sources/source/tutorials/03_envs/create_manager_base_env.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -566,7 +566,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-manager-based-base-environment">
-<span id="tutorial-create-base-env"></span><h1>Creating a Manager-Based Base Environment<a class="headerlink" href="#creating-a-manager-based-base-environment" title="Permalink to this heading">#</a></h1>
+<span id="tutorial-create-manager-base-env"></span><h1>Creating a Manager-Based Base Environment<a class="headerlink" href="#creating-a-manager-based-base-environment" title="Permalink to this heading">#</a></h1>
 <p>Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a
 coherent interface for various applications. In Isaac Lab, manager-based environments are
@@ -1032,7 +1032,7 @@ to create a Markovian Decision Process (MDP).</p>
       </div>
     </a>
     <a class="right-next"
-       href="create_rl_env.html"
+       href="create_manager_rl_env.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>

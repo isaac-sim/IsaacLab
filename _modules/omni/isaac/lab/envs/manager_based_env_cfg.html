@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.devices.device_base &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.envs.manager_based_env_cfg &#8212; Isaac Lab documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../_static/tabs.js"></script>
     <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/devices/device_base';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/manager_based_env_cfg';</script>
     <link rel="icon" href="../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../search.html" />
@@ -402,7 +402,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/devices/device_base.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/envs/manager_based_env_cfg.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -480,58 +480,105 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.devices.device_base</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.envs.manager_based_env_cfg</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
-<span class="sd">&quot;&quot;&quot;Base class for teleoperation interface.&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;Base configuration of the environment.</span>
 
-<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
-<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<span class="sd">This module defines the general configuration of the environment. It includes parameters for</span>
+<span class="sd">configuring the environment instances, viewer settings, and simulation parameters.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
+
+<span class="kn">import</span> <span class="nn">omni.isaac.lab.envs.mdp</span> <span class="k">as</span> <span class="nn">mdp</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">EventTermCfg</span> <span class="k">as</span> <span class="n">EventTerm</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">SimulationCfg</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
+
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">ViewerCfg</span>
+<span class="kn">from</span> <span class="nn">.ui</span> <span class="kn">import</span> <span class="n">BaseEnvWindow</span>
 
 
-<div class="viewcode-block" id="DeviceBase"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase">[docs]</a><span class="k">class</span> <span class="nc">DeviceBase</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;An interface class for teleoperation devices.&quot;&quot;&quot;</span>
+<span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DefaultEventManagerCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration of the default event manager.</span>
 
-<div class="viewcode-block" id="DeviceBase.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the teleoperation interface.&quot;&quot;&quot;</span>
-        <span class="k">pass</span></div>
-
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string containing the information of joystick.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span>
-
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Operations</span>
+<span class="sd">    This manager is used to reset the scene to a default state. The default state is specified</span>
+<span class="sd">    by the scene configuration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="DeviceBase.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.reset">[docs]</a>    <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reset the internals.&quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+    <span class="n">reset_scene_to_default</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_scene_to_default</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">)</span>
 
-<div class="viewcode-block" id="DeviceBase.add_callback"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.add_callback">[docs]</a>    <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">add_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Add additional functions to bind keyboard.</span>
 
-<span class="sd">        Args:</span>
-<span class="sd">            key: The button to check against.</span>
-<span class="sd">            func: The function to call when key is pressed. The callback function should not</span>
-<span class="sd">                take any arguments.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+<div class="viewcode-block" id="ManagerBasedEnvCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">ManagerBasedEnvCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Base configuration of the environment.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="DeviceBase.advance"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.devices.html#omni.isaac.lab.devices.DeviceBase.advance">[docs]</a>    <span class="nd">@abstractmethod</span>
-    <span class="k">def</span> <span class="nf">advance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Provides the joystick event state.</span>
+    <span class="c1"># simulation settings</span>
+    <span class="n">viewer</span><span class="p">:</span> <span class="n">ViewerCfg</span> <span class="o">=</span> <span class="n">ViewerCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Viewer configuration. Default is ViewerCfg().&quot;&quot;&quot;</span>
 
-<span class="sd">        Returns:</span>
-<span class="sd">            The processed output form the joystick.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+    <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics simulation configuration. Default is SimulationCfg().&quot;&quot;&quot;</span>
+
+    <span class="c1"># ui settings</span>
+    <span class="n">ui_window_class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">BaseEnvWindow</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The class type of the UI window. Default is None.</span>
+
+<span class="sd">    If None, then no UI window is created.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        If you want to make your own UI window, you can create a class that inherits from</span>
+<span class="sd">        from :class:`omni.isaac.lab.envs.ui.base_env_window.BaseEnvWindow`. Then, you can set</span>
+<span class="sd">        this attribute to your class type.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># general settings</span>
+    <span class="n">decimation</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of control action updates @ sim dt per policy dt.</span>
+
+<span class="sd">    For instance, if the simulation dt is 0.01s and the policy dt is 0.1s, then the decimation is 10.</span>
+<span class="sd">    This means that the control action is updated every 10 simulation steps.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># environment settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">InteractiveSceneCfg</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scene settings.</span>
+
+<span class="sd">    Please refer to the :class:`omni.isaac.lab.scene.InteractiveSceneCfg` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">observations</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation space settings.</span>
+
+<span class="sd">    Please refer to the :class:`omni.isaac.lab.managers.ObservationManager` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">actions</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">MISSING</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Action space settings.</span>
+
+<span class="sd">    Please refer to the :class:`omni.isaac.lab.managers.ActionManager` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">events</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">DefaultEventManagerCfg</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Event settings. Defaults to the basic configuration that resets the scene to its default state.</span>
+
+<span class="sd">    Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">randomization</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomization settings. Default is None.</span>
+
+<span class="sd">    .. deprecated:: 0.3.0</span>
+<span class="sd">        This attribute is deprecated and will be removed in v0.4.0. Please use the :attr:`events`</span>
+<span class="sd">        attribute to configure the randomization settings.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

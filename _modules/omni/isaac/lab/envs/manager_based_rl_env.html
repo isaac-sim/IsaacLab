@@ -223,7 +223,7 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/task_workflows.html">Task Design Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
@@ -254,8 +254,8 @@
 </ul>
 </details></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../../../../../source/tutorials/03_envs/index.html">Designing an Environment</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_base_env.html">Creating a Manager-Based Base Environment</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_rl_env.html">Creating a Manager-Based RL Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_manager_base_env.html">Creating a Manager-Based Base Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_manager_rl_env.html">Creating a Manager-Based RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/create_direct_rl_env.html">Creating a Direct Workflow RL Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/register_rl_env_gym.html">Registering an Environment</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../source/tutorials/03_envs/run_rl_training.html">Training with an RL Agent</a></li>
@@ -500,9 +500,9 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.managers</span> <span class="kn">import</span> <span class="n">CommandManager</span><span class="p">,</span> <span class="n">CurriculumManager</span><span class="p">,</span> <span class="n">RewardManager</span><span class="p">,</span> <span class="n">TerminationManager</span>
 
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">VecEnvStepReturn</span>
 <span class="kn">from</span> <span class="nn">.manager_based_env</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
-<span class="kn">from</span> <span class="nn">.rl_env_cfg</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
-<span class="kn">from</span> <span class="nn">.types</span> <span class="kn">import</span> <span class="n">VecEnvStepReturn</span>
+<span class="kn">from</span> <span class="nn">.manager_based_rl_env_cfg</span> <span class="kn">import</span> <span class="n">ManagerBasedRLEnvCfg</span>
 
 
 <div class="viewcode-block" id="ManagerBasedRLEnv"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv">[docs]</a><span class="k">class</span> <span class="nc">ManagerBasedRLEnv</span><span class="p">(</span><span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">gym</span><span class="o">.</span><span class="n">Env</span><span class="p">):</span>
@@ -567,9 +567,11 @@ document.write(`
 
         <span class="c1"># setup the action and observation spaces for Gym</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_configure_gym_env_spaces</span><span class="p">()</span>
+
         <span class="c1"># perform events at the start of the simulation</span>
         <span class="k">if</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span>
+
         <span class="c1"># print the environment information</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Completed setting up the environment...&quot;</span><span class="p">)</span></div>
 
