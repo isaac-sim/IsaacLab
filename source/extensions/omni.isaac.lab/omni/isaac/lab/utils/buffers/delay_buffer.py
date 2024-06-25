@@ -104,19 +104,20 @@ class DelayBuffer:
     """
 
     def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | None = None):
-        """Sets the time lag for the delay buffer across each batch index.
+        """Sets the time lag for the delay buffer across the provided batch indices.
 
         Args:
             time_lag: The desired delay for the buffer.
-                * If an integer is provided, the same delay is set for the provided batch indices.
-                * If a tensor is provided, the delay is set for each batch index separately. The shape of the tensor
-                  should be (len(batch_ids),).
+
+              * If an integer is provided, the same delay is set for the provided batch indices.
+              * If a tensor is provided, the delay is set for each batch index separately. The shape of the tensor
+                should be (len(batch_ids),).
+
             batch_ids: The batch indices for which the time lag is set. Default is None, which sets the time lag
                 for all batch indices.
 
         Raises:
             TypeError: If the type of the :attr:`time_lag` is not int or integer tensor.
-            ValueError: If :attr:`time_lag` is torch tensor and the shape is not (batch_size,).
             ValueError: If the minimum time lag is negative or the maximum time lag is larger than the history length.
         """
         # resolve batch indices
