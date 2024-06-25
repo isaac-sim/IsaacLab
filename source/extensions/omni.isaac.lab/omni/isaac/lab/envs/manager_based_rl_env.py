@@ -154,12 +154,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.action_manager.process_action(action)
         # perform physics stepping
         for _ in range(self.cfg.decimation):
-            self._step_counter += 1
+            self._sim_step_counter += 1
             # set actions into buffers
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
-            render = self._step_counter % self.cfg.sim.render_interval == 0 and (
+            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
                 self.sim.has_gui() or self.sim.has_rtx_sensors()
             )
             # simulate
