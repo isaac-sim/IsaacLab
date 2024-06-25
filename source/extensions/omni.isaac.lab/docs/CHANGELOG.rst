@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.18.0 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect and rendering
+  would happen once every env.step() when active.
+
+Changed
+^^^^^^^
+
+* Renamed :attr:`omni.isaac.lab.sim.SimulationCfg.substeps` to :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+  The render logic is now integrated in the decimation loop of the environment.
+
+
 0.17.13 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~~~
 

@@ -47,11 +47,20 @@ class QuadcopterEnvWindow(BaseEnvWindow):
 
 @configclass
 class QuadcopterEnvCfg(DirectRLEnvCfg):
+    # env
+    episode_length_s = 10.0
+    decimation = 2
+    num_actions = 4
+    num_observations = 12
+    num_states = 0
+    debug_vis = True
+
     ui_window_class_type = QuadcopterEnvWindow
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 100,
+        render_interval=decimation,
         disable_contact_processing=True,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -82,14 +91,6 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     robot: ArticulationCfg = CRAZYFLIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     thrust_to_weight = 1.9
     moment_scale = 0.01
-
-    # env
-    episode_length_s = 10.0
-    decimation = 2
-    num_actions = 4
-    num_observations = 12
-    num_states = 0
-    debug_vis = True
 
     # reward scales
     lin_vel_reward_scale = -0.05
