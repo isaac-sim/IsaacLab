@@ -47,6 +47,9 @@ class ArticulationData(RigidObjectData):
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
 
+    fixed_tendon_names: list[str] = None
+    """Fixed tendon names in the order parsed by the simulation view."""
+
     ##
     # Defaults.
     ##

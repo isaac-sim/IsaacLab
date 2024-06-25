@@ -132,6 +132,11 @@ class Articulation(RigidObject):
         return self.root_physx_view.shared_metatype.dof_names
 
     @property
+    def fixed_tendon_names(self) -> list[str]:
+        """Ordered names of fixed tendons in articulation."""
+        return self._fixed_tendon_names
+
+    @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
         return self.root_physx_view.shared_metatype.link_names
@@ -1047,17 +1052,23 @@ class Articulation(RigidObject):
 
     def _process_fixed_tendons(self):
         """Process fixed tendons."""
-        self.fixed_tendon_names = list()
+        # create a list to store the fixed tendon names
+        self._fixed_tendon_names = list()
+
+        # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
             stage = stage_utils.get_current_stage()
+
+            # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
                 usd_joint_path = self.root_physx_view.dof_paths[0][j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
                 if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
                     joint_name = usd_joint_path.split("/")[-1]
-                    self.fixed_tendon_names.append(joint_name)
+                    self._fixed_tendon_names.append(joint_name)
 
+            self._data.fixed_tendon_names = self._fixed_tendon_names
             self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
             self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
             self._data.default_fixed_tendon_limit_stiffness = (
