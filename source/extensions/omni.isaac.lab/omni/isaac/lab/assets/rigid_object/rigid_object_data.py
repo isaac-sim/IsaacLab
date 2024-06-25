@@ -23,6 +23,9 @@ class RigidObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
+    _root_physx_view: physx.RigidBodyView
+    """The root rigid body view of the object."""
+
     def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
         """Initializes the rigid object data.
 
@@ -32,7 +35,7 @@ class RigidObjectData:
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view: physx.RigidBodyView = root_physx_view
+        self._root_physx_view = root_physx_view
         # Set initial time stamp
         self._sim_timestamp = 0.0
 

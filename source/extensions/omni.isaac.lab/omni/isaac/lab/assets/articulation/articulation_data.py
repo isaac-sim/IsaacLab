@@ -20,10 +20,12 @@ class ArticulationData(RigidObjectData):
     an articulation mainly related to the joints and tendons.
     """
 
+    _root_physx_view: physx.ArticulationView
+    """The root articulation view of the object."""
+
     def __init__(self, root_physx_view: physx.ArticulationView, device: str):
-        super().__init__(root_physx_view, device)
-        # Set the parameters
-        self._root_physx_view: physx.ArticulationView = root_physx_view
+        # Initialize the parent class
+        super().__init__(root_physx_view, device)  # type: ignore
 
         # Initialize history for finite differencing
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
