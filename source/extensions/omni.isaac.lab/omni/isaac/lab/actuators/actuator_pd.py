@@ -260,9 +260,9 @@ class DelayedPDActuator(IdealPDActuator):
             device=self._device,
         )
         # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags)
-        self.velocities_delay_buffer.set_time_lag(time_lags)
-        self.efforts_delay_buffer.set_time_lag(time_lags)
+        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
+        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
+        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
         # reset buffers
         self.positions_delay_buffer.reset(env_ids)
         self.velocities_delay_buffer.reset(env_ids)

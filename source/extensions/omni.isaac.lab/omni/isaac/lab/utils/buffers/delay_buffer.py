@@ -100,38 +100,42 @@ class DelayBuffer:
     Operations.
     """
 
-    def set_time_lag(self, time_lag: int | torch.Tensor):
+    def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | None = None):
         """Sets the time lag for the delay buffer across each batch index.
 
         Args:
-           time_lag: The desired delay for the buffer. If an integer is provided, the same delay is set for all
-              batch indices. If a tensor is provided, the delay is set for each batch index separately. The shape
-            of the tensor should be (batch_size,).
+            time_lag: The desired delay for the buffer.
+                * If an integer is provided, the same delay is set for the provided batch indices.
+                * If a tensor is provided, the delay is set for each batch index separately. The shape of the tensor
+                  should be (len(batch_ids),).
+            batch_ids: The batch indices for which the time lag is set. Default is None, which sets the time lag
+                for all batch indices.
 
         Raises:
-            TypeError: If the type of the time_lag is not int or Tensor.
+            TypeError: If the type of the :attr:`time_lag` is not int or integer tensor.
             ValueError: If :attr:`time_lag` is torch tensor and the shape is not (batch_size,).
             ValueError: If the minimum time lag is negative or the maximum time lag is larger than the history length.
         """
+        # resolve batch indices
+        if batch_ids is None:
+            batch_ids = slice(None)
+
         # parse requested time_lag
         if isinstance(time_lag, int):
-            # minimum and maximum time lag are the same
-            self._min_time_lag = time_lag
-            self._max_time_lag = time_lag
-            # set the time lags for all batch indices
-            self._time_lags[:] = time_lag
+            # set the time lags across provided batch indices
+            self._time_lags[batch_ids] = time_lag
         elif isinstance(time_lag, torch.Tensor):
-            # check the shape of the tensor
-            if time_lag.shape != (self.batch_size,):
-                raise ValueError(f"Invalid shape for time_lag: {time_lag.shape}. Expected (batch_size,).")
-            # minimum and maximum time lag across all the batches
-            self._min_time_lag = int(torch.min(time_lag).item())
-            self._max_time_lag = int(torch.max(time_lag).item())
+            # check valid dtype for time_lag: must be int or long
+            if time_lag.dtype not in [torch.int, torch.long]:
+                raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
             # set the time lags
-            self._time_lags[:] = time_lag.to(dtype=torch.int, device=self.device)
+            self._time_lags[batch_ids] = time_lag.to(device=self.device)
         else:
-            raise TypeError(f"Invalid type for time_lag: {type(time_lag)}. Expected int or Tensor.")
+            raise TypeError(f"Invalid type for time_lag: {type(time_lag)}. Expected int or integer tensor.")
 
+        # compute the min and max time lag
+        self._min_time_lag = int(torch.min(self._time_lags).item())
+        self._max_time_lag = int(torch.max(self._time_lags).item())
         # check that time_lag is feasible
         if self._min_time_lag < 0:
             raise ValueError(f"The minimum time lag cannot be negative. Received: {self._min_time_lag}")
