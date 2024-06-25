@@ -238,9 +238,9 @@ class DelayedPDActuator(IdealPDActuator):
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
         # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_num_time_lags, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_num_time_lags, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_num_time_lags, self._num_envs, device=self._device)
+        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         # all of the envs
         self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
 
@@ -253,8 +253,8 @@ class DelayedPDActuator(IdealPDActuator):
             num_envs = len(env_ids)
         # set a new random delay for environments in env_ids
         time_lags = torch.randint(
-            low=self.cfg.min_num_time_lags,
-            high=self.cfg.max_num_time_lags + 1,
+            low=self.cfg.min_delay,
+            high=self.cfg.max_delay + 1,
             size=(num_envs,),
             dtype=torch.int,
             device=self._device,

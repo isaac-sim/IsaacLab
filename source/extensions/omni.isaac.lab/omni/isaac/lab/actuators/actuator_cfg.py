@@ -162,10 +162,10 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 
     class_type: type = actuator_pd.DelayedPDActuator
 
-    min_num_time_lags: int = 0
+    min_delay: int = 0
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
-    max_num_time_lags: int = 0
+    max_delay: int = 0
     """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
 
