@@ -104,7 +104,7 @@ class RigidObjectData:
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
         if self._body_acc_w.timestamp < self._sim_timestamp:
-            # note: we use finite differencing to compute acceleration  
+            # note: we use finite differencing to compute acceleration
             self._body_acc_w.data = (self.body_vel_w - self._previous_body_vel_w) / (
                 self._sim_timestamp - self._body_acc_w.timestamp
             )
