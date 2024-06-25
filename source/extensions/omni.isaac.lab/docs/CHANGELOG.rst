@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.18.3 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the docstrings at multiple places related to the different buffer implementations inside the
+  :mod:`omni.isaac.lab.utils.buffers` module. The docstrings were not clear and did not provide enough
+  information about the classes and their methods.
+
+Added
+^^^^^
+
+* Added the field for fixed tendom names in the :class:`omni.isaac.lab.assets.ArticulationData` class.
+  Earlier, this information was not exposed which was inconsistent with other name related information
+  such as joint or body names.
+
+Changed
+^^^^^^^
+
+* Renamed the fields ``min_num_time_lags`` and ``max_num_time_lags`` to ``min_delay`` and
+  ``max_delay`` in the :class:`omni.isaac.lab.actuators.DelayedPDActuatorCfg` class. This is to make
+  the naming simpler to understand.
+
+
 0.18.2 (2024-06-25)
 ~~~~~~~~~~~~~~~~~~~
 
