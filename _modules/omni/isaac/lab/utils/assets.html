@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 18, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 25, 2024"/>
   </head>
   
   
@@ -504,31 +504,8 @@ document.write(`
 <span class="kn">import</span> <span class="nn">carb</span>
 <span class="kn">import</span> <span class="nn">omni.client</span>
 
-<span class="k">try</span><span class="p">:</span>
-    <span class="kn">import</span> <span class="nn">omni.isaac.nucleus</span> <span class="k">as</span> <span class="nn">nucleus_utils</span>
-<span class="k">except</span> <span class="ne">ModuleNotFoundError</span><span class="p">:</span>
-    <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.nucleus</span> <span class="k">as</span> <span class="nn">nucleus_utils</span>
-
-<span class="c1"># note: we check only once at the start of the module to prevent multiple checks on the Nucleus Server</span>
-<span class="n">NUCLEUS_ASSET_ROOT_DIR</span> <span class="o">=</span> <span class="n">nucleus_utils</span><span class="o">.</span><span class="n">get_assets_root_path</span><span class="p">()</span>
-<span class="sd">&quot;&quot;&quot;Path to the root directory on the Nucleus Server.</span>
-
-<span class="sd">This is resolved using Isaac Sim&#39;s Nucleus API. If the Nucleus Server is not running, then this</span>
-<span class="sd">will be set to None. The path is resolved using the following steps:</span>
-
-<span class="sd">1. Based on simulation parameter: ``/persistent/isaac/asset_root/default``.</span>
-<span class="sd">2. Iterating over all the connected Nucleus Servers and checking for the first server that has the the connected status.</span>
-<span class="sd">3. Based on simulation parameter: ``/persistent/isaac/asset_root/cloud``.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-<span class="c1"># check nucleus connection</span>
-<span class="k">if</span> <span class="n">NUCLEUS_ASSET_ROOT_DIR</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s2">&quot;Unable to perform Nucleus login on Omniverse. Assets root path is not set.</span><span class="se">\n</span><span class="s2">&quot;</span>
-        <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">Please check: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html#omniverse-nucleus&quot;</span>
-    <span class="p">)</span>
-    <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+<span class="n">NUCLEUS_ASSET_ROOT_DIR</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">get_settings</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/persistent/isaac/asset_root/cloud&quot;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;Path to the root directory on the Nucleus Server.&quot;&quot;&quot;</span>
 
 <span class="n">NVIDIA_NUCLEUS_DIR</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">NUCLEUS_ASSET_ROOT_DIR</span><span class="si">}</span><span class="s2">/NVIDIA&quot;</span>
 <span class="sd">&quot;&quot;&quot;Path to the root directory on the NVIDIA Nucleus Server.&quot;&quot;&quot;</span>
@@ -679,7 +656,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 18, 2024.
+  Last updated on Jun 25, 2024.
   <br/>
 </p>
   </div>

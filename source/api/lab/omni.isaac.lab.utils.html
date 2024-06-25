@@ -58,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.terrains" href="omni.isaac.lab.terrains.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 18, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 25, 2024"/>
   </head>
   
   
@@ -1009,13 +1009,16 @@ distribution of the assets easier and makes the repository smaller in size code-
 <p><strong>Data:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NVIDIA_NUCLEUS_DIR</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.NUCLEUS_ASSET_ROOT_DIR" title="omni.isaac.lab.utils.assets.NUCLEUS_ASSET_ROOT_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NUCLEUS_ASSET_ROOT_DIR</span></code></a></p></td>
+<td><p>Path to the root directory on the Nucleus Server.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NVIDIA_NUCLEUS_DIR</span></code></a></p></td>
 <td><p>Path to the root directory on the NVIDIA Nucleus Server.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ISAAC_NUCLEUS_DIR</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ISAAC_NUCLEUS_DIR</span></code></a></p></td>
 <td><p>Path to the <code class="docutils literal notranslate"><span class="pre">Isaac</span></code> directory on the NVIDIA Nucleus Server.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ISAACLAB_NUCLEUS_DIR</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR" title="omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ISAACLAB_NUCLEUS_DIR</span></code></a></p></td>
 <td><p>Path to the <code class="docutils literal notranslate"><span class="pre">Isaac/IsaacLab</span></code> directory on the NVIDIA Nucleus Server.</p></td>
 </tr>
 </tbody>
@@ -1038,32 +1041,25 @@ distribution of the assets easier and makes the repository smaller in size code-
 </div>
 <dl class="py data">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.assets.NUCLEUS_ASSET_ROOT_DIR">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">NUCLEUS_ASSET_ROOT_DIR</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.12)"><span class="pre">Any</span></a></span></span><a class="headerlink" href="#omni.isaac.lab.utils.assets.NUCLEUS_ASSET_ROOT_DIR" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">NUCLEUS_ASSET_ROOT_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'/persistent/isaac/asset_root/cloud'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.NUCLEUS_ASSET_ROOT_DIR" title="Permalink to this definition">#</a></dt>
 <dd><p>Path to the root directory on the Nucleus Server.</p>
-<p>This is resolved using Isaac Sim’s Nucleus API. If the Nucleus Server is not running, then this
-will be set to None. The path is resolved using the following steps:</p>
-<ol class="arabic simple">
-<li><p>Based on simulation parameter: <code class="docutils literal notranslate"><span class="pre">/persistent/isaac/asset_root/default</span></code>.</p></li>
-<li><p>Iterating over all the connected Nucleus Servers and checking for the first server that has the the connected status.</p></li>
-<li><p>Based on simulation parameter: <code class="docutils literal notranslate"><span class="pre">/persistent/isaac/asset_root/cloud</span></code>.</p></li>
-</ol>
 </dd></dl>
 
 <dl class="py data">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">NVIDIA_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'omni.isaac.core.utils.nucleus.get_assets_root_path/NVIDIA'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">NVIDIA_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'carb.settings.get_settings.get/NVIDIA'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.NVIDIA_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
 <dd><p>Path to the root directory on the NVIDIA Nucleus Server.</p>
 </dd></dl>
 
 <dl class="py data">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">ISAAC_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'omni.isaac.core.utils.nucleus.get_assets_root_path/Isaac'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">ISAAC_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'carb.settings.get_settings.get/Isaac'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.ISAAC_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
 <dd><p>Path to the <code class="docutils literal notranslate"><span class="pre">Isaac</span></code> directory on the NVIDIA Nucleus Server.</p>
 </dd></dl>
 
 <dl class="py data">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">ISAACLAB_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'omni.isaac.core.utils.nucleus.get_assets_root_path/Isaac/IsaacLab'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.assets.</span></span><span class="sig-name descname"><span class="pre">ISAACLAB_NUCLEUS_DIR</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'carb.settings.get_settings.get/Isaac/IsaacLab'</span></em><a class="headerlink" href="#omni.isaac.lab.utils.assets.ISAACLAB_NUCLEUS_DIR" title="Permalink to this definition">#</a></dt>
 <dd><p>Path to the <code class="docutils literal notranslate"><span class="pre">Isaac/IsaacLab</span></code> directory on the NVIDIA Nucleus Server.</p>
 </dd></dl>
 
@@ -3319,7 +3315,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 18, 2024.
+  Last updated on Jun 25, 2024.
   <br/>
 </p>
   </div>
