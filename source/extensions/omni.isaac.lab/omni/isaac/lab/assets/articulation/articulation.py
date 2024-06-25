@@ -234,9 +234,10 @@ class Articulation(RigidObject):
         on the name matching.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions to match the joint names with fixed tendons.
-            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means all joints
-                in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the joint
+                names with fixed tendons.
+            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
+                all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
@@ -578,6 +579,10 @@ class Articulation(RigidObject):
             env_ids = env_ids[:, None]
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
+
+    """
+    Operations - Tendons.
+    """
 
     def set_fixed_tendon_stiffness(
         self,

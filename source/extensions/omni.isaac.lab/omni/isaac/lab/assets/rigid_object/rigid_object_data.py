@@ -12,25 +12,55 @@ from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
 
 class RigidObjectData:
-    """Data container for a rigid object."""
+    """Data container for a rigid object.
 
-    def __init__(self, root_physx_view: physx.RigidBodyView, device):
+    This class contains the data for a rigid object in the simulation. The data includes the state of
+    the root rigid body and the state of all the bodies in the object. The data is stored in the simulation
+    world frame unless otherwise specified.
+
+    The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
+    when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
+    is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
+    """
+
+    def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
+        """Initializes the rigid object data.
+
+        Args:
+            root_physx_view: The root rigid body view of the object.
+            device: The device used for processing.
+        """
+        # Set the parameters
         self.device = device
-        self._time_stamp = 0.0
         self._root_physx_view: physx.RigidBodyView = root_physx_view
+        # Set initial time stamp
+        self._sim_timestamp = 0.0
 
+        # Initialize constants
         self.gravity_vec_w = torch.tensor((0.0, 0.0, -1.0), device=self.device).repeat(self._root_physx_view.count, 1)
         self.forward_vec_b = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+
+        # Initialize buffers for finite differencing
         self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
 
         # Initialize the lazy buffers.
-        self._root_state_w: TimestampedBuffer = TimestampedBuffer()
-        self._body_acc_w: TimestampedBuffer = TimestampedBuffer()
+        self._root_state_w = TimestampedBuffer()
+        self._body_acc_w = TimestampedBuffer()
 
     def update(self, dt: float):
-        self._time_stamp += dt
-        # Trigger an update of the body acceleration buffer at a higher frequency since we do finite differencing.
+        """Updates the data for the rigid object.
+
+        Args:
+            dt: The time step for the update. This must be a positive value.
+        """
+        self._sim_timestamp += dt
+        # Trigger an update of the body acceleration buffer at a higher frequency
+        # since we do finite differencing.
         self.body_acc_w
+
+    ##
+    # Names.
+    ##
 
     body_names: list[str] = None
     """Body names in the order parsed by the simulation view."""
@@ -52,12 +82,14 @@ class RigidObjectData:
     @property
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
-        if self._root_state_w.update_timestamp < self._time_stamp:
+        if self._root_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
             pose = self._root_physx_view.get_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_velocities()
+            # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._root_state_w.update_timestamp = self._time_stamp
+            self._root_state_w.timestamp = self._sim_timestamp
         return self._root_state_w.data
 
     @property
@@ -68,12 +100,14 @@ class RigidObjectData:
     @property
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
-        if self._body_acc_w.update_timestamp < self._time_stamp:
+        if self._body_acc_w.timestamp < self._sim_timestamp:
+            # note: we use finite differencing to compute acceleration  
             self._body_acc_w.data = (self.body_vel_w - self._previous_body_vel_w) / (
-                self._time_stamp - self._body_acc_w.update_timestamp
+                self._sim_timestamp - self._body_acc_w.timestamp
             )
+            self._body_acc_w.timestamp = self._sim_timestamp
+            # update the previous velocity
             self._previous_body_vel_w[:] = self.body_vel_w
-            self._body_acc_w.update_timestamp = self._time_stamp
         return self._body_acc_w.data
 
     @property
