@@ -87,10 +87,21 @@ class ManagerBasedEnv:
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.substeps}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
         print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
         print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
+
+        if self.cfg.sim.render_interval < self.cfg.decimation:
+            msg = (
+                f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
+                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step. "
+                "If this is not intended, set the render interval to be equal to the decimation."
+            )
+            carb.log_warn(msg)
+
+        # counter for simulation steps
+        self._sim_step_counter = 0
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation"):
@@ -253,17 +264,18 @@ class ManagerBasedEnv:
         self.action_manager.process_action(action)
         # perform physics stepping
         for _ in range(self.cfg.decimation):
+            self._sim_step_counter += 1
             # set actions into buffers
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
+            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
+                self.sim.has_gui() or self.sim.has_rtx_sensors()
+            )
             # simulate
-            self.sim.step(render=False)
+            self.sim.step(render=render)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
-        # perform rendering if gui is enabled
-        if self.sim.has_gui() or self.sim.has_rtx_sensors():
-            self.sim.render()
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
