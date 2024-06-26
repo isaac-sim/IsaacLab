@@ -320,6 +320,7 @@ class RigidObject(AssetBase):
         carb.log_info(f"Body names: {self.body_names}")
 
         # container for data access
+        # note: we send a weak reference to the root view to avoid circular references
         self._data = RigidObjectData(weakref.proxy(self.root_physx_view), self.device)
 
         # create buffers
@@ -341,6 +342,7 @@ class RigidObject(AssetBase):
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
+        # set information about rigid body into data
         self._data.body_names = self.body_names
         self._data.default_mass = self.root_physx_view.get_masses().clone()
 

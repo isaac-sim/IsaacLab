@@ -848,6 +848,7 @@ class Articulation(RigidObject):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
 
         # container for data access
+        # note: we send a weak reference to the root view to avoid circular references
         self._data = ArticulationData(weakref.proxy(self.root_physx_view), self.device)
 
         # create buffers
@@ -871,8 +872,10 @@ class Articulation(RigidObject):
         # -- properties
         self._data.joint_names = self.joint_names
 
+        # -- default joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
+
         # -- joint commands
         self._data.joint_pos_target = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_vel_target = torch.zeros_like(self._data.default_joint_pos)
@@ -882,9 +885,11 @@ class Articulation(RigidObject):
         self._data.joint_armature = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_friction = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
         # -- joint commands (explicit)
         self._data.computed_torque = torch.zeros_like(self._data.default_joint_pos)
         self._data.applied_torque = torch.zeros_like(self._data.default_joint_pos)
+
         # -- tendons
         if self.num_fixed_tendons > 0:
             self._data.fixed_tendon_stiffness = torch.zeros(
@@ -908,12 +913,15 @@ class Articulation(RigidObject):
         self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
-        # -- initialize default buffers
+
+        # -- initialize default buffers related to joint properties
         self._data.default_joint_stiffness = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_damping = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_armature = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_friction = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
+        # -- initialize default buffers related to fixed tendon properties
         if self.num_fixed_tendons > 0:
             self._data.default_fixed_tendon_stiffness = torch.zeros(
                 self.num_instances, self.num_fixed_tendons, device=self.device
@@ -964,6 +972,7 @@ class Articulation(RigidObject):
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
 
+        # -- joint limits
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
 
