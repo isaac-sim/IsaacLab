@@ -44,13 +44,18 @@ EXTRAS_REQUIRE = {
     "rsl-rl": ["rsl-rl@git+https://github.com/leggedrobotics/rsl_rl.git"],
     "robomimic": [],
 }
+# Add the names with hyphens as aliases for convenience
+EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
+EXTRAS_REQUIRE["rsl_rl"] = EXTRAS_REQUIRE["rsl-rl"]
 
 # Check if the platform is Linux and add the dependency
 if platform.system() == "Linux":
     EXTRAS_REQUIRE["robomimic"].append("robomimic@git+https://github.com/ARISE-Initiative/robomimic.git")
 
-# cumulation of all extra-requires
+# Cumulation of all extra-requires
 EXTRAS_REQUIRE["all"] = list(itertools.chain.from_iterable(EXTRAS_REQUIRE.values()))
+# Remove duplicates in the all list to avoid double installations
+EXTRAS_REQUIRE["all"] = list(set(EXTRAS_REQUIRE["all"]))
 
 
 # Installation operation
