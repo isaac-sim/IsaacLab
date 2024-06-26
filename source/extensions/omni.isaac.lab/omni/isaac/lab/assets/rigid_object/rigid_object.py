@@ -77,7 +77,7 @@ class RigidObject(AssetBase):
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+        """Ordered names of bodies in the rigid object."""
         prim_paths = self.root_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
