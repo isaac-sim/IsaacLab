@@ -23,6 +23,7 @@ at the end of the epoch.
     :align: center
     :alt: Multi-GPU training paradigm
 
+|
 
 To train with multiple GPUs, use the following command, where ``--proc_per_node`` represents the number of available GPUs:
 
