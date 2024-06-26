@@ -9,10 +9,10 @@ This script demonstrates the different camera sensors that can be attached to a 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/standalone/demos/cameras.py
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --disable_fabric
 
     # Usage in headless mode
-    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras
+    ./isaaclab.sh -p source/standalone/demos/cameras.py --headless --enable_cameras --disable_fabric
 
 """
 
@@ -25,6 +25,7 @@ from omni.isaac.lab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
+parser.add_argument("--disable_fabric", action="store_true", help="Disable Fabric API and use USD instead.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -276,10 +277,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
 
+    # note: tile rendered cameras doesn't update the camera poses when using the GPU pipeline and Fabric.
+    #   this is a bug which should be fixed in the future releases.
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
+    # check if fabric is enabled
+    if args_cli.disable_fabric:
+        sim_cfg.use_fabric = False
+        sim_cfg.device = "cpu"
+        sim_cfg.use_gpu_pipeline = False
+        sim_cfg.physx.use_gpu = False
+
     # Initialize the simulation context
-    # note: tile rendered cameras don't update the camera poses when using the GPU pipeline and Fabric
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, substeps=1, use_fabric=False, device="cpu", use_gpu_pipeline=False)
-    sim_cfg.physx.use_gpu = False
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
