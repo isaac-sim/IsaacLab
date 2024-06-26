@@ -33,6 +33,9 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+# always enable cameras to record video
+if args_cli.video:
+    args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)

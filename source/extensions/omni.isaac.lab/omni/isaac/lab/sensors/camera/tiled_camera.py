@@ -27,17 +27,27 @@ if TYPE_CHECKING:
 
 
 class TiledCamera(Camera):
-    r"""The tiled rendering camera sensor for acquiring RGB and depth data.
+    r"""The tiled rendering based camera sensor for acquiring RGB and depth data.
 
-    This class wraps over the `UsdGeom Camera`_ for providing a consistent API for acquiring visual data.
-    It ensures that the camera follows the ROS convention for the coordinate system.
+    This class inherits from the :class:`Camera` class but uses the tiled-rendering API from Replicator to acquire
+    the visual data. Tiled-rendering concatenates the rendered images from multiple cameras into a single image.
+    This allows for rendering multiple cameras in parallel and is useful for rendering large scenes with multiple
+    cameras efficiently.
 
     The following sensor types are supported:
 
     - ``"rgb"``: A rendered color image.
     - ``"depth"``: An image containing the distance to camera optical center.
 
-    .. _USDGeom Camera: https://graphics.pixar.com/usd/docs/api/class_usd_geom_camera.html
+    .. versionadded:: Isaac Sim 4.0
+
+        This feature is available starting from Isaac Sim 4.0. Before this version, the tiled rendering APIs
+        were not available.
+
+    .. attention::
+        Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the
+        tiled rendering process. Various ray tracing effects such as reflections, refractions, and shadows may not be
+        accurately captured in the RGB images. We are currently working on improving the fidelity of the RGB images.
 
     """
 
@@ -61,7 +71,9 @@ class TiledCamera(Camera):
 
     def __del__(self):
         """Unsubscribes from callbacks and detach from the replicator registry."""
+        # unsubscribe from callbacks
         SensorBase.__del__(self)
+        # detach from the replicator registry
         self._annotator.detach(self.render_product_paths)
 
     def __str__(self) -> str:
@@ -86,9 +98,10 @@ class TiledCamera(Camera):
             )
         # reset the timestamps
         SensorBase.reset(self, env_ids)
+        # resolve None
         if env_ids is None:
-            env_ids = self._ALL_INDICES
-        # Reset the frame count
+            env_ids = slice(None)
+        # reset the frame count
         self._frame[env_ids] = 0
 
     """
@@ -142,37 +155,38 @@ class TiledCamera(Camera):
             sensor_prim = UsdGeom.Camera(cam_prim)
             self._sensor_prims.append(sensor_prim)
 
+        # start the orchestrator (if not already started)
         rep.orchestrator._orchestrator._is_started = True
-        sensor = rep.create.tiled_sensor(
+        # Create a tiled sensor from the camera prims
+        rep_sensor = rep.create.tiled_sensor(
             cameras=self._view.prim_paths,
             camera_resolution=[self.image_shape[1], self.image_shape[0]],
             tiled_resolution=self._tiled_image_shape(),
             output_types=self.cfg.data_types,
         )
-        render_prod_path = rep.create.render_product(camera=sensor, resolution=self._tiled_image_shape())
+        # Get render product
+        render_prod_path = rep.create.render_product(camera=rep_sensor, resolution=self._tiled_image_shape())
         if not isinstance(render_prod_path, str):
             render_prod_path = render_prod_path.path
         self._render_product_paths = [render_prod_path]
+        # Attach the annotator
         self._annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorGpu", device=self.device, do_array_copy=False)
         self._annotator.attach(self._render_product_paths)
+
         # Create internal buffers
         self._create_buffers()
-
-    def _create_annotator_data(self):
-        raise RuntimeError("Annotator data is not available for the tiled camera sensor.")
-
-    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
-        raise RuntimeError("Annotator data is not available for the tiled camera sensor.")
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         # Increment frame count
         self._frame[env_ids] += 1
+
         # Extract the flattened image buffer
         tiled_data_buffer = self._annotator.get_data()
         if isinstance(tiled_data_buffer, np.ndarray):
             tiled_data_buffer = wp.array(tiled_data_buffer, device=self.device)
         else:
             tiled_data_buffer = tiled_data_buffer.to(device=self.device)
+
         # The offset is needed when the buffer contains rgb and depth (the buffer has RGB data first and then depth)
         offset = self._data.output["rgb"].numel() if "rgb" in self.cfg.data_types else 0
         for data_type in self.cfg.data_types:
@@ -192,17 +206,6 @@ class TiledCamera(Camera):
     """
     Private Helpers
     """
-
-    def _tiled_image_shape(self) -> tuple[int, int]:
-        """A tuple containing the dimension of the tiled image."""
-        cols, rows = self._tiling_grid_shape()
-        return (self.cfg.width * cols, self.cfg.height * rows)
-
-    def _tiling_grid_shape(self) -> tuple[int, int]:
-        """A tuple containing the tiling grid dimension."""
-        cols = round(math.sqrt(self._view.count))
-        rows = math.ceil(self._view.count / cols)
-        return (cols, rows)
 
     def _check_supported_data_types(self, cfg: TiledCameraCfg):
         """Checks if the data types are supported by the camera."""
@@ -234,6 +237,25 @@ class TiledCamera(Camera):
                 (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device
             ).contiguous()
         self._data.output = TensorDict(data_dict, batch_size=self._view.count, device=self.device)
+
+    def _tiled_image_shape(self) -> tuple[int, int]:
+        """Returns a tuple containing the dimension of the tiled image."""
+        cols, rows = self._tiling_grid_shape()
+        return (self.cfg.width * cols, self.cfg.height * rows)
+
+    def _tiling_grid_shape(self) -> tuple[int, int]:
+        """Returns a tuple containing the tiling grid dimension."""
+        cols = round(math.sqrt(self._view.count))
+        rows = math.ceil(self._view.count / cols)
+        return (cols, rows)
+
+    def _create_annotator_data(self):
+        # we do not need to create annotator data for the tiled camera sensor
+        raise RuntimeError("This function should not be called for the tiled camera sensor.")
+
+    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
+        # we do not need to process annotator output for the tiled camera sensor
+        raise RuntimeError("This function should not be called for the tiled camera sensor.")
 
     """
     Internal simulation callbacks.

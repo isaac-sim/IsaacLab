@@ -141,6 +141,7 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
 
         self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
+        self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
         self.decimation = LOW_LEVEL_ENV_CFG.decimation * 10
         self.episode_length_s = self.commands.pose_command.resampling_time_range[1]
 

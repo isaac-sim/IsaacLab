@@ -61,6 +61,11 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     path_names = settings.split(",")
     path_names = [path_name.strip().strip('"') for path_name in path_names]
     path_names = ['"${workspaceFolder}/_isaac_sim/' + path_name + '"' for path_name in path_names if len(path_name) > 0]
+
+    # add the path names that are in the Isaac Lab extensions directory
+    isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source", "extensions"))
+    path_names.extend(['"${workspaceFolder}/source/extensions/' + ext + '"' for ext in isaaclab_extensions])
+
     # combine them into a single string
     path_names = ",\n\t\t".expandtabs(4).join(path_names)
 

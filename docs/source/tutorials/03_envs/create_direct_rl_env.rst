@@ -1,4 +1,4 @@
-.. _tutorial-create-oige-rl-env:
+.. _tutorial-create-direct-rl-env:
 
 
 Creating a Direct Workflow RL Environment
@@ -103,7 +103,7 @@ Defining Rewards
 
 Reward function should be defined in the ``_get_rewards(self)`` API, which returns the reward
 buffer as a return value. Within this function, the task is free to implement the logic of
-the reward function. In this example, we implement a Pytorch jitted function that computes
+the reward function. In this example, we implement a Pytorch JIT function that computes
 the various components of the reward function.
 
 .. code-block:: python

@@ -63,7 +63,7 @@ in the environment name, the entry point to the environment class, and the entry
 environment configuration class.
 
 .. note::
-    The ``gymnasium`` registry is a global registry. Hence, it is important to ensure that the
+    The :mod:`gymnasium` registry is a global registry. Hence, it is important to ensure that the
     environment names are unique. Otherwise, the registry will throw an error when registering
     the environment.
 
@@ -76,7 +76,7 @@ call for the cartpole environment in the ``omni.isaac.lab_tasks.manager_based.cl
 .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/__init__.py
    :language: python
    :lines: 10-
-   :emphasize-lines: 11, 12, 15
+   :emphasize-lines: 4, 11, 12, 15
 
 The ``id`` argument is the name of the environment. As a convention, we name all the environments
 with the prefix ``Isaac-`` to make it easier to search for them in the registry. The name of the
@@ -96,54 +96,22 @@ configuration is loaded using the :meth:`omni.isaac.lab_tasks.utils.parse_env_cf
 It is then passed to the :meth:`gymnasium.make` function to create the environment instance.
 The configuration entry point can be both a YAML file or a python configuration class.
 
-Direct Environemtns
+Direct Environments
 ^^^^^^^^^^^^^^^^^^^
 
-For direct-based environments, the following shows the registration call for the cartpole environment
-in the ``omni.isaac.lab_tasks.direct.cartpole`` sub-package:
+For direct-based environments, the environment registration follows a similar pattern. Instead of
+registering the environment's entry point as the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class,
+we register the environment's entry point as the implementation class of the environment.
+Additionally, we add the suffix ``-Direct`` to the environment name to differentiate it from the
+manager-based environments.
 
-.. code-block:: python
+As an example, the following shows the registration call for the cartpole environment in the
+``omni.isaac.lab_tasks.direct.cartpole`` sub-package:
 
-  import gymnasium as gym
-
-  from . import agents
-  from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
-
-  ##
-  # Register Gym environments.
-  ##
-
-  gym.register(
-      id="Isaac-Cartpole-Direct-v0",
-      entry_point="omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv",
-      disable_env_checker=True,
-      kwargs={
-          "env_cfg_entry_point": CartpoleEnvCfg,
-          "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-          "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.CartpolePPORunnerCfg,
-          "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-          "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
-      },
-  )
-
-The ``id`` argument is the name of the environment. As a convention, we name all the environments
-with the prefix ``Isaac-`` to make it easier to search for them in the registry.
-For direct environments, we also add the suffix ``-Direct``. The name of the
-environment is typically followed by the name of the task, and then the name of the robot.
-For instance, for legged locomotion with ANYmal C on flat terrain, the environment is called
-``Isaac-Velocity-Flat-Anymal-C-Direct-v0``. The version number ``v<N>`` is typically used to specify different
-variations of the same environment. Otherwise, the names of the environments can become too long
-and difficult to read.
-
-The ``entry_point`` argument is the entry point to the environment class. The entry point is a string
-of the form ``<module>:<class>``. In the case of the cartpole environment, the entry point is
-``omni.isaac.lab_tasks.direct.cartpole:CartpoleEnv``. The entry point is used to import the environment class
-when creating the environment instance.
-
-The ``env_cfg_entry_point`` argument specifies the default configuration for the environment. The default
-configuration is loaded using the :meth:`omni.isaac.lab_tasks.utils.parse_env_cfg` function.
-It is then passed to the :meth:`gymnasium.make` function to create the environment instance.
-The configuration entry point can be both a YAML file or a python configuration class.
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/__init__.py
+   :language: python
+   :lines: 10-31
+   :emphasize-lines: 5, 12, 13, 16
 
 
 Creating the environment
@@ -181,7 +149,7 @@ Now that we have gone through the code, let's run the script and see the result:
    ./isaaclab.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 
-This should open a stage with everything similar to the previous :ref:`tutorial-create-rl-env` tutorial.
+This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 
 In addition, you can also change the simulation device from GPU to CPU by adding the ``--cpu`` flag:

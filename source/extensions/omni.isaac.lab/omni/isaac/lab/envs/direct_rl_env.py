@@ -16,25 +16,26 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import Any, ClassVar
 
+import carb
 import omni.isaac.core.utils.torch as torch_utils
 import omni.kit.app
 from omni.isaac.version import get_version
 
-from omni.isaac.lab.envs.types import VecEnvObs, VecEnvStepReturn
 from omni.isaac.lab.managers import EventManager
 from omni.isaac.lab.scene import InteractiveScene
 from omni.isaac.lab.sim import SimulationContext
 from omni.isaac.lab.utils.noise import NoiseModel
 from omni.isaac.lab.utils.timer import Timer
 
-from .rl_env_cfg import DirectRLEnvCfg
+from .common import VecEnvObs, VecEnvStepReturn
+from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 
 
 class DirectRLEnv(gym.Env):
-    """The superclass for the direct workflow reinforcement learning-based environments.
+    """The superclass for the direct workflow to design environments.
 
-    This class implements the core functionality for reinforcement learning-based
+    This class implements the core functionality for reinforcement learning (RL)
     environments. It is designed to be used with any RL library. The class is designed
     to be used with vectorized environments, i.e., the environment is expected to be run
     in parallel with multiple sub-environments.
@@ -69,6 +70,8 @@ class DirectRLEnv(gym.Env):
 
         Args:
             cfg: The configuration object for the environment.
+            render_mode: The render mode for the environment. Defaults to None, which
+                is similar to ``"human"``.
 
         Raises:
             RuntimeError: If a simulation context already exists. The environment must always create one
@@ -91,10 +94,18 @@ class DirectRLEnv(gym.Env):
         print("[INFO]: Base environment:")
         print(f"\tEnvironment device    : {self.device}")
         print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.substeps}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
         print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
         print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
+
+        if self.cfg.sim.render_interval < self.cfg.decimation:
+            msg = (
+                f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
+                f"({self.cfg.decimation}). Multiple multiple render calls will happen for each environment step."
+                "If this is not intended, set the render interval to be equal to the decimation."
+            )
+            carb.log_warn(msg)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation"):
@@ -146,6 +157,8 @@ class DirectRLEnv(gym.Env):
         self.extras = {}
 
         # initialize data and constants
+        # -- counter for simulation steps
+        self._sim_step_counter = 0
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
@@ -154,10 +167,11 @@ class DirectRLEnv(gym.Env):
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
         self.actions = torch.zeros(self.num_envs, self.cfg.num_actions, device=self.sim.device)
+
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
 
-        # -- noise cfg for adding action and observation noise
+        # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
                 self.num_envs, self.cfg.action_noise_model, self.device
@@ -166,6 +180,7 @@ class DirectRLEnv(gym.Env):
             self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
                 self.num_envs, self.cfg.observation_noise_model, self.device
             )
+
         # perform events at the start of the simulation
         if self.cfg.events:
             if "startup" in self.event_manager.available_modes:
@@ -249,19 +264,27 @@ class DirectRLEnv(gym.Env):
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics.
 
-        The environment steps forward at a fixed time-step, while the physics simulation is
-        decimated at a lower time-step. This is to ensure that the simulation is stable. These two
-        time-steps can be configured independently using the :attr:`DirectRLEnvCfg.decimation` (number of
-        simulation steps per environment step) and the :attr:`DirectRLEnvCfg.physics_dt` (physics time-step).
-        Based on these parameters, the environment time-step is computed as the product of the two.
+        The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
+        lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
+        independently using the :attr:`DirectRLEnvCfg.decimation` (number of simulation steps per environment step)
+        and the :attr:`DirectRLEnvCfg.sim.physics_dt` (physics time-step). Based on these parameters, the environment
+        time-step is computed as the product of the two.
+
+        This function performs the following steps:
+
+        1. Pre-process the actions before stepping through the physics.
+        2. Apply the actions to the simulator and step through the physics in a decimated manner.
+        3. Compute the reward and done signals.
+        4. Reset environments that have terminated or reached the maximum episode length.
+        5. Apply interval events if they are enabled.
+        6. Compute observations.
 
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
         Returns:
-            A tuple containing the observations and extras.
+            A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
-
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model.apply(action.clone())
@@ -270,17 +293,18 @@ class DirectRLEnv(gym.Env):
         self._pre_physics_step(action)
         # perform physics stepping
         for _ in range(self.cfg.decimation):
+            self._sim_step_counter += 1
             # set actions into buffers
             self._apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
+            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
+                self.sim.has_gui() or self.sim.has_rtx_sensors()
+            )
             # simulate
-            self.sim.step(render=False)
+            self.sim.step(render=render)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
-        # perform rendering if gui is enabled
-        if self.sim.has_gui() or self.sim.has_rtx_sensors():
-            self.sim.render()
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -305,6 +329,7 @@ class DirectRLEnv(gym.Env):
         self.obs_buf = self._get_observations()
 
         # add observation noise
+        # note: we apply no noise to the state space (since it is used for critic networks)
         if self.cfg.observation_noise_model:
             self.obs_buf["policy"] = self._observation_noise_model.apply(self.obs_buf["policy"])
 
@@ -412,6 +437,10 @@ class DirectRLEnv(gym.Env):
             # update closing status
             self._is_closed = True
 
+    """
+    Operations - Debug Visualization.
+    """
+
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Toggles the environment debug visualization.
 
@@ -465,6 +494,7 @@ class DirectRLEnv(gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space["policy"], self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
+        # optional state space for asymmetric actor-critic architectures
         if self.num_states > 0:
             self.single_observation_space["critic"] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_states,))
             self.state_space = gym.vector.utils.batch_space(self.single_observation_space["critic"], self.num_envs)
@@ -476,20 +506,97 @@ class DirectRLEnv(gym.Env):
             env_ids: List of environment ids which must be reset
         """
         self.scene.reset(env_ids)
-        # apply events such as randomizations for environments that need a reset
+
+        # apply events such as randomization for environments that need a reset
         if self.cfg.events:
             if "reset" in self.event_manager.available_modes:
                 self.event_manager.apply(env_ids=env_ids, mode="reset")
+
+        # reset noise models
         if self.cfg.action_noise_model:
             self._action_noise_model.reset(env_ids)
         if self.cfg.observation_noise_model:
             self._observation_noise_model.reset(env_ids)
+
         # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
-    # this can be done through configs as well
+    """
+    Implementation-specific functions.
+    """
+
     def _setup_scene(self):
+        """Setup the scene for the environment.
+
+        This function is responsible for creating the scene objects and setting up the scene for the environment.
+        The scene creation can happen through :class:`omni.isaac.lab.scene.InteractiveSceneCfg` or through
+        directly creating the scene objects and registering them with the scene manager.
+
+        We leave the implementation of this function to the derived classes. If the environment does not require
+        any explicit scene setup, the function can be left empty.
+        """
         pass
+
+    @abstractmethod
+    def _pre_physics_step(self, actions: torch.Tensor):
+        """Pre-process actions before stepping through the physics.
+
+        This function is responsible for pre-processing the actions before stepping through the physics.
+        It is called before the physics stepping (which is decimated).
+
+        Args:
+            actions: The actions to apply on the environment. Shape is (num_envs, action_dim).
+        """
+        raise NotImplementedError(f"Please implement the '_pre_physics_step' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _apply_action(self):
+        """Apply actions to the simulator.
+
+        This function is responsible for applying the actions to the simulator. It is called at each
+        physics time-step.
+        """
+        raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_observations(self) -> VecEnvObs:
+        """Compute and return the observations for the environment.
+
+        Returns:
+            The observations for the environment.
+        """
+        raise NotImplementedError(f"Please implement the '_get_observations' method for {self.__class__.__name__}.")
+
+    def _get_states(self) -> VecEnvObs | None:
+        """Compute and return the states for the environment.
+
+        The state-space is used for asymmetric actor-critic architectures. It is configured
+        using the :attr:`DirectRLEnvCfg.num_states` parameter.
+
+        Returns:
+            The states for the environment. If the environment does not have a state-space, the function
+            returns a None.
+        """
+        return None  # noqa: R501
+
+    @abstractmethod
+    def _get_rewards(self) -> torch.Tensor:
+        """Compute and return the rewards for the environment.
+
+        Returns:
+            The rewards for the environment. Shape is (num_envs,).
+        """
+        raise NotImplementedError(f"Please implement the '_get_rewards' method for {self.__class__.__name__}.")
+
+    @abstractmethod
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute and return the done flags for the environment.
+
+        Returns:
+            A tuple containing the done flags for termination and time-out.
+            Shape of individual tensors is (num_envs,).
+        """
+        raise NotImplementedError(f"Please implement the '_get_dones' method for {self.__class__.__name__}.")
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
@@ -499,26 +606,3 @@ class DirectRLEnv(gym.Env):
         set their visibility into the stage.
         """
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
-
-    @abstractmethod
-    def _pre_physics_step(self, actions: torch.Tensor):
-        return NotImplementedError
-
-    @abstractmethod
-    def _apply_action(self):
-        return NotImplementedError
-
-    @abstractmethod
-    def _get_observations(self) -> VecEnvObs:
-        return NotImplementedError
-
-    def _get_states(self) -> VecEnvObs | None:
-        return None
-
-    @abstractmethod
-    def _get_rewards(self) -> torch.Tensor:
-        return NotImplementedError
-
-    @abstractmethod
-    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        return NotImplementedError
