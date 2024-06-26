@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import torch
 import warnings
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -319,7 +320,7 @@ class RigidObject(AssetBase):
         carb.log_info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectData(self.root_physx_view, self.device)
+        self._data = RigidObjectData(weakref.proxy(self.root_physx_view), self.device)
 
         # create buffers
         self._create_buffers()

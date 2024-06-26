@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import torch
 import warnings
+import weakref
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -847,7 +848,7 @@ class Articulation(RigidObject):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
 
         # container for data access
-        self._data = ArticulationData(self.root_physx_view, self.device)
+        self._data = ArticulationData(weakref.proxy(self.root_physx_view), self.device)
 
         # create buffers
         self._create_buffers()
