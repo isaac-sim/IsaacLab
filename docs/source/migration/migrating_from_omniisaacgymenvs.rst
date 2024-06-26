@@ -1,12 +1,12 @@
 .. _migrating-from-omniisaacgymenvs:
 
-Migrating from OmniIsaacGymEnvs
-===============================
+From OmniIsaacGymEnvs
+=====================
 
 .. currentmodule:: omni.isaac.lab
 
 
-OmniIsaacGymEnvs was a reinforcement learning framework using the Isaac Sim platform.
+`OmniIsaacGymEnvs`_ was a reinforcement learning framework using the Isaac Sim platform.
 Features from OmniIsaacGymEnvs have been integrated into the Isaac Lab framework.
 We have updated OmniIsaacGymEnvs to Isaac Sim version 4.0.0 to support the migration process
 to Isaac Lab. Moving forward, OmniIsaacGymEnvs will be deprecated and future development
@@ -16,10 +16,12 @@ will continue in Isaac Lab.
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
 
-In OmniIsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using a specialized
-Python class :class:`~omni.isaac.lab.utils.configclass`. The :class:`~omni.isaac.lab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
-Each environment should specify its own config class annotated by ``@configclass`` that inherits from :class:`~envs.DirectRLEnvCfg`,
-which can include simulation parameters, environment scene parameters, robot parameters, and task-specific parameters.
+In OmniIsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified
+using a specialized Python class :class:`~omni.isaac.lab.utils.configclass`. The
+:class:`~omni.isaac.lab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
+Each environment should specify its own config class annotated by ``@configclass`` that inherits from the
+:class:`~envs.DirectRLEnvCfg` class, which can include simulation parameters, environment scene parameters,
+robot parameters, and task-specific parameters.
 
 Below is an example skeleton of a task config class:
 
@@ -49,9 +51,10 @@ Below is an example skeleton of a task config class:
 Simulation Config
 -----------------
 
-Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class, which is a :class:`~omni.isaac.lab.utils.configclass` module
-that holds simulation parameters such as ``dt``, ``device``, and ``gravity``.
-Each task config must have a variable named ``sim`` defined that holds the type :class:`~omni.isaac.lab.sim.SimulationCfg`.
+Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class,
+which is a :class:`~omni.isaac.lab.utils.configclass` module that holds simulation parameters such as ``dt``,
+``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
+:class:`~omni.isaac.lab.sim.SimulationCfg`.
 
 Simulation parameters for articulations and rigid bodies such as ``num_position_iterations``, ``num_velocity_iterations``,
 ``contact_offset``, ``rest_offset``, ``bounce_threshold_velocity``, ``max_depenetration_velocity`` can all
@@ -60,7 +63,8 @@ be specified on a per-actor basis in the config class for each individual articu
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access for setting the GPU buffer dimensions.
+and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access
+for setting the GPU buffer dimensions.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -116,9 +120,9 @@ Parameters such as ``add_ground_plane`` and ``add_distant_light`` are now part o
 Scene Config
 ------------
 
-The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene, such as the number of environments
-and the spacing between environments.
-Each task config must have a variable named ``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
+The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
+such as the number of environments and the spacing between environments. Each task config must have a variable named
+``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -139,8 +143,9 @@ observation and action buffers. Reward term scaling parameters can also be speci
 In Isaac Lab, the ``controlFrequencyInv`` parameter has been renamed to ``decimation``,
 which must be specified as a parameter in the config class.
 
-In addition, the maximum episode length parameter (now ``episode_length_s``) is in seconds instead of steps as it was in OmniIsaacGymEnvs.
-To convert between step count to seconds, use the equation: ``episode_length_s = dt * decimation * num_steps``.
+In addition, the maximum episode length parameter (now ``episode_length_s``) is in seconds instead of steps as it was
+in OmniIsaacGymEnvs. To convert between step count to seconds, use the equation:
+``episode_length_s = dt * decimation * num_steps``.
 
 The following parameters must be set for each environment config:
 
@@ -253,9 +258,9 @@ The terrain can then be added to the scene in ``_setup_scene(self)`` by referenc
 Actors
 ------
 
-In Isaac Lab, each Articulation and Rigid Body actor can have its own config class.
-The :class:`~omni.isaac.lab.assets.ArticulationCfg` can be
-used to define parameters for articulation actors, including file path, simulation parameters, actuator properties, and initial states.
+In Isaac Lab, each Articulation and Rigid Body actor can have its own config class. The
+:class:`~omni.isaac.lab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
+including file path, simulation parameters, actuator properties, and initial states.
 
 .. code-block::python
 
@@ -297,26 +302,29 @@ used to define parameters for articulation actors, including file path, simulati
        },
    )
 
-Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by specifying the path to the robot file.
-In addition, :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg` can be used to specify simulation properties
-for the rigid bodies in the articulation.
-Similarly, :class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` can be used to specify simulation properties for the articulation.
-Joint and dof properties are now specified as part of the ``actuators`` dictionary using :class:`~actuators.ImplicitActuatorCfg`.
-Joints and dofs with the same properties can be grouped into regex expressions or provided as a list of names or expressions.
+Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene
+by specifying the path to the robot file. In addition, the :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg`
+class can be used to specify simulation properties for the rigid bodies in the articulation. Similarly, the
+:class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify simulation properties
+for the articulation. The joint properties are now specified as part of the ``actuators`` dictionary using
+:class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into regex expressions or
+provided as a list of names or expressions.
 
-Actors are added to the scene by simply calling ``self.cartpole = Articulation(self.cfg.robot_cfg)``,
-where ``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also be added
+Actors are added to the scene by simply calling ``self.cartpole = Articulation(self.cfg.robot_cfg)``, where
+``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also be added
 to the :class:`~scene.InteractiveScene` by calling ``self.scene.articulations["cartpole"] = self.cartpole`` so that
-the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the simulation and resetting.
+the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the simulation
+and resetting.
 
 
 Accessing States from Simulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-APIs for accessing physics states in Isaac Lab require the creation of an :class:`~assets.Articulation` or :class:`~assets.RigidObject`
-object. Multiple objects can be initialized for different articulations or rigid bodies in the scene by defining
-corresponding :class:`~assets.ArticulationCfg` or :class:`~assets.RigidObjectCfg` config, as outlined in the section above.
-This replaces the previously used ``ArticulationView`` and ``RigidPrimView`` classes used in OmniIsaacGymEnvs.
+APIs for accessing physics states in Isaac Lab require the creation of an :class:`~assets.Articulation` or
+:class:`~assets.RigidObject` object. Multiple objects can be initialized for different articulations or rigid bodies
+in the scene by defining corresponding :class:`~assets.ArticulationCfg` or :class:`~assets.RigidObjectCfg` config,
+as outlined in the section above. This replaces the previously used :class:`~omni.isaac.core.articulations.ArticulationView`
+and :class:`omni.isaac.core.prims.RigidPrimView` classes used in OmniIsaacGymEnvs.
 
 However, functionality between the classes are similar:
 
@@ -370,52 +378,57 @@ Each environment in Isaac Lab should be in its own directory following this stru
         my_env.py
 
 * ``my_environment`` is the root directory of the task.
-* ``my_environment/agents`` is the directory containing all RL config files for the task. Isaac Lab supports multiple RL libraries that can each have its own individual config file.
-* ``my_environment/__init__.py`` is the main file that registers the environment with the Gymnasium interface. This allows the training and inferencing scripts to find the task by its name. The content of this file should be as follow:
+* ``my_environment/agents`` is the directory containing all RL config files for the task. Isaac Lab supports multiple
+  RL libraries that can each have its own individual config file.
+* ``my_environment/__init__.py`` is the main file that registers the environment with the Gymnasium interface.
+  This allows the training and inferencing scripts to find the task by its name.
+  The content of this file should be as follow:
 
-.. code-block:: python
+  .. code-block:: python
 
-   import gymnasium as gym
+    import gymnasium as gym
 
-   from . import agents
-   from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
+    from . import agents
+    from .cartpole_env import CartpoleEnv, CartpoleEnvCfg
 
-   ##
-   # Register Gym environments.
-   ##
+    ##
+    # Register Gym environments.
+    ##
 
-   gym.register(
-       id="Isaac-Cartpole-Direct-v0",
-       entry_point="omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv",
-       disable_env_checker=True,
-       kwargs={
-           "env_cfg_entry_point": CartpoleEnvCfg,
-           "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml"
-       },
-   )
+    gym.register(
+        id="Isaac-Cartpole-Direct-v0",
+        entry_point="omni.isaac.lab_tasks.direct_workflow.cartpole:CartpoleEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": CartpoleEnvCfg,
+            "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml"
+        },
+    )
 
-* ``my_environment/my_env.py`` is the main python script that implements the task logic and task config class for the environment.
+* ``my_environment/my_env.py`` is the main python script that implements the task logic and task config class for
+  the environment.
 
 
 Task Logic
 ~~~~~~~~~~
 
-The ``post_reset`` API in OmniIsaacGymEnvs is no longer required in Isaac Lab.
-Everything that was previously done in ``post_reset`` can be done in the ``__init__`` method after
-executing the base class's ``__init__``. At this point, simulation has already started.
+The ``post_reset`` API in OmniIsaacGymEnvs is no longer required in Isaac Lab. Everything that was previously
+done in ``post_reset`` can be done in the ``__init__`` method after executing the base class's
+``__init__``. At this point, simulation has already started.
 
-In OmniIsaacGymEnvs, due to limitations of the GPU APIs, resets could not be performed based on states of the current step.
-Instead, resets have to be performed at the beginning of the next time step.
-This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions, stepping simulation,
-collecting states, computing dones, calculating rewards, performing resets, and finally computing observations.
-This workflow is done automatically by the framework such that a ``post_physics_step`` API is not required in the task.
-However, individual tasks can override the ``step()`` API to control the workflow.
+In OmniIsaacGymEnvs, due to limitations of the GPU APIs, resets could not be performed based on states of the current
+step. Instead, resets have to be performed at the beginning of the next time step.
+This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions,
+stepping simulation, collecting states, computing dones, calculating rewards, performing resets, and finally computing
+observations. This workflow is done automatically by the framework such that a ``post_physics_step`` API is not
+required in the task. However, individual tasks can override the ``step()`` API to control the workflow.
 
 In Isaac Lab, we also separate the ``pre_physics_step`` API for processing actions from the policy with
 the ``apply_action`` API, which sets the actions into the simulation. This provides more flexibility in controlling
 when actions should be written to simulation when ``decimation`` is used.
-``pre_physics_step`` will be called once per step before stepping simulation.
-``apply_actions`` will be called ``decimation`` number of times for each RL step, once before each simulation step call.
+The ``pre_physics_step`` method will be called once per step before stepping simulation.
+The ``apply_actions`` method will be called ``decimation`` number of times for each RL step,
+once before each simulation step call.
 
 The ordering of the calls are as follow:
 
@@ -453,7 +466,8 @@ We have also performed some renamings of APIs:
 Putting It All Together
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The Cartpole environment is shown here in completion to fully show the comparison between the OmniIsaacGymEnvs implementation and the Isaac Lab implementation.
+The Cartpole environment is shown here in completion to fully show the comparison between the OmniIsaacGymEnvs
+implementation and the Isaac Lab implementation.
 
 Task Config
 -----------
@@ -599,9 +613,9 @@ executing the base class's ``__init__``. At this point, simulation has already s
 Scene Setup
 -----------
 
-``set_up_scene`` in OmniIsaacGymEnvs has been replaced by ``_setup_scene``.
-In Isaac Lab, cloning and collision filtering have been provided as APIs for the task class to call when necessary.
-Similarly, adding ground plane and lights should also be taken care of in the task class.
+The ``set_up_scene`` method in OmniIsaacGymEnvs has been replaced by the ``_setup_scene`` API in the task class in
+Isaac Lab. Additionally, scene cloning and collision filtering have been provided as APIs for the task class to
+call when necessary. Similarly, adding ground plane and lights should also be taken care of in the task class.
 Adding actors to the scene has been replaced by ``self.scene.articulations["cartpole"] = self.cartpole``.
 
 +-----------------------------------------------------------+----------------------------------------------------------+
@@ -639,9 +653,9 @@ Adding actors to the scene has been replaced by ``self.scene.articulations["cart
 Pre-Physics Step
 ----------------
 
-Note that resets are no longer performed in the ``pre_physics_step`` API.
-In addition, the separation of ``_pre_physics_step`` and ``_apply_action`` allow for more flexibility
-in processing the action buffer and setting actions into simulation.
+Note that resets are no longer performed in the ``pre_physics_step`` API. In addition, the separation of the
+``_pre_physics_step`` and ``_apply_action`` methods allow for more flexibility in processing the action buffer
+and setting actions into simulation.
 
 +------------------------------------------------------------------+-------------------------------------------------------------+
 | OmniIsaacGymEnvs                                                 | IsaacLab                                                    |
@@ -675,10 +689,11 @@ in processing the action buffer and setting actions into simulation.
 Dones and Resets
 ----------------
 
-In Isaac Lab, ``dones`` are computed in the ``_get_dones()`` method and should return two variables: ``resets`` and ``time_out``.
-``_reset_idx()`` is also called after stepping simulation instead of before, as it was done in OmniIsaacGymEnvs.
-``progress_buf`` has been renamed to ``episode_length_buf`` in Isaac Lab and
-bookkeeping is now done automatically by the framework. Task implementations should no longer increment and reset the ``episode_length_buf`` buffer.
+In Isaac Lab, the ``dones`` are computed in the ``_get_dones()`` method and should return two variables: ``resets`` and
+``time_out``. The ``_reset_idx()`` method is also called after stepping simulation instead of before, as it was done in
+OmniIsaacGymEnvs. The ``progress_buf`` tensor has been renamed to ``episode_length_buf`` in Isaac Lab and the
+bookkeeping is now done automatically by the framework. Task implementations no longer need to increment or
+reset the ``episode_length_buf`` buffer.
 
 +------------------------------------------------------------------+--------------------------------------------------------------------------+
 | OmniIsaacGymEnvs                                                 | Isaac Lab                                                                |
@@ -974,3 +989,6 @@ To launch inferencing in Isaac Lab, use the command:
 .. code-block:: bash
 
    python source/standalone/workflows/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+.. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs

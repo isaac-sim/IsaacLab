@@ -1,24 +1,25 @@
 .. _migrating-from-isaacgymenvs:
 
-Migrating from IsaacGymEnvs and Isaac Gym Preview Release
-=========================================================
+From IsaacGymEnvs
+=================
 
 .. currentmodule:: omni.isaac.lab
 
 
-IsaacGymEnvs was a reinforcement learning framework designed for the Isaac Gym Preview Release.
-As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through the key differences
-between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview Release
-and Isaac Sim.
+`IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
+As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through
+the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
+Release and Isaac Sim.
 
 
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
 
-In IsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using a specialized
-Python class :class:`~omni.isaac.lab.utils.configclass`. The :class:`~omni.isaac.lab.utils.configclass` module provides a wrapper on top of Python's ``dataclasses`` module.
-Each environment should specify its own config class annotated by ``@configclass`` that inherits from :class:`~envs.DirectRLEnvCfg`,
-which can include simulation parameters, environment scene parameters, robot parameters, and task-specific parameters.
+In IsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using
+a specialized Python class :class:`~omni.isaac.lab.utils.configclass`. The :class:`~omni.isaac.lab.utils.configclass`
+module provides a wrapper on top of Python's ``dataclasses`` module. Each environment should specify its own config
+class annotated by ``@configclass`` that inherits from :class:`~envs.DirectRLEnvCfg`, which can include simulation
+parameters, environment scene parameters, robot parameters, and task-specific parameters.
 
 Below is an example skeleton of a task config class:
 
@@ -48,14 +49,16 @@ Below is an example skeleton of a task config class:
 Simulation Config
 -----------------
 
-Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class, which is a :class:`~omni.isaac.lab.utils.configclass` module
-that holds simulation parameters such as ``dt``, ``device``, and ``gravity``.
-Each task config must have a variable named ``sim`` defined that holds the type :class:`~omni.isaac.lab.sim.SimulationCfg`.
+Simulation related parameters are defined as part of the :class:`~omni.isaac.lab.sim.SimulationCfg` class,
+which is a :class:`~omni.isaac.lab.utils.configclass` module that holds simulation parameters such as ``dt``,
+``device``, and ``gravity``. Each task config must have a variable named ``sim`` defined that holds the type
+:class:`~omni.isaac.lab.sim.SimulationCfg`.
 
 In Isaac Lab, the use of ``substeps`` has been replaced
-by a combination of the simulation ``dt`` and the ``decimation`` parameters. For example, in IsaacGymEnvs, having ``dt=1/60`` and ``substeps=2``
-is equivalent to taking 2 simulation steps with ``dt=1/120``, but running the task step at ``1/60`` seconds.
-The ``decimation`` parameter is a task parameter that controls the number of simulation steps to take for each task (or RL) step, replacing the ``controlFrequencyInv`` parameter in IsaacGymEnvs.
+by a combination of the simulation ``dt`` and the ``decimation`` parameters. For example, in IsaacGymEnvs, having
+``dt=1/60`` and ``substeps=2`` is equivalent to taking 2 simulation steps with ``dt=1/120``, but running the task step
+at ``1/60`` seconds. The ``decimation`` parameter is a task parameter that controls the number of simulation steps to
+take for each task (or RL) step, replacing the ``controlFrequencyInv`` parameter in IsaacGymEnvs.
 Thus, the same setup in Isaac Lab will become ``dt=1/120`` and ``decimation=2``.
 
 In Isaac Sim, physx simulation parameters such as ``num_position_iterations``, ``num_velocity_iterations``,
@@ -66,7 +69,8 @@ to each individual articulation and rigid body config.
 When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access for setting the GPU buffer dimensions.
+and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.PhysxCfg` class provides access for
+setting the GPU buffer dimensions.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -99,9 +103,9 @@ and the number of actors in the environment. The :class:`~omni.isaac.lab.sim.Phy
 Scene Config
 ------------
 
-The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene, such as the number of environments
-and the spacing between environments.
-Each task config must have a variable named ``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
+The :class:`~omni.isaac.lab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
+such as the number of environments and the spacing between environments. Each task config must have a variable named
+``scene`` defined that holds the type :class:`~omni.isaac.lab.scene.InteractiveSceneCfg`.
 
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 |                                                              |                                                                   |
@@ -129,8 +133,9 @@ The following parameters must be set for each environment config:
    num_observations = 4
    num_states = 0
 
-Note that the maximum episode length parameter (now ``episode_length_s``) is in seconds instead of steps as it was in IsaacGymEnvs. To convert between
-step count to seconds, use the equation: ``episode_length_s = dt * decimation * num_steps``
+Note that the maximum episode length parameter (now ``episode_length_s``) is in seconds instead of steps as it was
+in IsaacGymEnvs. To convert between step count to seconds, use the equation:
+``episode_length_s = dt * decimation * num_steps``
 
 
 RL Config Setup
@@ -231,10 +236,13 @@ The terrain can then be added to the scene in ``_setup_scene(self)`` by referenc
 Actors
 ------
 
-Isaac Lab and Isaac Sim both use the `USD (Universal Scene Description) <https://github.com/PixarAnimationStudios/OpenUSD>`_ library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer tools described in the `Importing a New Asset <../how-to/import_new_asset.html>`_ tutorial.
+Isaac Lab and Isaac Sim both use the `USD (Universal Scene Description) <https://github.com/PixarAnimationStudios/OpenUSD>`_
+library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer
+tools described in the `Importing a New Asset <../how-to/import_new_asset.html>`_ tutorial.
 
-Each Articulation and Rigid Body actor can also have its own config class. The :class:`~omni.isaac.lab.assets.ArticulationCfg` can be
-used to define parameters for articulation actors, including file path, simulation parameters, actuator properties, and initial states.
+Each Articulation and Rigid Body actor can also have its own config class. The
+:class:`~omni.isaac.lab.assets.ArticulationCfg` class can be used to define parameters for articulation actors,
+including file path, simulation parameters, actuator properties, and initial states.
 
 .. code-block::python
 
@@ -276,17 +284,19 @@ used to define parameters for articulation actors, including file path, simulati
        },
    )
 
-Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by specifying the path to the robot file.
-In addition, :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg` can be used to specify simulation properties
-for the rigid bodies in the articulation.
-Similarly, :class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` can be used to specify simulation properties for the articulation.
-Joint and dof properties are now specified as part of the ``actuators`` dictionary using :class:`~actuators.ImplicitActuatorCfg`.
-Joints and dofs with the same properties can be grouped into regex expressions or provided as a list of names or expressions.
+Within the :class:`~assets.ArticulationCfg`, the ``spawn`` attribute can be used to add the robot to the scene by
+specifying the path to the robot file. In addition, :class:`~omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg` can
+be used to specify simulation properties for the rigid bodies in the articulation.
+Similarly, the :class:`~omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg` class can be used to specify
+simulation properties for the articulation. Joint properties are now specified as part of the ``actuators``
+dictionary using :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped into
+regex expressions or provided as a list of names or expressions.
 
 Actors are added to the scene by simply calling ``self.cartpole = Articulation(self.cfg.robot_cfg)``,
-where ``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also be added
-to the :class:`~scene.InteractiveScene` by calling ``self.scene.articulations["cartpole"] = self.cartpole`` so that
-the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the simulation and resetting.
+where ``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also
+be added to the :class:`~scene.InteractiveScene` by calling ``self.scene.articulations["cartpole"] = self.cartpole``
+so that the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the
+simulation and resetting.
 
 Simulation Parameters for Actors
 """"""""""""""""""""""""""""""""
@@ -906,3 +916,7 @@ To launch inferencing in Isaac Lab, use the command:
 .. code-block:: bash
 
    python source/standalone/workflows/rl_games/play.py --task=Isaac-Cartpole-Direct-v0 --num_envs=25 --checkpoint=<path/to/checkpoint>
+
+
+.. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
+.. _Isaac Gym Preview Release: https://developer.nvidia.com/isaac-gym
