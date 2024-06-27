@@ -47,7 +47,7 @@ class SimulationContext(_SimulationContext):
     can be accessed using the ``instance()`` method.
 
     .. attention::
-        Since we only support the ``torch <https://pytorch.org/>``_ backend for simulation, the
+        Since we only support the `PyTorch <https://pytorch.org/>`_ backend for simulation, the
         simulation context is configured to use the ``torch`` backend by default. This means that
         all the data structures used in the simulation are ``torch.Tensor`` objects.
 
