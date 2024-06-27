@@ -89,6 +89,14 @@ class Articulation(RigidObject):
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
+    actuators: dict[str, ActuatorBase]
+    """Dictionary of actuator instances for the articulation.
+
+    The keys are the actuator names and the values are the actuator instances. The actuator instances
+    are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
+    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    """
+
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
@@ -96,8 +104,6 @@ class Articulation(RigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # data for storing actuator group
-        self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
     """
     Properties
@@ -982,9 +988,12 @@ class Articulation(RigidObject):
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
+        # create actuators
+        self.actuators = dict()
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+
         # cache the values coming from the usd
         usd_stiffness = self.root_physx_view.get_dof_stiffnesses().clone()
         usd_damping = self.root_physx_view.get_dof_dampings().clone()
@@ -992,6 +1001,7 @@ class Articulation(RigidObject):
         usd_friction = self.root_physx_view.get_dof_friction_coefficients().clone()
         usd_effort_limit = self.root_physx_view.get_dof_max_forces().clone()
         usd_velocity_limit = self.root_physx_view.get_dof_max_velocities().clone()
+
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers
