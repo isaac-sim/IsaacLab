@@ -69,7 +69,7 @@ singularity exec \
     bash -c "export ORBIT_PATH=/workspace/orbit && cd /workspace/orbit && /isaac-sim/python.sh ${CLUSTER_PYTHON_EXECUTABLE} ${@:3}"
 
 # copy resulting cache files back to host
-cp -r $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
+rsync -azPv $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
 
 # if defined, remove the temporary orbit directory pushed when the job was submitted
 if $REMOVE_ORBIT_CODE_COPY_AFTER_JOB; then
