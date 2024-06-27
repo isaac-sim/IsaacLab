@@ -126,4 +126,4 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html
+.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/isaacsim/latest/index.html
