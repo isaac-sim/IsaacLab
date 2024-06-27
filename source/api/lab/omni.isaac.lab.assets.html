@@ -58,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.actuators" href="omni.isaac.lab.actuators.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 26, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 27, 2024"/>
   </head>
   
   
@@ -550,6 +550,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-base">Asset Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase"><code class="docutils literal notranslate"><span class="pre">AssetBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.__init__"><code class="docutils literal notranslate"><span class="pre">AssetBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.is_initialized"><code class="docutils literal notranslate"><span class="pre">AssetBase.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.num_instances"><code class="docutils literal notranslate"><span class="pre">AssetBase.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.device"><code class="docutils literal notranslate"><span class="pre">AssetBase.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.data"><code class="docutils literal notranslate"><span class="pre">AssetBase.data</span></code></a></li>
@@ -595,6 +596,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">RigidObject.set_external_force_and_torque()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.device"><code class="docutils literal notranslate"><span class="pre">RigidObject.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RigidObject.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.is_initialized"><code class="docutils literal notranslate"><span class="pre">RigidObject.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RigidObject.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -642,6 +644,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation">Articulation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation"><code class="docutils literal notranslate"><span class="pre">Articulation</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.cfg"><code class="docutils literal notranslate"><span class="pre">Articulation.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.actuators"><code class="docutils literal notranslate"><span class="pre">Articulation.actuators</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.__init__"><code class="docutils literal notranslate"><span class="pre">Articulation.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.data"><code class="docutils literal notranslate"><span class="pre">Articulation.data</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.is_fixed_base"><code class="docutils literal notranslate"><span class="pre">Articulation.is_fixed_base</span></code></a></li>
@@ -680,6 +683,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.device"><code class="docutils literal notranslate"><span class="pre">Articulation.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_bodies"><code class="docutils literal notranslate"><span class="pre">Articulation.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Articulation.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.is_initialized"><code class="docutils literal notranslate"><span class="pre">Articulation.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.num_instances"><code class="docutils literal notranslate"><span class="pre">Articulation.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Articulation.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>
@@ -893,16 +897,19 @@ to True. The debug visualization is implemented through the <code class="xref py
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.num_instances" title="omni.isaac.lab.assets.AssetBase.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.is_initialized" title="omni.isaac.lab.assets.AssetBase.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the asset is initialized.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.num_instances" title="omni.isaac.lab.assets.AssetBase.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.device" title="omni.isaac.lab.assets.AssetBase.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.device" title="omni.isaac.lab.assets.AssetBase.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.data" title="omni.isaac.lab.assets.AssetBase.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.data" title="omni.isaac.lab.assets.AssetBase.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
 <td><p>Data related to the asset.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.has_debug_vis_implementation" title="omni.isaac.lab.assets.AssetBase.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.AssetBase.has_debug_vis_implementation" title="omni.isaac.lab.assets.AssetBase.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the asset has a debug visualization implemented.</p></td>
 </tr>
 </tbody>
@@ -920,6 +927,13 @@ to True. The debug visualization is implemented through the <code class="xref py
 <dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.12)"><strong>RuntimeError</strong></a> – If no prims found at input prim path or prim path expression.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.AssetBase.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.AssetBase.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset is initialized.</p>
+<p>Returns True if the asset is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1146,7 +1160,7 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <td><p>Number of bodies in the asset.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.body_names" title="omni.isaac.lab.assets.RigidObject.body_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_names</span></code></a></p></td>
-<td><p>Ordered names of bodies in articulation.</p></td>
+<td><p>Ordered names of bodies in the rigid object.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.root_physx_view" title="omni.isaac.lab.assets.RigidObject.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Rigid body view for the asset (PhysX).</p></td>
@@ -1159,6 +1173,9 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation" title="omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the asset has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.RigidObject.is_initialized" title="omni.isaac.lab.assets.RigidObject.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the asset is initialized.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1238,7 +1255,7 @@ in Isaac Sim perform additional USD-related operations which are slow and also n
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObject.body_names">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_names</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObject.body_names" title="Permalink to this definition">#</a></dt>
-<dd><p>Ordered names of bodies in articulation.</p>
+<dd><p>Ordered names of bodies in the rigid object.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1403,6 +1420,13 @@ right before the simulation step.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the asset has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObject.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObject.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset is initialized.</p>
+<p>Returns True if the asset is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1816,41 +1840,47 @@ As an example, the following snippet shows how this can be used for position com
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.cfg" title="omni.isaac.lab.assets.Articulation.cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cfg</span></code></a></p></td>
 <td><p>Configuration instance for the articulations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.data" title="omni.isaac.lab.assets.Articulation.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.actuators" title="omni.isaac.lab.assets.Articulation.actuators"><code class="xref py py-obj docutils literal notranslate"><span class="pre">actuators</span></code></a></p></td>
+<td><p>Dictionary of actuator instances for the articulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.data" title="omni.isaac.lab.assets.Articulation.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
 <td><p>Data related to the asset.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.is_fixed_base" title="omni.isaac.lab.assets.Articulation.is_fixed_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_fixed_base</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.is_fixed_base" title="omni.isaac.lab.assets.Articulation.is_fixed_base"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_fixed_base</span></code></a></p></td>
 <td><p>Whether the articulation is a fixed-base or floating-base system.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_joints" title="omni.isaac.lab.assets.Articulation.num_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_joints</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_joints" title="omni.isaac.lab.assets.Articulation.num_joints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_joints</span></code></a></p></td>
 <td><p>Number of joints in articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_fixed_tendons" title="omni.isaac.lab.assets.Articulation.num_fixed_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_tendons</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_fixed_tendons" title="omni.isaac.lab.assets.Articulation.num_fixed_tendons"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_fixed_tendons</span></code></a></p></td>
 <td><p>Number of fixed tendons in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_bodies" title="omni.isaac.lab.assets.Articulation.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_bodies" title="omni.isaac.lab.assets.Articulation.num_bodies"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_bodies</span></code></a></p></td>
 <td><p>Number of bodies in articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.joint_names" title="omni.isaac.lab.assets.Articulation.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.joint_names" title="omni.isaac.lab.assets.Articulation.joint_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">joint_names</span></code></a></p></td>
 <td><p>Ordered names of joints in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.fixed_tendon_names" title="omni.isaac.lab.assets.Articulation.fixed_tendon_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_names</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.fixed_tendon_names" title="omni.isaac.lab.assets.Articulation.fixed_tendon_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fixed_tendon_names</span></code></a></p></td>
 <td><p>Ordered names of fixed tendons in articulation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.body_names" title="omni.isaac.lab.assets.Articulation.body_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_names</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.body_names" title="omni.isaac.lab.assets.Articulation.body_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_names</span></code></a></p></td>
 <td><p>Ordered names of bodies in articulation.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.root_physx_view" title="omni.isaac.lab.assets.Articulation.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.root_physx_view" title="omni.isaac.lab.assets.Articulation.root_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">root_physx_view</span></code></a></p></td>
 <td><p>Articulation view for the asset (PhysX).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.body_physx_view" title="omni.isaac.lab.assets.Articulation.body_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_physx_view</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.body_physx_view" title="omni.isaac.lab.assets.Articulation.body_physx_view"><code class="xref py py-obj docutils literal notranslate"><span class="pre">body_physx_view</span></code></a></p></td>
 <td><p>Rigid body view for the asset (PhysX).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.device" title="omni.isaac.lab.assets.Articulation.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.device" title="omni.isaac.lab.assets.Articulation.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation" title="omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation" title="omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the asset has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.is_initialized" title="omni.isaac.lab.assets.Articulation.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the asset is initialized.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.assets.Articulation.num_instances" title="omni.isaac.lab.assets.Articulation.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the asset.</p></td>
@@ -1955,6 +1985,15 @@ As an example, the following snippet shows how this can be used for position com
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.cfg">
 <span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><span class="pre">ArticulationCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.cfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Configuration instance for the articulations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.actuators">
+<span class="sig-name descname"><span class="pre">actuators</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ActuatorBase" title="omni.isaac.lab.actuators.ActuatorBase"><span class="pre">ActuatorBase</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.actuators" title="Permalink to this definition">#</a></dt>
+<dd><p>Dictionary of actuator instances for the articulation.</p>
+<p>The keys are the actuator names and the values are the actuator instances. The actuator instances
+are initialized based on the actuator configurations specified in the <a class="reference internal" href="#omni.isaac.lab.assets.ArticulationCfg.actuators" title="omni.isaac.lab.assets.ArticulationCfg.actuators"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ArticulationCfg.actuators</span></code></a>
+attribute. They are used to compute the joint commands during the <a class="reference internal" href="#omni.isaac.lab.assets.Articulation.write_data_to_sim" title="omni.isaac.lab.assets.Articulation.write_data_to_sim"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_data_to_sim()</span></code></a> function.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2494,6 +2533,13 @@ information on the name matching.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the asset has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.assets.Articulation.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.Articulation.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the asset is initialized.</p>
+<p>Returns True if the asset is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -3326,6 +3372,7 @@ Defaults to 1.0.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-base">Asset Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase"><code class="docutils literal notranslate"><span class="pre">AssetBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.__init__"><code class="docutils literal notranslate"><span class="pre">AssetBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.is_initialized"><code class="docutils literal notranslate"><span class="pre">AssetBase.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.num_instances"><code class="docutils literal notranslate"><span class="pre">AssetBase.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.device"><code class="docutils literal notranslate"><span class="pre">AssetBase.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.AssetBase.data"><code class="docutils literal notranslate"><span class="pre">AssetBase.data</span></code></a></li>
@@ -3371,6 +3418,7 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.set_external_force_and_torque"><code class="docutils literal notranslate"><span class="pre">RigidObject.set_external_force_and_torque()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.device"><code class="docutils literal notranslate"><span class="pre">RigidObject.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RigidObject.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.is_initialized"><code class="docutils literal notranslate"><span class="pre">RigidObject.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.RigidObject.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RigidObject.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -3418,6 +3466,7 @@ Defaults to 1.0.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#articulation">Articulation</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation"><code class="docutils literal notranslate"><span class="pre">Articulation</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.cfg"><code class="docutils literal notranslate"><span class="pre">Articulation.cfg</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.actuators"><code class="docutils literal notranslate"><span class="pre">Articulation.actuators</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.__init__"><code class="docutils literal notranslate"><span class="pre">Articulation.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.data"><code class="docutils literal notranslate"><span class="pre">Articulation.data</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.is_fixed_base"><code class="docutils literal notranslate"><span class="pre">Articulation.is_fixed_base</span></code></a></li>
@@ -3456,6 +3505,7 @@ Defaults to 1.0.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.device"><code class="docutils literal notranslate"><span class="pre">Articulation.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.find_bodies"><code class="docutils literal notranslate"><span class="pre">Articulation.find_bodies()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Articulation.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.is_initialized"><code class="docutils literal notranslate"><span class="pre">Articulation.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.num_instances"><code class="docutils literal notranslate"><span class="pre">Articulation.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Articulation.set_debug_vis()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.assets.Articulation.update"><code class="docutils literal notranslate"><span class="pre">Articulation.update()</span></code></a></li>
@@ -3579,7 +3629,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 26, 2024.
+  Last updated on Jun 27, 2024.
   <br/>
 </p>
   </div>

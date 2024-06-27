@@ -58,7 +58,7 @@
     <link rel="prev" title="omni.isaac.lab.scene" href="omni.isaac.lab.scene.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 26, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 27, 2024"/>
   </head>
   
   
@@ -550,6 +550,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sensor-base">Sensor Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase"><code class="docutils literal notranslate"><span class="pre">SensorBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.__init__"><code class="docutils literal notranslate"><span class="pre">SensorBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.is_initialized"><code class="docutils literal notranslate"><span class="pre">SensorBase.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.num_instances"><code class="docutils literal notranslate"><span class="pre">SensorBase.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.device"><code class="docutils literal notranslate"><span class="pre">SensorBase.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.data"><code class="docutils literal notranslate"><span class="pre">SensorBase.data</span></code></a></li>
@@ -583,6 +584,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.reset"><code class="docutils literal notranslate"><span class="pre">Camera.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.device"><code class="docutils literal notranslate"><span class="pre">Camera.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Camera.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.is_initialized"><code class="docutils literal notranslate"><span class="pre">Camera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Camera.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -633,6 +635,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.frame"><code class="docutils literal notranslate"><span class="pre">TiledCamera.frame</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">TiledCamera.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.image_shape"><code class="docutils literal notranslate"><span class="pre">TiledCamera.image_shape</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.is_initialized"><code class="docutils literal notranslate"><span class="pre">TiledCamera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.num_instances"><code class="docutils literal notranslate"><span class="pre">TiledCamera.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.render_product_paths"><code class="docutils literal notranslate"><span class="pre">TiledCamera.render_product_paths</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">TiledCamera.set_debug_vis()</span></code></a></li>
@@ -678,6 +681,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.compute_first_air"><code class="docutils literal notranslate"><span class="pre">ContactSensor.compute_first_air()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.device"><code class="docutils literal notranslate"><span class="pre">ContactSensor.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ContactSensor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.is_initialized"><code class="docutils literal notranslate"><span class="pre">ContactSensor.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ContactSensor.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -715,6 +719,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.reset"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.device"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.is_initialized"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.num_instances"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.set_debug_vis()</span></code></a></li>
 </ul>
@@ -765,6 +770,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.reset"><code class="docutils literal notranslate"><span class="pre">RayCaster.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.device"><code class="docutils literal notranslate"><span class="pre">RayCaster.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RayCaster.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.is_initialized"><code class="docutils literal notranslate"><span class="pre">RayCaster.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCaster.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -809,6 +815,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.set_world_poses_from_view"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.set_world_poses_from_view()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.device"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.is_initialized"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.meshes"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.meshes</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.num_instances"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.set_debug_vis()</span></code></a></li>
@@ -990,16 +997,19 @@ sensor is updated at every simulation step.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.num_instances" title="omni.isaac.lab.sensors.SensorBase.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.is_initialized" title="omni.isaac.lab.sensors.SensorBase.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.num_instances" title="omni.isaac.lab.sensors.SensorBase.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the sensor.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.device" title="omni.isaac.lab.sensors.SensorBase.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.device" title="omni.isaac.lab.sensors.SensorBase.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Memory device for computation.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.data" title="omni.isaac.lab.sensors.SensorBase.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.data" title="omni.isaac.lab.sensors.SensorBase.data"><code class="xref py py-obj docutils literal notranslate"><span class="pre">data</span></code></a></p></td>
 <td><p>Data from the sensor.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.has_debug_vis_implementation" title="omni.isaac.lab.sensors.SensorBase.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.SensorBase.has_debug_vis_implementation" title="omni.isaac.lab.sensors.SensorBase.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
 </tr>
 </tbody>
@@ -1014,6 +1024,13 @@ sensor is updated at every simulation step.</p>
 <dd class="field-odd"><p><strong>cfg</strong> – The configuration parameters for the sensor.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.SensorBase.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.SensorBase.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1198,6 +1215,9 @@ It ensures that the camera follows the ROS convention for the coordinate system.
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.Camera.has_debug_vis_implementation" title="omni.isaac.lab.sensors.Camera.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.Camera.is_initialized" title="omni.isaac.lab.sensors.Camera.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1398,6 +1418,13 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.Camera.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.Camera.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.Camera.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.Camera.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1786,10 +1813,13 @@ accurately captured in the RGB images. We are currently working on improving the
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.image_shape" title="omni.isaac.lab.sensors.TiledCamera.image_shape"><code class="xref py py-obj docutils literal notranslate"><span class="pre">image_shape</span></code></a></p></td>
 <td><p>A tuple containing (height, width) of the camera sensor.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.num_instances" title="omni.isaac.lab.sensors.TiledCamera.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.is_initialized" title="omni.isaac.lab.sensors.TiledCamera.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.num_instances" title="omni.isaac.lab.sensors.TiledCamera.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the sensor.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.render_product_paths" title="omni.isaac.lab.sensors.TiledCamera.render_product_paths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_product_paths</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.TiledCamera.render_product_paths" title="omni.isaac.lab.sensors.TiledCamera.render_product_paths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_product_paths</span></code></a></p></td>
 <td><p>The path of the render products for the cameras.</p></td>
 </tr>
 </tbody>
@@ -1903,6 +1933,13 @@ code snippet in your sensor implementation:</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.TiledCamera.image_shape">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">image_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCamera.image_shape" title="Permalink to this definition">#</a></dt>
 <dd><p>A tuple containing (height, width) of the camera sensor.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.TiledCamera.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.TiledCamera.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2225,6 +2262,9 @@ filter pattern. Please check the documentation on <a class="reference external" 
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation" title="omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensor.is_initialized" title="omni.isaac.lab.sensors.ContactSensor.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2425,6 +2465,13 @@ Shape is (N, B), where N is the number of sensors and B is the number of bodies 
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.ContactSensor.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.ContactSensor.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2734,7 +2781,10 @@ and will be fixed in a future release.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation" title="omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformer.num_instances" title="omni.isaac.lab.sensors.FrameTransformer.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformer.is_initialized" title="omni.isaac.lab.sensors.FrameTransformer.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformer.num_instances" title="omni.isaac.lab.sensors.FrameTransformer.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the sensor.</p></td>
 </tr>
 </tbody>
@@ -2809,6 +2859,13 @@ code snippet in your sensor implementation:</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformer.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformer.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -3151,6 +3208,9 @@ is a work in progress.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation" title="omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCaster.is_initialized" title="omni.isaac.lab.sensors.RayCaster.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -3241,6 +3301,13 @@ code snippet in your sensor implementation:</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCaster.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCaster.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -3510,10 +3577,13 @@ is a work in progress.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation" title="omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">has_debug_vis_implementation</span></code></a></p></td>
 <td><p>Whether the sensor has a debug visualization implemented.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.meshes" title="omni.isaac.lab.sensors.RayCasterCamera.meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meshes</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.is_initialized" title="omni.isaac.lab.sensors.RayCasterCamera.is_initialized"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_initialized</span></code></a></p></td>
+<td><p>Whether the sensor is initialized.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.meshes" title="omni.isaac.lab.sensors.RayCasterCamera.meshes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">meshes</span></code></a></p></td>
 <td><p>The warp meshes available for raycasting.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.num_instances" title="omni.isaac.lab.sensors.RayCasterCamera.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.RayCasterCamera.num_instances" title="omni.isaac.lab.sensors.RayCasterCamera.num_instances"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_instances</span></code></a></p></td>
 <td><p>Number of instances of the sensor.</p></td>
 </tr>
 </tbody>
@@ -3684,6 +3754,13 @@ Defaults to None, in which case the camera orientation in not changed.</p></li>
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">has_debug_vis_implementation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation" title="Permalink to this definition">#</a></dt>
 <dd><p>Whether the sensor has a debug visualization implemented.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.RayCasterCamera.is_initialized">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_initialized</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.RayCasterCamera.is_initialized" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether the sensor is initialized.</p>
+<p>Returns True if the sensor is initialized, False otherwise.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3935,6 +4012,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sensor-base">Sensor Base</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase"><code class="docutils literal notranslate"><span class="pre">SensorBase</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.__init__"><code class="docutils literal notranslate"><span class="pre">SensorBase.__init__()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.is_initialized"><code class="docutils literal notranslate"><span class="pre">SensorBase.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.num_instances"><code class="docutils literal notranslate"><span class="pre">SensorBase.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.device"><code class="docutils literal notranslate"><span class="pre">SensorBase.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.SensorBase.data"><code class="docutils literal notranslate"><span class="pre">SensorBase.data</span></code></a></li>
@@ -3968,6 +4046,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.reset"><code class="docutils literal notranslate"><span class="pre">Camera.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.device"><code class="docutils literal notranslate"><span class="pre">Camera.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">Camera.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.is_initialized"><code class="docutils literal notranslate"><span class="pre">Camera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.Camera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">Camera.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -4018,6 +4097,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.frame"><code class="docutils literal notranslate"><span class="pre">TiledCamera.frame</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">TiledCamera.has_debug_vis_implementation</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.image_shape"><code class="docutils literal notranslate"><span class="pre">TiledCamera.image_shape</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.is_initialized"><code class="docutils literal notranslate"><span class="pre">TiledCamera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.num_instances"><code class="docutils literal notranslate"><span class="pre">TiledCamera.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.render_product_paths"><code class="docutils literal notranslate"><span class="pre">TiledCamera.render_product_paths</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.TiledCamera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">TiledCamera.set_debug_vis()</span></code></a></li>
@@ -4063,6 +4143,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.compute_first_air"><code class="docutils literal notranslate"><span class="pre">ContactSensor.compute_first_air()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.device"><code class="docutils literal notranslate"><span class="pre">ContactSensor.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">ContactSensor.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.is_initialized"><code class="docutils literal notranslate"><span class="pre">ContactSensor.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.ContactSensor.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">ContactSensor.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -4100,6 +4181,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.reset"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.device"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.is_initialized"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.num_instances"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformer.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">FrameTransformer.set_debug_vis()</span></code></a></li>
 </ul>
@@ -4150,6 +4232,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.reset"><code class="docutils literal notranslate"><span class="pre">RayCaster.reset()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.device"><code class="docutils literal notranslate"><span class="pre">RayCaster.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RayCaster.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.is_initialized"><code class="docutils literal notranslate"><span class="pre">RayCaster.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCaster.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCaster.set_debug_vis()</span></code></a></li>
 </ul>
 </li>
@@ -4194,6 +4277,7 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.set_world_poses_from_view"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.set_world_poses_from_view()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.device"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.has_debug_vis_implementation"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.has_debug_vis_implementation</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.is_initialized"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.is_initialized</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.meshes"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.meshes</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.num_instances"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.num_instances</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.RayCasterCamera.set_debug_vis"><code class="docutils literal notranslate"><span class="pre">RayCasterCamera.set_debug_vis()</span></code></a></li>
@@ -4255,7 +4339,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 26, 2024.
+  Last updated on Jun 27, 2024.
   <br/>
 </p>
   </div>
