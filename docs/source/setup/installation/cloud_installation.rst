@@ -82,7 +82,7 @@ Next, enter the automator container:
 
   .. tab-item:: Windows
      :sync: windows
-     
+
      .. code-block:: batch
 
          docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
@@ -130,7 +130,7 @@ For example:
 
   .. tab-item:: Windows
      :sync: windows
-     
+
      .. code-block:: batch
 
          ./isaaclab.bat -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
