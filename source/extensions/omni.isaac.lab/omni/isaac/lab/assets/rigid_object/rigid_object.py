@@ -76,7 +76,7 @@ class RigidObject(AssetBase):
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+        """Ordered names of bodies in the rigid object."""
         prim_paths = self.root_physx_view.prim_paths[: self.num_bodies]
         return [path.split("/")[-1] for path in prim_paths]
 
@@ -340,6 +340,7 @@ class RigidObject(AssetBase):
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
         self._external_torque_b = torch.zeros_like(self._external_force_b)
 
+        # set information about rigid body into data
         self._data.body_names = self.body_names
         self._data.default_mass = self.root_physx_view.get_masses().clone()
 

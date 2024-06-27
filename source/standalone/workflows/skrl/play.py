@@ -60,7 +60,7 @@ def main():
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg)
     # wrap around environment for skrl
-    env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
+    env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaaclab")`
 
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html

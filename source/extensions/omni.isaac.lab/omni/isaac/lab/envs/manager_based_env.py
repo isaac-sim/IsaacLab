@@ -308,11 +308,11 @@ class ManagerBasedEnv:
         """Cleanup for the environment."""
         if not self._is_closed:
             # destructor is order-sensitive
+            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager
             del self.scene
-            del self.viewport_camera_controller
             # clear callbacks and instance
             self.sim.clear_all_callbacks()
             self.sim.clear_instance()
