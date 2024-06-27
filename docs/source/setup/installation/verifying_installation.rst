@@ -136,24 +136,20 @@ For more information on common paths, please check the Isaac Sim
             %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\omni.isaac.core\add_cubes.py
 
 
-.. attention::
+.. caution::
 
-	If you have been using a previous version of Isaac Sim, you
-	need to run the following command for the *first* time after
-	installation to remove all the old user data and cached variables:
+   If you have been using a previous version of Isaac Sim, you need to run the following command for the *first*
+   time after installation to remove all the old user data and cached variables:
 
    .. tab-set::
-      :sync-group: os
 
       .. tab-item:: Linux
-         :sync: linux
 
       	.. code:: bash
 
       		${ISAACSIM_PATH}/isaac-sim.sh --reset-user
 
       .. tab-item:: Windows
-         :sync: windows
 
          .. code:: batch
 
