@@ -359,7 +359,7 @@ case $mode in
     job)
         source $SCRIPT_DIR/.env.base
         # Get current date and time
-        current_datetime=$(date +"_%Y%m%d%H%M%S")
+        current_datetime=$(date +"_%Y%m%d_%H%M%S")
         # Append current date and time to CLUSTER_ORBIT_DIR
         CLUSTER_ORBIT_DIR="${CLUSTER_ORBIT_DIR}_${current_datetime}"
         # Check if singularity image exists on the remote host
