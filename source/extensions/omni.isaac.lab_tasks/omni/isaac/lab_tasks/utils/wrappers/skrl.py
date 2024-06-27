@@ -11,13 +11,14 @@ The following example shows how to wrap an environment for skrl:
 
     from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
-    env = SkrlVecEnvWrapper(env)
+    env = SkrlVecEnvWrapper(env, ml_framework="torch")  # or ml_framework="jax"
 
 Or, equivalently, by directly calling the skrl library API as follows:
 
 .. code-block:: python
 
-    from skrl.envs.torch.wrappers import wrap_env
+    from skrl.envs.torch.wrappers import wrap_env  # for PyTorch, or...
+    from skrl.envs.jax.wrappers import wrap_env    # for JAX
 
     env = wrap_env(env, wrapper="isaaclab")
 
@@ -26,11 +27,6 @@ Or, equivalently, by directly calling the skrl library API as follows:
 # needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
-from skrl.envs.wrappers.torch import wrap_env
-from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
-from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
-from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
-
 from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
@@ -38,11 +34,15 @@ Configuration Parser.
 """
 
 
-def process_skrl_cfg(cfg: dict) -> dict:
+def process_skrl_cfg(cfg: dict, ml_framework: str = "torch") -> dict:
     """Convert simple YAML types to skrl classes/components.
 
     Args:
         cfg: A configuration dictionary.
+        ml_framework: ML framework to be used. Supported values are ``"torch"`` (default) and ``"jax"``.
+
+    Raises:
+        ValueError: If the specified ML framework is not valid.
 
     Returns:
         A dictionary containing the converted configuration.
@@ -62,6 +62,18 @@ def process_skrl_cfg(cfg: dict) -> dict:
         return reward_shaper
 
     def update_dict(d):
+        # import statements according to the ML framework
+        if ml_framework.startswith("torch"):
+            from skrl.resources.preprocessors.torch import RunningStandardScaler  # noqa: F401
+            from skrl.resources.schedulers.torch import KLAdaptiveLR  # noqa: F401
+            from skrl.utils.model_instantiators.torch import Shape  # noqa: F401
+        elif ml_framework.startswith("jax"):
+            from skrl.resources.preprocessors.jax import RunningStandardScaler  # noqa: F401
+            from skrl.resources.schedulers.jax import KLAdaptiveLR  # noqa: F401
+            from skrl.utils.model_instantiators.jax import Shape  # noqa: F401
+        else:
+            ValueError(f"Invalid ML framework: {ml_framework}")
+
         for key, value in d.items():
             if isinstance(value, dict):
                 update_dict(value)
@@ -84,7 +96,7 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
+def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: str = "torch"):
     """Wraps around Isaac Lab environment for skrl.
 
     This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment
@@ -94,9 +106,11 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
 
     Args:
         env: The environment to wrap around.
+        ml_framework: ML framework to be used. Supported values are ``"torch"`` (default) and ``"jax"``.
 
     Raises:
         ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
+        ValueError: If the specified ML framework is not valid.
 
     Reference:
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
@@ -106,5 +120,14 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv):
         raise ValueError(
             f"The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: {type(env)}"
         )
+
+    # import statements according to the ML framework
+    if ml_framework.startswith("torch"):
+        from skrl.envs.wrappers.torch import wrap_env
+    elif ml_framework.startswith("jax"):
+        from skrl.envs.wrappers.jax import wrap_env
+    else:
+        ValueError(f"Invalid ML framework: {ml_framework}")
+
     # wrap and return the environment
     return wrap_env(env, wrapper="isaaclab")
