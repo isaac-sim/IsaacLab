@@ -81,7 +81,6 @@ Table of Contents
    :caption: Resources
    :titlesonly:
 
-   source/migration/index
    source/tutorials/index
    source/how-to/index
    source/deployment/index
@@ -94,9 +93,17 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Migration Guides
+   :titlesonly:
+
+   source/migration/migrating_from_isaacgymenvs
+   source/migration/migrating_from_omniisaacgymenvs
+   source/migration/migrating_from_orbit
+
+.. toctree::
+   :maxdepth: 1
    :caption: References
 
-   source/refs/migration
    source/refs/contributing
    source/refs/troubleshooting
    source/refs/issues

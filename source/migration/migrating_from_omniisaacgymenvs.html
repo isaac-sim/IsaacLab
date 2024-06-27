@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Migrating from OmniIsaacGymEnvs &#8212; Isaac Lab documentation</title>
+    <title>From OmniIsaacGymEnvs &#8212; Isaac Lab documentation</title>
   
   
   
@@ -52,8 +52,8 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Migrating from Orbit" href="migrating_from_orbit.html" />
-    <link rel="prev" title="Migrating from IsaacGymEnvs and Isaac Gym Preview Release" href="migrating_from_isaacgymenvs.html" />
+    <link rel="next" title="From Orbit" href="migrating_from_orbit.html" />
+    <link rel="prev" title="From IsaacGymEnvs" href="migrating_from_isaacgymenvs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Jun 27, 2024"/>
@@ -232,13 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
-<ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Migration Guides</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Migrating from OmniIsaacGymEnvs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="migrating_from_orbit.html">Migrating from Orbit</a></li>
-</ul>
-</details></li>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -320,9 +314,14 @@
 </ul>
 </details></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_orbit.html">From Orbit</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
@@ -535,7 +534,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Migrating from OmniIsaacGymEnvs</h1>
+    <h1>From OmniIsaacGymEnvs</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -561,7 +560,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-new-environment">Creating a New Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-logic">Task Logic</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#putting-it-all-together">Putting It All Together</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Task Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Task Config</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-setup">Task Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-setup">Scene Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-physics-step">Pre-Physics Step</a></li>
@@ -587,19 +586,21 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="migrating-from-omniisaacgymenvs">
-<span id="id1"></span><h1>Migrating from OmniIsaacGymEnvs<a class="headerlink" href="#migrating-from-omniisaacgymenvs" title="Permalink to this heading">#</a></h1>
-<p>OmniIsaacGymEnvs was a reinforcement learning framework using the Isaac Sim platform.
+  <section id="from-omniisaacgymenvs">
+<span id="migrating-from-omniisaacgymenvs"></span><h1>From OmniIsaacGymEnvs<a class="headerlink" href="#from-omniisaacgymenvs" title="Permalink to this heading">#</a></h1>
+<p><a class="reference external" href="https://github.com/isaac-sim/OmniIsaacGymEnvs">OmniIsaacGymEnvs</a> was a reinforcement learning framework using the Isaac Sim platform.
 Features from OmniIsaacGymEnvs have been integrated into the Isaac Lab framework.
 We have updated OmniIsaacGymEnvs to Isaac Sim version 4.0.0 to support the migration process
 to Isaac Lab. Moving forward, OmniIsaacGymEnvs will be deprecated and future development
 will continue in Isaac Lab.</p>
 <section id="task-config-setup">
 <h2>Task Config Setup<a class="headerlink" href="#task-config-setup" title="Permalink to this heading">#</a></h2>
-<p>In OmniIsaacGymEnvs, task config files were defined in <code class="docutils literal notranslate"><span class="pre">.yaml</span></code> format. With Isaac Lab, configs are now specified using a specialized
-Python class <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a>. The <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module provides a wrapper on top of Python’s <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> module.
-Each environment should specify its own config class annotated by <code class="docutils literal notranslate"><span class="pre">&#64;configclass</span></code> that inherits from <a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnvCfg</span></code></a>,
-which can include simulation parameters, environment scene parameters, robot parameters, and task-specific parameters.</p>
+<p>In OmniIsaacGymEnvs, task config files were defined in <code class="docutils literal notranslate"><span class="pre">.yaml</span></code> format. With Isaac Lab, configs are now specified
+using a specialized Python class <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a>. The
+<a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module provides a wrapper on top of Python’s <code class="docutils literal notranslate"><span class="pre">dataclasses</span></code> module.
+Each environment should specify its own config class annotated by <code class="docutils literal notranslate"><span class="pre">&#64;configclass</span></code> that inherits from the
+<a class="reference internal" href="../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnvCfg</span></code></a> class, which can include simulation parameters, environment scene parameters,
+robot parameters, and task-specific parameters.</p>
 <p>Below is an example skeleton of a task config class:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnvCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
@@ -625,16 +626,18 @@ which can include simulation parameters, environment scene parameters, robot par
 </div>
 <section id="simulation-config">
 <h3>Simulation Config<a class="headerlink" href="#simulation-config" title="Permalink to this heading">#</a></h3>
-<p>Simulation related parameters are defined as part of the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a> class, which is a <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module
-that holds simulation parameters such as <code class="docutils literal notranslate"><span class="pre">dt</span></code>, <code class="docutils literal notranslate"><span class="pre">device</span></code>, and <code class="docutils literal notranslate"><span class="pre">gravity</span></code>.
-Each task config must have a variable named <code class="docutils literal notranslate"><span class="pre">sim</span></code> defined that holds the type <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a>.</p>
+<p>Simulation related parameters are defined as part of the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a> class,
+which is a <a class="reference internal" href="../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module that holds simulation parameters such as <code class="docutils literal notranslate"><span class="pre">dt</span></code>,
+<code class="docutils literal notranslate"><span class="pre">device</span></code>, and <code class="docutils literal notranslate"><span class="pre">gravity</span></code>. Each task config must have a variable named <code class="docutils literal notranslate"><span class="pre">sim</span></code> defined that holds the type
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a>.</p>
 <p>Simulation parameters for articulations and rigid bodies such as <code class="docutils literal notranslate"><span class="pre">num_position_iterations</span></code>, <code class="docutils literal notranslate"><span class="pre">num_velocity_iterations</span></code>,
 <code class="docutils literal notranslate"><span class="pre">contact_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">rest_offset</span></code>, <code class="docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code>, <code class="docutils literal notranslate"><span class="pre">max_depenetration_velocity</span></code> can all
 be specified on a per-actor basis in the config class for each individual articulation and rigid body.</p>
 <p>When running simulation on the GPU, buffers in PhysX require pre-allocation for computing and storing
 information such as contacts, collisions and aggregate pairs. These buffers may need to be adjusted
 depending on the complexity of the environment, the number of expected contacts and collisions,
-and the number of actors in the environment. The <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a> class provides access for setting the GPU buffer dimensions.</p>
+and the number of actors in the environment. The <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.PhysxCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a> class provides access
+for setting the GPU buffer dimensions.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># OmniIsaacGymEnvs</span>
@@ -732,9 +735,9 @@ and the number of actors in the environment. The <a class="reference internal" h
 </section>
 <section id="scene-config">
 <h3>Scene Config<a class="headerlink" href="#scene-config" title="Permalink to this heading">#</a></h3>
-<p>The <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class can be used to specify parameters related to the scene, such as the number of environments
-and the spacing between environments.
-Each task config must have a variable named <code class="docutils literal notranslate"><span class="pre">scene</span></code> defined that holds the type <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a>.</p>
+<p>The <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class can be used to specify parameters related to the scene,
+such as the number of environments and the spacing between environments. Each task config must have a variable named
+<code class="docutils literal notranslate"><span class="pre">scene</span></code> defined that holds the type <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># OmniIsaacGymEnvs</span>
@@ -762,8 +765,9 @@ Each task config must have a variable named <code class="docutils literal notran
 observation and action buffers. Reward term scaling parameters can also be specified in the config class.</p>
 <p>In Isaac Lab, the <code class="docutils literal notranslate"><span class="pre">controlFrequencyInv</span></code> parameter has been renamed to <code class="docutils literal notranslate"><span class="pre">decimation</span></code>,
 which must be specified as a parameter in the config class.</p>
-<p>In addition, the maximum episode length parameter (now <code class="docutils literal notranslate"><span class="pre">episode_length_s</span></code>) is in seconds instead of steps as it was in OmniIsaacGymEnvs.
-To convert between step count to seconds, use the equation: <code class="docutils literal notranslate"><span class="pre">episode_length_s</span> <span class="pre">=</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">decimation</span> <span class="pre">*</span> <span class="pre">num_steps</span></code>.</p>
+<p>In addition, the maximum episode length parameter (now <code class="docutils literal notranslate"><span class="pre">episode_length_s</span></code>) is in seconds instead of steps as it was
+in OmniIsaacGymEnvs. To convert between step count to seconds, use the equation:
+<code class="docutils literal notranslate"><span class="pre">episode_length_s</span> <span class="pre">=</span> <span class="pre">dt</span> <span class="pre">*</span> <span class="pre">decimation</span> <span class="pre">*</span> <span class="pre">num_steps</span></code>.</p>
 <p>The following parameters must be set for each environment config:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">5.0</span>
@@ -881,27 +885,30 @@ will automatically be created for the actor. This avoids the need to separately 
 </section>
 <section id="actors">
 <h3>Actors<a class="headerlink" href="#actors" title="Permalink to this heading">#</a></h3>
-<p>In Isaac Lab, each Articulation and Rigid Body actor can have its own config class.
-The <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> can be
-used to define parameters for articulation actors, including file path, simulation parameters, actuator properties, and initial states.</p>
-<p>Within the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a>, the <code class="docutils literal notranslate"><span class="pre">spawn</span></code> attribute can be used to add the robot to the scene by specifying the path to the robot file.
-In addition, <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidBodyPropertiesCfg</span></code></a> can be used to specify simulation properties
-for the rigid bodies in the articulation.
-Similarly, <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationRootPropertiesCfg</span></code></a> can be used to specify simulation properties for the articulation.
-Joint and dof properties are now specified as part of the <code class="docutils literal notranslate"><span class="pre">actuators</span></code> dictionary using <a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuatorCfg" title="omni.isaac.lab.actuators.ImplicitActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImplicitActuatorCfg</span></code></a>.
-Joints and dofs with the same properties can be grouped into regex expressions or provided as a list of names or expressions.</p>
-<p>Actors are added to the scene by simply calling <code class="docutils literal notranslate"><span class="pre">self.cartpole</span> <span class="pre">=</span> <span class="pre">Articulation(self.cfg.robot_cfg)</span></code>,
-where <code class="docutils literal notranslate"><span class="pre">self.cfg.robot_cfg</span></code> is an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> object. Once initialized, they should also be added
+<p>In Isaac Lab, each Articulation and Rigid Body actor can have its own config class. The
+<a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> class can be used to define parameters for articulation actors,
+including file path, simulation parameters, actuator properties, and initial states.</p>
+<p>Within the <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a>, the <code class="docutils literal notranslate"><span class="pre">spawn</span></code> attribute can be used to add the robot to the scene
+by specifying the path to the robot file. In addition, the <a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidBodyPropertiesCfg</span></code></a>
+class can be used to specify simulation properties for the rigid bodies in the articulation. Similarly, the
+<a class="reference internal" href="../api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg" title="omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationRootPropertiesCfg</span></code></a> class can be used to specify simulation properties
+for the articulation. The joint properties are now specified as part of the <code class="docutils literal notranslate"><span class="pre">actuators</span></code> dictionary using
+<a class="reference internal" href="../api/lab/omni.isaac.lab.actuators.html#omni.isaac.lab.actuators.ImplicitActuatorCfg" title="omni.isaac.lab.actuators.ImplicitActuatorCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ImplicitActuatorCfg</span></code></a>. Joints with the same properties can be grouped into regex expressions or
+provided as a list of names or expressions.</p>
+<p>Actors are added to the scene by simply calling <code class="docutils literal notranslate"><span class="pre">self.cartpole</span> <span class="pre">=</span> <span class="pre">Articulation(self.cfg.robot_cfg)</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">self.cfg.robot_cfg</span></code> is an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> object. Once initialized, they should also be added
 to the <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> by calling <code class="docutils literal notranslate"><span class="pre">self.scene.articulations[&quot;cartpole&quot;]</span> <span class="pre">=</span> <span class="pre">self.cartpole</span></code> so that
-the <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> can traverse through actors in the scene for writing values to the simulation and resetting.</p>
+the <a class="reference internal" href="../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> can traverse through actors in the scene for writing values to the simulation
+and resetting.</p>
 </section>
 </section>
 <section id="accessing-states-from-simulation">
 <h2>Accessing States from Simulation<a class="headerlink" href="#accessing-states-from-simulation" title="Permalink to this heading">#</a></h2>
-<p>APIs for accessing physics states in Isaac Lab require the creation of an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a>
-object. Multiple objects can be initialized for different articulations or rigid bodies in the scene by defining
-corresponding <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> config, as outlined in the section above.
-This replaces the previously used <code class="docutils literal notranslate"><span class="pre">ArticulationView</span></code> and <code class="docutils literal notranslate"><span class="pre">RigidPrimView</span></code> classes used in OmniIsaacGymEnvs.</p>
+<p>APIs for accessing physics states in Isaac Lab require the creation of an <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">Articulation</span></code></a> or
+<a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObject" title="omni.isaac.lab.assets.RigidObject"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObject</span></code></a> object. Multiple objects can be initialized for different articulations or rigid bodies
+in the scene by defining corresponding <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg" title="omni.isaac.lab.assets.ArticulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationCfg</span></code></a> or <a class="reference internal" href="../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.RigidObjectCfg" title="omni.isaac.lab.assets.RigidObjectCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectCfg</span></code></a> config,
+as outlined in the section above. This replaces the previously used <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.articulations.ArticulationView" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ArticulationView</span></code></a>
+and <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.RigidPrimView" title="(in isaac_sim)"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.core.prims.RigidPrimView</span></code></a> classes used in OmniIsaacGymEnvs.</p>
 <p>However, functionality between the classes are similar:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
@@ -961,11 +968,13 @@ a more performant way of retrieving states from the actors.</p>
     my_env.py
 </pre></div>
 </div>
-<ul class="simple">
+<ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">my_environment</span></code> is the root directory of the task.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/agents</span></code> is the directory containing all RL config files for the task. Isaac Lab supports multiple RL libraries that can each have its own individual config file.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/__init__.py</span></code> is the main file that registers the environment with the Gymnasium interface. This allows the training and inferencing scripts to find the task by its name. The content of this file should be as follow:</p></li>
-</ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/agents</span></code> is the directory containing all RL config files for the task. Isaac Lab supports multiple
+RL libraries that can each have its own individual config file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/__init__.py</span></code> is the main file that registers the environment with the Gymnasium interface.
+This allows the training and inferencing scripts to find the task by its name.
+The content of this file should be as follow:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
 
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">agents</span>
@@ -986,26 +995,28 @@ a more performant way of retrieving states from the actors.</p>
 <span class="p">)</span>
 </pre></div>
 </div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/my_env.py</span></code> is the main python script that implements the task logic and task config class for the environment.</p></li>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my_environment/my_env.py</span></code> is the main python script that implements the task logic and task config class for
+the environment.</p></li>
 </ul>
 </section>
 <section id="task-logic">
 <h2>Task Logic<a class="headerlink" href="#task-logic" title="Permalink to this heading">#</a></h2>
-<p>The <code class="docutils literal notranslate"><span class="pre">post_reset</span></code> API in OmniIsaacGymEnvs is no longer required in Isaac Lab.
-Everything that was previously done in <code class="docutils literal notranslate"><span class="pre">post_reset</span></code> can be done in the <code class="docutils literal notranslate"><span class="pre">__init__</span></code> method after
-executing the base class’s <code class="docutils literal notranslate"><span class="pre">__init__</span></code>. At this point, simulation has already started.</p>
-<p>In OmniIsaacGymEnvs, due to limitations of the GPU APIs, resets could not be performed based on states of the current step.
-Instead, resets have to be performed at the beginning of the next time step.
-This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions, stepping simulation,
-collecting states, computing dones, calculating rewards, performing resets, and finally computing observations.
-This workflow is done automatically by the framework such that a <code class="docutils literal notranslate"><span class="pre">post_physics_step</span></code> API is not required in the task.
-However, individual tasks can override the <code class="docutils literal notranslate"><span class="pre">step()</span></code> API to control the workflow.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">post_reset</span></code> API in OmniIsaacGymEnvs is no longer required in Isaac Lab. Everything that was previously
+done in <code class="docutils literal notranslate"><span class="pre">post_reset</span></code> can be done in the <code class="docutils literal notranslate"><span class="pre">__init__</span></code> method after executing the base class’s
+<code class="docutils literal notranslate"><span class="pre">__init__</span></code>. At this point, simulation has already started.</p>
+<p>In OmniIsaacGymEnvs, due to limitations of the GPU APIs, resets could not be performed based on states of the current
+step. Instead, resets have to be performed at the beginning of the next time step.
+This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions,
+stepping simulation, collecting states, computing dones, calculating rewards, performing resets, and finally computing
+observations. This workflow is done automatically by the framework such that a <code class="docutils literal notranslate"><span class="pre">post_physics_step</span></code> API is not
+required in the task. However, individual tasks can override the <code class="docutils literal notranslate"><span class="pre">step()</span></code> API to control the workflow.</p>
 <p>In Isaac Lab, we also separate the <code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> API for processing actions from the policy with
 the <code class="docutils literal notranslate"><span class="pre">apply_action</span></code> API, which sets the actions into the simulation. This provides more flexibility in controlling
 when actions should be written to simulation when <code class="docutils literal notranslate"><span class="pre">decimation</span></code> is used.
-<code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> will be called once per step before stepping simulation.
-<code class="docutils literal notranslate"><span class="pre">apply_actions</span></code> will be called <code class="docutils literal notranslate"><span class="pre">decimation</span></code> number of times for each RL step, once before each simulation step call.</p>
+The <code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> method will be called once per step before stepping simulation.
+The <code class="docutils literal notranslate"><span class="pre">apply_actions</span></code> method will be called <code class="docutils literal notranslate"><span class="pre">decimation</span></code> number of times for each RL step,
+once before each simulation step call.</p>
 <p>The ordering of the calls are as follow:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
@@ -1054,9 +1065,10 @@ Observations will also be computed with the correct states after resets.</p>
 </section>
 <section id="putting-it-all-together">
 <h2>Putting It All Together<a class="headerlink" href="#putting-it-all-together" title="Permalink to this heading">#</a></h2>
-<p>The Cartpole environment is shown here in completion to fully show the comparison between the OmniIsaacGymEnvs implementation and the Isaac Lab implementation.</p>
-<section id="id2">
-<h3>Task Config<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
+<p>The Cartpole environment is shown here in completion to fully show the comparison between the OmniIsaacGymEnvs
+implementation and the Isaac Lab implementation.</p>
+<section id="id1">
+<h3>Task Config<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
 <p>Task config in Isaac Lab can be split into the main task configuration class and individual config objects for the actors.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
@@ -1290,9 +1302,9 @@ executing the base class’s <code class="docutils literal notranslate"><span cl
 </section>
 <section id="scene-setup">
 <h3>Scene Setup<a class="headerlink" href="#scene-setup" title="Permalink to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">set_up_scene</span></code> in OmniIsaacGymEnvs has been replaced by <code class="docutils literal notranslate"><span class="pre">_setup_scene</span></code>.
-In Isaac Lab, cloning and collision filtering have been provided as APIs for the task class to call when necessary.
-Similarly, adding ground plane and lights should also be taken care of in the task class.
+<p>The <code class="docutils literal notranslate"><span class="pre">set_up_scene</span></code> method in OmniIsaacGymEnvs has been replaced by the <code class="docutils literal notranslate"><span class="pre">_setup_scene</span></code> API in the task class in
+Isaac Lab. Additionally, scene cloning and collision filtering have been provided as APIs for the task class to
+call when necessary. Similarly, adding ground plane and lights should also be taken care of in the task class.
 Adding actors to the scene has been replaced by <code class="docutils literal notranslate"><span class="pre">self.scene.articulations[&quot;cartpole&quot;]</span> <span class="pre">=</span> <span class="pre">self.cartpole</span></code>.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
@@ -1353,9 +1365,9 @@ Adding actors to the scene has been replaced by <code class="docutils literal no
 </section>
 <section id="pre-physics-step">
 <h3>Pre-Physics Step<a class="headerlink" href="#pre-physics-step" title="Permalink to this heading">#</a></h3>
-<p>Note that resets are no longer performed in the <code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> API.
-In addition, the separation of <code class="docutils literal notranslate"><span class="pre">_pre_physics_step</span></code> and <code class="docutils literal notranslate"><span class="pre">_apply_action</span></code> allow for more flexibility
-in processing the action buffer and setting actions into simulation.</p>
+<p>Note that resets are no longer performed in the <code class="docutils literal notranslate"><span class="pre">pre_physics_step</span></code> API. In addition, the separation of the
+<code class="docutils literal notranslate"><span class="pre">_pre_physics_step</span></code> and <code class="docutils literal notranslate"><span class="pre">_apply_action</span></code> methods allow for more flexibility in processing the action buffer
+and setting actions into simulation.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><p>OmniIsaacGymEnvs</p></td>
@@ -1402,10 +1414,11 @@ in processing the action buffer and setting actions into simulation.</p>
 </section>
 <section id="dones-and-resets">
 <h3>Dones and Resets<a class="headerlink" href="#dones-and-resets" title="Permalink to this heading">#</a></h3>
-<p>In Isaac Lab, <code class="docutils literal notranslate"><span class="pre">dones</span></code> are computed in the <code class="docutils literal notranslate"><span class="pre">_get_dones()</span></code> method and should return two variables: <code class="docutils literal notranslate"><span class="pre">resets</span></code> and <code class="docutils literal notranslate"><span class="pre">time_out</span></code>.
-<code class="docutils literal notranslate"><span class="pre">_reset_idx()</span></code> is also called after stepping simulation instead of before, as it was done in OmniIsaacGymEnvs.
-<code class="docutils literal notranslate"><span class="pre">progress_buf</span></code> has been renamed to <code class="docutils literal notranslate"><span class="pre">episode_length_buf</span></code> in Isaac Lab and
-bookkeeping is now done automatically by the framework. Task implementations should no longer increment and reset the <code class="docutils literal notranslate"><span class="pre">episode_length_buf</span></code> buffer.</p>
+<p>In Isaac Lab, the <code class="docutils literal notranslate"><span class="pre">dones</span></code> are computed in the <code class="docutils literal notranslate"><span class="pre">_get_dones()</span></code> method and should return two variables: <code class="docutils literal notranslate"><span class="pre">resets</span></code> and
+<code class="docutils literal notranslate"><span class="pre">time_out</span></code>. The <code class="docutils literal notranslate"><span class="pre">_reset_idx()</span></code> method is also called after stepping simulation instead of before, as it was done in
+OmniIsaacGymEnvs. The <code class="docutils literal notranslate"><span class="pre">progress_buf</span></code> tensor has been renamed to <code class="docutils literal notranslate"><span class="pre">episode_length_buf</span></code> in Isaac Lab and the
+bookkeeping is now done automatically by the framework. Task implementations no longer need to increment or
+reset the <code class="docutils literal notranslate"><span class="pre">episode_length_buf</span></code> buffer.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <tbody>
 <tr class="row-odd"><td><p>OmniIsaacGymEnvs</p></td>
@@ -1781,7 +1794,7 @@ resampled at the next reset.</p>
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</p>
+        <p class="prev-next-title">From IsaacGymEnvs</p>
       </div>
     </a>
     <a class="right-next"
@@ -1789,7 +1802,7 @@ resampled at the next reset.</p>
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Migrating from Orbit</p>
+        <p class="prev-next-title">From Orbit</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1825,7 +1838,7 @@ resampled at the next reset.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-new-environment">Creating a New Environment</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-logic">Task Logic</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#putting-it-all-together">Putting It All Together</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Task Config</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Task Config</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#task-setup">Task Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-setup">Scene Setup</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#pre-physics-step">Pre-Physics Step</a></li>

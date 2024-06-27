@@ -234,12 +234,6 @@
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../migration/index.html">Migration Guides</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
-<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../migration/migrating_from_orbit.html">Migrating from Orbit</a></li>
-</ul>
-</details></li>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -321,9 +315,14 @@
 </ul>
 </details></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../migration/migrating_from_orbit.html">From Orbit</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
@@ -561,13 +560,20 @@ document.write(`
                   
   <section id="multi-gpu-and-multi-node-training">
 <h1>Multi-GPU and Multi-Node Training<a class="headerlink" href="#multi-gpu-and-multi-node-training" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab supports multi-GPU and multi-node reinforcement learning on Linux.</p>
+<p>Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
+available for RL-Games library training workflows. We are working on extending this feature to
+other workflows.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Multi-GPU and multi-node training is only supported on Linux. Windows support is not available at this time.
+This is due to limitations of the NCCL library on Windows.</p>
+</div>
 <section id="multi-gpu-training">
 <h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this heading">#</a></h2>
 <p>For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
 This is possible in Isaac Lab with the <code class="docutils literal notranslate"><span class="pre">rl_games</span></code> and <code class="docutils literal notranslate"><span class="pre">skrl</span></code> RL libraries through the use of the
-<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework.
-In this workflow, <code class="docutils literal notranslate"><span class="pre">torch.distributed</span></code> is used to launch multiple processes of training, where the number of
+<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework.</p>
+<p>In this workflow, <code class="docutils literal notranslate"><span class="pre">torch.distributed</span></code> is used to launch multiple processes of training, where the number of
 processes must be equal to or less than the number of GPUs available. Each process runs on
 a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
 Each process collects its own rollouts during the training process and has its own copy of the policy
@@ -591,8 +597,9 @@ at the end of the epoch.</p>
 <section id="multi-node-training">
 <h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this heading">#</a></h2>
 <p>To scale up training beyond multiple GPUs on a single machine, it is also possible to train across multiple nodes.
-To train across multiple nodes/machines, it is required to launch an individual process on each node.
-For the master node, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs, and <code class="docutils literal notranslate"><span class="pre">--nnodes</span></code> represents the number of nodes:</p>
+To train across multiple nodes/machines, it is required to launch an individual process on each node.</p>
+<p>For the master node, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs, and
+<code class="docutils literal notranslate"><span class="pre">--nnodes</span></code> represents the number of nodes:</p>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-cmxfZ2FtZXM=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-1-cmxfZ2FtZXM=" name="cmxfZ2FtZXM=" role="tab" tabindex="0">rl_games</button><button aria-controls="panel-1-c2tybA==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-c2tybA==" name="c2tybA==" role="tab" tabindex="-1">skrl</button></div><div aria-labelledby="tab-1-cmxfZ2FtZXM=" class="sphinx-tabs-panel group-tab" id="panel-1-cmxfZ2FtZXM=" name="cmxfZ2FtZXM=" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
 </pre></div>
@@ -611,8 +618,14 @@ For the master node, use the following command, where <code class="docutils lite
 </pre></div>
 </div>
 </div></div>
-<p>For more details on multi-node training with PyTorch, please visit the <a class="reference external" href="https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html">PyTorch documentation</a>. As mentioned in the PyTorch documentation, “multinode training is bottlenecked by inter-node communication latencies”. When this latency is high, it is possible multi-node training will perform worse than running on a single node instance.</p>
-<p>Due to limitations of NCCL on Windows, this feature is currently supported on Linux only.</p>
+<p>For more details on multi-node training with PyTorch, please visit the
+<a class="reference external" href="https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html">PyTorch documentation</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As mentioned in the PyTorch documentation, “multi-node training is bottlenecked by inter-node communication
+latencies”. When this latency is high, it is possible multi-node training will perform worse than running on
+a single node instance.</p>
+</div>
 </section>
 </section>
 

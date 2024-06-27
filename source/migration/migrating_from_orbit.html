@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Migrating from Orbit &#8212; Isaac Lab documentation</title>
+    <title>From Orbit &#8212; Isaac Lab documentation</title>
   
   
   
@@ -52,8 +52,8 @@
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
-    <link rel="prev" title="Migrating from OmniIsaacGymEnvs" href="migrating_from_omniisaacgymenvs.html" />
+    <link rel="next" title="Contribution Guidelines" href="../refs/contributing.html" />
+    <link rel="prev" title="From OmniIsaacGymEnvs" href="migrating_from_omniisaacgymenvs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Jun 27, 2024"/>
@@ -232,13 +232,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../features/actuators.html">Actuators</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Resources</span></p>
-<ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Migration Guides</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="migrating_from_isaacgymenvs.html">Migrating from IsaacGymEnvs and Isaac Gym Preview Release</a></li>
-<li class="toctree-l2"><a class="reference internal" href="migrating_from_omniisaacgymenvs.html">Migrating from OmniIsaacGymEnvs</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Migrating from Orbit</a></li>
-</ul>
-</details></li>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1 has-children"><a class="reference internal" href="../tutorials/index.html">Tutorials</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../tutorials/00_sim/index.html">Setting up a Simple Simulation</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l3"><a class="reference internal" href="../tutorials/00_sim/create_empty.html">Creating an empty scene</a></li>
@@ -320,9 +314,14 @@
 </ul>
 </details></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Migration Guides</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_isaacgymenvs.html">From IsaacGymEnvs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migrating_from_omniisaacgymenvs.html">From OmniIsaacGymEnvs</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">From Orbit</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../refs/migration.html">Migration Guide (Isaac Sim)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/contributing.html">Contribution Guidelines</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/troubleshooting.html">Tricks and Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../refs/issues.html">Known Issues</a></li>
@@ -535,7 +534,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Migrating from Orbit</h1>
+    <h1>From Orbit</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -545,7 +544,7 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-scripts">Updates to scripts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-launch-script">Renaming of the launch script</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-extensions">Updates to extensions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-class-names">Updates to class names</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-the-tasks-folder-structure">Updates to the tasks folder structure</a></li>
@@ -565,18 +564,19 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="migrating-from-orbit">
-<span id="id1"></span><h1>Migrating from Orbit<a class="headerlink" href="#migrating-from-orbit" title="Permalink to this heading">#</a></h1>
-<p>Since Orbit was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
+  <section id="from-orbit">
+<span id="migrating-from-orbit"></span><h1>From Orbit<a class="headerlink" href="#from-orbit" title="Permalink to this heading">#</a></h1>
+<p>Since <a class="reference external" href="https://isaac-orbit.github.io/">Orbit</a> was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
 The following sections describe the changes that need to be made to your code to migrate from Orbit to Isaac Lab.</p>
-<section id="updates-to-scripts">
-<h2>Updates to scripts<a class="headerlink" href="#updates-to-scripts" title="Permalink to this heading">#</a></h2>
+<section id="renaming-of-the-launch-script">
+<h2>Renaming of the launch script<a class="headerlink" href="#renaming-of-the-launch-script" title="Permalink to this heading">#</a></h2>
 <p>The script <code class="docutils literal notranslate"><span class="pre">orbit.sh</span></code> has been renamed to <code class="docutils literal notranslate"><span class="pre">isaaclab.sh</span></code>.</p>
 </section>
 <section id="updates-to-extensions">
 <h2>Updates to extensions<a class="headerlink" href="#updates-to-extensions" title="Permalink to this heading">#</a></h2>
 <p>The extensions <code class="docutils literal notranslate"><span class="pre">omni.isaac.orbit</span></code>, <code class="docutils literal notranslate"><span class="pre">omni.isaac.orbit_tasks</span></code>, and <code class="docutils literal notranslate"><span class="pre">omni.isaac.orbit_assets</span></code> have been renamed
-to <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code>, <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code>, and <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code>, respectively. Thus, the new folder structure looks like this:</p>
+to <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab</span></code>, <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code>, and <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_assets</span></code>, respectively. Thus,
+the new folder structure looks like this:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">source/extensions/omni.isaac.lab/omni/isaac/lab</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks</span></code></p></li>
@@ -645,7 +645,7 @@ This change must also be reflected in the imports for your tasks. For example,</
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.orbit_tasks.locomotion.velocity.velocity_env_cfg</span> <span class="o">...</span>
 </pre></div>
 </div>
-<p>should now be</p>
+<p>should now be:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg</span> <span class="o">...</span>
 </pre></div>
 </div>
@@ -654,8 +654,8 @@ This change must also be reflected in the imports for your tasks. For example,</
 <h2>Other Breaking changes<a class="headerlink" href="#other-breaking-changes" title="Permalink to this heading">#</a></h2>
 <section id="offscreen-rendering">
 <h3>Offscreen rendering<a class="headerlink" href="#offscreen-rendering" title="Permalink to this heading">#</a></h3>
-<p>The input argument <code class="docutils literal notranslate"><span class="pre">--offscreen_render</span></code> given to <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher</span></code></a> and the environment variable <code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER</span></code>
-have been renamed to <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> and <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> respectively.</p>
+<p>The input argument <code class="docutils literal notranslate"><span class="pre">--offscreen_render</span></code> given to <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher</span></code></a> and the environment variable
+<code class="docutils literal notranslate"><span class="pre">OFFSCREEN_RENDER</span></code> have been renamed to <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> and <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> respectively.</p>
 </section>
 <section id="event-term-distribution-configuration">
 <h3>Event term distribution configuration<a class="headerlink" href="#event-term-distribution-configuration" title="Permalink to this heading">#</a></h3>
@@ -674,7 +674,7 @@ Therefore, event term configurations whose functions have a <code class="docutil
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>should now be</p>
+<p>should now be:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">add_base_mass</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
     <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">randomize_rigid_body_mass</span><span class="p">,</span>
     <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">,</span>
@@ -707,15 +707,15 @@ Therefore, event term configurations whose functions have a <code class="docutil
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Migrating from OmniIsaacGymEnvs</p>
+        <p class="prev-next-title">From OmniIsaacGymEnvs</p>
       </div>
     </a>
     <a class="right-next"
-       href="../tutorials/index.html"
+       href="../refs/contributing.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Tutorials</p>
+        <p class="prev-next-title">Contribution Guidelines</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -735,7 +735,7 @@ Therefore, event term configurations whose functions have a <code class="docutil
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-scripts">Updates to scripts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#renaming-of-the-launch-script">Renaming of the launch script</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-extensions">Updates to extensions</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-class-names">Updates to class names</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-the-tasks-folder-structure">Updates to the tasks folder structure</a></li>
