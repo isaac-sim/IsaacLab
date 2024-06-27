@@ -17,7 +17,7 @@ html[data-theme="light"] {
     --pst-color-text-muted: #646464;
     --pst-color-shadow: #d8d8d8;
     --pst-color-border: #c9c9c9;
-    --pst-color-inline-code: #579aca;
+    --pst-color-inline-code: #76B900;
     --pst-color-target: #fbe54e;
     --pst-color-background: #fff;
     --pst-color-on-background: #fff;
@@ -41,7 +41,7 @@ html[data-theme="dark"] {
     --pst-color-text-muted: #a6a6a6;
     --pst-color-shadow: #212121;
     --pst-color-border: silver;
-    --pst-color-inline-code: #9eb0dd;
+    --pst-color-inline-code: #76B900;
     --pst-color-target: #472700;
     --pst-color-background: #121212;
     --pst-color-on-background: #1e1e1e;
