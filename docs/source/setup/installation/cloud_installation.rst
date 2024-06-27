@@ -61,7 +61,7 @@ To run Isaac Automator, first build the Isaac Automator container:
 
          ./build
 
-  .. tab-item:: Windows
+   .. tab-item:: Windows
       :sync: windows
 
       .. code-block:: batch
@@ -73,17 +73,17 @@ Next, enter the automator container:
 .. tab-set::
    :sync-group: os
 
-  .. tab-item:: Linux
-     :sync: linux
+   .. tab-item:: Linux
+      :sync: linux
 
-     .. code-block:: bash
+      .. code-block:: bash
 
          ./run
 
-  .. tab-item:: Windows
-     :sync: windows
+   .. tab-item:: Windows
+      :sync: windows
 
-     .. code-block:: batch
+      .. code-block:: batch
 
          docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
 
@@ -121,17 +121,17 @@ For example:
 .. tab-set::
    :sync-group: os
 
-  .. tab-item:: Linux
-     :sync: linux
+   .. tab-item:: Linux
+      :sync: linux
 
-     .. code-block:: bash
+      .. code-block:: bash
 
          ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
 
-  .. tab-item:: Windows
-     :sync: windows
+   .. tab-item:: Windows
+      :sync: windows
 
-     .. code-block:: batch
+      .. code-block:: batch
 
          ./isaaclab.bat -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
 
