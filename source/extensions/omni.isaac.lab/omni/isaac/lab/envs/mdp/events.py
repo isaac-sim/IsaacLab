@@ -19,6 +19,7 @@ import warnings
 from typing import TYPE_CHECKING, Literal
 
 import carb
+import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -206,7 +207,12 @@ def randomize_physics_scene_gravity(
     """Randomize gravity by adding, scaling, or setting random values.
 
     This function allows randomizing gravity of the physics scene. The function samples random values from the
-    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.
+    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the
+    operation.
+
+    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the
+    distribution for the x, y, and z components of the gravity vector. The function samples random values for each
+    component independently.
 
     .. attention::
         This function applied the same gravity for all the environments.
@@ -225,9 +231,13 @@ def randomize_physics_scene_gravity(
         slice(None),
         operation=operation,
         distribution=distribution,
-    )[0]
+    )
+    # unbatch the gravity tensor into a list
+    gravity = gravity[0].tolist()
+
     # set the gravity into the physics simulation
-    sim_utils.SimulationContext.instance().physics_sim_view.set_gravity(carb.Float3(gravity[0], gravity[1], gravity[2]))
+    physics_sim_view: physx.SimulationView = sim_utils.SimulationContext.instance().physics_sim_view
+    physics_sim_view.set_gravity(carb.Float3(*gravity))
 
 
 def randomize_actuator_gains(
@@ -841,7 +851,7 @@ Internal helper functions.
 
 def _randomize_prop_by_op(
     data: torch.Tensor,
-    distribution_parameters: tuple[float, float],
+    distribution_parameters: tuple[float | torch.Tensor, float | torch.Tensor],
     dim_0_ids: torch.Tensor | None,
     dim_1_ids: torch.Tensor | slice,
     operation: Literal["add", "scale", "abs"],
