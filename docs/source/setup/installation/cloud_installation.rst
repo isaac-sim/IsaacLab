@@ -51,31 +51,41 @@ Running Isaac Automator
 
 To run Isaac Automator, first build the Isaac Automator container:
 
-.. tabs::
+.. tab-set::
+   :sync-group: os
 
-  .. tab:: Linux
+   .. tab-item:: Linux
+      :sync: linux
+
       .. code-block:: bash
 
          ./build
 
-  .. tab:: Windows
-      .. code-block:: bash
+   .. tab-item:: Windows
+      :sync: windows
+
+      .. code-block:: batch
 
          docker build --platform linux/x86_64 -t isa .
 
 Next, enter the automator container:
 
-.. tabs::
+.. tab-set::
+   :sync-group: os
 
-  .. tab:: Linux
+   .. tab-item:: Linux
+      :sync: linux
+
       .. code-block:: bash
 
-          ./run
+         ./run
 
-  .. tab:: Windows
-      .. code-block:: bash
+   .. tab-item:: Windows
+      :sync: windows
 
-          docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
+      .. code-block:: batch
+
+         docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
 
 Next, run the deployed script for your preferred cloud:
 
@@ -108,9 +118,22 @@ Isaac Lab commands can be executed in the same way as running locally.
 
 For example:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-   ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
+   .. tab-item:: Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
+
+   .. tab-item:: Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         ./isaaclab.bat -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
 
 
 Destroying a Development

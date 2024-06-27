@@ -29,7 +29,9 @@ project = "Isaac Lab"
 copyright = "2022-2024, The Isaac Lab Project Developers."
 author = "The Isaac Lab Project Developers."
 
-version = "0.3.0"
+# Read version from the package
+with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
+    version = f.read().strip()
 
 # -- General configuration ---------------------------------------------------
 
@@ -51,7 +53,6 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_tabs.tabs",
 ]
 
 # mathjax hacks
