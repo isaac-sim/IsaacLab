@@ -23,22 +23,37 @@ Installing Isaac Sim
 
    .. tab-set::
 
-      .. tab-item:: Conda
+      .. tab-item:: conda environment
 
          .. code-block:: bash
 
             conda create -n isaaclab python=3.10
             conda activate isaaclab
 
-      .. tab-item:: Virtual Environment (venv)
+      .. tab-item:: venv environment
 
-         .. code-block:: bash
+         .. tab-set::
+            :sync-group: os
 
-            python3.10 -m venv isaaclab
-            # on Linux
-            source isaaclab/bin/activate
-            # on Windows
-            isaaclab\Scripts\activate
+            .. tab-item:: Linux
+               :sync: linux
+
+               .. code-block:: bash
+
+                  # create a conda environment named isaaclab with python3.10
+                  python3.10 -m venv isaaclab
+                  # activate the conda environment
+                  source isaaclab/bin/activate
+
+            .. tab-item:: Windows
+               :sync: windows
+
+               .. code-block:: batch
+
+                  # create a virtual environment named isaaclab with python3.10
+                  python3.10 -m venv isaaclab
+                  # activate the virtual environment
+                  isaaclab\Scripts\activate
 
 
 -  Next, install a CUDA-enabled PyTorch 2.2.2 build based on the CUDA version available on your system.
