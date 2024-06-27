@@ -88,6 +88,14 @@ class Articulation(RigidObject):
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
+    actuators: dict[str, ActuatorBase]
+    """Dictionary of actuator instances for the articulation.
+
+    The keys are the actuator names and the values are the actuator instances. The actuator instances
+    are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
+    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    """
+
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
@@ -95,8 +103,6 @@ class Articulation(RigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # data for storing actuator group
-        self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
     """
     Properties
@@ -870,8 +876,10 @@ class Articulation(RigidObject):
         # -- properties
         self._data.joint_names = self.joint_names
 
+        # -- default joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
+
         # -- joint commands
         self._data.joint_pos_target = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_vel_target = torch.zeros_like(self._data.default_joint_pos)
@@ -881,9 +889,11 @@ class Articulation(RigidObject):
         self._data.joint_armature = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_friction = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
         # -- joint commands (explicit)
         self._data.computed_torque = torch.zeros_like(self._data.default_joint_pos)
         self._data.applied_torque = torch.zeros_like(self._data.default_joint_pos)
+
         # -- tendons
         if self.num_fixed_tendons > 0:
             self._data.fixed_tendon_stiffness = torch.zeros(
@@ -907,12 +917,15 @@ class Articulation(RigidObject):
         self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
-        # -- initialize default buffers
+
+        # -- initialize default buffers related to joint properties
         self._data.default_joint_stiffness = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_damping = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_armature = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_friction = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
+        # -- initialize default buffers related to fixed tendon properties
         if self.num_fixed_tendons > 0:
             self._data.default_fixed_tendon_stiffness = torch.zeros(
                 self.num_instances, self.num_fixed_tendons, device=self.device
@@ -963,6 +976,7 @@ class Articulation(RigidObject):
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
 
+        # -- joint limits
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
 
@@ -972,9 +986,12 @@ class Articulation(RigidObject):
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
+        # create actuators
+        self.actuators = dict()
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+
         # cache the values coming from the usd
         usd_stiffness = self.root_physx_view.get_dof_stiffnesses().clone()
         usd_damping = self.root_physx_view.get_dof_dampings().clone()
@@ -982,6 +999,7 @@ class Articulation(RigidObject):
         usd_friction = self.root_physx_view.get_dof_friction_coefficients().clone()
         usd_effort_limit = self.root_physx_view.get_dof_max_forces().clone()
         usd_velocity_limit = self.root_physx_view.get_dof_max_velocities().clone()
+
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers

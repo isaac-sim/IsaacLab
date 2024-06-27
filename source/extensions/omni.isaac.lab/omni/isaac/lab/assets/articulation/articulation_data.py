@@ -21,7 +21,12 @@ class ArticulationData(RigidObjectData):
     """
 
     _root_physx_view: physx.ArticulationView
-    """The root articulation view of the object."""
+    """The root articulation view of the object.
+
+    Note:
+        Internally, this is stored as a weak reference to avoid circular references between the asset class
+        and the data container. This is important to avoid memory leaks.
+    """
 
     def __init__(self, root_physx_view: physx.ArticulationView, device: str):
         # Initialize the parent class

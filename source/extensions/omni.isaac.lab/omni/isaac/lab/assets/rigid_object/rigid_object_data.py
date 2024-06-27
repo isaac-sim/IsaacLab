@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
+import weakref
 
 import omni.physics.tensors.impl.api as physx
 
@@ -24,7 +25,12 @@ class RigidObjectData:
     """
 
     _root_physx_view: physx.RigidBodyView
-    """The root rigid body view of the object."""
+    """The root rigid body view of the object.
+
+    Note:
+        Internally, this is stored as a weak reference to avoid circular references between the asset class
+        and the data container. This is important to avoid memory leaks.
+    """
 
     def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
         """Initializes the rigid object data.
@@ -35,7 +41,7 @@ class RigidObjectData:
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view = root_physx_view
+        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
         # Set initial time stamp
         self._sim_timestamp = 0.0
 

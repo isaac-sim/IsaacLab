@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.18.4 (2024-06-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed double reference count of the physics sim view inside the asset classes. This was causing issues
+  when destroying the asset class instance since the physics sim view was not being properly released.
+
+Added
+^^^^^
+
+* Added the attribute :attr:`~omni.isaac.lab.assets.AssetBase.is_initialized` to check if the asset and sensor
+  has been initialized properly. This can be used to ensure that the asset or sensor is ready to use in the simulation.
+
+
 0.18.3 (2024-06-25)
 ~~~~~~~~~~~~~~~~~~~
 
