@@ -504,23 +504,16 @@ document.write(`
 
 <span class="sd">    from skrl.envs.torch.wrappers import wrap_env</span>
 
-<span class="sd">    env = wrap_env(env, wrapper=&quot;isaac-orbit&quot;)</span>
+<span class="sd">    env = wrap_env(env, wrapper=&quot;isaaclab&quot;)</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="c1"># needed to import for type hinting: Agent | list[Agent]</span>
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span> <span class="nn">copy</span>
-<span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">tqdm</span>
-
-<span class="kn">from</span> <span class="nn">skrl.agents.torch</span> <span class="kn">import</span> <span class="n">Agent</span>
-<span class="kn">from</span> <span class="nn">skrl.envs.wrappers.torch</span> <span class="kn">import</span> <span class="n">Wrapper</span><span class="p">,</span> <span class="n">wrap_env</span>
+<span class="kn">from</span> <span class="nn">skrl.envs.wrappers.torch</span> <span class="kn">import</span> <span class="n">wrap_env</span>
 <span class="kn">from</span> <span class="nn">skrl.resources.preprocessors.torch</span> <span class="kn">import</span> <span class="n">RunningStandardScaler</span>  <span class="c1"># noqa: F401</span>
 <span class="kn">from</span> <span class="nn">skrl.resources.schedulers.torch</span> <span class="kn">import</span> <span class="n">KLAdaptiveLR</span>  <span class="c1"># noqa: F401</span>
-<span class="kn">from</span> <span class="nn">skrl.trainers.torch</span> <span class="kn">import</span> <span class="n">Trainer</span>
-<span class="kn">from</span> <span class="nn">skrl.trainers.torch.sequential</span> <span class="kn">import</span> <span class="n">SEQUENTIAL_TRAINER_DEFAULT_CONFIG</span>
 <span class="kn">from</span> <span class="nn">skrl.utils.model_instantiators.torch</span> <span class="kn">import</span> <span class="n">Shape</span>  <span class="c1"># noqa: F401</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">DirectRLEnv</span><span class="p">,</span> <span class="n">ManagerBasedRLEnv</span>
@@ -599,176 +592,7 @@ document.write(`
             <span class="sa">f</span><span class="s2">&quot;The environment must be inherited from ManagerBasedRLEnv or DirectRLEnv. Environment type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">env</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
         <span class="p">)</span>
     <span class="c1"># wrap and return the environment</span>
-    <span class="k">return</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaac-orbit&quot;</span><span class="p">)</span></div>
-
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Custom trainer for skrl.</span>
-<span class="sd">&quot;&quot;&quot;</span>
-
-
-<div class="viewcode-block" id="SkrlSequentialLogTrainer"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer">[docs]</a><span class="k">class</span> <span class="nc">SkrlSequentialLogTrainer</span><span class="p">(</span><span class="n">Trainer</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sequential trainer with logging of episode information.</span>
-
-<span class="sd">    This trainer inherits from the :class:`skrl.trainers.base_class.Trainer` class. It is used to</span>
-<span class="sd">    train agents in a sequential manner (i.e., one after the other in each interaction with the</span>
-<span class="sd">    environment). It is most suitable for on-policy RL agents such as PPO, A2C, etc.</span>
-
-<span class="sd">    It modifies the :class:`skrl.trainers.torch.sequential.SequentialTrainer` class with the following</span>
-<span class="sd">    differences:</span>
-
-<span class="sd">    * It also log episode information to the agent&#39;s logger.</span>
-<span class="sd">    * It does not close the environment at the end of the training.</span>
-
-<span class="sd">    Reference:</span>
-<span class="sd">        https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">env</span><span class="p">:</span> <span class="n">Wrapper</span><span class="p">,</span>
-        <span class="n">agents</span><span class="p">:</span> <span class="n">Agent</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Agent</span><span class="p">],</span>
-        <span class="n">agents_scope</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the trainer.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            env: Environment to train on.</span>
-<span class="sd">            agents: Agents to train.</span>
-<span class="sd">            agents_scope: Number of environments for each agent to</span>
-<span class="sd">                train on. Defaults to None.</span>
-<span class="sd">            cfg: Configuration dictionary. Defaults to None.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># update the config</span>
-        <span class="n">_cfg</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">SEQUENTIAL_TRAINER_DEFAULT_CONFIG</span><span class="p">)</span>
-        <span class="n">_cfg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">cfg</span> <span class="k">if</span> <span class="n">cfg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{})</span>
-        <span class="c1"># store agents scope</span>
-        <span class="n">agents_scope</span> <span class="o">=</span> <span class="n">agents_scope</span> <span class="k">if</span> <span class="n">agents_scope</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
-        <span class="c1"># initialize the base class</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span> <span class="n">agents</span><span class="o">=</span><span class="n">agents</span><span class="p">,</span> <span class="n">agents_scope</span><span class="o">=</span><span class="n">agents_scope</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">_cfg</span><span class="p">)</span>
-        <span class="c1"># init agents</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">num_agents</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">agent</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">:</span>
-                <span class="n">agent</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">trainer_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">trainer_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.train"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train">[docs]</a>    <span class="k">def</span> <span class="nf">train</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Train the agents sequentially.</span>
-
-<span class="sd">        This method executes the training loop for the agents. It performs the following steps:</span>
-
-<span class="sd">        * Pre-interaction: Perform any pre-interaction operations.</span>
-<span class="sd">        * Compute actions: Compute the actions for the agents.</span>
-<span class="sd">        * Step the environments: Step the environments with the computed actions.</span>
-<span class="sd">        * Record the environments&#39; transitions: Record the transitions from the environments.</span>
-<span class="sd">        * Log custom environment data: Log custom environment data.</span>
-<span class="sd">        * Post-interaction: Perform any post-interaction operations.</span>
-<span class="sd">        * Reset the environments: Reset the environments if they are terminated or truncated.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># init agent</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">trainer_cfg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">set_running_mode</span><span class="p">(</span><span class="s2">&quot;train&quot;</span><span class="p">)</span>
-        <span class="c1"># reset env</span>
-        <span class="n">states</span><span class="p">,</span> <span class="n">infos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-        <span class="c1"># training loop</span>
-        <span class="k">for</span> <span class="n">timestep</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">),</span> <span class="n">disable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">disable_progressbar</span><span class="p">):</span>
-            <span class="c1"># pre-interaction</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">pre_interaction</span><span class="p">(</span><span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)</span>
-            <span class="c1"># compute actions</span>
-            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-                <span class="n">actions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">act</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-            <span class="c1"># step the environments</span>
-            <span class="n">next_states</span><span class="p">,</span> <span class="n">rewards</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">infos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span>
-            <span class="c1"># note: here we do not call render scene since it is done in the env.step() method</span>
-            <span class="c1"># record the environments&#39; transitions</span>
-            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">record_transition</span><span class="p">(</span>
-                    <span class="n">states</span><span class="o">=</span><span class="n">states</span><span class="p">,</span>
-                    <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">,</span>
-                    <span class="n">rewards</span><span class="o">=</span><span class="n">rewards</span><span class="p">,</span>
-                    <span class="n">next_states</span><span class="o">=</span><span class="n">next_states</span><span class="p">,</span>
-                    <span class="n">terminated</span><span class="o">=</span><span class="n">terminated</span><span class="p">,</span>
-                    <span class="n">truncated</span><span class="o">=</span><span class="n">truncated</span><span class="p">,</span>
-                    <span class="n">infos</span><span class="o">=</span><span class="n">infos</span><span class="p">,</span>
-                    <span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span>
-                    <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">,</span>
-                <span class="p">)</span>
-            <span class="c1"># log custom environment data</span>
-            <span class="k">if</span> <span class="s2">&quot;log&quot;</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">track_data</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;EpisodeInfo / </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
-            <span class="c1"># post-interaction</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">post_interaction</span><span class="p">(</span><span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)</span>
-            <span class="c1"># reset the environments</span>
-            <span class="c1"># note: here we do not call reset scene since it is done in the env.step() method</span>
-            <span class="c1"># update states</span>
-            <span class="n">states</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">next_states</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="SkrlSequentialLogTrainer.eval"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval">[docs]</a>    <span class="k">def</span> <span class="nf">eval</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Evaluate the agents sequentially.</span>
-
-<span class="sd">        This method executes the following steps in loop:</span>
-
-<span class="sd">        * Compute actions: Compute the actions for the agents.</span>
-<span class="sd">        * Step the environments: Step the environments with the computed actions.</span>
-<span class="sd">        * Record the environments&#39; transitions: Record the transitions from the environments.</span>
-<span class="sd">        * Log custom environment data: Log custom environment data.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># set running mode</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_agents</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">agent</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">:</span>
-                <span class="n">agent</span><span class="o">.</span><span class="n">set_running_mode</span><span class="p">(</span><span class="s2">&quot;eval&quot;</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">set_running_mode</span><span class="p">(</span><span class="s2">&quot;eval&quot;</span><span class="p">)</span>
-        <span class="c1"># single agent</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_agents</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">single_agent_eval</span><span class="p">()</span>
-            <span class="k">return</span>
-
-        <span class="c1"># reset env</span>
-        <span class="n">states</span><span class="p">,</span> <span class="n">infos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-        <span class="c1"># evaluation loop</span>
-        <span class="k">for</span> <span class="n">timestep</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="o">.</span><span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">initial_timestep</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">),</span> <span class="n">disable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">disable_progressbar</span><span class="p">):</span>
-            <span class="c1"># compute actions</span>
-            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-                <span class="n">actions</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span>
-                    <span class="n">agent</span><span class="o">.</span><span class="n">act</span><span class="p">(</span><span class="n">states</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-                    <span class="k">for</span> <span class="n">agent</span><span class="p">,</span> <span class="n">scope</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents_scope</span><span class="p">)</span>
-                <span class="p">])</span>
-
-            <span class="c1"># step the environments</span>
-            <span class="n">next_states</span><span class="p">,</span> <span class="n">rewards</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">infos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">actions</span><span class="p">)</span>
-
-            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
-                <span class="c1"># write data to TensorBoard</span>
-                <span class="k">for</span> <span class="n">agent</span><span class="p">,</span> <span class="n">scope</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents_scope</span><span class="p">):</span>
-                    <span class="c1"># track data</span>
-                    <span class="n">agent</span><span class="o">.</span><span class="n">record_transition</span><span class="p">(</span>
-                        <span class="n">states</span><span class="o">=</span><span class="n">states</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">actions</span><span class="o">=</span><span class="n">actions</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">rewards</span><span class="o">=</span><span class="n">rewards</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">next_states</span><span class="o">=</span><span class="n">next_states</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">terminated</span><span class="o">=</span><span class="n">terminated</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">truncated</span><span class="o">=</span><span class="n">truncated</span><span class="p">[</span><span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
-                        <span class="n">infos</span><span class="o">=</span><span class="n">infos</span><span class="p">,</span>
-                        <span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span>
-                        <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">,</span>
-                    <span class="p">)</span>
-                    <span class="c1"># log custom environment data</span>
-                    <span class="k">if</span> <span class="s2">&quot;log&quot;</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">:</span>
-                        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">infos</span><span class="p">[</span><span class="s2">&quot;log&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-                                <span class="n">agent</span><span class="o">.</span><span class="n">track_data</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
-                    <span class="c1"># perform post-interaction</span>
-                    <span class="nb">super</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">agent</span><span class="p">),</span> <span class="n">agent</span><span class="p">)</span><span class="o">.</span><span class="n">post_interaction</span><span class="p">(</span><span class="n">timestep</span><span class="o">=</span><span class="n">timestep</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)</span>
-
-                <span class="c1"># reset environments</span>
-                <span class="c1"># note: here we do not call reset scene since it is done in the env.step() method</span>
-                <span class="n">states</span><span class="o">.</span><span class="n">copy_</span><span class="p">(</span><span class="n">next_states</span><span class="p">)</span></div></div>
+    <span class="k">return</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaaclab&quot;</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>

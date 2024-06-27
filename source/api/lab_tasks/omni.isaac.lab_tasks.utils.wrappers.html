@@ -634,12 +634,6 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab_tasks.utils.wrappers.skrl">SKRL Wrapper</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg"><code class="docutils literal notranslate"><span class="pre">process_skrl_cfg()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">SkrlVecEnvWrapper()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.train()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.eval()</span></code></a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab_tasks.utils.wrappers.sb3">Stable-Baselines3 Wrapper</a><ul class="nav section-nav flex-column">
@@ -1548,7 +1542,7 @@ wrapper.</p>
 <p>Or, equivalently, by directly calling the skrl library API as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">skrl.envs.torch.wrappers</span> <span class="kn">import</span> <span class="n">wrap_env</span>
 
-<span class="n">env</span> <span class="o">=</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaac-orbit&quot;</span><span class="p">)</span>
+<span class="n">env</span> <span class="o">=</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaaclab&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><strong>Functions:</strong></p>
@@ -1559,15 +1553,6 @@ wrapper.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkrlVecEnvWrapper</span></code></a>(env)</p></td>
 <td><p>Wraps around Isaac Lab environment for skrl.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><strong>Classes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer</span></code></a></p></td>
-<td><p>Sequential trainer with logging of episode information.</p></td>
 </tr>
 </tbody>
 </table>
@@ -1606,87 +1591,6 @@ Internally it calls the <code class="xref py py-func docutils literal notranslat
 <dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html">https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html</a></p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">SkrlSequentialLogTrainer</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlSequentialLogTrainer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer" title="Permalink to this definition">#</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Trainer</span></code></p>
-<p>Sequential trainer with logging of episode information.</p>
-<p>This trainer inherits from the <code class="xref py py-class docutils literal notranslate"><span class="pre">skrl.trainers.base_class.Trainer</span></code> class. It is used to
-train agents in a sequential manner (i.e., one after the other in each interaction with the
-environment). It is most suitable for on-policy RL agents such as PPO, A2C, etc.</p>
-<p>It modifies the <code class="xref py py-class docutils literal notranslate"><span class="pre">skrl.trainers.torch.sequential.SequentialTrainer</span></code> class with the following
-differences:</p>
-<ul class="simple">
-<li><p>It also log episode information to the agent’s logger.</p></li>
-<li><p>It does not close the environment at the end of the training.</p></li>
-</ul>
-<dl class="simple">
-<dt>Reference:</dt><dd><p><a class="reference external" href="https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class">https://skrl.readthedocs.io/en/latest/api/trainers.html#base-class</a></p>
-</dd>
-</dl>
-<p><strong>Methods:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(env, agents[, agents_scope, cfg])</p></td>
-<td><p>Initializes the trainer.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train"><code class="xref py py-obj docutils literal notranslate"><span class="pre">train</span></code></a>()</p></td>
-<td><p>Train the agents sequentially.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval"><code class="xref py py-obj docutils literal notranslate"><span class="pre">eval</span></code></a>()</p></td>
-<td><p>Evaluate the agents sequentially.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Wrapper</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agents</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Agent</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Agent</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agents_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlSequentialLogTrainer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Initializes the trainer.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>env</strong> – Environment to train on.</p></li>
-<li><p><strong>agents</strong> – Agents to train.</p></li>
-<li><p><strong>agents_scope</strong> – Number of environments for each agent to
-train on. Defaults to None.</p></li>
-<li><p><strong>cfg</strong> – Configuration dictionary. Defaults to None.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train">
-<span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlSequentialLogTrainer.train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train" title="Permalink to this definition">#</a></dt>
-<dd><p>Train the agents sequentially.</p>
-<p>This method executes the training loop for the agents. It performs the following steps:</p>
-<ul class="simple">
-<li><p>Pre-interaction: Perform any pre-interaction operations.</p></li>
-<li><p>Compute actions: Compute the actions for the agents.</p></li>
-<li><p>Step the environments: Step the environments with the computed actions.</p></li>
-<li><p>Record the environments’ transitions: Record the transitions from the environments.</p></li>
-<li><p>Log custom environment data: Log custom environment data.</p></li>
-<li><p>Post-interaction: Perform any post-interaction operations.</p></li>
-<li><p>Reset the environments: Reset the environments if they are terminated or truncated.</p></li>
-</ul>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval">
-<span class="sig-name descname"><span class="pre">eval</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlSequentialLogTrainer.eval"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval" title="Permalink to this definition">#</a></dt>
-<dd><p>Evaluate the agents sequentially.</p>
-<p>This method executes the following steps in loop:</p>
-<ul class="simple">
-<li><p>Compute actions: Compute the actions for the agents.</p></li>
-<li><p>Step the environments: Step the environments with the computed actions.</p></li>
-<li><p>Record the environments’ transitions: Record the transitions from the environments.</p></li>
-<li><p>Log custom environment data: Log custom environment data.</p></li>
-</ul>
-</dd></dl>
-
 </dd></dl>
 
 </section>
@@ -1984,12 +1888,6 @@ wrapper.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab_tasks.utils.wrappers.skrl">SKRL Wrapper</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg"><code class="docutils literal notranslate"><span class="pre">process_skrl_cfg()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper"><code class="docutils literal notranslate"><span class="pre">SkrlVecEnvWrapper()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.__init__"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.__init__()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.train"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.train()</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlSequentialLogTrainer.eval"><code class="docutils literal notranslate"><span class="pre">SkrlSequentialLogTrainer.eval()</span></code></a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab_tasks.utils.wrappers.sb3">Stable-Baselines3 Wrapper</a><ul class="nav section-nav flex-column">
