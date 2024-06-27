@@ -502,6 +502,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">import</span> <span class="nn">carb</span>
+<span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
@@ -700,7 +701,12 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize gravity by adding, scaling, or setting random values.</span>
 
 <span class="sd">    This function allows randomizing gravity of the physics scene. The function samples random values from the</span>
-<span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the operation.</span>
+<span class="sd">    given distribution parameters and adds, scales, or sets the values into the physics simulation based on the</span>
+<span class="sd">    operation.</span>
+
+<span class="sd">    The distribution parameters are lists of two elements each, representing the lower and upper bounds of the</span>
+<span class="sd">    distribution for the x, y, and z components of the gravity vector. The function samples random values for each</span>
+<span class="sd">    component independently.</span>
 
 <span class="sd">    .. attention::</span>
 <span class="sd">        This function applied the same gravity for all the environments.</span>
@@ -719,9 +725,13 @@ document.write(`
         <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),</span>
         <span class="n">operation</span><span class="o">=</span><span class="n">operation</span><span class="p">,</span>
         <span class="n">distribution</span><span class="o">=</span><span class="n">distribution</span><span class="p">,</span>
-    <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># unbatch the gravity tensor into a list</span>
+    <span class="n">gravity</span> <span class="o">=</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
     <span class="c1"># set the gravity into the physics simulation</span>
-    <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span></div>
+    <span class="n">physics_sim_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">SimulationView</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span>
+    <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="o">*</span><span class="n">gravity</span><span class="p">))</span></div>
 
 
 
@@ -1369,7 +1379,7 @@ document.write(`
 
 <span class="k">def</span> <span class="nf">_randomize_prop_by_op</span><span class="p">(</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-    <span class="n">distribution_parameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+    <span class="n">distribution_parameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
     <span class="n">dim_0_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">dim_1_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="nb">slice</span><span class="p">,</span>
     <span class="n">operation</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="s2">&quot;abs&quot;</span><span class="p">],</span>

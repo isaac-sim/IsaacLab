@@ -530,8 +530,16 @@ document.write(`
         <span class="c1"># Set initial time stamp</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">=</span> <span class="mf">0.0</span>
 
+        <span class="c1"># Obtain global physics sim view</span>
+        <span class="n">physics_sim_view</span> <span class="o">=</span> <span class="n">physx</span><span class="o">.</span><span class="n">create_simulation_view</span><span class="p">(</span><span class="s2">&quot;torch&quot;</span><span class="p">)</span>
+        <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_subspace_roots</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">get_gravity</span><span class="p">()</span>
+        <span class="c1"># Convert to direction vector</span>
+        <span class="n">gravity_dir</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">gravity_dir</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">gravity_dir</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
         <span class="c1"># Initialize constants</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span> <span class="o">=</span> <span class="n">gravity_dir</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="c1"># Initialize buffers for finite differencing</span>
@@ -609,12 +617,7 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">projected_gravity_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Projection of the gravity direction on base frame. Shape is (num_instances, 3).</span>
-
-<span class="sd">        Note:</span>
-<span class="sd">            This quantity is computed by assuming that the gravity direction is along the z-direction,</span>
-<span class="sd">            i.e. :math:`(0, 0, -1)`.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Projection of the gravity direction on base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span><span class="p">)</span>
 
     <span class="nd">@property</span>
