@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Using the Interactive Scene &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/02_scene/create_scene';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -565,7 +568,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="using-the-interactive-scene">
-<span id="tutorial-interactive-scene"></span><h1>Using the Interactive Scene<a class="headerlink" href="#using-the-interactive-scene" title="Link to this heading">#</a></h1>
+<span id="tutorial-interactive-scene"></span><h1>Using the Interactive Scene<a class="headerlink" href="#using-the-interactive-scene" title="Permalink to this heading">#</a></h1>
 <p>So far in the tutorials, we manually spawned assets into the simulation and created
 object instances to interact with them. However, as the complexity of the scene
 increases, it becomes tedious to perform these tasks manually. In this tutorial,
@@ -587,7 +590,7 @@ tutorial and replace the <code class="docutils literal notranslate"><span class=
 While it may seem like overkill to use the interactive scene for this simple example, it will
 become more useful in the future as more assets and sensors are added to the scene.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>This tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_scene.py</span></code> script within
 <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/02_scene</span></code>.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -729,11 +732,11 @@ become more useful in the future as more assets and sensors are added to the sce
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>While the code is similar to the previous tutorial, there are a few key differences
 that we will go over in detail.</p>
 <section id="scene-configuration">
-<h3>Scene configuration<a class="headerlink" href="#scene-configuration" title="Link to this heading">#</a></h3>
+<h3>Scene configuration<a class="headerlink" href="#scene-configuration" title="Permalink to this heading">#</a></h3>
 <p>The scene is composed of a collection of entities, each with their own configuration.
 These are specified in a configuration class that inherits from <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveSceneCfg</span></code></a>.
 The configuration class is then passed to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> constructor
@@ -787,7 +790,7 @@ environment. This path is replaced by the scene object with <code class="docutil
 <code class="docutils literal notranslate"><span class="pre">i</span></code> is the environment index.</p>
 </section>
 <section id="scene-instantiation">
-<h3>Scene instantiation<a class="headerlink" href="#scene-instantiation" title="Link to this heading">#</a></h3>
+<h3>Scene instantiation<a class="headerlink" href="#scene-instantiation" title="Permalink to this heading">#</a></h3>
 <p>Unlike before where we called the <code class="docutils literal notranslate"><span class="pre">design_scene</span></code> function to create the scene, we now
 create an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class and pass in the configuration
 object to its constructor. While creating the configuration instance of <code class="docutils literal notranslate"><span class="pre">CartpoleSceneCfg</span></code>
@@ -800,7 +803,7 @@ This will be used to clone the scene for each environment.</p>
 </div>
 </section>
 <section id="accessing-scene-elements">
-<h3>Accessing scene elements<a class="headerlink" href="#accessing-scene-elements" title="Link to this heading">#</a></h3>
+<h3>Accessing scene elements<a class="headerlink" href="#accessing-scene-elements" title="Permalink to this heading">#</a></h3>
 <p>Similar to how entities were accessed from a dictionary in the previous tutorials, the
 scene elements can be accessed from the <code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code> object using the
 <code class="docutils literal notranslate"><span class="pre">[]</span></code> operator. The operator takes in a string key and returns the corresponding
@@ -813,7 +816,7 @@ the cartpole is specified using the key <code class="docutils literal notranslat
 </div>
 </section>
 <section id="running-the-simulation-loop">
-<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Link to this heading">#</a></h3>
+<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
 <p>The rest of the script looks similar to previous scripts that interfaced with <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation" title="omni.isaac.lab.assets.Articulation"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.Articulation</span></code></a>,
 with a few small differences in the methods called:</p>
 <ul class="simple">
@@ -826,7 +829,7 @@ methods of the entities in the scene.</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Let’s run the script to simulate 32 cartpoles in the scene. We can do this by passing
 the <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code> argument to the script.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/02_scene/create_scene.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>

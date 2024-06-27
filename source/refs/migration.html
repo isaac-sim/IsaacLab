@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Migration Guide (Isaac Sim) &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/refs/migration';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -559,7 +562,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="migration-guide-isaac-sim">
-<h1>Migration Guide (Isaac Sim)<a class="headerlink" href="#migration-guide-isaac-sim" title="Link to this heading">#</a></h1>
+<h1>Migration Guide (Isaac Sim)<a class="headerlink" href="#migration-guide-isaac-sim" title="Permalink to this heading">#</a></h1>
 <p>Moving from Isaac Sim 2022.2.1 to 2023.1.0 and later brings in a number of changes to the
 APIs and the way the application is built. This document outlines the changes
 and how to migrate your code to the new APIs. Many of these changes attribute to
@@ -570,7 +573,7 @@ the following notable changes:</p>
 <li><p>Upgrading the Python from 3.7 to 3.10</p></li>
 </ul>
 <section id="renaming-of-physx-flatcache-to-physx-fabric">
-<h2>Renaming of PhysX Flatcache to PhysX Fabric<a class="headerlink" href="#renaming-of-physx-flatcache-to-physx-fabric" title="Link to this heading">#</a></h2>
+<h2>Renaming of PhysX Flatcache to PhysX Fabric<a class="headerlink" href="#renaming-of-physx-flatcache-to-physx-fabric" title="Permalink to this heading">#</a></h2>
 <p>The PhysX Flatcache has been renamed to PhysX Fabric. The new name is more
 descriptive of the functionality and is consistent with the naming convention
 used by Omniverse called <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html">Fabric</a>. Consequently, the Python module name has
@@ -586,7 +589,7 @@ now expects the key <code class="docutils literal notranslate"><span class="pre"
 </ul>
 </section>
 <section id="renaming-of-the-urdf-and-mjcf-importers">
-<h2>Renaming of the URDF and MJCF Importers<a class="headerlink" href="#renaming-of-the-urdf-and-mjcf-importers" title="Link to this heading">#</a></h2>
+<h2>Renaming of the URDF and MJCF Importers<a class="headerlink" href="#renaming-of-the-urdf-and-mjcf-importers" title="Permalink to this heading">#</a></h2>
 <p>Starting from Isaac Sim 2023.1, the URDF and MJCF importers have been renamed to be more consistent
 with the other asset importers in Omniverse. The importers are now available on NVIDIA-Omniverse GitHub
 as open source projects.</p>
@@ -597,7 +600,7 @@ as open source projects.</p>
 </ul>
 </section>
 <section id="deprecation-of-usdlux-light-api">
-<h2>Deprecation of <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API<a class="headerlink" href="#deprecation-of-usdlux-light-api" title="Link to this heading">#</a></h2>
+<h2>Deprecation of <code class="xref py py-class docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API<a class="headerlink" href="#deprecation-of-usdlux-light-api" title="Permalink to this heading">#</a></h2>
 <p>As highlighted in the release notes of <a class="reference external" href="https://github.com/PixarAnimationStudios/OpenUSD/blob/release/CHANGELOG.md">USD 22.11</a>, the <code class="docutils literal notranslate"><span class="pre">UsdLux.Light</span></code> API has
 been deprecated in favor of the new <code class="docutils literal notranslate"><span class="pre">UsdLuxLightAPI</span></code> API. In the new API the attributes
 are prefixed with <code class="docutils literal notranslate"><span class="pre">inputs:</span></code>. For example, the <code class="docutils literal notranslate"><span class="pre">intensity</span></code> attribute is now available as

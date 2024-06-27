@@ -8,68 +8,68 @@ msgstr ""
 "Language: de\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "Print to PDF"
-msgstr "In PDF drucken"
-
-msgid "Theme by the"
-msgstr "Thema von der"
-
-msgid "Download source file"
-msgstr "Quelldatei herunterladen"
-
-msgid "open issue"
-msgstr "offenes Thema"
-
-msgid "Contents"
-msgstr "Inhalt"
-
-msgid "previous page"
-msgstr "vorherige Seite"
-
-msgid "Download notebook file"
-msgstr "Notebook-Datei herunterladen"
-
-msgid "Copyright"
-msgstr "Urheberrechte ©"
-
-msgid "Download this page"
-msgstr "Laden Sie diese Seite herunter"
-
-msgid "Source repository"
-msgstr "Quell-Repository"
-
-msgid "By"
-msgstr "Durch"
-
-msgid "repository"
-msgstr "Repository"
+msgid "suggest edit"
+msgstr "vorschlagen zu bearbeiten"
 
 msgid "Last updated on"
 msgstr "Zuletzt aktualisiert am"
 
-msgid "Toggle navigation"
-msgstr "Navigation umschalten"
-
-msgid "Sphinx Book Theme"
-msgstr "Sphinx-Buch-Thema"
-
-msgid "suggest edit"
-msgstr "vorschlagen zu bearbeiten"
-
-msgid "Open an issue"
-msgstr "Öffnen Sie ein Problem"
+msgid "Edit this page"
+msgstr "Bearbeite diese Seite"
 
 msgid "Launch"
 msgstr "Starten"
 
-msgid "Fullscreen mode"
-msgstr "Vollbildmodus"
+msgid "Print to PDF"
+msgstr "In PDF drucken"
 
-msgid "Edit this page"
-msgstr "Bearbeite diese Seite"
+msgid "open issue"
+msgstr "offenes Thema"
+
+msgid "Download notebook file"
+msgstr "Notebook-Datei herunterladen"
+
+msgid "Toggle navigation"
+msgstr "Navigation umschalten"
+
+msgid "Source repository"
+msgstr "Quell-Repository"
 
 msgid "By the"
 msgstr "Bis zum"
 
 msgid "next page"
 msgstr "Nächste Seite"
+
+msgid "repository"
+msgstr "Repository"
+
+msgid "Sphinx Book Theme"
+msgstr "Sphinx-Buch-Thema"
+
+msgid "Download source file"
+msgstr "Quelldatei herunterladen"
+
+msgid "Contents"
+msgstr "Inhalt"
+
+msgid "By"
+msgstr "Durch"
+
+msgid "Copyright"
+msgstr "Urheberrechte ©"
+
+msgid "Fullscreen mode"
+msgstr "Vollbildmodus"
+
+msgid "Open an issue"
+msgstr "Öffnen Sie ein Problem"
+
+msgid "previous page"
+msgstr "vorherige Seite"
+
+msgid "Download this page"
+msgstr "Laden Sie diese Seite herunter"
+
+msgid "Theme by the"
+msgstr "Thema von der"

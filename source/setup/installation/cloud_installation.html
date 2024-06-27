@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Running Isaac Lab in the Cloud &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/setup/installation/cloud_installation';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -560,12 +563,12 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="running-isaac-lab-in-the-cloud">
-<h1>Running Isaac Lab in the Cloud<a class="headerlink" href="#running-isaac-lab-in-the-cloud" title="Link to this heading">#</a></h1>
+<h1>Running Isaac Lab in the Cloud<a class="headerlink" href="#running-isaac-lab-in-the-cloud" title="Permalink to this heading">#</a></h1>
 <p>Isaac Lab can be run in various cloud infrastructures with the use of <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator">Isaac Automator</a>.
 Isaac Automator allows for quick deployment of Isaac Sim and Isaac Lab onto the public clouds (AWS, GCP, Azure, and Alibaba Cloud are currently supported).</p>
 <p>The result is a fully configured remote desktop cloud workstation, which can be used for development and testing of Isaac Lab within minutes and on a budget. Isaac Automator supports variety of GPU instances and stop-start functionality to save on cloud costs and a variety of tools to aid the workflow (like uploading and downloading data, autorun, deployment management, etc).</p>
 <section id="installing-isaac-automator">
-<h2>Installing Isaac Automator<a class="headerlink" href="#installing-isaac-automator" title="Link to this heading">#</a></h2>
+<h2>Installing Isaac Automator<a class="headerlink" href="#installing-isaac-automator" title="Permalink to this heading">#</a></h2>
 <p>For the most update-to-date and complete installation instructions, please refer to <a class="reference external" href="https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation">Isaac Automator</a>.</p>
 <p>To use Isaac Automator, first clone the repo:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/isaac-sim/IsaacAutomator.git
@@ -601,19 +604,19 @@ Password: &lt;Your NGC API Key&gt;
 </ul>
 </section>
 <section id="running-isaac-automator">
-<h2>Running Isaac Automator<a class="headerlink" href="#running-isaac-automator" title="Link to this heading">#</a></h2>
+<h2>Running Isaac Automator<a class="headerlink" href="#running-isaac-automator" title="Permalink to this heading">#</a></h2>
 <p>To run Isaac Automator, first build the Isaac Automator container:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-0">
-Linux</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-1">
-Windows</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker build --platform linux/x86_64 -t isa .
 </pre></div>
 </div>
@@ -623,14 +626,14 @@ Windows</label><div class="sd-tab-content docutils">
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-2">
-Linux</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-3">
-Windows</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>docker run --platform linux/x86_64 -it --rm -v .:/app isa bash
 </pre></div>
 </div>
@@ -655,7 +658,7 @@ Connections can be made using SSH, noVCN, or NoMachine.</p>
 page for more instructions.</p>
 </section>
 <section id="running-isaac-lab-on-the-cloud">
-<h2>Running Isaac Lab on the Cloud<a class="headerlink" href="#running-isaac-lab-on-the-cloud" title="Link to this heading">#</a></h2>
+<h2>Running Isaac Lab on the Cloud<a class="headerlink" href="#running-isaac-lab-on-the-cloud" title="Permalink to this heading">#</a></h2>
 <p>Once connected to the cloud instance, the desktop will have an icon showing <code class="docutils literal notranslate"><span class="pre">isaaclab.sh</span></code>.
 Launch the <code class="docutils literal notranslate"><span class="pre">isaaclab.sh</span></code> executable, which will open a new Terminal. Within the terminal,
 Isaac Lab commands can be executed in the same way as running locally.</p>
@@ -663,14 +666,14 @@ Isaac Lab commands can be executed in the same way as running locally.</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="linux" for="sd-tab-item-4">
-Linux</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-linux"></i> Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
 <label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-5">
-Windows</label><div class="sd-tab-content docutils">
+<i class="fa-brands fa-windows"></i> Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span>./isaaclab.bat -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0
 </pre></div>
 </div>
@@ -678,7 +681,7 @@ Windows</label><div class="sd-tab-content docutils">
 </div>
 </section>
 <section id="destroying-a-development">
-<h2>Destroying a Development<a class="headerlink" href="#destroying-a-development" title="Link to this heading">#</a></h2>
+<h2>Destroying a Development<a class="headerlink" href="#destroying-a-development" title="Permalink to this heading">#</a></h2>
 <p>To save costs, deployments can be destroyed when not being used.
 This can be done from within the Automator container, which can be entered with command <code class="docutils literal notranslate"><span class="pre">./run</span></code>.</p>
 <p>To destroy a deployment, run:</p>

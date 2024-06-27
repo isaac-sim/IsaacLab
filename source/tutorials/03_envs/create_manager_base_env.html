@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Creating a Manager-Based Base Environment &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_manager_base_env';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -567,7 +570,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-manager-based-base-environment">
-<span id="tutorial-create-manager-base-env"></span><h1>Creating a Manager-Based Base Environment<a class="headerlink" href="#creating-a-manager-based-base-environment" title="Link to this heading">#</a></h1>
+<span id="tutorial-create-manager-base-env"></span><h1>Creating a Manager-Based Base Environment<a class="headerlink" href="#creating-a-manager-based-base-environment" title="Permalink to this heading">#</a></h1>
 <p>Environments bring together different aspects of the simulation such as
 the scene, observations and actions spaces, reset events etc. to create a
 coherent interface for various applications. In Isaac Lab, manager-based environments are
@@ -582,7 +585,7 @@ We will use the
 cartpole environment from earlier to illustrate the different components
 in creating a new <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> environment.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">create_cartpole_base_env</span></code> script  in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/03_envs</span></code>
 directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -761,7 +764,7 @@ directory.</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>The base class <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> wraps around many intricacies of the simulation interaction
 and provides a simple interface for the user to run the simulation and interact with it. It
 is composed of the following components:</p>
@@ -776,14 +779,14 @@ at specified simulation events. For instance, at startup, on resets, or periodic
 with minimal effort. In this tutorial, we will go through the different components of the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a> class and how to configure them to create a new environment.</p>
 <section id="designing-the-scene">
-<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Link to this heading">#</a></h3>
+<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Permalink to this heading">#</a></h3>
 <p>The first step in creating a new environment is to configure its scene. For the cartpole
 environment, we will be using the scene from the previous tutorial. Thus, we omit the
 scene configuration here. For more details on how to configure a scene, see
 <a class="reference internal" href="../02_scene/create_scene.html#tutorial-interactive-scene"><span class="std std-ref">Using the Interactive Scene</span></a>.</p>
 </section>
 <section id="defining-actions">
-<h3>Defining actions<a class="headerlink" href="#defining-actions" title="Link to this heading">#</a></h3>
+<h3>Defining actions<a class="headerlink" href="#defining-actions" title="Permalink to this heading">#</a></h3>
 <p>In the previous tutorial, we directly input the action to the cartpole using
 the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_effort_target" title="omni.isaac.lab.assets.Articulation.set_joint_effort_target"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.set_joint_effort_target()</span></code></a> method. In this tutorial, we will
 use the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager" title="omni.isaac.lab.managers.ActionManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.ActionManager</span></code></a> to handle the actions.</p>
@@ -803,7 +806,7 @@ Thus, we will create an action term that controls the force applied to the cart.
 </div>
 </section>
 <section id="defining-observations">
-<h3>Defining observations<a class="headerlink" href="#defining-observations" title="Link to this heading">#</a></h3>
+<h3>Defining observations<a class="headerlink" href="#defining-observations" title="Permalink to this heading">#</a></h3>
 <p>While the scene defines the state of the environment, the observations define the states
 that are observable by the agent. These observations are used by the agent to make decisions
 on what actions to take. In Isaac Lab, the observations are computed by the
@@ -845,7 +848,7 @@ default values for this tutorial.</p>
 </div>
 </section>
 <section id="defining-events">
-<h3>Defining events<a class="headerlink" href="#defining-events" title="Link to this heading">#</a></h3>
+<h3>Defining events<a class="headerlink" href="#defining-events" title="Permalink to this heading">#</a></h3>
 <p>At this point, we have defined the scene, actions and observations for the cartpole environment.
 The general idea for all these components is to define the configuration classes and then
 pass them to the corresponding managers. The event manager is no different.</p>
@@ -905,7 +908,7 @@ joint state of the cartpole and the pole at every reset.</p>
 </div>
 </section>
 <section id="tying-it-all-together">
-<h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Link to this heading">#</a></h3>
+<h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Permalink to this heading">#</a></h3>
 <p>Having defined the scene and manager configurations, we can now define the environment configuration
 through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnvCfg" title="omni.isaac.lab.envs.ManagerBasedEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnvCfg</span></code></a> class. This class takes in the scene, action, observation and
 event configurations.</p>
@@ -937,7 +940,7 @@ be modified as needed. We recommend doing so by defining the <code class="xref p
 </div>
 </section>
 <section id="running-the-simulation">
-<h3>Running the simulation<a class="headerlink" href="#running-the-simulation" title="Link to this heading">#</a></h3>
+<h3>Running the simulation<a class="headerlink" href="#running-the-simulation" title="Permalink to this heading">#</a></h3>
 <p>Lastly, we revisit the simulation execution loop. This is now much simpler since we have
 abstracted away most of the details into the environment configuration. We only need to
 call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.reset" title="omni.isaac.lab.envs.ManagerBasedEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.reset()</span></code></a> method to reset the environment and <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv.step" title="omni.isaac.lab.envs.ManagerBasedEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv.step()</span></code></a>
@@ -986,7 +989,7 @@ operations.</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>To run the base environment made in this tutorial, you can use the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/03_envs/create_cartpole_base_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
 </pre></div>

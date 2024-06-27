@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Creating a Manager-Based RL Environment &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_manager_rl_env';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -567,7 +570,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-manager-based-rl-environment">
-<span id="tutorial-create-manager-rl-env"></span><h1>Creating a Manager-Based RL Environment<a class="headerlink" href="#creating-a-manager-based-rl-environment" title="Link to this heading">#</a></h1>
+<span id="tutorial-create-manager-rl-env"></span><h1>Creating a Manager-Based RL Environment<a class="headerlink" href="#creating-a-manager-based-rl-environment" title="Permalink to this heading">#</a></h1>
 <p>Having learnt how to create a base environment in <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>, we will now look at how to create a manager-based
 task environment for reinforcement learning.</p>
 <p>The base environment is designed as an sense-act environment where the agent can send commands to the environment
@@ -584,7 +587,7 @@ to reuse components of the same environment for different tasks.</p>
 for balancing the pole upright. We will learn how to specify the task using reward terms, termination criteria,
 curriculum and commands.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>For this tutorial, we use the cartpole environment defined in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.manager_based.classic.cartpole</span></code> module.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -879,7 +882,7 @@ curriculum and commands.</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>We already went through parts of the above in the <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a> tutorial to learn
 about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.</p>
@@ -888,7 +891,7 @@ some of these terms in this tutorial, but users are free to define their own ter
 are usually placed in their task-specific sub-package
 (for instance, in <code class="xref py py-mod docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp</span></code>).</p>
 <section id="defining-rewards">
-<h3>Defining rewards<a class="headerlink" href="#defining-rewards" title="Link to this heading">#</a></h3>
+<h3>Defining rewards<a class="headerlink" href="#defining-rewards" title="Permalink to this heading">#</a></h3>
 <p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RewardManager" title="omni.isaac.lab.managers.RewardManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.RewardManager</span></code></a> is used to compute the reward terms for the agent. Similar to the other
 managers, its terms are configured using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RewardTermCfg" title="omni.isaac.lab.managers.RewardTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.RewardTermCfg</span></code></a> class. The
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RewardTermCfg" title="omni.isaac.lab.managers.RewardTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.RewardTermCfg</span></code></a> class specifies the function or callable class that computes the reward
@@ -932,7 +935,7 @@ that are passed to the reward function when it is called.</p>
 </div>
 </section>
 <section id="defining-termination-criteria">
-<h3>Defining termination criteria<a class="headerlink" href="#defining-termination-criteria" title="Link to this heading">#</a></h3>
+<h3>Defining termination criteria<a class="headerlink" href="#defining-termination-criteria" title="Permalink to this heading">#</a></h3>
 <p>Most learning tasks happen over a finite number of steps that we call an episode. For instance, in the cartpole
 task, we want the agent to balance the pole for as long as possible. However, if the agent reaches an unstable
 or unsafe state, we want to terminate the episode. On the other hand, if the agent is able to balance the pole
@@ -961,7 +964,7 @@ or terminated term. These are used to indicate the two types of terminations as 
 </div>
 </section>
 <section id="defining-commands">
-<h3>Defining commands<a class="headerlink" href="#defining-commands" title="Link to this heading">#</a></h3>
+<h3>Defining commands<a class="headerlink" href="#defining-commands" title="Permalink to this heading">#</a></h3>
 <p>For various goal-conditioned tasks, it is useful to specify the goals or commands for the agent. These are
 handled through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CommandManager" title="omni.isaac.lab.managers.CommandManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CommandManager</span></code></a>. The command manager handles resampling and updating the
 commands at each step. It can also be used to provide the commands as an observation to the agent.</p>
@@ -978,7 +981,7 @@ locomotion or manipulation tasks.</p>
 </div>
 </section>
 <section id="defining-curriculum">
-<h3>Defining curriculum<a class="headerlink" href="#defining-curriculum" title="Link to this heading">#</a></h3>
+<h3>Defining curriculum<a class="headerlink" href="#defining-curriculum" title="Permalink to this heading">#</a></h3>
 <p>Often times when training a learning agent, it helps to start with a simple task and gradually increase the
 tasks’s difficulty as the agent training progresses. This is the idea behind curriculum learning. In Isaac Lab,
 we provide a <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.CurriculumManager" title="omni.isaac.lab.managers.CurriculumManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">managers.CurriculumManager</span></code></a> class that can be used to define a curriculum for your environment.</p>
@@ -994,7 +997,7 @@ We use a simple pass-through curriculum to define a curriculum manager that does
 </div>
 </section>
 <section id="tying-it-all-together">
-<h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Link to this heading">#</a></h3>
+<h3>Tying it all together<a class="headerlink" href="#tying-it-all-together" title="Permalink to this heading">#</a></h3>
 <p>With all the above components defined, we can now create the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg</span></code> configuration for the
 cartpole environment. This is similar to the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg</span></code> defined in <a class="reference internal" href="create_manager_base_env.html#tutorial-create-manager-base-env"><span class="std std-ref">Creating a Manager-Based Base Environment</span></a>,
 only with the added RL components explained in the above sections.</p>
@@ -1030,7 +1033,7 @@ only with the added RL components explained in the above sections.</p>
 </div>
 </section>
 <section id="running-the-simulation-loop">
-<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Link to this heading">#</a></h3>
+<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
 <p>Coming back to the <code class="docutils literal notranslate"><span class="pre">run_cartpole_rl_env.py</span></code> script, the simulation loop is similar to the previous tutorial.
 The only difference is that we create an instance of <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> instead of the
 <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedEnv" title="omni.isaac.lab.envs.ManagerBasedEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedEnv</span></code></a>. Consequently, now the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv.step" title="omni.isaac.lab.envs.ManagerBasedRLEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv.step()</span></code></a> method returns additional signals
@@ -1070,7 +1073,7 @@ such as the reward contribution from individual terms, the termination status of
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
 <p>Similar to the previous tutorial, we can run the environment by executing the <code class="docutils literal notranslate"><span class="pre">run_cartpole_rl_env.py</span></code> script.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/03_envs/run_cartpole_rl_env.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
 </pre></div>

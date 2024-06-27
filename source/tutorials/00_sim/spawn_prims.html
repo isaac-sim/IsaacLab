@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Spawning prims into the scene &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/00_sim/spawn_prims';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -565,12 +568,12 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="spawning-prims-into-the-scene">
-<span id="tutorial-spawn-prims"></span><h1>Spawning prims into the scene<a class="headerlink" href="#spawning-prims-into-the-scene" title="Link to this heading">#</a></h1>
+<span id="tutorial-spawn-prims"></span><h1>Spawning prims into the scene<a class="headerlink" href="#spawning-prims-into-the-scene" title="Permalink to this heading">#</a></h1>
 <p>This tutorial explores how to spawn various objects (or prims) into the scene in Isaac Lab from Python.
 It builds upon the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">spawn_prims.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/00_sim</span></code> directory.
 Let’s take a look at the Python script:</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -690,7 +693,7 @@ Let’s take a look at the Python script:</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
 <p>Scene designing in Omniverse is built around a software system and file format called USD (Universal Scene Description).
 It allows describing 3D scenes in a hierarchical manner, similar to a file system. Since USD is a comprehensive framework,
 we recommend reading the <a class="reference external" href="https://graphics.pixar.com/usd/docs/index.html">USD documentation</a> to learn more about it.</p>
@@ -733,7 +736,7 @@ as adding new prims during simulation may alter the physics simulation buffers o
 behaviors.</p>
 </div>
 <section id="spawning-a-ground-plane">
-<h3>Spawning a ground plane<a class="headerlink" href="#spawning-a-ground-plane" title="Link to this heading">#</a></h3>
+<h3>Spawning a ground plane<a class="headerlink" href="#spawning-a-ground-plane" title="Permalink to this heading">#</a></h3>
 <p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg" title="omni.isaac.lab.sim.spawners.from_files.GroundPlaneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">GroundPlaneCfg</span></code></a> configures a grid-like ground plane with
 modifiable properties such as its appearance and size.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Ground-plane</span>
@@ -743,7 +746,7 @@ modifiable properties such as its appearance and size.</p>
 </div>
 </section>
 <section id="spawning-lights">
-<h3>Spawning lights<a class="headerlink" href="#spawning-lights" title="Link to this heading">#</a></h3>
+<h3>Spawning lights<a class="headerlink" href="#spawning-lights" title="Permalink to this heading">#</a></h3>
 <p>It is possible to spawn <a class="reference external" href="https://youtu.be/c7qyI8pZvF4?feature=shared">different light prims</a> into the stage. These include distant lights, sphere lights, disk
 lights, and cylinder lights. In this tutorial, we spawn a distant light which is a light that is infinitely far away
 from the scene and shines in a single direction.</p>
@@ -757,7 +760,7 @@ from the scene and shines in a single direction.</p>
 </div>
 </section>
 <section id="spawning-primitive-shapes">
-<h3>Spawning primitive shapes<a class="headerlink" href="#spawning-primitive-shapes" title="Link to this heading">#</a></h3>
+<h3>Spawning primitive shapes<a class="headerlink" href="#spawning-primitive-shapes" title="Permalink to this heading">#</a></h3>
 <p>Before spawning primitive shapes, we introduce the concept of a transform prim or Xform. A transform prim is a prim that
 contains only transformation properties. It is used to group other prims under it and to transform them as a group.
 Here we make an Xform prim to group all the primitive shapes under it.</p>
@@ -799,7 +802,7 @@ default to the default values set by USD Physics.</p>
 </div>
 </section>
 <section id="spawning-from-another-file">
-<h3>Spawning from another file<a class="headerlink" href="#spawning-from-another-file" title="Link to this heading">#</a></h3>
+<h3>Spawning from another file<a class="headerlink" href="#spawning-from-another-file" title="Permalink to this heading">#</a></h3>
 <p>Lastly, it is possible to spawn prims from other file formats such as other USD, URDF, or OBJ files. In this tutorial,
 we spawn a USD file of a table into the scene. The table is a mesh prim and has a material prim associated with it.
 All of this information is stored in its USD file.</p>
@@ -815,7 +818,7 @@ actually modifying the underlying file for the table asset directly. Only the ch
 </section>
 </section>
 <section id="executing-the-script">
-<h2>Executing the Script<a class="headerlink" href="#executing-the-script" title="Link to this heading">#</a></h2>
+<h2>Executing the Script<a class="headerlink" href="#executing-the-script" title="Permalink to this heading">#</a></h2>
 <p>Similar to the tutorial before, to run the script, execute the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/00_sim/spawn_prims.py
 </pre></div>

@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Docker Guide &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/deployment/docker';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -576,21 +579,21 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="docker-guide">
-<span id="deployment-docker"></span><h1>Docker Guide<a class="headerlink" href="#docker-guide" title="Link to this heading">#</a></h1>
+<span id="deployment-docker"></span><h1>Docker Guide<a class="headerlink" href="#docker-guide" title="Permalink to this heading">#</a></h1>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Due to the dependency on Isaac Sim docker image, by running this container you are implicitly
 agreeing to the <a class="reference external" href="https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html">NVIDIA Omniverse EULA</a>. If you do not agree to the EULA, do not run this container.</p>
 </div>
 <section id="setup-instructions">
-<h2>Setup Instructions<a class="headerlink" href="#setup-instructions" title="Link to this heading">#</a></h2>
+<h2>Setup Instructions<a class="headerlink" href="#setup-instructions" title="Permalink to this heading">#</a></h2>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The following steps are taken from the NVIDIA Omniverse Isaac Sim documentation on <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_container.html">container installation</a>.
 They have been added here for the sake of completeness.</p>
 </div>
 <section id="docker-and-docker-compose">
-<h3>Docker and Docker Compose<a class="headerlink" href="#docker-and-docker-compose" title="Link to this heading">#</a></h3>
+<h3>Docker and Docker Compose<a class="headerlink" href="#docker-and-docker-compose" title="Permalink to this heading">#</a></h3>
 <p>We have tested the container using Docker Engine version 26.0.0 and Docker Compose version 2.25.0
 We recommend using these versions or newer.</p>
 <ul class="simple">
@@ -608,7 +611,7 @@ the Isaac Lab directory is placed under the <code class="docutils literal notran
 </div>
 </section>
 <section id="obtaining-the-isaac-sim-container">
-<h3>Obtaining the Isaac Sim Container<a class="headerlink" href="#obtaining-the-isaac-sim-container" title="Link to this heading">#</a></h3>
+<h3>Obtaining the Isaac Sim Container<a class="headerlink" href="#obtaining-the-isaac-sim-container" title="Permalink to this heading">#</a></h3>
 <ul>
 <li><p>Get access to the <a class="reference external" href="https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim">Isaac Sim container</a> by joining the NVIDIA Developer Program credentials.</p></li>
 <li><p>Generate your <a class="reference external" href="https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key">NGC API key</a> to access locked container images from NVIDIA GPU Cloud (NGC).</p>
@@ -641,7 +644,7 @@ Password: &lt;Your NGC API Key&gt;
 </section>
 </section>
 <section id="directory-organization">
-<h2>Directory Organization<a class="headerlink" href="#directory-organization" title="Link to this heading">#</a></h2>
+<h2>Directory Organization<a class="headerlink" href="#directory-organization" title="Permalink to this heading">#</a></h2>
 <p>The root of the Isaac Lab repository contains the <code class="docutils literal notranslate"><span class="pre">docker</span></code> directory that has various files and scripts
 needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:</p>
 <ul class="simple">
@@ -656,7 +659,7 @@ files which end with something else (i.e. <code class="docutils literal notransl
 </ul>
 </section>
 <section id="running-the-container">
-<h2>Running the Container<a class="headerlink" href="#running-the-container" title="Link to this heading">#</a></h2>
+<h2>Running the Container<a class="headerlink" href="#running-the-container" title="Permalink to this heading">#</a></h2>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The docker container copies all the files from the repository into the container at the
@@ -702,7 +705,7 @@ directories to the <code class="docutils literal notranslate"><span class="pre">
 </pre></div>
 </div>
 <section id="python-interpreter">
-<h3>Python Interpreter<a class="headerlink" href="#python-interpreter" title="Link to this heading">#</a></h3>
+<h3>Python Interpreter<a class="headerlink" href="#python-interpreter" title="Permalink to this heading">#</a></h3>
 <p>The container uses the Python interpreter provided by Isaac Sim. This interpreter is located at
 <code class="docutils literal notranslate"><span class="pre">/isaac-sim/python.sh</span></code>. We set aliases inside the container to make it easier to run the Python
 interpreter. You can use the following commands to run the Python interpreter:</p>
@@ -712,7 +715,7 @@ python
 </div>
 </section>
 <section id="understanding-the-mounted-volumes">
-<h3>Understanding the mounted volumes<a class="headerlink" href="#understanding-the-mounted-volumes" title="Link to this heading">#</a></h3>
+<h3>Understanding the mounted volumes<a class="headerlink" href="#understanding-the-mounted-volumes" title="Permalink to this heading">#</a></h3>
 <p>The <code class="docutils literal notranslate"><span class="pre">docker-compose.yaml</span></code> file creates several named volumes that are mounted to the container.
 These are summarized below:</p>
 <ul class="simple">
@@ -739,7 +742,7 @@ docker<span class="w"> </span>volume<span class="w"> </span>inspect<span class="
 </section>
 </section>
 <section id="isaac-lab-image-extensions">
-<h2>Isaac Lab Image Extensions<a class="headerlink" href="#isaac-lab-image-extensions" title="Link to this heading">#</a></h2>
+<h2>Isaac Lab Image Extensions<a class="headerlink" href="#isaac-lab-image-extensions" title="Permalink to this heading">#</a></h2>
 <p>The produced image depends upon the arguments passed to <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">stop</span></code>. These
 commands accept an <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> as an additional argument. If no argument is passed, then these
 commands default to <code class="docutils literal notranslate"><span class="pre">base</span></code>. Currently, the only valid <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> arguments are (<code class="docutils literal notranslate"><span class="pre">base</span></code>, <code class="docutils literal notranslate"><span class="pre">ros2</span></code>).
@@ -758,7 +761,7 @@ Only one <code class="docutils literal notranslate"><span class="pre">image_exte
 with the corresponding <a class="reference external" href="https://docs.docker.com/compose/compose-file/15-profiles/">profile</a> in the <code class="docutils literal notranslate"><span class="pre">docker-compose.yaml</span></code> and the envars from <code class="docutils literal notranslate"><span class="pre">.env.${image_extension}</span></code>
 in addition to the <code class="docutils literal notranslate"><span class="pre">.env.base</span></code>, if any.</p>
 <section id="ros2-image-extension">
-<h3>ROS2 Image Extension<a class="headerlink" href="#ros2-image-extension" title="Link to this heading">#</a></h3>
+<h3>ROS2 Image Extension<a class="headerlink" href="#ros2-image-extension" title="Permalink to this heading">#</a></h3>
 <p>In <code class="docutils literal notranslate"><span class="pre">Dockerfile.ros2</span></code>, the container installs ROS2 Humble via an <a class="reference external" href="https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages">apt package</a>, and it is sourced in the <code class="docutils literal notranslate"><span class="pre">.bashrc</span></code>.
 The exact version is specified by the variable <code class="docutils literal notranslate"><span class="pre">ROS_APT_PACKAGE</span></code> in the <code class="docutils literal notranslate"><span class="pre">.env.ros2</span></code> file,
 defaulting to <code class="docutils literal notranslate"><span class="pre">ros-base</span></code>. Other relevant ROS2 variables are also specified in the <code class="docutils literal notranslate"><span class="pre">.env.ros2</span></code> file,
@@ -767,9 +770,9 @@ is also supported. Each of these middlewares can be <a class="reference external
 </section>
 </section>
 <section id="known-issues">
-<h2>Known Issues<a class="headerlink" href="#known-issues" title="Link to this heading">#</a></h2>
+<h2>Known Issues<a class="headerlink" href="#known-issues" title="Permalink to this heading">#</a></h2>
 <section id="invalid-mount-config-for-type-bind">
-<h3>Invalid mount config for type “bind”<a class="headerlink" href="#invalid-mount-config-for-type-bind" title="Link to this heading">#</a></h3>
+<h3>Invalid mount config for type “bind”<a class="headerlink" href="#invalid-mount-config-for-type-bind" title="Permalink to this heading">#</a></h3>
 <p>If you see the following error when building the container:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>⠋ Container isaaclab  Creating                                                                                                                                                                         0.0s
 Error response from daemon: invalid mount config for type &quot;bind&quot;: bind source path does not exist: ${HOME}/.Xauthority
@@ -804,7 +807,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>clean<span class="w"> </s
 </ul>
 </section>
 <section id="webrtc-streaming">
-<h3>WebRTC Streaming<a class="headerlink" href="#webrtc-streaming" title="Link to this heading">#</a></h3>
+<h3>WebRTC Streaming<a class="headerlink" href="#webrtc-streaming" title="Permalink to this heading">#</a></h3>
 <p>When streaming the GUI from Isaac Sim, there are <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html">several streaming clients</a> available. There is a <a class="reference external" href="https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916">known issue</a> when
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
 To avoid this problem, we suggest using the Native Streaming Client or using the

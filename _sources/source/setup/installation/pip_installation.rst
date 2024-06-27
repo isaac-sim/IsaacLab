@@ -35,7 +35,7 @@ Installing Isaac Sim
          .. tab-set::
             :sync-group: os
 
-            .. tab-item:: Linux
+            .. tab-item:: :icon:`fa-brands fa-linux` Linux
                :sync: linux
 
                .. code-block:: bash
@@ -45,7 +45,7 @@ Installing Isaac Sim
                   # activate the conda environment
                   source isaaclab/bin/activate
 
-            .. tab-item:: Windows
+            .. tab-item:: :icon:`fa-brands fa-windows` Windows
                :sync: windows
 
                .. code-block:: batch
@@ -117,7 +117,7 @@ Clone the Isaac Lab repository into your workspace:
    .. tab-set::
       :sync-group: os
 
-      .. tab-item:: Linux
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
          .. code:: text
@@ -138,7 +138,7 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
 
-      .. tab-item:: Windows
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: text
@@ -173,14 +173,14 @@ Installation
 .. tab-set::
    :sync-group: os
 
-   .. tab-item:: Linux
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
       .. code:: bash
 
          ./isaaclab.sh --install # or "./isaaclab.sh -i"
 
-   .. tab-item:: Windows
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: bash
@@ -195,14 +195,14 @@ Installation
    .. tab-set::
       :sync-group: os
 
-      .. tab-item:: Linux
+      .. tab-item:: :icon:`fa-brands fa-linux` Linux
          :sync: linux
 
          .. code:: bash
 
             ./isaaclab.sh --install rl_games  # or "./isaaclab.sh -i rl_games"
 
-      .. tab-item:: Windows
+      .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
 
          .. code:: bash

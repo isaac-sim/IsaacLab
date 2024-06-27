@@ -1,12 +1,13 @@
 
+
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="../../" >
+<html lang="en" data-content_root="" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Saving rendered images and 3D re-projection &#8212; Isaac Lab documentation</title>
   
@@ -28,24 +29,26 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=a3416100" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
-    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=b333a5fb" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script src="../../_static/documentation_options.js?v=9eb32ce0"></script>
-    <script src="../../_static/doctools.js?v=9a2dae69"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
-    <script src="../../_static/copybutton.js?v=f281be69"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script src="/opt/hostedtoolcache/Python/3.10.14/x64/lib/python3.10/site-packages/sphinxcontrib/icon/node_modules/@fortawesome/fontawesome-free/js/all.min.js"></script>
+    <script src="../../_static/clipboard.min.js"></script>
+    <script src="../../_static/copybutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script src="../../_static/design-tabs.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/how-to/save_camera_output';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
@@ -205,7 +208,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,9 +364,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</button></div>
+</label></div>
       
     </div>
   
@@ -521,9 +524,9 @@ document.write(`
   </button>
 `);
 </script>
-<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</button>
+</label>
 </div></div>
       
     </div>
@@ -559,7 +562,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="saving-rendered-images-and-3d-re-projection">
-<span id="how-to-save-images-and-3d-reprojection"></span><h1>Saving rendered images and 3D re-projection<a class="headerlink" href="#saving-rendered-images-and-3d-re-projection" title="Link to this heading">#</a></h1>
+<span id="how-to-save-images-and-3d-reprojection"></span><h1>Saving rendered images and 3D re-projection<a class="headerlink" href="#saving-rendered-images-and-3d-re-projection" title="Permalink to this heading">#</a></h1>
 <p>This guide accompanied with the <code class="docutils literal notranslate"><span class="pre">run_usd_camera.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">IsaacLab/source/standalone/tutorials/04_sensors</span></code>
 directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -866,7 +869,7 @@ directory.</p>
 </div>
 </div>
 </details><section id="saving-using-replicator-basic-writer">
-<h2>Saving using Replicator Basic Writer<a class="headerlink" href="#saving-using-replicator-basic-writer" title="Link to this heading">#</a></h2>
+<h2>Saving using Replicator Basic Writer<a class="headerlink" href="#saving-using-replicator-basic-writer" title="Permalink to this heading">#</a></h2>
 <p>To save camera outputs, we use the basic write class from Omniverse Replicator. This class allows us to save the
 images in a numpy format. For more information on the basic writer, please check the
 <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/writer_examples.html">documentation</a>.</p>
@@ -916,7 +919,7 @@ them in a dictionary.</p>
 </div>
 </section>
 <section id="projection-into-3d-space">
-<h2>Projection into 3D Space<a class="headerlink" href="#projection-into-3d-space" title="Link to this heading">#</a></h2>
+<h2>Projection into 3D Space<a class="headerlink" href="#projection-into-3d-space" title="Permalink to this heading">#</a></h2>
 <p>We include utilities to project the depth image into 3D Space. The re-projection operations are done using
 PyTorch operations which allows faster computation.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="kn">import</span> <span class="n">transform_points</span><span class="p">,</span> <span class="n">unproject_depth</span>
@@ -953,7 +956,7 @@ This makes it easy to visualize the point cloud in the 3D space.</p>
 </div>
 </section>
 <section id="executing-the-script">
-<h2>Executing the script<a class="headerlink" href="#executing-the-script" title="Link to this heading">#</a></h2>
+<h2>Executing the script<a class="headerlink" href="#executing-the-script" title="Permalink to this heading">#</a></h2>
 <p>To run the accompanying script, execute the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Usage with saving and drawing</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/run_usd_camera.py<span class="w"> </span>--save<span class="w"> </span>--draw
