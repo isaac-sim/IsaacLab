@@ -100,8 +100,10 @@ Clone the Isaac Lab repository into your workspace:
    utilities to manage extensions:
 
    .. tab-set::
+      :sync-group: os
 
       .. tab-item:: Linux
+         :sync: linux
 
          .. code:: text
 
@@ -122,6 +124,7 @@ Clone the Isaac Lab repository into your workspace:
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
 
       .. tab-item:: Windows
+         :sync: windows
 
          .. code:: text
 
@@ -182,13 +185,13 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh --install rl_games
+            ./isaaclab.sh --install rl_games  # or "./isaaclab.sh -i rl_games"
 
       .. tab-item:: Windows
          :sync: windows
 
          .. code:: bash
 
-            isaaclab.bat --install rl_games :: or "isaaclab.bat -i"
+            isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.

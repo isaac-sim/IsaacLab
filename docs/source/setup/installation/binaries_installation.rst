@@ -25,14 +25,14 @@ To check the minimum system requirements,refer to the documentation
       .. tab-item:: Linux
          :sync: linux
 
-            On Linux systems, by default, Isaac Sim is installed in the directory
-            ``${HOME}/.local/share/ov/pkg/isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         On Linux systems, by default, Isaac Sim is installed in the directory
+         ``${HOME}/.local/share/ov/pkg/isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
 
       .. tab-item:: Windows
          :sync: windows
 
-            On Windows systems, by default,Isaac Sim is installed in the directory
-            ``C:\Users\user\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
+         On Windows systems, by default,Isaac Sim is installed in the directory
+         ``C:\Users\user\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
 
 
 Installing Isaac Lab
@@ -144,7 +144,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         # For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.0.0
+         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.0.0
 
 
 Setting up the conda environment (optional)
@@ -209,7 +209,7 @@ Installation
 
    .. code:: bash
 
-      # this dependency is needed by robomimic
+      # these dependency are needed by robomimic which is not available on Windows
       sudo apt install cmake build-essential
 
 - Run the install command that iterates over all the extensions in ``source/extensions`` directory and installs them
@@ -245,13 +245,13 @@ Installation
 
          .. code:: bash
 
-            ./isaaclab.sh --install rl_games
+            ./isaaclab.sh --install rl_games  # or "./isaaclab.sh -i rl_games"
 
       .. tab-item:: Windows
          :sync: windows
 
          .. code:: batch
 
-            isaaclab.bat --install rl_games :: or "isaaclab.bat -i"
+            isaaclab.bat --install rl_games :: or "isaaclab.bat -i rl_games"
 
    The valid options are ``rl_games``, ``rsl_rl``, ``sb3``, ``skrl``, ``robomimic``, ``none``.
