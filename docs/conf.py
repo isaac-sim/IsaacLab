@@ -53,7 +53,6 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_tabs.tabs",
 ]
 
 # mathjax hacks

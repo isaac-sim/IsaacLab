@@ -1,12 +1,11 @@
 # for building the docs
-sphinx-book-theme==1.0.1
+sphinx-book-theme==1.1.3
 myst-parser
-sphinxcontrib-bibtex==2.5.0
+sphinxcontrib-bibtex
 autodocsumm
 sphinx-copybutton
 sphinx_design
 sphinxemoji
-sphinx-tabs
 
 # basic python
 numpy
