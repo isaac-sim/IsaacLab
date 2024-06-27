@@ -9,6 +9,7 @@ Changed
 
 * Updated the skrl RL library integration to the latest release (>= 1.2.0)
 
+
 0.7.7 (2024-06-14)
 ~~~~~~~~~~~~~~~~~~
 
