@@ -4,7 +4,7 @@ Multi-GPU and Multi-Node Training
 .. currentmodule:: omni.isaac.lab
 
 Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
-available for RL-Games library training workflows. We are working on extending this feature to
+available for RL-Games and skrl libraries workflows. We are working on extending this feature to
 other workflows.
 
 .. attention::
@@ -17,10 +17,10 @@ Multi-GPU Training
 ------------------
 
 For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
-This is possible in Isaac Lab with the ``rl_games`` and ``skrl`` RL libraries through the use of the
+This is possible in Isaac Lab through the use of the
 `PyTorch distributed <https://pytorch.org/docs/stable/distributed.html>`_ framework.
 
-In this workflow, ``torch.distributed`` is used to launch multiple processes of training, where the number of
+The :meth:`torch.distributed` API is used to launch multiple processes of training, where the number of
 processes must be equal to or less than the number of GPUs available. Each process runs on
 a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
 Each process collects its own rollouts during the training process and has its own copy of the policy
@@ -31,26 +31,24 @@ at the end of the epoch.
     :align: center
     :alt: Multi-GPU training paradigm
 
-|
-
 To train with multiple GPUs, use the following command, where ``--proc_per_node`` represents the number of available GPUs:
 
-.. tabs::
+.. tab-set::
+    :sync-group: rl-train
 
-    .. group-tab:: rl_games
+    .. tab-item:: rl_games
+        :sync: rl_games
 
         .. code-block:: shell
 
             python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
-    .. group-tab:: skrl
+    .. tab-item:: skrl
+        :sync: skrl
 
         .. code-block:: shell
 
             python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 source/standalone/workflows/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed
-
-
-Due to limitations of NCCL on Windows, this feature is currently supported on Linux only.
 
 
 Multi-Node Training
@@ -62,15 +60,18 @@ To train across multiple nodes/machines, it is required to launch an individual 
 For the master node, use the following command, where ``--proc_per_node`` represents the number of available GPUs, and
 ``--nnodes`` represents the number of nodes:
 
-.. tabs::
+.. tab-set::
+    :sync-group: rl-train
 
-    .. group-tab:: rl_games
+    .. tab-item:: rl_games
+        :sync: rl_games
 
         .. code-block:: shell
 
             python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
-    .. group-tab:: skrl
+    .. tab-item:: skrl
+        :sync: skrl
 
         .. code-block:: shell
 
@@ -80,15 +81,18 @@ Note that the port (``5555``) can be replaced with any other available port.
 
 For non-master nodes, use the following command, replacing ``--node_rank`` with the index of each machine:
 
-.. tabs::
+.. tab-set::
+    :sync-group: rl-train
 
-    .. group-tab:: rl_games
+    .. tab-item:: rl_games
+        :sync: rl_games
 
         .. code-block:: shell
 
             python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=ip_of_master_machine:5555 source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --distributed
 
-    .. group-tab:: skrl
+    .. tab-item:: skrl
+        :sync: skrl
 
         .. code-block:: shell
 

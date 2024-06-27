@@ -19,14 +19,17 @@ To check the minimum system requirements,refer to the documentation
    We have tested Isaac Lab with Isaac Sim 4.0 release on Ubuntu
    20.04LTS with NVIDIA driver 525.147.
 
-   .. tabs::
+   .. tab-set::
+      :sync-group: os
 
-      .. tab:: Linux
+      .. tab-item:: Linux
+         :sync: linux
 
             On Linux systems, by default, Isaac Sim is installed in the directory
             ``${HOME}/.local/share/ov/pkg/isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
 
-      .. tab:: Windows
+      .. tab-item:: Windows
+         :sync: windows
 
             On Windows systems, by default,Isaac Sim is installed in the directory
             ``C:\Users\user\AppData\Local\ov\pkg\isaac_sim-*``, with ``*`` corresponding to the Isaac Sim version.
@@ -47,21 +50,30 @@ Cloning Isaac Lab
 
 Clone the Isaac Lab repository into your workspace:
 
-.. code:: bash
+.. tab-set::
 
-   # Option 1: With SSH
-   git clone git@github.com:isaac-sim/IsaacLab.git
-   # Option 2: With HTTPS
-   git clone https://github.com/isaac-sim/IsaacLab.git
+   .. tab-item:: SSH
+
+      .. code:: bash
+
+         git clone git@github.com:isaac-sim/IsaacLab.git
+
+   .. tab-item:: HTTPS
+
+      .. code:: bash
+
+         git clone https://github.com/isaac-sim/IsaacLab.git
 
 
 .. note::
    We provide a helper executable `isaaclab.sh <https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.sh>`_ that provides
    utilities to manage extensions:
 
-   .. tabs::
+   .. tab-set::
+      :sync-group: os
 
-      .. tab:: Linux
+      .. tab-item:: Linux
+         :sync: linux
 
          .. code:: text
 
@@ -81,7 +93,8 @@ Clone the Isaac Lab repository into your workspace:
                -d, --docs           Build the documentation from source using sphinx.
                -c, --conda [NAME]   Create the conda environment for Isaac Lab. Default name is 'isaaclab'.
 
-      .. tab:: Windows
+      .. tab-item:: Windows
+         :sync: windows
 
          .. code:: text
 
@@ -108,9 +121,11 @@ Set up a symbolic link between the installed Isaac Sim root folder
 and ``_isaac_sim`` in the Isaac Lab directory. This makes it convenient
 to index the python modules and look for extensions shipped with Isaac Sim.
 
-.. tabs::
+.. tab-set::
+   :sync-group: os
 
-   .. tab:: Linux
+   .. tab-item:: Linux
+      :sync: linux
 
       .. code:: bash
 
@@ -120,7 +135,8 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          ln -s path_to_isaac_sim _isaac_sim
          # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.0.0 _isaac_sim
 
-   .. tab:: Windows
+   .. tab-item:: Windows
+      :sync: windows
 
       .. code:: batch
 
@@ -148,9 +164,11 @@ Although using a virtual environment is optional, we recommend using ``conda``. 
 In case you want to use ``conda`` to create a virtual environment, you can
 use the following command:
 
-.. tabs::
+.. tab-set::
+   :sync-group: os
 
-   .. tab:: Linux
+   .. tab-item:: Linux
+      :sync: linux
 
       .. code:: bash
 
@@ -159,7 +177,8 @@ use the following command:
          # Option 2: Custom name for conda environment
          ./isaaclab.sh --conda my_env  # or "./isaaclab.sh -c my_env"
 
-   .. tab:: Windows
+   .. tab-item:: Windows
+      :sync: windows
 
       .. code:: batch
 
@@ -186,44 +205,52 @@ is equivalent to running ``python`` or ``python3`` in your virtual environment.
 Installation
 ~~~~~~~~~~~~
 
--  Install dependencies using ``apt`` (on Ubuntu):
+-  Install dependencies using ``apt`` (on Linux only):
 
    .. code:: bash
 
+      # this dependency is needed by robomimic
       sudo apt install cmake build-essential
 
 - Run the install command that iterates over all the extensions in ``source/extensions`` directory and installs them
   using pip (with ``--editable`` flag):
 
-.. tabs::
+.. tab-set::
+   :sync-group: os
 
-   .. tab:: Linux
+   .. tab-item:: Linux
+      :sync: linux
 
       .. code:: bash
 
          ./isaaclab.sh --install # or "./isaaclab.sh -i"
 
-   .. tab:: Windows
+   .. tab-item:: Windows
+      :sync: windows
 
-      .. code:: bash
+      .. code:: batch
 
          isaaclab.bat --install :: or "isaaclab.bat -i"
 
 .. note::
-   By default, this will install all the learning frameworks. If you want to install only a specific framework, you can
+
+   By default, the above will install all the learning frameworks. If you want to install only a specific framework, you can
    pass the name of the framework as an argument. For example, to install only the ``rl_games`` framework, you can run
 
-   .. tabs::
+   .. tab-set::
+      :sync-group: os
 
-      .. tab:: Linux
+      .. tab-item:: Linux
+         :sync: linux
 
          .. code:: bash
 
             ./isaaclab.sh --install rl_games
 
-      .. tab:: Windows
+      .. tab-item:: Windows
+         :sync: windows
 
-         .. code:: bash
+         .. code:: batch
 
             isaaclab.bat --install rl_games :: or "isaaclab.bat -i"
 
