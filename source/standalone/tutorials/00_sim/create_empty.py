@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/00_sim/create_empty.py
+    ./isaaclab.sh -p source/standalone/tutorials/00_sim/create_empty.py
 
 """
 
@@ -17,7 +17,7 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
@@ -31,7 +31,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from omni.isaac.orbit.sim import SimulationCfg, SimulationContext
+from omni.isaac.lab.sim import SimulationCfg, SimulationContext
 
 
 def main():

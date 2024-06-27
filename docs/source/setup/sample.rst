@@ -4,7 +4,7 @@ Running Existing Scripts
 Showroom
 --------
 
-The main core interface extension in Orbit ``omni.isaac.orbit`` provides
+The main core interface extension in Isaac Lab ``omni.isaac.lab`` provides
 the main modules for actuators, objects, robots and sensors. We provide
 a list of demo scripts and tutorials. These showcase how to use the provided
 interfaces within a code in a minimal way.
@@ -15,37 +15,37 @@ A few quick showroom scripts to run and checkout:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demos/quadrupeds.py
+      ./isaaclab.sh -p source/standalone/demos/quadrupeds.py
 
 -  Spawn different arms and apply random joint position commands:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demos/arms.py
+      ./isaaclab.sh -p source/standalone/demos/arms.py
 
 -  Spawn different hands and command them to open and close:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demos/hands.py
+      ./isaaclab.sh -p source/standalone/demos/hands.py
 
 -  Spawn procedurally generated terrains with different configurations:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demos/procedural_terrain.py
+      ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py
 
 -  Spawn multiple markers that are useful for visualizations:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/demos/markers.py
+      ./isaaclab.sh -p source/standalone/demos/markers.py
 
 Workflows
 ---------
 
-With Orbit, we also provide a suite of benchmark environments included
-in the ``omni.isaac.orbit_tasks`` extension. We use the OpenAI Gym registry
+With Isaac Lab, we also provide a suite of benchmark environments included
+in the ``omni.isaac.lab_tasks`` extension. We use the OpenAI Gym registry
 to register these environments. For each environment, we provide a default
 configuration file that defines the scene, observations, rewards and action spaces.
 
@@ -53,7 +53,7 @@ The list of environments available registered with OpenAI Gym can be found by ru
 
 .. code:: bash
 
-   ./orbit.sh -p source/standalone/environments/list_envs.py
+   ./isaaclab.sh -p source/standalone/environments/list_envs.py
 
 
 Basic agents
@@ -66,13 +66,13 @@ useful to ensure that the environments are configured correctly.
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/environments/zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+      ./isaaclab.sh -p source/standalone/environments/zero_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 -  Random-action agent on the Cart-pole example:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
+      ./isaaclab.sh -p source/standalone/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 32
 
 
 State machine
@@ -85,7 +85,7 @@ allows efficient execution for large number of environments using CUDA kernels.
 
 .. code:: bash
 
-   ./orbit.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
+   ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
 
 Teleoperation
@@ -100,7 +100,7 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./orbit.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -133,31 +133,33 @@ format.
    .. code:: bash
 
       # step a: collect data with keyboard
-      ./orbit.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
       # step b: inspect the collected dataset
-      ./orbit.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
 2. Split the dataset into train and validation set:
 
    .. code:: bash
 
+      # install the dependencies
+      sudo apt install cmake build-essential
       # install python module (for robomimic)
-      ./orbit.sh -e robomimic
+      ./isaaclab.sh -i robomimic
       # split data
-      ./orbit.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
+      ./isaaclab.sh -p source/standalone//workflows/robomimic/tools/split_train_val.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5 --ratio 0.2
 
 3. Train a BC agent for ``Isaac-Lift-Cube-Franka-IK-Rel-v0`` with
    `Robomimic <https://robomimic.github.io/>`__:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone/workflows/robomimic/train.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --algo bc --dataset logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/train.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --algo bc --dataset logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
 4. Play the learned model to visualize results:
 
    .. code:: bash
 
-      ./orbit.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
+      ./isaaclab.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
 
 Reinforcement Learning
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -172,12 +174,12 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for stable-baselines3)
-      ./orbit.sh -e sb3
+      ./isaaclab.sh -i sb3
       # run script for training
       # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
-      ./orbit.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+      ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
 
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
@@ -185,11 +187,11 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for skrl)
-      ./orbit.sh -e skrl
+      ./isaaclab.sh -i skrl
       # run script for training
-      ./orbit.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
+      ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+      ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
@@ -197,11 +199,11 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rl-games)
-      ./orbit.sh -e rl_games
+      ./isaaclab.sh -i rl_games
       # run script for training
-      ./orbit.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
+      ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+      ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
 
 -  Training an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka-v0``:
@@ -209,11 +211,11 @@ from the environments into the respective libraries function argument and return
    .. code:: bash
 
       # install python module (for rsl-rl)
-      ./orbit.sh -e rsl_rl
+      ./isaaclab.sh -i rsl_rl
       # run script for training
-      ./orbit.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
+      ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
-      ./orbit.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+      ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
@@ -225,6 +227,6 @@ To view the logs, run:
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./orbit.sh -p -m tensorboard.main --logdir=logs
+   ./isaaclab.sh -p -m tensorboard.main --logdir=logs
 
 .. _Tensorboard: https://www.tensorflow.org/tensorboard

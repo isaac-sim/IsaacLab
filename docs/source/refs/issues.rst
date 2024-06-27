@@ -54,11 +54,21 @@ environment stepping commences.
 
 For more information, please refer to the `PhysX Determinism documentation`_.
 
+In addition, due to floating point precision, states across different environments in the simulation
+may be non-deterministic when the same set of actions are applied to the same initial
+states. This occurs as environments are placed further apart from the world origin at (0, 0, 0).
+As actors get placed at different origins in the world, floating point errors may build up
+and result in slight variance in results even when starting from the same initial states. One
+possible workaround for this issue is to place all actors/environments at the world origin
+at (0, 0, 0) and filter out collisions between the environments. Note that this may induce
+a performance degradation of around 15-50%, depending on the complexity of actors and
+environment.
+
 
 Blank initial frames from the camera
 ------------------------------------
 
-When using the :class:`omni.isaac.orbit.sensors.Camera` sensor in standalone scripts, the first few frames
+When using the :class:`omni.isaac.lab.sensors.Camera` sensor in standalone scripts, the first few frames
 may be blank. This is a known issue with the simulator where it needs a few steps to load the material
 textures properly and fill up the render targets.
 
@@ -67,7 +77,7 @@ its pose:
 
 .. code-block:: python
 
-    from omni.isaac.orbit.sim import SimulationContext
+    from omni.isaac.lab.sim import SimulationContext
 
     sim = SimulationContext.instance()
 
@@ -90,3 +100,18 @@ are stored in the instanceable asset's USD file and not in its stage reference's
 .. _instanceable assets: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_gym_instanceable_assets.html
 .. _Omniverse Isaac Sim documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/known_issues.html
 .. _PhysX Determinism documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/docs/BestPractices.html#determinism
+
+
+Exiting the process
+-------------------
+
+When exiting a process with ``Ctrl+C``, occasionally the below error may appear:
+
+.. code-block:: bash
+
+	[Error] [omni.physx.plugin] Subscribtion cannot be changed during the event call.
+
+This is due to the termination occurring in the middle of a physics event call and
+should not affect the functionality of Isaac Lab. It is safe to ignore the error
+message and continue with terminating the process. On Windows systems, please use
+``Ctrl+Break`` or ``Ctrl+fn+B`` to terminate the process.

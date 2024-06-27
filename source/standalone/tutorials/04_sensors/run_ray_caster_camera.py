@@ -1,17 +1,17 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script shows how to use the ray-cast camera sensor from the Orbit framework.
+This script shows how to use the ray-cast camera sensor from the Isaac Lab framework.
 
 The camera sensor is based on using Warp kernels which do ray-casting against static meshes.
 
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
 
 """
 
@@ -19,7 +19,7 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the ray-cast camera sensor.")
@@ -41,11 +41,11 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
-from omni.isaac.orbit.utils import convert_dict_to_backend
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.math import project_points, unproject_depth
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
+from omni.isaac.lab.utils import convert_dict_to_backend
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.math import project_points, unproject_depth
 
 
 def define_sensor() -> RayCasterCamera:

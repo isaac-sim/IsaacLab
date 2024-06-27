@@ -3,7 +3,7 @@
 Adding sensors on a robot
 =========================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 
 While the asset classes allow us to create and simulate the physical embodiment of the robot,
@@ -30,7 +30,7 @@ The Code
 ~~~~~~~~
 
 The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
-``orbit/source/standalone/tutorials/04_sensors`` directory.
+``source/standalone/tutorials/04_sensors`` directory.
 
 .. dropdown:: Code for add_sensors_on_robot.py
    :icon: code
@@ -173,7 +173,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2
 
 
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
@@ -192,13 +192,13 @@ following commands:
 .. code-block:: bash
 
    # Frame Transformer
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_frame_transformer.py
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_frame_transformer.py
 
    # Ray Caster
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_ray_caster.py
 
    # Ray Caster Camera
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_ray_caster_camera.py
 
    # USD Camera
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py

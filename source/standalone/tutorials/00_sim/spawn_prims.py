@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
+    ./isaaclab.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
 
 """
 
@@ -17,7 +17,7 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on spawning prims into the scene.")
@@ -33,8 +33,8 @@ simulation_app = app_launcher.app
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def design_scene():

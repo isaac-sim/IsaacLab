@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,7 +15,7 @@ a more user-friendly way.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
@@ -44,9 +44,9 @@ import torch
 from skrl.agents.torch.ppo import PPO, PPO_DEFAULT_CONFIG
 from skrl.utils.model_instantiators.torch import deterministic_model, gaussian_model, shared_model
 
-import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from omni.isaac.orbit_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_skrl_cfg
 
 
 def main():
@@ -63,7 +63,7 @@ def main():
     env = SkrlVecEnvWrapper(env)  # same as: `wrap_env(env, wrapper="isaac-orbit")`
 
     # instantiate models using skrl model instantiator utility
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.utils.model_instantiators.html
+    # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
     # non-shared models
     if experiment_cfg["models"]["separate"]:
@@ -95,7 +95,7 @@ def main():
         models["value"] = models["policy"]
 
     # configure and instantiate PPO agent
-    # https://skrl.readthedocs.io/en/latest/modules/skrl.agents.ppo.html
+    # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
     agent_cfg = PPO_DEFAULT_CONFIG.copy()
     experiment_cfg["agent"]["rewards_shaper"] = None  # avoid 'dictionary changed size during iteration'
     agent_cfg.update(process_skrl_cfg(experiment_cfg["agent"]))

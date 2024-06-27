@@ -31,6 +31,11 @@ We recommend using these versions or newer.
 * To build and run GPU-accelerated containers, you also need install the `NVIDIA Container Toolkit`_.
   Please follow the instructions on the `Container Toolkit website`_ for installation steps.
 
+.. note::
+
+    Due to limitations with `snap <https://snapcraft.io/docs/home-outside-home>`_, please make sure
+    the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
+
 
 Obtaining the Isaac Sim Container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,16 +70,16 @@ Obtaining the Isaac Sim Container
 Directory Organization
 ----------------------
 
-The root of the Orbit repository contains the ``docker`` directory that has various files and scripts
-needed to run Orbit inside a Docker container. A subset of these are summarized below:
+The root of the Isaac Lab repository contains the ``docker`` directory that has various files and scripts
+needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:
 
-* ``Dockerfile.base``: Defines the orbit image by overlaying Orbit dependencies onto the Isaac Sim Docker image.
-  ``Dockerfiles`` which end with something else, (i.e. ``Dockerfile.ros2``) build an `image_extension <#orbit-image-extensions>`_.
-* ``docker-compose.yaml``: Creates mounts to allow direct editing of Orbit code from the host machine that runs
+* ``Dockerfile.base``: Defines the isaaclab image by overlaying Isaac Lab dependencies onto the Isaac Sim Docker image.
+  ``Dockerfiles`` which end with something else, (i.e. ``Dockerfile.ros2``) build an `image_extension <#isaac-lab-image-extensions>`_.
+* ``docker-compose.yaml``: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * ``base.env``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
-  files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#orbit-image-extensions>`_.
+  files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#isaac-lab-image-extensions>`_.
 * ``container.sh``: A script that wraps the ``docker compose`` command to build the image and run the container.
 
 Running the Container
@@ -83,24 +88,24 @@ Running the Container
 .. note::
 
     The docker container copies all the files from the repository into the container at the
-    location ``/workspace/orbit`` at build time. This means that any changes made to the files in the container would not
+    location ``/workspace/isaaclab`` at build time. This means that any changes made to the files in the container would not
     normally be reflected in the repository after the image has been built, i.e. after ``./container.sh start`` is run.
 
-    For a faster development cycle, we mount the following directories in the Orbit repository into the container
+    For a faster development cycle, we mount the following directories in the Isaac Lab repository into the container
     so that you can edit their files from the host machine:
 
-    * ``source``: This is the directory that contains the Orbit source code.
-    * ``docs``: This is the directory that contains the source code for Orbit documentation. This is overlaid except
+    * ``source``: This is the directory that contains the Isaac Lab source code.
+    * ``docs``: This is the directory that contains the source code for Isaac Lab documentation. This is overlaid except
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.sh`` wraps around three basic ``docker compose`` commands. Each can accept an `image_extension argument <#orbit-image-extensions>`_,
+The script ``container.sh`` wraps around three basic ``docker compose`` commands. Each can accept an `image_extension argument <#isaac-lab-image-extensions>`_,
 or else they will default to image_extension ``base``:
 
 1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background).
-2. ``enter``: This begins a new bash process in an existing orbit container, and which can be exited
+2. ``enter``: This begins a new bash process in an existing isaaclab container, and which can be exited
    without bringing down the container.
-3. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``orbit-logs``, ``orbit-data`` and ``orbit-docs``
+3. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
    volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker
    container instances and are shared between image extensions.
 4. ``stop``: This brings down the container and removes it.
@@ -120,8 +125,8 @@ To copy files from the base container to the host machine, you can use the follo
 
 .. code:: bash
 
-    # Copy the file /workspace/orbit/logs to the current directory
-    docker cp orbit-base:/workspace/orbit/logs .
+    # Copy the file /workspace/isaaclab/logs to the current directory
+    docker cp isaac-lab-base:/workspace/isaaclab/logs .
 
 The script ``container.sh`` provides a wrapper around this command to copy the ``logs`` , ``data_storage`` and ``docs/_build``
 directories to the ``docker/artifacts`` directory. This is useful for copying the logs, data and documentation:
@@ -160,9 +165,9 @@ These are summarized below:
 * ``isaac-carb-logs``: This volume is used to store logs generated by carb. (`/isaac-sim/kit/logs/Kit/Isaac-Sim` in container)
 * ``isaac-data``: This volume is used to store data generated by Omniverse. (`/root/.local/share/ov/data` in container)
 * ``isaac-docs``: This volume is used to store documents generated by Omniverse. (`/root/Documents` in container)
-* ``orbit-docs``: This volume is used to store documentation of Orbit when built inside the container. (`/workspace/orbit/docs/_build` in container)
-* ``orbit-logs``: This volume is used to store logs generated by Orbit workflows when run inside the container. (`/workspace/orbit/logs` in container)
-* ``orbit-data``: This volume is used to store whatever data users may want to preserve between container runs. (`/workspace/orbit/data_storage` in container)
+* ``isaac-lab-docs``: This volume is used to store documentation of Isaac Lab when built inside the container. (`/workspace/isaaclab/docs/_build` in container)
+* ``isaac-lab-logs``: This volume is used to store logs generated by Isaac Lab workflows when run inside the container. (`/workspace/isaaclab/logs` in container)
+* ``isaac-lab-data``: This volume is used to store whatever data users may want to preserve between container runs. (`/workspace/isaaclab/data_storage` in container)
 
 To view the contents of these volumes, you can use the following command:
 
@@ -175,13 +180,13 @@ To view the contents of these volumes, you can use the following command:
 
 
 
-Orbit Image Extensions
-----------------------
+Isaac Lab Image Extensions
+--------------------------
 
 The produced image depends upon the arguments passed to ``./container.sh start`` and ``./container.sh stop``. These
 commands accept an ``image_extension`` as an additional argument. If no argument is passed, then these
 commands default to ``base``. Currently, the only valid ``image_extension`` arguments are (``base``, ``ros2``).
-Only one ``image_extension`` can be passed at a time, and the produced container will be named ``orbit``.
+Only one ``image_extension`` can be passed at a time, and the produced container will be named ``isaaclab``.
 
 .. code:: bash
 
@@ -218,7 +223,7 @@ If you see the following error when building the container:
 
 .. code:: text
 
-    ⠋ Container orbit  Creating                                                                                                                                                                         0.0s
+    ⠋ Container isaaclab  Creating                                                                                                                                                                         0.0s
     Error response from daemon: invalid mount config for type "bind": bind source path does not exist: ${HOME}/.Xauthority
 
 This means that the ``.Xauthority`` file is not present in the home directory of the host machine.
@@ -234,7 +239,7 @@ A similar error but requires a different fix:
 
 .. code:: text
 
-    ⠋ Container orbit  Creating                                                                                                                                                                         0.0s
+    ⠋ Container isaaclab  Creating                                                                                                                                                                         0.0s
     Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /tmp/.X11-unix
 
 This means that the folder/files are either not present or not accessible on the host machine.
@@ -253,12 +258,12 @@ versions installed on your machine. To fix this, you can try the following:
 
 * Install the latest version of docker based on the instructions in the setup section.
 
-WebRTC and WebSocket Streaming
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+WebRTC Streaming
+~~~~~~~~~~~~~~~~
 
 When streaming the GUI from Isaac Sim, there are `several streaming clients`_ available. There is a `known issue`_ when
 attempting to use WebRTC streaming client on Google Chrome and Safari while running Isaac Sim inside a container.
-To avoid this problem, we suggest using either the Native Streaming Client or WebSocket options, or using the
+To avoid this problem, we suggest using the Native Streaming Client or using the
 Mozilla Firefox browser on which WebRTC works.
 
 Streaming is the only supported method for visualizing the Isaac GUI from within the container. The Omniverse Streaming Client

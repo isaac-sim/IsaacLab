@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates different legged robots.
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/demos/quadrupeds.py
+    ./isaaclab.sh -p source/standalone/demos/quadrupeds.py
 
 """
 
@@ -17,7 +17,7 @@ This script demonstrates different legged robots.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different legged robots.")
@@ -37,14 +37,15 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
-from omni.isaac.orbit_assets.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+from omni.isaac.lab_assets.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
+from omni.isaac.lab_assets.spot import SPOT_CFG  # isort:skip
+from omni.isaac.lab_assets.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -73,7 +74,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a mount and a robot on top of it
-    origins = define_origins(num_origins=6, spacing=1.25)
+    origins = define_origins(num_origins=7, spacing=1.25)
 
     # Origin 1 with Anymal B
     prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
@@ -105,6 +106,11 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
+    # Origin 7 with Boston Dynamics Spot
+    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[5])
+    # -- Robot
+    spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
+
     # return the scene information
     scene_entities = {
         "anymal_b": anymal_b,
@@ -113,6 +119,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         "unitree_a1": unitree_a1,
         "unitree_go1": unitree_go1,
         "unitree_go2": unitree_go2,
+        "spot": spot,
     }
     return scene_entities, origins
 

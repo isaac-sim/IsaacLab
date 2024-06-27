@@ -5,14 +5,14 @@ Cluster Guide
 =============
 
 Clusters are a great way to speed up training and evaluation of learning algorithms.
-While the Orbit Docker image can be used to run jobs on a cluster, many clusters only
+While the Isaac Lab Docker image can be used to run jobs on a cluster, many clusters only
 support singularity images. This is because `singularity`_ is designed for
 ease-of-use on shared multi-user systems and high performance computing (HPC) environments.
 It does not require root privileges to run containers and can be used to run user-defined
 containers.
 
 Singularity is compatible with all Docker images. In this section, we describe how to
-convert the Orbit Docker image into a singularity image and use it to submit jobs to a cluster.
+convert the Isaac Lab Docker image into a singularity image and use it to submit jobs to a cluster.
 
 .. attention::
 
@@ -65,9 +65,9 @@ The following describes the parameters that need to be configured:
   has to end on ``docker-isaac-sim``. This directory will be copied to the compute node
   and mounted into the singularity container. It should increase the speed of starting
   the simulation.
-- ``CLUSTER_ORBIT_DIR``:
-  The directory on the cluster where the orbit code is stored. This directory has to
-  end on ``orbit``. This directory will be copied to the compute node and mounted into
+- ``CLUSTER_ISAACLAB_DIR``:
+  The directory on the cluster where the Isaac Lab code is stored. This directory has to
+  end on ``isaaclab``. This directory will be copied to the compute node and mounted into
   the singularity container. When a job is submitted, the latest local changes will
   be copied to the cluster.
 - ``CLUSTER_LOGIN``:
@@ -77,7 +77,7 @@ The following describes the parameters that need to be configured:
   The path on the cluster where the singularity image will be stored. The image will be
   copied to the compute node but not uploaded again to the cluster when a job is submitted.
 - ``CLUSTER_PYTHON_EXECUTABLE``:
-  The path within orbit to the Python executable that should be executed in the submitted job.
+  The path within Isaac Lab to the Python executable that should be executed in the submitted job.
 
 Exporting to singularity image
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -146,8 +146,8 @@ To submit a job on the cluster, the following command can be used:
     ./docker/container.sh job [profile] "argument1" "argument2" ...
 
 This command will copy the latest changes in your code to the cluster and submit a job. Please ensure that
-your Python executable's output is stored under ``orbit/logs`` as this directory will be copied again
-from the compute node to ``CLUSTER_ORBIT_DIR``.
+your Python executable's output is stored under ``isaaclab/logs`` as this directory will be copied again
+from the compute node to ``CLUSTER_ISAACLAB_DIR``.
 
 ``[profile]`` is an optional argument that specifies which singularity image corresponding to the  container profile
 will be used. If no profile is specified, the default profile ``base`` will be used. The profile has be defined
@@ -159,15 +159,15 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 .. code:: bash
 
-    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --offscreen_render
+    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --enable_cameras
 
-The above will, in addition, also render videos of the training progress and store them under ``orbit/logs`` directory.
+The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 
 .. note::
 
     The ``./docker/container.sh job`` command will copy the latest changes in your code to the cluster. However,
     it will not delete any files that have been deleted locally. These files will still exist on the cluster
-    which can lead to issues. In this case, we recommend removing the ``CLUSTER_ORBIT_DIR`` directory on
+    which can lead to issues. In this case, we recommend removing the ``CLUSTER_ISAACLAB_DIR`` directory on
     the cluster and re-run the command.
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates how to run IsaacSim via the AppLauncher
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/tutorials/00_sim/launch_app.py
+    ./isaaclab.sh -p source/standalone/tutorials/00_sim/launch_app.py
 
 """
 
@@ -18,7 +18,7 @@ This script demonstrates how to run IsaacSim via the AppLauncher
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on running IsaacSim via the AppLauncher.")
@@ -41,7 +41,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.orbit.sim as sim_utils
+import omni.isaac.lab.sim as sim_utils
 
 
 def design_scene():

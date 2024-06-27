@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,16 +18,16 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit/omni/isaac/orbit"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks"))
-sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab/omni/isaac/lab"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks"))
+sys.path.insert(0, os.path.abspath("../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks"))
 
 # -- Project information -----------------------------------------------------
 
-project = "orbit"
-copyright = "2022-2024, The ORBIT Project Developers."
-author = "The ORBIT Project Developers."
+project = "Isaac Lab"
+copyright = "2022-2024, The Isaac Lab Project Developers."
+author = "The Isaac Lab Project Developers."
 
 version = "0.3.0"
 
@@ -51,6 +51,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_tabs.tabs",
 ]
 
 # mathjax hacks
@@ -159,8 +160,8 @@ autodoc_mock_imports = [
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
 # suppressed, ignored).
 suppress_warnings = [
-    # FIXME: *THIS IS TERRIBLE.* Generally speaking, we do want Sphinx to inform
-    # us about cross-referencing failures. Remove this hack entirely after Sphinx
+    # Generally speaking, we do want Sphinx to inform
+    # us about cross-referencing failures. Remove this entirely after Sphinx
     # resolves this open issue:
     #   https://github.com/sphinx-doc/sphinx/issues/4961
     # Squelch mostly ignorable warnings resembling:
@@ -186,7 +187,7 @@ language = "en"
 
 import sphinx_book_theme
 
-html_title = "orbit documentation"
+html_title = "Isaac Lab documentation"
 html_theme_path = [sphinx_book_theme.get_html_theme_path()]
 html_theme = "sphinx_book_theme"
 html_favicon = "source/_static/favicon.ico"
@@ -202,35 +203,34 @@ html_css_files = ["custom.css"]
 
 html_theme_options = {
     "collapse_navigation": True,
-    "repository_url": "https://github.com/NVIDIA-Omniverse/Orbit",
-    "announcement": "We have now released v0.3.0! Please use the latest version for the best experience.",
+    "repository_url": "https://github.com/isaac-sim/IsaacLab",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
     "show_toc_level": 1,
     "use_sidenotes": True,
     "logo": {
-        "text": "orbit documentation",
+        "text": "Isaac Lab documentation",
         "image_light": "source/_static/NVIDIA-logo-white.png",
         "image_dark": "source/_static/NVIDIA-logo-black.png",
     },
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/NVIDIA-Omniverse/Orbit",
+            "url": "https://github.com/isaac-sim/IsaacLab",
             "icon": "fa-brands fa-square-github",
             "type": "fontawesome",
         },
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-2023.1.1-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-4.0-silver.svg",
             "type": "url",
         },
         {
             "name": "Stars",
-            "url": "https://img.shields.io/github/stars/NVIDIA-Omniverse/Orbit?color=fedcba",
-            "icon": "https://img.shields.io/github/stars/NVIDIA-Omniverse/Orbit?color=fedcba",
+            "url": "https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba",
+            "icon": "https://img.shields.io/github/stars/isaac-sim/IsaacLab?color=fedcba",
             "type": "url",
         },
     ],

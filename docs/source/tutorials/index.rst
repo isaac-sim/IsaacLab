@@ -1,9 +1,9 @@
 Tutorials
 =========
 
-Welcome to the Orbit tutorials! These tutorials provide a step-by-step guide to help you understand
+Welcome to the Isaac Lab tutorials! These tutorials provide a step-by-step guide to help you understand
 and use various features of the framework. All the tutorials are written as Python scripts. You can
-find the source code for each tutorial in the ``source/standalone/tutorials`` directory of the Orbit
+find the source code for each tutorial in the ``source/standalone/tutorials`` directory of the Isaac Lab
 repository.
 
 .. note::

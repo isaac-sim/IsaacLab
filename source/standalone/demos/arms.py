@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates different single-arm manipulators.
 .. code-block:: bash
 
     # Usage
-    ./orbit.sh -p source/standalone/demos/arms.py
+    ./isaaclab.sh -p source/standalone/demos/arms.py
 
 """
 
@@ -17,7 +17,7 @@ This script demonstrates different single-arm manipulators.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates different single-arm manipulators.")
@@ -37,15 +37,15 @@ import torch
 
 import omni.isaac.core.utils.prims as prim_utils
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
 ##
 # isort: off
-from omni.isaac.orbit_assets import (
+from omni.isaac.lab_assets import (
     FRANKA_PANDA_CFG,
     UR10_CFG,
     KINOVA_JACO2_N7S300_CFG,

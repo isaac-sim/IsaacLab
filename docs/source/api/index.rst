@@ -1,17 +1,17 @@
 API Reference
 =============
 
-This page gives an overview of all the modules and classes in the Orbit extensions.
+This page gives an overview of all the modules and classes in the Isaac Lab extensions.
 
-omni.isaac.orbit extension
---------------------------
+omni.isaac.lab extension
+------------------------
 
-The following modules are available in the ``omni.isaac.orbit`` extension:
+The following modules are available in the ``omni.isaac.lab`` extension:
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 .. autosummary::
-   :toctree: orbit
+   :toctree: lab
 
    app
    actuators
@@ -30,22 +30,22 @@ The following modules are available in the ``omni.isaac.orbit`` extension:
 .. toctree::
    :hidden:
 
-   orbit/omni.isaac.orbit.envs.mdp
-   orbit/omni.isaac.orbit.envs.ui
-   orbit/omni.isaac.orbit.sensors.patterns
-   orbit/omni.isaac.orbit.sim.converters
-   orbit/omni.isaac.orbit.sim.schemas
-   orbit/omni.isaac.orbit.sim.spawners
+   lab/omni.isaac.lab.envs.mdp
+   lab/omni.isaac.lab.envs.ui
+   lab/omni.isaac.lab.sensors.patterns
+   lab/omni.isaac.lab.sim.converters
+   lab/omni.isaac.lab.sim.schemas
+   lab/omni.isaac.lab.sim.spawners
 
-omni.isaac.orbit_tasks extension
+omni.isaac.lab_tasks extension
 --------------------------------
 
-The following modules are available in the ``omni.isaac.orbit_tasks`` extension:
+The following modules are available in the ``omni.isaac.lab_tasks`` extension:
 
-.. currentmodule:: omni.isaac.orbit_tasks
+.. currentmodule:: omni.isaac.lab_tasks
 
 .. autosummary::
-   :toctree: orbit_tasks
+   :toctree: lab_tasks
 
    utils
 
@@ -53,5 +53,5 @@ The following modules are available in the ``omni.isaac.orbit_tasks`` extension:
 .. toctree::
    :hidden:
 
-   orbit_tasks/omni.isaac.orbit_tasks.utils.wrappers
-   orbit_tasks/omni.isaac.orbit_tasks.utils.data_collector
+   lab_tasks/omni.isaac.lab_tasks.utils.wrappers
+   lab_tasks/omni.isaac.lab_tasks.utils.data_collector

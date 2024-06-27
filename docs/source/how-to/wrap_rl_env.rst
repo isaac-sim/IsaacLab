@@ -4,13 +4,13 @@
 Wrapping environments
 =====================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 Environment wrappers are a way to modify the behavior of an environment without modifying the environment itself.
 This can be used to apply functions to modify observations or rewards, record videos, enforce time limits, etc.
 A detailed description of the API is available in the :class:`gymnasium.Wrapper` class.
 
-At present, all RL environments inheriting from the :class:`~envs.RLTaskEnv` class
+At present, all RL environments inheriting from the :class:`~envs.ManagerBasedRLEnv` class
 are compatible with :class:`gymnasium.Wrapper`, since the base class implements the :class:`gymnasium.Env` interface.
 In order to wrap an environment, you need to first initialize the base environment. After that, you can
 wrap it with as many wrappers as you want by calling ``env = wrapper(env, *args, **kwargs)`` repeatedly.
@@ -22,7 +22,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
     """Launch Isaac Sim Simulator first."""
 
 
-    from omni.isaac.orbit.app import AppLauncher
+    from omni.isaac.lab.app import AppLauncher
 
     # launch omniverse app in headless mode
     app_launcher = AppLauncher(headless=True)
@@ -32,8 +32,8 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     import gymnasium as gym
 
-    import omni.isaac.orbit_tasks  # noqa: F401
-    from omni.isaac.orbit_tasks.utils import load_cfg_from_registry
+    import omni.isaac.lab_tasks  # noqa: F401
+    from omni.isaac.lab_tasks.utils import load_cfg_from_registry
 
     # create base environment
     cfg = load_cfg_from_registry("Isaac-Reach-Franka-v0", "env_cfg_entry_point")
@@ -77,7 +77,7 @@ The camera's pose and image resolution can be configured through the
 .. dropdown:: Default parameters of the ViewerCfg class:
     :icon: code
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.orbit/omni/isaac/orbit/envs/base_env_cfg.py
+    .. literalinclude:: ../../../source/extensions/omni.isaac.lab/omni/isaac/lab/envs/base_env_cfg.py
         :language: python
         :pyobject: ViewerCfg
 
@@ -94,10 +94,10 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     """Launch Isaac Sim Simulator first."""
 
 
-    from omni.isaac.orbit.app import AppLauncher
+    from omni.isaac.lab.app import AppLauncher
 
     # launch omniverse app in headless mode with off-screen rendering
-    app_launcher = AppLauncher(headless=True, offscreen_render=True)
+    app_launcher = AppLauncher(headless=True, enable_cameras=True)
     simulation_app = app_launcher.app
 
     """Rest everything follows."""
@@ -125,9 +125,9 @@ Wrapper for learning frameworks
 
 Every learning framework has its own API for interacting with environments. For example, the
 `Stable-Baselines3`_ library uses the `gym.Env <https://gymnasium.farama.org/api/env/>`_
-interface to interact with environments. However, libraries like `RL-Games`_ or `RSL-RL`_
+interface to interact with environments. However, libraries like `RL-Games`_, `RSL-RL`_ or `SKRL`_
 use their own API for interfacing with a learning environments. Since there is no one-size-fits-all
-solution, we do not base the :class:`~envs.RLTaskEnv` class on any particular learning framework's
+solution, we do not base the :class:`~envs.ManagerBasedRLEnv` class on any particular learning framework's
 environment definition. Instead, we implement wrappers to make it compatible with the learning
 framework's environment definition.
 
@@ -135,7 +135,7 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 
 .. code:: python
 
-    from omni.isaac.orbit_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
+    from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
     # create isaac-env instance
     env = gym.make(task_name, cfg=env_cfg)
@@ -153,13 +153,14 @@ As an example of how to use the RL task environment with Stable-Baselines3:
 Adding new wrappers
 -------------------
 
-All new wrappers should be added to the :mod:`omni.isaac.orbit_tasks.utils.wrappers` module.
-They should check that the underlying environment is an instance of :class:`omni.isaac.orbit.envs.RLTaskEnv`
+All new wrappers should be added to the :mod:`omni.isaac.lab_tasks.utils.wrappers` module.
+They should check that the underlying environment is an instance of :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`
 before applying the wrapper. This can be done by using the :func:`unwrapped` property.
 
 We include a set of wrappers in this module that can be used as a reference to implement your own wrappers.
 If you implement a new wrapper, please consider contributing it to the framework by opening a pull request.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
+.. _SKRL: https://skrl.readthedocs.io
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _RSL-RL: https://github.com/leggedrobotics/rsl_rl

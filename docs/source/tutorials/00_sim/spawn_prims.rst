@@ -4,9 +4,9 @@
 Spawning prims into the scene
 =============================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
-This tutorial explores how to spawn various objects (or prims) into the scene in Orbit from Python.
+This tutorial explores how to spawn various objects (or prims) into the scene in Isaac Lab from Python.
 It builds upon the previous tutorial on running the simulator from a standalone script and
 demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes from USD files.
 
@@ -14,7 +14,7 @@ demonstrates how to spawn a ground plane, lights, primitive shapes, and meshes f
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``spawn_prims.py`` script in the ``orbit/source/standalone/tutorials/00_sim`` directory.
+The tutorial corresponds to the ``spawn_prims.py`` script in the ``source/standalone/tutorials/00_sim`` directory.
 Let's take a look at the Python script:
 
 .. dropdown:: Code for spawn_prims.py
@@ -46,7 +46,7 @@ A collection of these prims, with their attributes and relationships, is called 
 as a container for all prims in a scene. When we say we are designing a scene, we are actually designing a USD stage.
 
 While working with direct USD APIs provides a lot of flexibility, it can be cumbersome to learn and use. To make it
-easier to design scenes, Orbit builds on top of the USD APIs to provide a configuration-drive interface to spawn prims
+easier to design scenes, Isaac Lab builds on top of the USD APIs to provide a configuration-driven interface to spawn prims
 into a scene. These are included in the :mod:`sim.spawners` module.
 
 When spawning prims into the scene, each prim requires a configuration class instance that defines the prim's attributes
@@ -69,7 +69,7 @@ At a high-level, this is how it works:
 
 
 In this tutorial, we demonstrate the spawning of various different prims into the scene. For more
-information on the available spawners, please refer to the :mod:`sim.spawners` module in Orbit.
+information on the available spawners, please refer to the :mod:`sim.spawners` module in Isaac Lab.
 
 .. attention::
 
@@ -162,15 +162,15 @@ Similar to the tutorial before, to run the script, execute the following command
 
 .. code-block:: bash
 
-  ./orbit.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
+  ./isaaclab.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
 
 Once the simulation starts, you should see a window with a ground plane, a light, some cones, and a table.
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground
 plane. The other cones are visual elements and should not move. To stop the simulation, you can close the window,
 or press ``Ctrl+C`` in the terminal.
 
-This tutorial provided a foundation for spawning various prims into the scene in Orbit. Although simple, it
-demonstrates the basic concepts of scene designing in Orbit and how to use the spawners. In the coming tutorials,
+This tutorial provided a foundation for spawning various prims into the scene in Isaac Lab. Although simple, it
+demonstrates the basic concepts of scene designing in Isaac Lab and how to use the spawners. In the coming tutorials,
 we will now look at how to interact with the scene and the simulation.
 
 

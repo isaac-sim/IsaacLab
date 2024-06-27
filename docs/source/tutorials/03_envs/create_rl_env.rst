@@ -1,27 +1,27 @@
 .. _tutorial-create-rl-env:
 
 
-Creating an RL Environment
-==========================
+Creating a Manager-Based RL Environment
+=======================================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
-Having learnt how to create a base environment in :ref:`tutorial-create-base-env`, we will now look at how to create a
+Having learnt how to create a base environment in :ref:`tutorial-create-base-env`, we will now look at how to create a manager-based
 task environment for reinforcement learning.
 
 The base environment is designed as an sense-act environment where the agent can send commands to the environment
 and receive observations from the environment. This minimal interface is sufficient for many applications such as
 traditional motion planning and controls. However, many applications require a task-specification which often
 serves as the learning objective for the agent. For instance, in a navigation task, the agent may be required to
-reach a goal location. To this end, we use the :class:`envs.RLTaskEnv` class which extends the base environment
+reach a goal location. To this end, we use the :class:`envs.ManagerBasedRLEnv` class which extends the base environment
 to include a task specification.
 
-Similar to other components in Orbit, instead of directly modifying the base class :class:`RLTaskEnv`, we
-encourage users to  simply implement a configuration :class:`RLTaskEnvCfg` for their task environment.
+Similar to other components in Isaac Lab, instead of directly modifying the base class :class:`envs.ManagerBasedRLEnv`, we
+encourage users to simply implement a configuration :class:`envs.ManagerBasedRLEnvCfg` for their task environment.
 This practice allows us to separate the task specification from the environment implementation, making it easier
 to reuse components of the same environment for different tasks.
 
-In this tutorial, we will configure the cartpole environment using the :class:`RLTaskEnvCfg` to create a task
+In this tutorial, we will configure the cartpole environment using the :class:`envs.ManagerBasedRLEnvCfg` to create a manager-based task
 for balancing the pole upright. We will learn how to specify the task using reward terms, termination criteria,
 curriculum and commands.
 
@@ -29,20 +29,20 @@ curriculum and commands.
 The Code
 ~~~~~~~~
 
-For this tutorial, we use the cartpole environment defined in ``omni.isaac.orbit_tasks.classic.cartpole`` module.
+For this tutorial, we use the cartpole environment defined in ``omni.isaac.lab_tasks.manager_based.classic.cartpole`` module.
 
 .. dropdown:: Code for cartpole_env_cfg.py
    :icon: code
 
-   .. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+   .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
       :language: python
       :emphasize-lines: 63-68, 124-149, 152-162, 165-169, 187-192
       :linenos:
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
-``orbit/source/standalone/tutorials/03_envs`` directory. The script is similar to the
+``isaaclab/source/standalone/tutorials/03_envs`` directory. The script is similar to the
 ``cartpole_base_env.py`` script in the previous tutorial, except that it uses the
-:class:`envs.RLTaskEnv` instead of the :class:`envs.BaseEnv`.
+:class:`envs.ManagerBasedRLEnv` instead of the :class:`envs.ManagerBasedEnv`.
 
 .. dropdown:: Code for run_cartpole_rl_env.py
    :icon: code
@@ -60,10 +60,10 @@ We already went through parts of the above in the :ref:`tutorial-create-base-env
 about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.
 
-In Orbit, we provide various implementations of different terms in the :mod:`envs.mdp` module. We will use
+In Isaac Lab, we provide various implementations of different terms in the :mod:`envs.mdp` module. We will use
 some of these terms in this tutorial, but users are free to define their own terms as well. These
 are usually placed in their task-specific sub-package
-(for instance, in :mod:`omni.isaac.orbit_tasks.classic.cartpole.mdp`).
+(for instance, in :mod:`omni.isaac.lab_tasks.manager_based.classic.cartpole.mdp`).
 
 
 Defining rewards
@@ -83,7 +83,7 @@ For the cartpole task, we will use the following reward terms:
 * **Cart Velocity Reward**: Encourage the agent to keep the cart velocity as small as possible.
 * **Pole Velocity Reward**: Encourage the agent to keep the pole velocity as small as possible.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: RewardsCfg
 
@@ -106,7 +106,7 @@ The flag :attr:`managers.TerminationsCfg.time_out` specifies whether the term is
 or terminated term. These are used to indicate the two types of terminations as described in `Gymnasium's documentation
 <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: TerminationsCfg
 
@@ -121,7 +121,7 @@ For this simple task, we do not use any commands. This is specified by using a c
 :class:`envs.mdp.NullCommandCfg` configuration. However, you can see an example of command definitions in the
 locomotion or manipulation tasks.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CommandsCfg
 
@@ -129,25 +129,25 @@ Defining curriculum
 -------------------
 
 Often times when training a learning agent, it helps to start with a simple task and gradually increase the
-tasks's difficulty as the agent training progresses. This is the idea behind curriculum learning. In Orbit,
+tasks's difficulty as the agent training progresses. This is the idea behind curriculum learning. In Isaac Lab,
 we provide a :class:`managers.CurriculumManager` class that can be used to define a curriculum for your environment.
 
 In this tutorial we don't implement a curriculum for simplicity, but you can see an example of a
 curriculum definition in the other locomotion or manipulation tasks.
 We use a simple pass-through curriculum to define a curriculum manager that does not modify the environment.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CurriculumCfg
 
 Tying it all together
 ---------------------
 
-With all the above components defined, we can now create the :class:`RLTaskEnvCfg` configuration for the
-cartpole environment. This is similar to the :class:`BaseEnvCfg` defined in :ref:`tutorial-create-base-env`,
+With all the above components defined, we can now create the :class:`ManagerBasedRLEnvCfg` configuration for the
+cartpole environment. This is similar to the :class:`ManagerBasedEnvCfg` defined in :ref:`tutorial-create-base-env`,
 only with the added RL components explained in the above sections.
 
-.. literalinclude:: ../../../../source/extensions/omni.isaac.orbit_tasks/omni/isaac/orbit_tasks/classic/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
    :language: python
    :pyobject: CartpoleEnvCfg
 
@@ -155,8 +155,8 @@ Running the simulation loop
 ---------------------------
 
 Coming back to the ``run_cartpole_rl_env.py`` script, the simulation loop is similar to the previous tutorial.
-The only difference is that we create an instance of :class:`envs.RLTaskEnv` instead of the
-:class:`envs.BaseEnv`. Consequently, now the :meth:`envs.RLTaskEnv.step` method returns additional signals
+The only difference is that we create an instance of :class:`envs.ManagerBasedRLEnv` instead of the
+:class:`envs.ManagerBasedEnv`. Consequently, now the :meth:`envs.ManagerBasedRLEnv.step` method returns additional signals
 such as the reward and termination status. The information dictionary also maintains logging of quantities
 such as the reward contribution from individual terms, the termination status of each term, the episode length etc.
 
@@ -172,7 +172,7 @@ Similar to the previous tutorial, we can run the environment by executing the ``
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
+   ./isaaclab.sh -p source/standalone/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
 
 
 This should open a similar simulation as in the previous tutorial. However, this time, the environment
@@ -185,10 +185,10 @@ where you started the simulation.
 
 In this tutorial, we learnt how to create a task environment for reinforcement learning. We do this
 by extending the base environment to include the rewards, terminations, commands and curriculum terms.
-We also learnt how to use the :class:`envs.RLTaskEnv` class to run the environment and receive various
+We also learnt how to use the :class:`envs.ManagerBasedRLEnv` class to run the environment and receive various
 signals from it.
 
-While it is possible to manually create an instance of :class:`envs.RLTaskEnv` class for a desired task,
+While it is possible to manually create an instance of :class:`envs.ManagerBasedRLEnv` class for a desired task,
 this is not scalable as it requires specialized scripts for each task. Thus, we exploit the
 :meth:`gymnasium.make` function to create the environment with the gym interface. We will learn how to do this
 in the next tutorial.

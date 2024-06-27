@@ -1,10 +1,10 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script shows how to use the camera sensor from the Orbit framework.
+This script shows how to use the camera sensor from the Isaac Lab framework.
 
 The camera sensor is created and interfaced through the Omniverse Replicator API. However, instead of using
 the simulator or OpenGL convention for the camera, we use the robotics or ROS convention.
@@ -12,10 +12,10 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 .. code-block:: bash
 
     # Usage with GUI
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py
 
     # Usage with headless
-    ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --offscreen_render
+    ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --headless --enable_cameras
 
 """
 
@@ -23,7 +23,7 @@ the simulator or OpenGL convention for the camera, we use the robotics or ROS co
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
@@ -54,6 +54,7 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -68,13 +69,13 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 import omni.replicator.core as rep
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
-from omni.isaac.orbit.markers import VisualizationMarkers
-from omni.isaac.orbit.markers.config import RAY_CASTER_MARKER_CFG
-from omni.isaac.orbit.sensors.camera import Camera, CameraCfg
-from omni.isaac.orbit.sensors.camera.utils import create_pointcloud_from_depth
-from omni.isaac.orbit.utils import convert_dict_to_backend
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.markers import VisualizationMarkers
+from omni.isaac.lab.markers.config import RAY_CASTER_MARKER_CFG
+from omni.isaac.lab.sensors.camera import Camera, CameraCfg
+from omni.isaac.lab.sensors.camera.utils import create_pointcloud_from_depth
+from omni.isaac.lab.utils import convert_dict_to_backend
 
 
 def define_sensor() -> Camera:
@@ -235,12 +236,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_info = camera.data.info[camera_index]
 
             # Pack data back into replicator format to save them using its writer
-            rep_output = dict()
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
-                if info is not None:
-                    rep_output[key] = {"data": data, "info": info}
-                else:
-                    rep_output[key] = data
+            if sim.get_version()[0] == 4:
+                rep_output = {"annotators": {}}
+                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                    if info is not None:
+                        rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
+                    else:
+                        rep_output["annotators"][key] = {"render_product": {"data": data}}
+            else:
+                rep_output = dict()
+                for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+                    if info is not None:
+                        rep_output[key] = {"data": data, "info": info}
+                    else:
+                        rep_output[key] = data
             # Save images
             # Note: We need to provide On-time data for Replicator to save the images.
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
