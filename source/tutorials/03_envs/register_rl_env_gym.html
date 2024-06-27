@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Registering an Environment &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/register_rl_env_gym';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -207,7 +205,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +330,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +361,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -521,9 +521,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -567,7 +567,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="registering-an-environment">
-<h1>Registering an Environment<a class="headerlink" href="#registering-an-environment" title="Permalink to this heading">#</a></h1>
+<h1>Registering an Environment<a class="headerlink" href="#registering-an-environment" title="Link to this heading">#</a></h1>
 <p>In the previous tutorial, we learned how to create a custom cartpole environment. We manually
 created an instance of the environment by importing the environment class and its configuration
 class.</p>
@@ -605,7 +605,7 @@ the <code class="xref py py-meth docutils literal notranslate"><span class="pre"
 </div>
 </div>
 </details><section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">random_agent.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/environments</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -686,7 +686,7 @@ the <code class="xref py py-meth docutils literal notranslate"><span class="pre"
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
 <p>The <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class inherits from the <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> class to follow
 a standard interface. However, unlike the traditional Gym environments, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a>
 implements a <em>vectorized</em> environment. This means that multiple environment instances
@@ -695,7 +695,7 @@ fashion.</p>
 <p>Similarly, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnv</span></code></a> class also inherits from the <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">gymnasium.Env</span></code></a> class
 for the direct workflow.</p>
 <section id="using-the-gym-registry">
-<h3>Using the gym registry<a class="headerlink" href="#using-the-gym-registry" title="Permalink to this heading">#</a></h3>
+<h3>Using the gym registry<a class="headerlink" href="#using-the-gym-registry" title="Link to this heading">#</a></h3>
 <p>To register an environment, we use the <code class="xref py py-meth docutils literal notranslate"><span class="pre">gymnasium.register()</span></code> method. This method takes
 in the environment name, the entry point to the environment class, and the entry point to the
 environment configuration class.</p>
@@ -706,7 +706,7 @@ environment names are unique. Otherwise, the registry will throw an error when r
 the environment.</p>
 </div>
 <section id="manager-based-environments">
-<h4>Manager-Based Environments<a class="headerlink" href="#manager-based-environments" title="Permalink to this heading">#</a></h4>
+<h4>Manager-Based Environments<a class="headerlink" href="#manager-based-environments" title="Link to this heading">#</a></h4>
 <p>For manager-based environments, the following shows the registration
 call for the cartpole environment in the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.manager_based.classic.cartpole</span></code> sub-package:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
@@ -749,7 +749,7 @@ It is then passed to the <code class="xref py py-meth docutils literal notransla
 The configuration entry point can be both a YAML file or a python configuration class.</p>
 </section>
 <section id="direct-environments">
-<h4>Direct Environments<a class="headerlink" href="#direct-environments" title="Permalink to this heading">#</a></h4>
+<h4>Direct Environments<a class="headerlink" href="#direct-environments" title="Link to this heading">#</a></h4>
 <p>For direct-based environments, the environment registration follows a similar pattern. Instead of
 registering the environment’s entry point as the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code></a> class,
 we register the environment’s entry point as the implementation class of the environment.
@@ -784,7 +784,7 @@ manager-based environments.</p>
 </section>
 </section>
 <section id="creating-the-environment">
-<h3>Creating the environment<a class="headerlink" href="#creating-the-environment" title="Permalink to this heading">#</a></h3>
+<h3>Creating the environment<a class="headerlink" href="#creating-the-environment" title="Link to this heading">#</a></h3>
 <p>To inform the <code class="docutils literal notranslate"><span class="pre">gym</span></code> registry with all the environments provided by the <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks</span></code>
 extension, we must import the module at the start of the script. This will execute the <code class="docutils literal notranslate"><span class="pre">__init__.py</span></code>
 file which iterates over all the sub-packages and registers their respective environments.</p>
@@ -807,7 +807,7 @@ and whether to render, are used to override the default configuration.</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/random_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span>
 </pre></div>

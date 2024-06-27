@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../" id="documentation_options" src="../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../_static/doctools.js"></script>
-    <script src="../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../_static/tabs.js"></script>
-    <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/managers/action_manager';</script>
     <link rel="icon" href="../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -510,7 +509,9 @@ document.write(`
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
-<div class="viewcode-block" id="ActionTerm"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm">[docs]</a><span class="k">class</span> <span class="nc">ActionTerm</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+<div class="viewcode-block" id="ActionTerm">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm">[docs]</a>
+<span class="k">class</span> <span class="nc">ActionTerm</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for action terms.</span>
 
 <span class="sd">    The action term is responsible for processing the raw actions sent to the environment</span>
@@ -523,7 +524,9 @@ document.write(`
 <span class="sd">      responsible for applying the processed actions to the asset managed by the term.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ActionTerm.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ActionTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="ActionTerm.__init__">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">ActionTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the action term.</span>
 
 <span class="sd">        Args:</span>
@@ -539,6 +542,7 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_debug_vis_handle</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1"># set initial state of debug visualization</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span><span class="p">)</span></div>
+
 
     <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribe from the callbacks.&quot;&quot;&quot;</span>
@@ -579,7 +583,9 @@ document.write(`
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ActionTerm.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.set_debug_vis">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="ActionTerm.set_debug_vis">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.set_debug_vis">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets whether to visualize the action term data.</span>
 <span class="sd">        Args:</span>
 <span class="sd">            debug_vis: Whether to visualize the action term data.</span>
@@ -608,7 +614,10 @@ document.write(`
         <span class="c1"># return success</span>
         <span class="k">return</span> <span class="kc">True</span></div>
 
-<div class="viewcode-block" id="ActionTerm.process_actions"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.process_actions">[docs]</a>    <span class="nd">@abstractmethod</span>
+
+<div class="viewcode-block" id="ActionTerm.process_actions">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.process_actions">[docs]</a>
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">process_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">actions</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Processes the actions sent to the environment.</span>
 
@@ -620,7 +629,10 @@ document.write(`
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
-<div class="viewcode-block" id="ActionTerm.apply_actions"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.apply_actions">[docs]</a>    <span class="nd">@abstractmethod</span>
+
+<div class="viewcode-block" id="ActionTerm.apply_actions">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionTerm.apply_actions">[docs]</a>
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span> <span class="nf">apply_actions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Applies the actions to the asset managed by the term.</span>
 
@@ -628,6 +640,7 @@ document.write(`
 <span class="sd">            This is called at every simulation step by the manager.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
 
     <span class="k">def</span> <span class="nf">_set_debug_vis_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Set debug visualization into visualization objects.</span>
@@ -644,7 +657,10 @@ document.write(`
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Debug visualization is not implemented for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="ActionManager"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager">[docs]</a><span class="k">class</span> <span class="nc">ActionManager</span><span class="p">(</span><span class="n">ManagerBase</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ActionManager">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager">[docs]</a>
+<span class="k">class</span> <span class="nc">ActionManager</span><span class="p">(</span><span class="n">ManagerBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Manager for processing and applying actions for a given world.</span>
 
 <span class="sd">    The action manager handles the interpretation and application of user-defined</span>
@@ -659,7 +675,9 @@ document.write(`
 <span class="sd">      scene (such as robots). It should be called before every simulation step.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ActionManager.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="ActionManager.__init__">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the action manager.</span>
 
 <span class="sd">        Args:</span>
@@ -674,6 +692,7 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span> <span class="o">|=</span> <span class="n">term</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug_vis</span></div>
+
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns: A string representation for action manager.&quot;&quot;&quot;</span>
@@ -737,7 +756,9 @@ document.write(`
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="ActionManager.set_debug_vis"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.set_debug_vis">[docs]</a>    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<div class="viewcode-block" id="ActionManager.set_debug_vis">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.set_debug_vis">[docs]</a>
+    <span class="k">def</span> <span class="nf">set_debug_vis</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug_vis</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Sets whether to visualize the action data.</span>
 <span class="sd">        Args:</span>
 <span class="sd">            debug_vis: Whether to visualize the action data.</span>
@@ -748,7 +769,10 @@ document.write(`
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">term</span><span class="o">.</span><span class="n">set_debug_vis</span><span class="p">(</span><span class="n">debug_vis</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="ActionManager.reset"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+
+<div class="viewcode-block" id="ActionManager.reset">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.reset">[docs]</a>
+    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Resets the action history.</span>
 
 <span class="sd">        Args:</span>
@@ -770,7 +794,10 @@ document.write(`
         <span class="c1"># nothing to log here</span>
         <span class="k">return</span> <span class="p">{}</span></div>
 
-<div class="viewcode-block" id="ActionManager.process_action"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.process_action">[docs]</a>    <span class="k">def</span> <span class="nf">process_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ActionManager.process_action">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.process_action">[docs]</a>
+    <span class="k">def</span> <span class="nf">process_action</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Processes the actions sent to the environment.</span>
 
 <span class="sd">        Note:</span>
@@ -793,7 +820,10 @@ document.write(`
             <span class="n">term</span><span class="o">.</span><span class="n">process_actions</span><span class="p">(</span><span class="n">term_actions</span><span class="p">)</span>
             <span class="n">idx</span> <span class="o">+=</span> <span class="n">term</span><span class="o">.</span><span class="n">action_dim</span></div>
 
-<div class="viewcode-block" id="ActionManager.apply_action"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.apply_action">[docs]</a>    <span class="k">def</span> <span class="nf">apply_action</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+
+<div class="viewcode-block" id="ActionManager.apply_action">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.apply_action">[docs]</a>
+    <span class="k">def</span> <span class="nf">apply_action</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Applies the actions to the environment/simulation.</span>
 
 <span class="sd">        Note:</span>
@@ -802,7 +832,10 @@ document.write(`
         <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">term</span><span class="o">.</span><span class="n">apply_actions</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ActionManager.get_term"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.get_term">[docs]</a>    <span class="k">def</span> <span class="nf">get_term</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActionTerm</span><span class="p">:</span>
+
+<div class="viewcode-block" id="ActionManager.get_term">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.ActionManager.get_term">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_term</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ActionTerm</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the action term with the specified name.</span>
 
 <span class="sd">        Args:</span>
@@ -812,6 +845,7 @@ document.write(`
 <span class="sd">            The action term with the specified name.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="p">[</span><span class="n">name</span><span class="p">]</span></div>
+
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Helper functions.</span>
@@ -846,6 +880,7 @@ document.write(`
             <span class="c1"># add term name and parameters</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_name</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_terms</span><span class="p">[</span><span class="n">term_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">term</span></div>
+
 </pre></div>
 
                 </article>

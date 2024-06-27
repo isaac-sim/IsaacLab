@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../../_static/doctools.js"></script>
-    <script src="../../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../../_static/tabs.js"></script>
-    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sensors/camera/tiled_camera';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -510,7 +509,9 @@ document.write(`
     <span class="kn">from</span> <span class="nn">.camera_cfg</span> <span class="kn">import</span> <span class="n">TiledCameraCfg</span>
 
 
-<div class="viewcode-block" id="TiledCamera"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera">[docs]</a><span class="k">class</span> <span class="nc">TiledCamera</span><span class="p">(</span><span class="n">Camera</span><span class="p">):</span>
+<div class="viewcode-block" id="TiledCamera">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera">[docs]</a>
+<span class="k">class</span> <span class="nc">TiledCamera</span><span class="p">(</span><span class="n">Camera</span><span class="p">):</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;The tiled rendering based camera sensor for acquiring RGB and depth data.</span>
 
 <span class="sd">    This class inherits from the :class:`Camera` class but uses the tiled-rendering API from Replicator to acquire</span>
@@ -541,7 +542,9 @@ document.write(`
     <span class="n">SUPPORTED_TYPES</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;rgb&quot;</span><span class="p">,</span> <span class="s2">&quot;depth&quot;</span><span class="p">}</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The set of sensor types that are supported.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TiledCamera.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span><span class="p">):</span>
+<div class="viewcode-block" id="TiledCamera.__init__">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">TiledCameraCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the tiled camera sensor.</span>
 
 <span class="sd">        Args:</span>
@@ -552,6 +555,7 @@ document.write(`
 <span class="sd">            ValueError: If the provided data types are not supported by the camera.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span></div>
+
 
     <span class="k">def</span> <span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Unsubscribes from callbacks and detach from the replicator registry.&quot;&quot;&quot;</span>
@@ -575,7 +579,9 @@ document.write(`
 <span class="sd">    Operations</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="TiledCamera.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="TiledCamera.reset">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.TiledCamera.reset">[docs]</a>
+    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_initialized</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
                 <span class="s2">&quot;TiledCamera could not be initialized. Please ensure --enable_cameras is used to enable rendering.&quot;</span>
@@ -587,6 +593,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="c1"># reset the frame count</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></div>
+
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Implementation.</span>
@@ -751,6 +758,7 @@ document.write(`
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
         <span class="c1"># set all existing views to None to invalidate them</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="kc">None</span></div>
+
 </pre></div>
 
                 </article>

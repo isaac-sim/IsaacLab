@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../../_static/doctools.js"></script>
-    <script src="../../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../../_static/tabs.js"></script>
-    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab_tasks/utils/wrappers/rl_games';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -532,7 +531,9 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper">[docs]</a><span class="k">class</span> <span class="nc">RlGamesVecEnvWrapper</span><span class="p">(</span><span class="n">IVecEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="RlGamesVecEnvWrapper">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper">[docs]</a>
+<span class="k">class</span> <span class="nc">RlGamesVecEnvWrapper</span><span class="p">(</span><span class="n">IVecEnv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Wraps around Isaac Lab environment for RL-Games.</span>
 
 <span class="sd">    This class wraps around the Isaac Lab environment. Since RL-Games works directly on</span>
@@ -563,7 +564,9 @@ document.write(`
 <span class="sd">        https://github.com/NVIDIA-Omniverse/IsaacGymEnvs</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">rl_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">clip_obs</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+<div class="viewcode-block" id="RlGamesVecEnvWrapper.__init__">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">rl_device</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">clip_obs</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the wrapper instance.</span>
 
 <span class="sd">        Args:</span>
@@ -591,6 +594,7 @@ document.write(`
             <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">rlg_num_states</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the wrapper name and the :attr:`env` representation string.&quot;&quot;&quot;</span>
@@ -646,10 +650,13 @@ document.write(`
         <span class="c1">#   in ManagerBasedRLEnv we are setting action space as (-inf, inf).</span>
         <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_actions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_actions</span><span class="p">,</span> <span class="n">action_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper.class_name"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.class_name">[docs]</a>    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="RlGamesVecEnvWrapper.class_name">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.class_name">[docs]</a>
+    <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">class_name</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the class name of the wrapper.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span></div>
+
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">unwrapped</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ManagerBasedRLEnv</span><span class="p">:</span>
@@ -692,17 +699,23 @@ document.write(`
         <span class="c1">#   in ManagerBasedRLEnv we are setting action space as (-inf, inf).</span>
         <span class="k">return</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clip_obs</span><span class="p">,</span> <span class="n">critic_obs_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper.get_number_of_agents"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.get_number_of_agents">[docs]</a>    <span class="k">def</span> <span class="nf">get_number_of_agents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<div class="viewcode-block" id="RlGamesVecEnvWrapper.get_number_of_agents">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.get_number_of_agents">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_number_of_agents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns number of actors in the environment.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;num_agents&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="RlGamesVecEnvWrapper.get_env_info"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.get_env_info">[docs]</a>    <span class="k">def</span> <span class="nf">get_env_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+
+<div class="viewcode-block" id="RlGamesVecEnvWrapper.get_env_info">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesVecEnvWrapper.get_env_info">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_env_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the Gym spaces for the environment.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">&quot;observation_space&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_space</span><span class="p">,</span>
             <span class="s2">&quot;action_space&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_space</span><span class="p">,</span>
             <span class="s2">&quot;state_space&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_space</span><span class="p">,</span>
         <span class="p">}</span></div>
+
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP</span>
@@ -789,17 +802,22 @@ document.write(`
             <span class="k">return</span> <span class="n">obs</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Environment Handler.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="RlGamesGpuEnv"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv">[docs]</a><span class="k">class</span> <span class="nc">RlGamesGpuEnv</span><span class="p">(</span><span class="n">IVecEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="RlGamesGpuEnv">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv">[docs]</a>
+<span class="k">class</span> <span class="nc">RlGamesGpuEnv</span><span class="p">(</span><span class="n">IVecEnv</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Thin wrapper to create instance of the environment to fit RL-Games runner.&quot;&quot;&quot;</span>
 
     <span class="c1"># TODO: Adding this for now but do we really need this?</span>
 
-<div class="viewcode-block" id="RlGamesGpuEnv.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">num_actors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="RlGamesGpuEnv.__init__">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">num_actors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the environment.</span>
 
 <span class="sd">        Args:</span>
@@ -808,13 +826,16 @@ document.write(`
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">:</span> <span class="n">RlGamesVecEnvWrapper</span> <span class="o">=</span> <span class="n">env_configurations</span><span class="o">.</span><span class="n">configurations</span><span class="p">[</span><span class="n">config_name</span><span class="p">][</span><span class="s2">&quot;env_creator&quot;</span><span class="p">](</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
+
     <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># noqa: D102</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 
-<div class="viewcode-block" id="RlGamesGpuEnv.get_number_of_agents"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.get_number_of_agents">[docs]</a>    <span class="k">def</span> <span class="nf">get_number_of_agents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<div class="viewcode-block" id="RlGamesGpuEnv.get_number_of_agents">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.get_number_of_agents">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_number_of_agents</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get number of agents in the environment.</span>
 
 <span class="sd">        Returns:</span>
@@ -822,13 +843,18 @@ document.write(`
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_number_of_agents</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="RlGamesGpuEnv.get_env_info"><a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.get_env_info">[docs]</a>    <span class="k">def</span> <span class="nf">get_env_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+
+<div class="viewcode-block" id="RlGamesGpuEnv.get_env_info">
+<a class="viewcode-back" href="../../../../../../source/api/lab_tasks/omni.isaac.lab_tasks.utils.wrappers.html#omni.isaac.lab_tasks.utils.wrappers.rl_games.RlGamesGpuEnv.get_env_info">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_env_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the Gym spaces for the environment.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            The Gym spaces for the environment.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_env_info</span><span class="p">()</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_env_info</span><span class="p">()</span></div>
+</div>
+
 </pre></div>
 
                 </article>

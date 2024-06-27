@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Interacting with an articulation &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/01_assets/run_articulation';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -207,7 +205,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +330,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +361,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -521,9 +521,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -568,13 +568,13 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="interacting-with-an-articulation">
-<span id="tutorial-interact-articulation"></span><h1>Interacting with an articulation<a class="headerlink" href="#interacting-with-an-articulation" title="Permalink to this heading">#</a></h1>
+<span id="tutorial-interact-articulation"></span><h1>Interacting with an articulation<a class="headerlink" href="#interacting-with-an-articulation" title="Link to this heading">#</a></h1>
 <p>This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
 <a class="reference internal" href="run_rigid_object.html#tutorial-interact-rigid-object"><span class="std std-ref">Interacting with a rigid object</span></a> tutorial, where we learned how to interact with a rigid object.
 On top of setting the root state, we will see how to set the joint state and apply commands to the articulated
 robot.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">run_articulation.py</span></code> script in the <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/01_assets</span></code>
 directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -727,9 +727,9 @@ directory.</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
 <section id="designing-the-scene">
-<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Permalink to this heading">#</a></h3>
+<h3>Designing the scene<a class="headerlink" href="#designing-the-scene" title="Link to this heading">#</a></h3>
 <p>Similar to the previous tutorial, we populate the scene with a ground plane and a distant light. Instead of
 spawning rigid objects, we now spawn a cart-pole articulation from its USD file. The cart-pole is a simple robot
 consisting of a cart and a pole attached to it. The cart is free to move along the x-axis, and the pole is free to
@@ -757,11 +757,11 @@ an instance of the <a class="reference internal" href="../../api/lab/omni.isaac.
 </div>
 </section>
 <section id="running-the-simulation-loop">
-<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
+<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Link to this heading">#</a></h3>
 <p>Continuing from the previous tutorial, we reset the simulation at regular intervals, set commands to the articulation,
 step the simulation, and update the articulation’s internal buffers.</p>
 <section id="resetting-the-simulation">
-<h4>Resetting the simulation<a class="headerlink" href="#resetting-the-simulation" title="Permalink to this heading">#</a></h4>
+<h4>Resetting the simulation<a class="headerlink" href="#resetting-the-simulation" title="Link to this heading">#</a></h4>
 <p>Similar to a rigid object, an articulation also has a root state. This state corresponds to the root body in the
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.</p>
@@ -785,7 +785,7 @@ Finally, we call the <code class="xref py py-meth docutils literal notranslate">
 </div>
 </section>
 <section id="stepping-the-simulation">
-<h4>Stepping the simulation<a class="headerlink" href="#stepping-the-simulation" title="Permalink to this heading">#</a></h4>
+<h4>Stepping the simulation<a class="headerlink" href="#stepping-the-simulation" title="Link to this heading">#</a></h4>
 <p>Applying commands to the articulation involves two steps:</p>
 <ol class="arabic simple">
 <li><p><em>Setting the joint targets</em>: This sets the desired joint position, velocity, or effort targets for the articulation.</p></li>
@@ -810,7 +810,7 @@ the simulation.</p>
 </div>
 </section>
 <section id="updating-the-state">
-<h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Permalink to this heading">#</a></h4>
+<h4>Updating the state<a class="headerlink" href="#updating-the-state" title="Link to this heading">#</a></h4>
 <p>Every articulation class contains a <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData" title="omni.isaac.lab.assets.ArticulationData"><code class="xref py py-class docutils literal notranslate"><span class="pre">assets.ArticulationData</span></code></a> object. This stores the state of the
 articulation. To update the state inside the buffer, we call the <a class="reference internal" href="../../api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.update" title="omni.isaac.lab.assets.Articulation.update"><code class="xref py py-meth docutils literal notranslate"><span class="pre">assets.Articulation.update()</span></code></a> method.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># Update buffers</span>
@@ -821,7 +821,7 @@ articulation. To update the state inside the buffer, we call the <a class="refer
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>To run the code and see the results, let’s run the script from the terminal:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/01_assets/run_articulation.py
 </pre></div>

@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../../_static/doctools.js"></script>
-    <script src="../../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../../_static/tabs.js"></script>
-    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/mdp/events';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -515,7 +514,9 @@ document.write(`
     <span class="kn">from</span> <span class="nn">omni.isaac.lab.envs</span> <span class="kn">import</span> <span class="n">ManagerBasedEnv</span>
 
 
-<div class="viewcode-block" id="randomize_rigid_body_material"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_material</span><span class="p">(</span>
+<div class="viewcode-block" id="randomize_rigid_body_material">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_material">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_rigid_body_material</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">static_friction_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -606,7 +607,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="add_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.add_body_mass">[docs]</a><span class="k">def</span> <span class="nf">add_body_mass</span><span class="p">(</span>
+
+<div class="viewcode-block" id="add_body_mass">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.add_body_mass">[docs]</a>
+<span class="k">def</span> <span class="nf">add_body_mass</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">mass_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -632,7 +636,10 @@ document.write(`
     <span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="randomize_rigid_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>
+
+<div class="viewcode-block" id="randomize_rigid_body_mass">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
@@ -680,7 +687,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_masses</span><span class="p">(</span><span class="n">masses</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="randomize_physics_scene_gravity"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a><span class="k">def</span> <span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
+
+<div class="viewcode-block" id="randomize_physics_scene_gravity">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_physics_scene_gravity">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_physics_scene_gravity</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">gravity_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
@@ -714,7 +724,10 @@ document.write(`
     <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_gravity</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">Float3</span><span class="p">(</span><span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span></div>
 
 
-<div class="viewcode-block" id="randomize_actuator_gains"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_actuator_gains">[docs]</a><span class="k">def</span> <span class="nf">randomize_actuator_gains</span><span class="p">(</span>
+
+<div class="viewcode-block" id="randomize_actuator_gains">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_actuator_gains">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_actuator_gains</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
@@ -784,7 +797,10 @@ document.write(`
         <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_damping_to_sim</span><span class="p">(</span><span class="n">damping</span><span class="p">,</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="randomize_joint_parameters"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_joint_parameters">[docs]</a><span class="k">def</span> <span class="nf">randomize_joint_parameters</span><span class="p">(</span>
+
+<div class="viewcode-block" id="randomize_joint_parameters">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_joint_parameters">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_joint_parameters</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
@@ -870,7 +886,10 @@ document.write(`
         <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_limits_to_sim</span><span class="p">(</span><span class="n">dof_limits</span><span class="p">[</span><span class="n">env_ids</span><span class="p">][:,</span> <span class="n">joint_ids</span><span class="p">],</span> <span class="n">joint_ids</span><span class="o">=</span><span class="n">joint_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="randomize_fixed_tendon_parameters"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_fixed_tendon_parameters">[docs]</a><span class="k">def</span> <span class="nf">randomize_fixed_tendon_parameters</span><span class="p">(</span>
+
+<div class="viewcode-block" id="randomize_fixed_tendon_parameters">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_fixed_tendon_parameters">[docs]</a>
+<span class="k">def</span> <span class="nf">randomize_fixed_tendon_parameters</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
@@ -1005,7 +1024,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_fixed_tendon_properties_to_sim</span><span class="p">(</span><span class="n">fixed_tendon_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="apply_external_force_torque"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.apply_external_force_torque">[docs]</a><span class="k">def</span> <span class="nf">apply_external_force_torque</span><span class="p">(</span>
+
+<div class="viewcode-block" id="apply_external_force_torque">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.apply_external_force_torque">[docs]</a>
+<span class="k">def</span> <span class="nf">apply_external_force_torque</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">force_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -1036,7 +1058,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">torques</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">body_ids</span><span class="o">=</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="push_by_setting_velocity"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.push_by_setting_velocity">[docs]</a><span class="k">def</span> <span class="nf">push_by_setting_velocity</span><span class="p">(</span>
+
+<div class="viewcode-block" id="push_by_setting_velocity">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.push_by_setting_velocity">[docs]</a>
+<span class="k">def</span> <span class="nf">push_by_setting_velocity</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">velocity_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -1064,7 +1089,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">vel_w</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_root_state_uniform"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_uniform">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_uniform</span><span class="p">(</span>
+
+<div class="viewcode-block" id="reset_root_state_uniform">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_uniform">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_root_state_uniform</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -1109,7 +1137,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">velocities</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_root_state_with_random_orientation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_with_random_orientation">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_with_random_orientation</span><span class="p">(</span>
+
+<div class="viewcode-block" id="reset_root_state_with_random_orientation">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_with_random_orientation">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_root_state_with_random_orientation</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -1161,7 +1192,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">velocities</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_root_state_from_terrain"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_from_terrain">[docs]</a><span class="k">def</span> <span class="nf">reset_root_state_from_terrain</span><span class="p">(</span>
+
+<div class="viewcode-block" id="reset_root_state_from_terrain">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_root_state_from_terrain">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_root_state_from_terrain</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">pose_range</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
@@ -1228,7 +1262,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">velocities</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_joints_by_scale"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_scale">[docs]</a><span class="k">def</span> <span class="nf">reset_joints_by_scale</span><span class="p">(</span>
+
+<div class="viewcode-block" id="reset_joints_by_scale">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_scale">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_joints_by_scale</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">position_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -1261,7 +1298,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_joints_by_offset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_offset">[docs]</a><span class="k">def</span> <span class="nf">reset_joints_by_offset</span><span class="p">(</span>
+
+<div class="viewcode-block" id="reset_joints_by_offset">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_joints_by_offset">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_joints_by_offset</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
     <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">position_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
@@ -1295,7 +1335,10 @@ document.write(`
     <span class="n">asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">joint_pos</span><span class="p">,</span> <span class="n">joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="reset_scene_to_default"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_scene_to_default">[docs]</a><span class="k">def</span> <span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+
+<div class="viewcode-block" id="reset_scene_to_default">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.reset_scene_to_default">[docs]</a>
+<span class="k">def</span> <span class="nf">reset_scene_to_default</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reset the scene to the default state specified in the scene configuration.&quot;&quot;&quot;</span>
     <span class="c1"># rigid bodies</span>
     <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
@@ -1316,6 +1359,7 @@ document.write(`
         <span class="n">default_joint_vel</span> <span class="o">=</span> <span class="n">articulation_asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">default_joint_vel</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="c1"># set into the physics simulation</span>
         <span class="n">articulation_asset</span><span class="o">.</span><span class="n">write_joint_state_to_sim</span><span class="p">(</span><span class="n">default_joint_pos</span><span class="p">,</span> <span class="n">default_joint_vel</span><span class="p">,</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
 
 
 <span class="sd">&quot;&quot;&quot;</span>

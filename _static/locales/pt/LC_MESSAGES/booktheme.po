@@ -8,68 +8,68 @@ msgstr ""
 "Language: pt\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "suggest edit"
-msgstr "sugerir edição"
-
-msgid "Last updated on"
-msgstr "Última atualização em"
-
-msgid "Edit this page"
-msgstr "Edite essa página"
-
-msgid "Launch"
-msgstr "Lançamento"
-
 msgid "Print to PDF"
 msgstr "Imprimir em PDF"
+
+msgid "Theme by the"
+msgstr "Tema por"
+
+msgid "Download source file"
+msgstr "Baixar arquivo fonte"
 
 msgid "open issue"
 msgstr "questão aberta"
 
+msgid "Contents"
+msgstr "Conteúdo"
+
+msgid "previous page"
+msgstr "página anterior"
+
 msgid "Download notebook file"
 msgstr "Baixar arquivo de notebook"
+
+msgid "Copyright"
+msgstr "direito autoral"
+
+msgid "Download this page"
+msgstr "Baixe esta página"
+
+msgid "Source repository"
+msgstr "Repositório fonte"
+
+msgid "By"
+msgstr "De"
+
+msgid "repository"
+msgstr "repositório"
+
+msgid "Last updated on"
+msgstr "Última atualização em"
 
 msgid "Toggle navigation"
 msgstr "Alternar de navegação"
 
-msgid "Source repository"
-msgstr "Repositório fonte"
+msgid "Sphinx Book Theme"
+msgstr "Tema do livro Sphinx"
+
+msgid "suggest edit"
+msgstr "sugerir edição"
+
+msgid "Open an issue"
+msgstr "Abra um problema"
+
+msgid "Launch"
+msgstr "Lançamento"
+
+msgid "Fullscreen mode"
+msgstr "Modo tela cheia"
+
+msgid "Edit this page"
+msgstr "Edite essa página"
 
 msgid "By the"
 msgstr "Pelo"
 
 msgid "next page"
 msgstr "próxima página"
-
-msgid "repository"
-msgstr "repositório"
-
-msgid "Sphinx Book Theme"
-msgstr "Tema do livro Sphinx"
-
-msgid "Download source file"
-msgstr "Baixar arquivo fonte"
-
-msgid "Contents"
-msgstr "Conteúdo"
-
-msgid "By"
-msgstr "De"
-
-msgid "Copyright"
-msgstr "direito autoral"
-
-msgid "Fullscreen mode"
-msgstr "Modo tela cheia"
-
-msgid "Open an issue"
-msgstr "Abra um problema"
-
-msgid "previous page"
-msgstr "página anterior"
-
-msgid "Download this page"
-msgstr "Baixe esta página"
-
-msgid "Theme by the"
-msgstr "Tema por"

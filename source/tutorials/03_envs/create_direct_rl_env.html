@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Creating a Direct Workflow RL Environment &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/03_envs/create_direct_rl_env';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -207,7 +205,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +330,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +361,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -521,9 +521,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -570,7 +570,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="creating-a-direct-workflow-rl-environment">
-<span id="tutorial-create-direct-rl-env"></span><h1>Creating a Direct Workflow RL Environment<a class="headerlink" href="#creating-a-direct-workflow-rl-environment" title="Permalink to this heading">#</a></h1>
+<span id="tutorial-create-direct-rl-env"></span><h1>Creating a Direct Workflow RL Environment<a class="headerlink" href="#creating-a-direct-workflow-rl-environment" title="Link to this heading">#</a></h1>
 <p>In addition to the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.ManagerBasedRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.ManagerBasedRLEnv</span></code></a> class, which encourages the use of configuration classes
 for more modular environments, the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv" title="omni.isaac.lab.envs.DirectRLEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirectRLEnv</span></code></a> class allows for more direct control
 in the scripting of environment.</p>
@@ -583,7 +583,7 @@ pieces of code.</p>
 for balancing the pole upright. We will learn how to specify the task using by implementing functions
 for scene creation, actions, resets, rewards and observations.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
 <p>For this tutorial, we use the cartpole environment defined in <code class="docutils literal notranslate"><span class="pre">omni.isaac.lab_tasks.direct.cartpole</span></code> module.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
@@ -763,7 +763,7 @@ for scene creation, actions, resets, rewards and observations.</p>
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
 <p>Similar to the manager-based environments, a configuration class is defined for the task to hold settings
 for the simulation parameters, the scene, the actors, and the task. With the direct workflow implementation,
 the <a class="reference internal" href="../../api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnvCfg" title="omni.isaac.lab.envs.DirectRLEnvCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">envs.DirectRLEnvCfg</span></code></a> class is used as the base class for configurations.
@@ -805,7 +805,7 @@ and thresholds for reset conditions.</p>
 <p>The class can also hold class variables that are accessible by all functions in the class,
 including functions for applying actions, computing resets, rewards, and observations.</p>
 <section id="scene-creation">
-<h3>Scene Creation<a class="headerlink" href="#scene-creation" title="Permalink to this heading">#</a></h3>
+<h3>Scene Creation<a class="headerlink" href="#scene-creation" title="Link to this heading">#</a></h3>
 <p>In contrast to manager-based environments where the scene creation is taken care of by the framework,
 the direct workflow implementation provides flexibility for users to implement their own scene creation
 function. This includes adding actors into the stage, cloning the environments, filtering collisions
@@ -828,7 +828,7 @@ scene, such as ground plane and lights. These operations should be implemented i
 </div>
 </section>
 <section id="defining-rewards">
-<h3>Defining Rewards<a class="headerlink" href="#defining-rewards" title="Permalink to this heading">#</a></h3>
+<h3>Defining Rewards<a class="headerlink" href="#defining-rewards" title="Link to this heading">#</a></h3>
 <p>Reward function should be defined in the <code class="docutils literal notranslate"><span class="pre">_get_rewards(self)</span></code> API, which returns the reward
 buffer as a return value. Within this function, the task is free to implement the logic of
 the reward function. In this example, we implement a Pytorch JIT function that computes
@@ -872,7 +872,7 @@ the various components of the reward function.</p>
 </div>
 </section>
 <section id="defining-observations">
-<h3>Defining Observations<a class="headerlink" href="#defining-observations" title="Permalink to this heading">#</a></h3>
+<h3>Defining Observations<a class="headerlink" href="#defining-observations" title="Link to this heading">#</a></h3>
 <p>The observation buffer should be computed in the <code class="docutils literal notranslate"><span class="pre">_get_observations(self)</span></code> function,
 which constructs the observation buffer for the environment. At the end of this API,
 a dictionary should be returned that contains <code class="docutils literal notranslate"><span class="pre">policy</span></code> as the key, and the full
@@ -894,7 +894,7 @@ include the key <code class="docutils literal notranslate"><span class="pre">cri
 </div>
 </section>
 <section id="computing-dones-and-performing-resets">
-<h3>Computing Dones and Performing Resets<a class="headerlink" href="#computing-dones-and-performing-resets" title="Permalink to this heading">#</a></h3>
+<h3>Computing Dones and Performing Resets<a class="headerlink" href="#computing-dones-and-performing-resets" title="Link to this heading">#</a></h3>
 <p>Populating the <code class="docutils literal notranslate"><span class="pre">dones</span></code> buffer should be done in the <code class="docutils literal notranslate"><span class="pre">_get_dones(self)</span></code> method.
 This method is free to implement logic that computes which environments would need to be reset
 and which environments have reached the episode length limit. Both results should be
@@ -939,7 +939,7 @@ for the environments requiring reset should be set directly into simulation.</p>
 </div>
 </section>
 <section id="applying-actions">
-<h3>Applying Actions<a class="headerlink" href="#applying-actions" title="Permalink to this heading">#</a></h3>
+<h3>Applying Actions<a class="headerlink" href="#applying-actions" title="Link to this heading">#</a></h3>
 <p>There are two APIs that are designed for working with actions. The <code class="docutils literal notranslate"><span class="pre">_pre_physics_step(self,</span> <span class="pre">actions)</span></code> takes in actions
 from the policy as an argument and is called once per RL step, prior to taking any physics steps. This function can
 be used to process the actions buffer from the policy and cache the data in a class variable for the environment.</p>
@@ -957,7 +957,7 @@ for each physics step.</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>To run training for the direct workflow Cartpole environment, we can use the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-Direct-v0
 </pre></div>
@@ -965,7 +965,7 @@ for each physics step.</p>
 <p>All direct workflow tasks have the suffix <code class="docutils literal notranslate"><span class="pre">-Direct</span></code> added to the task name to differentiate the implementation style.</p>
 </section>
 <section id="domain-randomization">
-<h2>Domain Randomization<a class="headerlink" href="#domain-randomization" title="Permalink to this heading">#</a></h2>
+<h2>Domain Randomization<a class="headerlink" href="#domain-randomization" title="Link to this heading">#</a></h2>
 <p>In the direct workflow, domain randomization configuration uses the <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module
 to specify a configuration class consisting of <a class="reference internal" href="../../api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventTermCfg" title="omni.isaac.lab.managers.EventTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">EventTermCfg</span></code></a> variables.</p>
 <p>Below is an example of a configuration class for domain randomization:</p>
@@ -1022,7 +1022,7 @@ to the base config class for the task and be assigned to the variable <code clas
 </pre></div>
 </div>
 <section id="action-and-observation-noise">
-<h3>Action and Observation Noise<a class="headerlink" href="#action-and-observation-noise" title="Permalink to this heading">#</a></h3>
+<h3>Action and Observation Noise<a class="headerlink" href="#action-and-observation-noise" title="Link to this heading">#</a></h3>
 <p>Actions and observation noise can also be added using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.utils.html#module-omni.isaac.lab.utils.configclass" title="omni.isaac.lab.utils.configclass"><code class="xref py py-class docutils literal notranslate"><span class="pre">configclass</span></code></a> module.
 Action and observation noise configs must be added to the main task config using the
 <code class="docutils literal notranslate"><span class="pre">action_noise_model</span></code> and <code class="docutils literal notranslate"><span class="pre">observation_noise_model</span></code> variables:</p>

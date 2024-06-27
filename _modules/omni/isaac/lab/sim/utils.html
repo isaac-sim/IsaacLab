@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../" id="documentation_options" src="../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../_static/doctools.js"></script>
-    <script src="../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../_static/tabs.js"></script>
-    <script src="../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sim/utils';</script>
     <link rel="icon" href="../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -515,7 +514,9 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="safe_set_attribute_on_usd_schema"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.safe_set_attribute_on_usd_schema">[docs]</a><span class="k">def</span> <span class="nf">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">schema_api</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">APISchemaBase</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">camel_case</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+<div class="viewcode-block" id="safe_set_attribute_on_usd_schema">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.safe_set_attribute_on_usd_schema">[docs]</a>
+<span class="k">def</span> <span class="nf">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">schema_api</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">APISchemaBase</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">camel_case</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the value of an attribute on its USD schema if it exists.</span>
 
 <span class="sd">    A USD API schema serves as an interface or API for authoring and extracting a set of attributes.</span>
@@ -552,7 +553,10 @@ document.write(`
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Attribute &#39;</span><span class="si">{</span><span class="n">attr_name</span><span class="si">}</span><span class="s2">&#39; does not exist on prim &#39;</span><span class="si">{</span><span class="n">schema_api</span><span class="o">.</span><span class="n">GetPath</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="safe_set_attribute_on_usd_prim"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.safe_set_attribute_on_usd_prim">[docs]</a><span class="k">def</span> <span class="nf">safe_set_attribute_on_usd_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">camel_case</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+
+<div class="viewcode-block" id="safe_set_attribute_on_usd_prim">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.safe_set_attribute_on_usd_prim">[docs]</a>
+<span class="k">def</span> <span class="nf">safe_set_attribute_on_usd_prim</span><span class="p">(</span><span class="n">prim</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">camel_case</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the value of a attribute on its USD prim.</span>
 
 <span class="sd">    The function creates a new attribute if it does not exist on the prim. This is because in some cases (such</span>
@@ -597,12 +601,15 @@ document.write(`
     <span class="p">)</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Decorators.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="apply_nested"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.apply_nested">[docs]</a><span class="k">def</span> <span class="nf">apply_nested</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">:</span>
+<div class="viewcode-block" id="apply_nested">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.apply_nested">[docs]</a>
+<span class="k">def</span> <span class="nf">apply_nested</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Decorator to apply a function to all prims under a specified prim-path.</span>
 
 <span class="sd">    The function iterates over the provided prim path and all its children to apply input function</span>
@@ -678,7 +685,10 @@ document.write(`
     <span class="k">return</span> <span class="n">wrapper</span></div>
 
 
-<div class="viewcode-block" id="clone"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.clone">[docs]</a><span class="k">def</span> <span class="nf">clone</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">:</span>
+
+<div class="viewcode-block" id="clone">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.clone">[docs]</a>
+<span class="k">def</span> <span class="nf">clone</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Callable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Decorator for cloning a prim based on matching prim paths of the prim&#39;s parent.</span>
 
 <span class="sd">    The decorator checks if the parent prim path matches any prim paths in the stage. If so, it clones the</span>
@@ -763,12 +773,15 @@ document.write(`
     <span class="k">return</span> <span class="n">wrapper</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Material bindings.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="bind_visual_material"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.bind_visual_material">[docs]</a><span class="nd">@apply_nested</span>
+<div class="viewcode-block" id="bind_visual_material">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.bind_visual_material">[docs]</a>
+<span class="nd">@apply_nested</span>
 <span class="k">def</span> <span class="nf">bind_visual_material</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">material_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
@@ -823,7 +836,10 @@ document.write(`
     <span class="k">return</span> <span class="n">success</span></div>
 
 
-<div class="viewcode-block" id="bind_physics_material"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.bind_physics_material">[docs]</a><span class="nd">@apply_nested</span>
+
+<div class="viewcode-block" id="bind_physics_material">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.bind_physics_material">[docs]</a>
+<span class="nd">@apply_nested</span>
 <span class="k">def</span> <span class="nf">bind_physics_material</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">material_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
@@ -893,12 +909,15 @@ document.write(`
     <span class="k">return</span> <span class="kc">True</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Exporting.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="export_prim_to_file"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.export_prim_to_file">[docs]</a><span class="k">def</span> <span class="nf">export_prim_to_file</span><span class="p">(</span>
+<div class="viewcode-block" id="export_prim_to_file">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.export_prim_to_file">[docs]</a>
+<span class="k">def</span> <span class="nf">export_prim_to_file</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">source_prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">target_prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -965,12 +984,15 @@ document.write(`
     <span class="n">target_layer</span><span class="o">.</span><span class="n">Save</span><span class="p">()</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">USD Prim properties.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="make_uninstanceable"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.make_uninstanceable">[docs]</a><span class="k">def</span> <span class="nf">make_uninstanceable</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="make_uninstanceable">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.make_uninstanceable">[docs]</a>
+<span class="k">def</span> <span class="nf">make_uninstanceable</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if a prim and its descendants are instanced and make them uninstanceable.</span>
 
 <span class="sd">    This function checks if the prim at the specified prim path and its descendants are instanced.</span>
@@ -1012,12 +1034,15 @@ document.write(`
         <span class="n">all_prims</span> <span class="o">+=</span> <span class="n">child_prim</span><span class="o">.</span><span class="n">GetChildren</span><span class="p">()</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">USD Stage traversal.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="get_first_matching_child_prim"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.get_first_matching_child_prim">[docs]</a><span class="k">def</span> <span class="nf">get_first_matching_child_prim</span><span class="p">(</span>
+<div class="viewcode-block" id="get_first_matching_child_prim">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.get_first_matching_child_prim">[docs]</a>
+<span class="k">def</span> <span class="nf">get_first_matching_child_prim</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">],</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively get the first USD Prim at the path string that passes the predicate function</span>
@@ -1059,7 +1084,10 @@ document.write(`
     <span class="k">return</span> <span class="kc">None</span></div>
 
 
-<div class="viewcode-block" id="get_all_matching_child_prims"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.get_all_matching_child_prims">[docs]</a><span class="k">def</span> <span class="nf">get_all_matching_child_prims</span><span class="p">(</span>
+
+<div class="viewcode-block" id="get_all_matching_child_prims">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.get_all_matching_child_prims">[docs]</a>
+<span class="k">def</span> <span class="nf">get_all_matching_child_prims</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span>
     <span class="n">predicate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1115,7 +1143,10 @@ document.write(`
     <span class="k">return</span> <span class="n">output_prims</span></div>
 
 
-<div class="viewcode-block" id="find_first_matching_prim"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_first_matching_prim">[docs]</a><span class="k">def</span> <span class="nf">find_first_matching_prim</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+
+<div class="viewcode-block" id="find_first_matching_prim">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_first_matching_prim">[docs]</a>
+<span class="k">def</span> <span class="nf">find_first_matching_prim</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the first matching prim in the stage based on input regex expression.</span>
 
 <span class="sd">    Args:</span>
@@ -1145,7 +1176,10 @@ document.write(`
     <span class="k">return</span> <span class="kc">None</span></div>
 
 
-<div class="viewcode-block" id="find_matching_prims"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_matching_prims">[docs]</a><span class="k">def</span> <span class="nf">find_matching_prims</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">]:</span>
+
+<div class="viewcode-block" id="find_matching_prims">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_matching_prims">[docs]</a>
+<span class="k">def</span> <span class="nf">find_matching_prims</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Find all the matching prims in the stage based on input regex expression.</span>
 
 <span class="sd">    Args:</span>
@@ -1182,7 +1216,10 @@ document.write(`
     <span class="k">return</span> <span class="n">output_prims</span></div>
 
 
-<div class="viewcode-block" id="find_matching_prim_paths"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_matching_prim_paths">[docs]</a><span class="k">def</span> <span class="nf">find_matching_prim_paths</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+
+<div class="viewcode-block" id="find_matching_prim_paths">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_matching_prim_paths">[docs]</a>
+<span class="k">def</span> <span class="nf">find_matching_prim_paths</span><span class="p">(</span><span class="n">prim_path_regex</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Find all the matching prim paths in the stage based on input regex expression.</span>
 
 <span class="sd">    Args:</span>
@@ -1204,7 +1241,10 @@ document.write(`
     <span class="k">return</span> <span class="n">output_prim_paths</span></div>
 
 
-<div class="viewcode-block" id="find_global_fixed_joint_prim"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_global_fixed_joint_prim">[docs]</a><span class="k">def</span> <span class="nf">find_global_fixed_joint_prim</span><span class="p">(</span>
+
+<div class="viewcode-block" id="find_global_fixed_joint_prim">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.find_global_fixed_joint_prim">[docs]</a>
+<span class="k">def</span> <span class="nf">find_global_fixed_joint_prim</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sdf</span><span class="o">.</span><span class="n">Path</span><span class="p">,</span> <span class="n">check_enabled_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">Joint</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Find the fixed joint prim under the specified prim path that connects the target to the simulation world.</span>
@@ -1263,12 +1303,15 @@ document.write(`
     <span class="k">return</span> <span class="n">fixed_joint_prim</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">USD Variants.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="select_usd_variants"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.select_usd_variants">[docs]</a><span class="k">def</span> <span class="nf">select_usd_variants</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">variants</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="select_usd_variants">
+<a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.sim.html#omni.isaac.lab.sim.utils.select_usd_variants">[docs]</a>
+<span class="k">def</span> <span class="nf">select_usd_variants</span><span class="p">(</span><span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">variants</span><span class="p">:</span> <span class="nb">object</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Sets the variant selections from the specified variant sets on a USD prim.</span>
 
 <span class="sd">    `USD Variants`_ are a very powerful tool in USD composition that allows prims to have different options on</span>
@@ -1340,6 +1383,7 @@ document.write(`
                 <span class="sa">f</span><span class="s2">&quot;Setting variant selection &#39;</span><span class="si">{</span><span class="n">variant_selection</span><span class="si">}</span><span class="s2">&#39; for variant set &#39;</span><span class="si">{</span><span class="n">variant_set_name</span><span class="si">}</span><span class="s2">&#39; on&quot;</span>
                 <span class="sa">f</span><span class="s2">&quot; prim &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span>
             <span class="p">)</span></div>
+
 </pre></div>
 
                 </article>

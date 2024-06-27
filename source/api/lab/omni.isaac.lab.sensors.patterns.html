@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>omni.isaac.lab.sensors.patterns &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>window.MathJax = {"tex": {"inlineMath": [["\\(", "\\)"]], "displayMath": [["\\[", "\\]"]]}}</script>
     <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab/omni.isaac.lab.sensors.patterns';</script>
@@ -209,7 +207,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -334,6 +332,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -363,9 +363,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -523,9 +523,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -599,7 +599,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="module-omni.isaac.lab.sensors.patterns">
-<span id="omni-isaac-lab-sensors-patterns"></span><h1>omni.isaac.lab.sensors.patterns<a class="headerlink" href="#module-omni.isaac.lab.sensors.patterns" title="Permalink to this heading">#</a></h1>
+<span id="omni-isaac-lab-sensors-patterns"></span><h1>omni.isaac.lab.sensors.patterns<a class="headerlink" href="#module-omni.isaac.lab.sensors.patterns" title="Link to this heading">#</a></h1>
 <p>Sub-module for ray-casting patterns used by the ray-caster.</p>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -620,10 +620,10 @@ document.write(`
 </table>
 </div>
 <section id="pattern-base">
-<h2>Pattern Base<a class="headerlink" href="#pattern-base" title="Permalink to this heading">#</a></h2>
+<h2>Pattern Base<a class="headerlink" href="#pattern-base" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PatternBaseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">PatternBaseCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">PatternBaseCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg" title="Link to this definition">#</a></dt>
 <dd><p>Base configuration for a pattern.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -636,7 +636,7 @@ document.write(`
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PatternBaseCfg.func">
-<span class="sig-name descname"><span class="pre">func</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.12)"><span class="pre">Callable</span></a><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PatternBaseCfg"><span class="pre">PatternBaseCfg</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg.func" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">func</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Callable" title="(in Python v3.12)"><span class="pre">Callable</span></a><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PatternBaseCfg"><span class="pre">PatternBaseCfg</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PatternBaseCfg.func" title="Link to this definition">#</a></dt>
 <dd><p>Function to generate the pattern.</p>
 <p>The function should take in the configuration and the device name as arguments. It should return
 the pattern’s starting positions and directions as a tuple of torch.Tensor.</p>
@@ -646,10 +646,10 @@ the pattern’s starting positions and directions as a tuple of torch.Tensor.</p
 
 </section>
 <section id="grid-pattern">
-<h2>Grid Pattern<a class="headerlink" href="#grid-pattern" title="Permalink to this heading">#</a></h2>
+<h2>Grid Pattern<a class="headerlink" href="#grid-pattern" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.grid_pattern">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">grid_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.GridPatternCfg"><span class="pre">patterns_cfg.GridPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.grid_pattern" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">grid_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.GridPatternCfg"><span class="pre">patterns_cfg.GridPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.grid_pattern" title="Link to this definition">#</a></dt>
 <dd><p>A regular grid pattern for ray casting.</p>
 <p>The grid pattern is made from rays that are parallel to each other. They span a 2D grid in the sensor’s
 local coordinates from <code class="docutils literal notranslate"><span class="pre">(-length/2,</span> <span class="pre">-width/2)</span></code> to <code class="docutils literal notranslate"><span class="pre">(length/2,</span> <span class="pre">width/2)</span></code>, which is defined
@@ -675,7 +675,7 @@ by the <code class="docutils literal notranslate"><span class="pre">size</span> 
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.GridPatternCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">GridPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">GridPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg" title="Link to this definition">#</a></dt>
 <dd><p>Configuration for the grid pattern for ray-casting.</p>
 <p>Defines a 2D grid of rays in the coordinates of the sensor.</p>
 <div class="admonition attention">
@@ -702,25 +702,25 @@ by the <code class="docutils literal notranslate"><span class="pre">size</span> 
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.GridPatternCfg.resolution">
-<span class="sig-name descname"><span class="pre">resolution</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.resolution" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">resolution</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.resolution" title="Link to this definition">#</a></dt>
 <dd><p>Grid resolution (in meters).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.GridPatternCfg.size">
-<span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.size" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.size" title="Link to this definition">#</a></dt>
 <dd><p>Grid size (length, width) (in meters).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.GridPatternCfg.direction">
-<span class="sig-name descname"><span class="pre">direction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.direction" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">direction</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.direction" title="Link to this definition">#</a></dt>
 <dd><p>Ray direction. Defaults to (0.0, 0.0, -1.0).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.GridPatternCfg.ordering">
-<span class="sig-name descname"><span class="pre">ordering</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'xy'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'yx'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.ordering" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">ordering</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'xy'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'yx'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.GridPatternCfg.ordering" title="Link to this definition">#</a></dt>
 <dd><p>Specifies the ordering of points in the generated grid. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;xy&quot;</span></code>.</p>
 <p>Consider a grid pattern with points at <span class="math notranslate nohighlight">\((x, y)\)</span> where <span class="math notranslate nohighlight">\(x\)</span> and <span class="math notranslate nohighlight">\(y\)</span> are the grid indices.
 The ordering of the points can be specified as “xy” or “yx”. This determines the outer and inner loop order
@@ -740,10 +740,10 @@ when iterating over the grid points.</p>
 
 </section>
 <section id="pinhole-camera-pattern">
-<h2>Pinhole Camera Pattern<a class="headerlink" href="#pinhole-camera-pattern" title="Permalink to this heading">#</a></h2>
+<h2>Pinhole Camera Pattern<a class="headerlink" href="#pinhole-camera-pattern" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.pinhole_camera_pattern">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">pinhole_camera_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PinholeCameraPatternCfg"><span class="pre">patterns_cfg.PinholeCameraPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsic_matrices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.pinhole_camera_pattern" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">pinhole_camera_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.PinholeCameraPatternCfg"><span class="pre">patterns_cfg.PinholeCameraPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsic_matrices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.pinhole_camera_pattern" title="Link to this definition">#</a></dt>
 <dd><p>The image pattern for ray casting.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
@@ -768,7 +768,7 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">PinholeCameraPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">PinholeCameraPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg" title="Link to this definition">#</a></dt>
 <dd><p>Configuration for a pinhole camera depth image pattern for ray-casting.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -796,14 +796,14 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length">
-<span class="sig-name descname"><span class="pre">focal_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">focal_length</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.focal_length" title="Link to this definition">#</a></dt>
 <dd><p>Perspective focal length (in cm). Defaults to 24.0cm.</p>
 <p>Longer lens lengths narrower FOV, shorter lens lengths wider FOV.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture">
-<span class="sig-name descname"><span class="pre">horizontal_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">horizontal_aperture</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture" title="Link to this definition">#</a></dt>
 <dd><p>Horizontal aperture (in mm). Defaults to 20.955mm.</p>
 <p>Emulates sensor/film width on a camera.</p>
 <div class="admonition note">
@@ -814,25 +814,25 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset">
-<span class="sig-name descname"><span class="pre">horizontal_aperture_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">horizontal_aperture_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.horizontal_aperture_offset" title="Link to this definition">#</a></dt>
 <dd><p>Offsets Resolution/Film gate horizontally. Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset">
-<span class="sig-name descname"><span class="pre">vertical_aperture_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">vertical_aperture_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.vertical_aperture_offset" title="Link to this definition">#</a></dt>
 <dd><p>Offsets Resolution/Film gate vertically. Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width">
-<span class="sig-name descname"><span class="pre">width</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">width</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.width" title="Link to this definition">#</a></dt>
 <dd><p>Width of the image (in pixels).</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height">
-<span class="sig-name descname"><span class="pre">height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.PinholeCameraPatternCfg.height" title="Link to this definition">#</a></dt>
 <dd><p>Height of the image (in pixels).</p>
 </dd></dl>
 
@@ -840,10 +840,10 @@ matrices of the cameras, which is not possible with the standard pattern interfa
 
 </section>
 <section id="rs-bpearl-pattern">
-<h2>RS-Bpearl Pattern<a class="headerlink" href="#rs-bpearl-pattern" title="Permalink to this heading">#</a></h2>
+<h2>RS-Bpearl Pattern<a class="headerlink" href="#rs-bpearl-pattern" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.bpearl_pattern">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">bpearl_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.BpearlPatternCfg"><span class="pre">patterns_cfg.BpearlPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.bpearl_pattern" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">bpearl_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.BpearlPatternCfg"><span class="pre">patterns_cfg.BpearlPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.bpearl_pattern" title="Link to this definition">#</a></dt>
 <dd><p>The RS-Bpearl pattern for ray casting.</p>
 <p>The <a class="reference external" href="https://www.roscomponents.com/en/lidar-laser-scanner/267-rs-bpearl.html">Robosense RS-Bpearl</a> is a short-range LiDAR that has a 360 degrees x 90 degrees super wide
 field of view. It is designed for near-field blind-spots detection.</p>
@@ -862,7 +862,7 @@ field of view. It is designed for near-field blind-spots detection.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.BpearlPatternCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">BpearlPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">BpearlPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg" title="Link to this definition">#</a></dt>
 <dd><p>Configuration for the Bpearl pattern for ray-casting.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -881,19 +881,19 @@ field of view. It is designed for near-field blind-spots detection.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_fov">
-<span class="sig-name descname"><span class="pre">horizontal_fov</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_fov" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">horizontal_fov</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_fov" title="Link to this definition">#</a></dt>
 <dd><p>Horizontal field of view (in degrees). Defaults to 360.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_res">
-<span class="sig-name descname"><span class="pre">horizontal_res</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_res" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">horizontal_res</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_res" title="Link to this definition">#</a></dt>
 <dd><p>Horizontal resolution (in degrees). Defaults to 10.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.BpearlPatternCfg.vertical_ray_angles">
-<span class="sig-name descname"><span class="pre">vertical_ray_angles</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.vertical_ray_angles" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">vertical_ray_angles</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.vertical_ray_angles" title="Link to this definition">#</a></dt>
 <dd><p>Vertical ray angles (in degrees). Defaults to a list of 32 angles.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>

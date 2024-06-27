@@ -1,9 +1,8 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../../../../" >
 
   <head>
     <meta charset="utf-8" />
@@ -28,26 +27,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../../../../" id="documentation_options" src="../../../../../../_static/documentation_options.js"></script>
-    <script src="../../../../../../_static/doctools.js"></script>
-    <script src="../../../../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../../../../_static/clipboard.min.js"></script>
-    <script src="../../../../../../_static/copybutton.js"></script>
-    <script src="../../../../../../_static/tabs.js"></script>
-    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../../../../_static/design-tabs.js"></script>
+    <script src="../../../../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/envs/mdp/rewards';</script>
     <link rel="icon" href="../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../genindex.html" />
@@ -207,7 +204,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +329,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +360,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -512,17 +511,25 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="is_alive"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_alive">[docs]</a><span class="k">def</span> <span class="nf">is_alive</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="is_alive">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_alive">[docs]</a>
+<span class="k">def</span> <span class="nf">is_alive</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward for being alive.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="p">(</span><span class="o">~</span><span class="n">env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">terminated</span><span class="p">)</span><span class="o">.</span><span class="n">float</span><span class="p">()</span></div>
 
 
-<div class="viewcode-block" id="is_terminated"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated">[docs]</a><span class="k">def</span> <span class="nf">is_terminated</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="is_terminated">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated">[docs]</a>
+<span class="k">def</span> <span class="nf">is_terminated</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize terminated episodes that don&#39;t correspond to episodic timeouts.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">terminated</span><span class="o">.</span><span class="n">float</span><span class="p">()</span></div>
 
 
-<div class="viewcode-block" id="is_terminated_term"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated_term">[docs]</a><span class="k">class</span> <span class="nc">is_terminated_term</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
+
+<div class="viewcode-block" id="is_terminated_term">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated_term">[docs]</a>
+<span class="k">class</span> <span class="nc">is_terminated_term</span><span class="p">(</span><span class="n">ManagerTermBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize termination for specific terms that don&#39;t correspond to episodic timeouts.</span>
 
 <span class="sd">    The parameters are as follows:</span>
@@ -535,12 +542,15 @@ document.write(`
 <span class="sd">    if two termination terms are active, the reward is 2.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="is_terminated_term.__init__"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated_term.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">RewardTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
+<div class="viewcode-block" id="is_terminated_term.__init__">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.is_terminated_term.__init__">[docs]</a>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">RewardTermCfg</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">):</span>
         <span class="c1"># initialize the base class</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
         <span class="c1"># find and store the termination terms</span>
         <span class="n">term_keys</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;term_keys&quot;</span><span class="p">,</span> <span class="s2">&quot;.*&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_term_names</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">find_terms</span><span class="p">(</span><span class="n">term_keys</span><span class="p">)</span></div>
+
 
     <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">term_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;.*&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="c1"># Return the unweighted reward for the termination terms</span>
@@ -552,26 +562,35 @@ document.write(`
         <span class="k">return</span> <span class="p">(</span><span class="n">reset_buf</span> <span class="o">*</span> <span class="p">(</span><span class="o">~</span><span class="n">env</span><span class="o">.</span><span class="n">termination_manager</span><span class="o">.</span><span class="n">time_outs</span><span class="p">))</span><span class="o">.</span><span class="n">float</span><span class="p">()</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Root penalties.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="lin_vel_z_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.lin_vel_z_l2">[docs]</a><span class="k">def</span> <span class="nf">lin_vel_z_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="lin_vel_z_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.lin_vel_z_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">lin_vel_z_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize z-axis base linear velocity using L2-kernel.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_lin_vel_b</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span></div>
 
 
-<div class="viewcode-block" id="ang_vel_xy_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.ang_vel_xy_l2">[docs]</a><span class="k">def</span> <span class="nf">ang_vel_xy_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="ang_vel_xy_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.ang_vel_xy_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">ang_vel_xy_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize xy-axis base angular velocity using L2-kernel.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">RigidObject</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_ang_vel_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="flat_orientation_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.flat_orientation_l2">[docs]</a><span class="k">def</span> <span class="nf">flat_orientation_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="flat_orientation_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.flat_orientation_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">flat_orientation_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize non-flat base orientation using L2-kernel.</span>
 
 <span class="sd">    This is computed by penalizing the xy-components of the projected gravity vector.</span>
@@ -581,7 +600,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">projected_gravity_b</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="base_height_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.base_height_l2">[docs]</a><span class="k">def</span> <span class="nf">base_height_l2</span><span class="p">(</span>
+
+<div class="viewcode-block" id="base_height_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.base_height_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">base_height_l2</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">target_height</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">)</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize asset height from its target using L2-kernel.</span>
@@ -595,10 +617,14 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_pos_w</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">target_height</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="body_lin_acc_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.body_lin_acc_l2">[docs]</a><span class="k">def</span> <span class="nf">body_lin_acc_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="body_lin_acc_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.body_lin_acc_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">body_lin_acc_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize the linear acceleration of bodies using L2-kernel.&quot;&quot;&quot;</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">body_lin_acc_w</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">body_ids</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -606,7 +632,9 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="joint_torques_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_torques_l2">[docs]</a><span class="k">def</span> <span class="nf">joint_torques_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="joint_torques_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_torques_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_torques_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint torques applied on the articulation using L2-kernel.</span>
 
 <span class="sd">    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint torques contribute to the L2 norm.</span>
@@ -616,14 +644,20 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">applied_torque</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_vel_l1"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_l1">[docs]</a><span class="k">def</span> <span class="nf">joint_vel_l1</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="joint_vel_l1">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_l1">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_vel_l1</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint velocities on the articulation using an L1-kernel.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_vel_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_l2">[docs]</a><span class="k">def</span> <span class="nf">joint_vel_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="joint_vel_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_vel_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint velocities on the articulation using L1-kernel.</span>
 
 <span class="sd">    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint velocities contribute to the L1 norm.</span>
@@ -633,7 +667,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_vel</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_acc_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_acc_l2">[docs]</a><span class="k">def</span> <span class="nf">joint_acc_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="joint_acc_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_acc_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_acc_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint accelerations on the articulation using L2-kernel.</span>
 
 <span class="sd">    NOTE: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their joint accelerations contribute to the L2 norm.</span>
@@ -643,7 +680,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">joint_acc</span><span class="p">[:,</span> <span class="n">asset_cfg</span><span class="o">.</span><span class="n">joint_ids</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_deviation_l1"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_deviation_l1">[docs]</a><span class="k">def</span> <span class="nf">joint_deviation_l1</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="joint_deviation_l1">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_deviation_l1">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_deviation_l1</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint positions that deviate from the default one.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">asset</span><span class="p">:</span> <span class="n">Articulation</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="p">[</span><span class="n">asset_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -652,7 +692,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">angle</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_pos_limits"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_pos_limits">[docs]</a><span class="k">def</span> <span class="nf">joint_pos_limits</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="joint_pos_limits">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_pos_limits">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_pos_limits</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint positions if they cross the soft limits.</span>
 
 <span class="sd">    This is computed as a sum of the absolute value of the difference between the joint position and the soft limits.</span>
@@ -669,7 +712,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">out_of_limits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="joint_vel_limits"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_limits">[docs]</a><span class="k">def</span> <span class="nf">joint_vel_limits</span><span class="p">(</span>
+
+<div class="viewcode-block" id="joint_vel_limits">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.joint_vel_limits">[docs]</a>
+<span class="k">def</span> <span class="nf">joint_vel_limits</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">soft_ratio</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">)</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize joint velocities if they cross the soft limits.</span>
@@ -691,12 +737,15 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">out_of_limits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Action penalties.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="applied_torque_limits"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.applied_torque_limits">[docs]</a><span class="k">def</span> <span class="nf">applied_torque_limits</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="applied_torque_limits">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.applied_torque_limits">[docs]</a>
+<span class="k">def</span> <span class="nf">applied_torque_limits</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">))</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize applied torques if they cross the limits.</span>
 
 <span class="sd">    This is computed as a sum of the absolute value of the difference between the applied torques and the limits.</span>
@@ -715,14 +764,21 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">out_of_limits</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="action_rate_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_rate_l2">[docs]</a><span class="k">def</span> <span class="nf">action_rate_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="action_rate_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_rate_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">action_rate_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize the rate of change of the actions using L2-kernel.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span> <span class="o">-</span> <span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">prev_action</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="action_l2"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_l2">[docs]</a><span class="k">def</span> <span class="nf">action_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="action_l2">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.action_l2">[docs]</a>
+<span class="k">def</span> <span class="nf">action_l2</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize the actions using L2-kernel.&quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
 
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -730,7 +786,9 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="undesired_contacts"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.undesired_contacts">[docs]</a><span class="k">def</span> <span class="nf">undesired_contacts</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<div class="viewcode-block" id="undesired_contacts">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.undesired_contacts">[docs]</a>
+<span class="k">def</span> <span class="nf">undesired_contacts</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize undesired contacts as the number of violations that are above a threshold.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">contact_sensor</span><span class="p">:</span> <span class="n">ContactSensor</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">sensors</span><span class="p">[</span><span class="n">sensor_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -741,7 +799,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">is_contact</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="contact_forces"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.contact_forces">[docs]</a><span class="k">def</span> <span class="nf">contact_forces</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+
+<div class="viewcode-block" id="contact_forces">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.contact_forces">[docs]</a>
+<span class="k">def</span> <span class="nf">contact_forces</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">sensor_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Penalize contact forces as the amount of violations of the net contact force.&quot;&quot;&quot;</span>
     <span class="c1"># extract the used quantities (to enable type-hinting)</span>
     <span class="n">contact_sensor</span><span class="p">:</span> <span class="n">ContactSensor</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">sensors</span><span class="p">[</span><span class="n">sensor_cfg</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
@@ -752,12 +813,15 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">violation</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">0.0</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
+
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Velocity-tracking rewards.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<div class="viewcode-block" id="track_lin_vel_xy_exp"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.track_lin_vel_xy_exp">[docs]</a><span class="k">def</span> <span class="nf">track_lin_vel_xy_exp</span><span class="p">(</span>
+<div class="viewcode-block" id="track_lin_vel_xy_exp">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.track_lin_vel_xy_exp">[docs]</a>
+<span class="k">def</span> <span class="nf">track_lin_vel_xy_exp</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">std</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">command_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">)</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward tracking of linear velocity commands (xy axes) using exponential kernel.&quot;&quot;&quot;</span>
@@ -771,7 +835,10 @@ document.write(`
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">lin_vel_error</span> <span class="o">/</span> <span class="n">std</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="track_ang_vel_z_exp"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.track_ang_vel_z_exp">[docs]</a><span class="k">def</span> <span class="nf">track_ang_vel_z_exp</span><span class="p">(</span>
+
+<div class="viewcode-block" id="track_ang_vel_z_exp">
+<a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.rewards.track_ang_vel_z_exp">[docs]</a>
+<span class="k">def</span> <span class="nf">track_ang_vel_z_exp</span><span class="p">(</span>
     <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedRLEnv</span><span class="p">,</span> <span class="n">std</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">command_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span> <span class="o">=</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">)</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reward tracking of angular velocity commands (yaw) using exponential kernel.&quot;&quot;&quot;</span>
@@ -780,6 +847,7 @@ document.write(`
     <span class="c1"># compute the error</span>
     <span class="n">ang_vel_error</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">command_manager</span><span class="o">.</span><span class="n">get_command</span><span class="p">(</span><span class="n">command_name</span><span class="p">)[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">asset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">root_ang_vel_b</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">ang_vel_error</span> <span class="o">/</span> <span class="n">std</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
+
 </pre></div>
 
                 </article>

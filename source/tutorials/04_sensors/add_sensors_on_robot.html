@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Adding sensors on a robot &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/tutorials/04_sensors/add_sensors_on_robot';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -207,7 +205,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +330,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +361,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -521,9 +521,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -565,7 +565,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="adding-sensors-on-a-robot">
-<span id="tutorial-add-sensors-on-robot"></span><h1>Adding sensors on a robot<a class="headerlink" href="#adding-sensors-on-a-robot" title="Permalink to this heading">#</a></h1>
+<span id="tutorial-add-sensors-on-robot"></span><h1>Adding sensors on a robot<a class="headerlink" href="#adding-sensors-on-a-robot" title="Link to this heading">#</a></h1>
 <p>While the asset classes allow us to create and simulate the physical embodiment of the robot,
 sensors help in obtaining information about the environment. They typically update at a lower
 frequency than the simulation and are useful for obtaining different proprioceptive and
@@ -584,7 +584,7 @@ sensors:</p>
 <p>We continue this tutorial from the previous tutorial on <a class="reference internal" href="../02_scene/create_scene.html#tutorial-interactive-scene"><span class="std std-ref">Using the Interactive Scene</span></a>,
 where we learned about the <a class="reference internal" href="../../api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">scene.InteractiveScene</span></code></a> class.</p>
 <section id="the-code">
-<h2>The Code<a class="headerlink" href="#the-code" title="Permalink to this heading">#</a></h2>
+<h2>The Code<a class="headerlink" href="#the-code" title="Link to this heading">#</a></h2>
 <p>The tutorial corresponds to the <code class="docutils literal notranslate"><span class="pre">add_sensors_on_robot.py</span></code> script in the
 <code class="docutils literal notranslate"><span class="pre">source/standalone/tutorials/04_sensors</span></code> directory.</p>
 <details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -773,7 +773,7 @@ where we learned about the <a class="reference internal" href="../../api/lab/omn
 </div>
 </details></section>
 <section id="the-code-explained">
-<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Permalink to this heading">#</a></h2>
+<h2>The Code Explained<a class="headerlink" href="#the-code-explained" title="Link to this heading">#</a></h2>
 <p>Similar to the previous tutorials, where we added assets to the scene, the sensors are also added
 to the scene using the scene configuration. All sensors inherit from the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.SensorBase" title="omni.isaac.lab.sensors.SensorBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.SensorBase</span></code></a> class
 and are configured through their respective config classes. Each sensor instance can define its own
@@ -786,7 +786,7 @@ contact sensor, the activating the contact reporting is a property on a rigid bo
 <p>In the following, we introduce the different sensors we use in this tutorial and how they are configured.
 For more description about them, please check the <code class="xref py py-mod docutils literal notranslate"><span class="pre">sensors</span></code> module.</p>
 <section id="camera-sensor">
-<h3>Camera sensor<a class="headerlink" href="#camera-sensor" title="Permalink to this heading">#</a></h3>
+<h3>Camera sensor<a class="headerlink" href="#camera-sensor" title="Link to this heading">#</a></h3>
 <p>A camera is defined using the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.CameraCfg" title="omni.isaac.lab.sensors.CameraCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.CameraCfg</span></code></a>. It is based on the USD Camera sensor and
 the different data types are captured using Omniverse Replicator API. Since it has a corresponding prim
 in the scene, the prims are created in the scene at the specified prim path.</p>
@@ -821,7 +821,7 @@ and <code class="docutils literal notranslate"><span class="pre">&quot;front_cam
 </div>
 </section>
 <section id="height-scanner">
-<h3>Height scanner<a class="headerlink" href="#height-scanner" title="Permalink to this heading">#</a></h3>
+<h3>Height scanner<a class="headerlink" href="#height-scanner" title="Link to this heading">#</a></h3>
 <p>The height-scanner is implemented as a virtual sensor using the NVIDIA Warp ray-casting kernels.
 Through the <a class="reference internal" href="../../api/lab/omni.isaac.lab.sensors.html#omni.isaac.lab.sensors.RayCasterCfg" title="omni.isaac.lab.sensors.RayCasterCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">sensors.RayCasterCfg</span></code></a>, we can specify the pattern of rays to cast and the
 meshes against which to cast the rays. Since they are virtual sensors, there is no corresponding
@@ -848,7 +848,7 @@ by setting the <a class="reference internal" href="../../api/lab/omni.isaac.lab.
 </div>
 </section>
 <section id="contact-sensor">
-<h3>Contact sensor<a class="headerlink" href="#contact-sensor" title="Permalink to this heading">#</a></h3>
+<h3>Contact sensor<a class="headerlink" href="#contact-sensor" title="Link to this heading">#</a></h3>
 <p>Contact sensors wrap around the PhysX contact reporting API to obtain the contact information of the robot
 with the environment. Since it relies of PhysX, the contact sensor expects the contact reporting API
 to be enabled on the rigid bodies of the robot. This can be done by setting the
@@ -872,7 +872,7 @@ simulation steps is stored.</p>
 </div>
 </section>
 <section id="running-the-simulation-loop">
-<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Permalink to this heading">#</a></h3>
+<h3>Running the simulation loop<a class="headerlink" href="#running-the-simulation-loop" title="Link to this heading">#</a></h3>
 <p>Similar to when using assets, the buffers and physics handles for the sensors are initialized only
 when the simulation is played, i.e., it is important to call <code class="docutils literal notranslate"><span class="pre">sim.reset()</span></code> after creating the scene.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># Play the simulator</span>
@@ -900,7 +900,7 @@ to access the data for the different sensors created in this tutorial:</p>
 </section>
 </section>
 <section id="the-code-execution">
-<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Permalink to this heading">#</a></h2>
+<h2>The Code Execution<a class="headerlink" href="#the-code-execution" title="Link to this heading">#</a></h2>
 <p>Now that we have gone through the code, let’s run the script and see the result:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/tutorials/04_sensors/add_sensors_on_robot.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">2</span>
 </pre></div>

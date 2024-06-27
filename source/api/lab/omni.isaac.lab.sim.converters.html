@@ -1,13 +1,12 @@
 
-
 <!DOCTYPE html>
 
 
-<html lang="en" data-content_root="" >
+<html lang="en" data-content_root="../../../" >
 
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>omni.isaac.lab.sim.converters &#8212; Isaac Lab documentation</title>
   
@@ -29,25 +28,24 @@
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/tabs.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.5ea377869091fd0449014c60fc090103.min.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
   <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
 
-    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-    <script src="../../../_static/doctools.js"></script>
-    <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/clipboard.min.js"></script>
-    <script src="../../../_static/copybutton.js"></script>
-    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script src="../../../_static/design-tabs.js"></script>
+    <script src="../../../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'source/api/lab/omni.isaac.lab.sim.converters';</script>
     <link rel="icon" href="../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -207,7 +205,7 @@
          spellcheck="false"/>
   <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
 </form></div>
-        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -332,6 +330,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Project Links</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference external" href="https://github.com/isaac-sim/IsaacLab">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/index.html">NVIDIA Isaac Sim</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html">NVIDIA PhysX</a></li>
 </ul>
 
     </div>
@@ -361,9 +361,9 @@
   
     <div class="header-article-items__start">
       
-        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
-</label></div>
+</button></div>
       
     </div>
   
@@ -521,9 +521,9 @@ document.write(`
   </button>
 `);
 </script>
-<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
     <span class="fa-solid fa-list"></span>
-</label>
+</button>
 </div></div>
       
     </div>
@@ -629,7 +629,7 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="module-omni.isaac.lab.sim.converters">
-<span id="omni-isaac-lab-sim-converters"></span><h1>omni.isaac.lab.sim.converters<a class="headerlink" href="#module-omni.isaac.lab.sim.converters" title="Permalink to this heading">#</a></h1>
+<span id="omni-isaac-lab-sim-converters"></span><h1>omni.isaac.lab.sim.converters<a class="headerlink" href="#module-omni.isaac.lab.sim.converters" title="Link to this heading">#</a></h1>
 <p>Sub-module containing converters for converting various file types to USD.</p>
 <p>In order to support direct loading of various file types into Omniverse, we provide a set of
 converters that can convert the file into a USD file. The converters are implemented as
@@ -664,10 +664,10 @@ sub-classes of the <a class="reference internal" href="#omni.isaac.lab.sim.conve
 </table>
 </div>
 <section id="asset-converter-base">
-<h2>Asset Converter Base<a class="headerlink" href="#asset-converter-base" title="Permalink to this heading">#</a></h2>
+<h2>Asset Converter Base<a class="headerlink" href="#asset-converter-base" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">AssetConverterBase</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base.html#AssetConverterBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">AssetConverterBase</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base.html#AssetConverterBase"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase" title="Link to this definition">#</a></dt>
 <dd><p>Base class for converting an asset file from different formats into USD format.</p>
 <p>This class provides a common interface for converting an asset file into USD. It does not
 provide any implementation for the conversion. The derived classes must implement the
@@ -720,7 +720,7 @@ trigger USD file re-generation.</p>
 </div>
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="omni.isaac.lab.sim.converters.asset_converter_base_cfg.AssetConverterBaseCfg"><span class="pre">AssetConverterBaseCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base.html#AssetConverterBase.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="omni.isaac.lab.sim.converters.asset_converter_base_cfg.AssetConverterBaseCfg"><span class="pre">AssetConverterBaseCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base.html#AssetConverterBase.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.__init__" title="Link to this definition">#</a></dt>
 <dd><p>Initializes the class.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -734,25 +734,25 @@ trigger USD file re-generation.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase.usd_dir">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_dir" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the directory where the generated USD files are stored.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase.usd_file_name">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_file_name" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The file name of the generated USD file.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase.usd_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the generated USD file.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBase.usd_instanceable_meshes_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_instanceable_meshes_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_instanceable_meshes_path" title="Link to this definition">#</a></dt>
 <dd><p>The relative path to the USD file with meshes.</p>
 <p>The path is with respect to the USD directory <a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBase.usd_dir" title="omni.isaac.lab.sim.converters.AssetConverterBase.usd_dir"><code class="xref py py-attr docutils literal notranslate"><span class="pre">usd_dir</span></code></a>. This is to ensure that the
 mesh references in the generated USD file are resolved relatively. Otherwise, it becomes
@@ -763,7 +763,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">AssetConverterBaseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base_cfg.html#AssetConverterBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">AssetConverterBaseCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/asset_converter_base_cfg.html#AssetConverterBaseCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="Link to this definition">#</a></dt>
 <dd><p>The base configuration class for asset converters.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -788,13 +788,13 @@ difficult to move the USD asset to a different location.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg.asset_path">
-<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.asset_path" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.asset_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the asset file to convert into USD.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_dir">
-<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_dir" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The output directory path to store the generated USD file. Defaults to None.</p>
 <p>If None, it is resolved as <code class="docutils literal notranslate"><span class="pre">/tmp/IsaacLab/usd_{date}_{time}_{random}</span></code>, where
 the parameters in braces are runtime generated.</p>
@@ -802,7 +802,7 @@ the parameters in braces are runtime generated.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_file_name">
-<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_file_name" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The name of the generated usd file. Defaults to None.</p>
 <p>If None, it is resolved from the asset file name. For example, if the asset file
 name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.urdf&quot;</span></code>, then the generated USD file name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.usd&quot;</span></code>.</p>
@@ -812,14 +812,14 @@ name is <code class="docutils literal notranslate"><span class="pre">&quot;my_as
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg.force_usd_conversion">
-<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.force_usd_conversion" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.force_usd_conversion" title="Link to this definition">#</a></dt>
 <dd><p>Force the conversion of the asset file to usd. Defaults to False.</p>
 <p>If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.AssetConverterBaseCfg.make_instanceable">
-<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.make_instanceable" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg.make_instanceable" title="Link to this definition">#</a></dt>
 <dd><p>Make the generated USD file instanceable. Defaults to True.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -833,10 +833,10 @@ used in the scene. For more information, please check the USD documentation on
 
 </section>
 <section id="mesh-converter">
-<h2>Mesh Converter<a class="headerlink" href="#mesh-converter" title="Permalink to this heading">#</a></h2>
+<h2>Mesh Converter<a class="headerlink" href="#mesh-converter" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MeshConverter</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter.html#MeshConverter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MeshConverter</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter.html#MeshConverter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBase" title="omni.isaac.lab.sim.converters.asset_converter_base.AssetConverterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBase</span></code></a></p>
 <p>Converter for a mesh file in OBJ / STL / FBX format to a USD file.</p>
 <p>This class wraps around the <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_asset-converter.html">omni.kit.asset_converter</a> extension to provide a lazy implementation
@@ -891,13 +891,13 @@ process or an offset can be added within the config in Isaac Lab.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.cfg">
-<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="omni.isaac.lab.sim.converters.mesh_converter_cfg.MeshConverterCfg"><span class="pre">MeshConverterCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.cfg" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="omni.isaac.lab.sim.converters.mesh_converter_cfg.MeshConverterCfg"><span class="pre">MeshConverterCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.cfg" title="Link to this definition">#</a></dt>
 <dd><p>The configuration instance for mesh to USD conversion.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="omni.isaac.lab.sim.converters.mesh_converter_cfg.MeshConverterCfg"><span class="pre">MeshConverterCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter.html#MeshConverter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="omni.isaac.lab.sim.converters.mesh_converter_cfg.MeshConverterCfg"><span class="pre">MeshConverterCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter.html#MeshConverter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.__init__" title="Link to this definition">#</a></dt>
 <dd><p>Initializes the class.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -908,19 +908,19 @@ process or an offset can be added within the config in Isaac Lab.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.usd_dir">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_dir" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the directory where the generated USD files are stored.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.usd_file_name">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_file_name" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The file name of the generated USD file.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.usd_instanceable_meshes_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_instanceable_meshes_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_instanceable_meshes_path" title="Link to this definition">#</a></dt>
 <dd><p>The relative path to the USD file with meshes.</p>
 <p>The path is with respect to the USD directory <a class="reference internal" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_dir" title="omni.isaac.lab.sim.converters.MeshConverter.usd_dir"><code class="xref py py-attr docutils literal notranslate"><span class="pre">usd_dir</span></code></a>. This is to ensure that the
 mesh references in the generated USD file are resolved relatively. Otherwise, it becomes
@@ -929,7 +929,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverter.usd_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverter.usd_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the generated USD file.</p>
 </dd></dl>
 
@@ -937,7 +937,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MeshConverterCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter_cfg.html#MeshConverterCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">MeshConverterCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/mesh_converter_cfg.html#MeshConverterCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="omni.isaac.lab.sim.converters.asset_converter_base_cfg.AssetConverterBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBaseCfg</span></code></a></p>
 <p>The configuration class for MeshConverter.</p>
 <p><strong>Attributes:</strong></p>
@@ -960,7 +960,7 @@ difficult to move the USD asset to a different location.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props">
-<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">mass_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.MassPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.MassPropertiesCfg"><span class="pre">MassPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.mass_props" title="Link to this definition">#</a></dt>
 <dd><p>Mass properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -970,7 +970,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props">
-<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">rigid_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">RigidBodyPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.rigid_props" title="Link to this definition">#</a></dt>
 <dd><p>Rigid body properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -980,13 +980,13 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path">
-<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.asset_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the asset file to convert into USD.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir">
-<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The output directory path to store the generated USD file. Defaults to None.</p>
 <p>If None, it is resolved as <code class="docutils literal notranslate"><span class="pre">/tmp/IsaacLab/usd_{date}_{time}_{random}</span></code>, where
 the parameters in braces are runtime generated.</p>
@@ -994,7 +994,7 @@ the parameters in braces are runtime generated.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name">
-<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The name of the generated usd file. Defaults to None.</p>
 <p>If None, it is resolved from the asset file name. For example, if the asset file
 name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.urdf&quot;</span></code>, then the generated USD file name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.usd&quot;</span></code>.</p>
@@ -1004,14 +1004,14 @@ name is <code class="docutils literal notranslate"><span class="pre">&quot;my_as
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion">
-<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.force_usd_conversion" title="Link to this definition">#</a></dt>
 <dd><p>Force the conversion of the asset file to usd. Defaults to False.</p>
 <p>If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable">
-<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.make_instanceable" title="Link to this definition">#</a></dt>
 <dd><p>Make the generated USD file instanceable. Defaults to True.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1023,7 +1023,7 @@ used in the scene. For more information, please check the USD documentation on
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props">
-<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">collision_props</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.CollisionPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.CollisionPropertiesCfg"><span class="pre">CollisionPropertiesCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_props" title="Link to this definition">#</a></dt>
 <dd><p>Collision properties to apply to the USD. Defaults to None.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1033,7 +1033,7 @@ used in the scene. For more information, please check the USD documentation on
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation">
-<span class="sig-name descname"><span class="pre">collision_approximation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">collision_approximation</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.MeshConverterCfg.collision_approximation" title="Link to this definition">#</a></dt>
 <dd><p>Collision approximation method to use. Defaults to “convexDecomposition”.</p>
 <p>Valid options are:
 “convexDecomposition”, “convexHull”, “boundingCube”,
@@ -1045,10 +1045,10 @@ used in the scene. For more information, please check the USD documentation on
 
 </section>
 <section id="urdf-converter">
-<h2>URDF Converter<a class="headerlink" href="#urdf-converter" title="Permalink to this heading">#</a></h2>
+<h2>URDF Converter<a class="headerlink" href="#urdf-converter" title="Link to this heading">#</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">UrdfConverter</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter.html#UrdfConverter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">UrdfConverter</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter.html#UrdfConverter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBase" title="omni.isaac.lab.sim.converters.asset_converter_base.AssetConverterBase"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBase</span></code></a></p>
 <p>Converter for a URDF description file to a USD file.</p>
 <p>This class wraps around the <a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/ext_omni_isaac_urdf.html">omni.isaac.urdf_importer</a> extension to provide a lazy implementation
@@ -1101,13 +1101,13 @@ is “fixed”.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.cfg">
-<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.urdf_converter_cfg.UrdfConverterCfg"><span class="pre">UrdfConverterCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.cfg" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.urdf_converter_cfg.UrdfConverterCfg"><span class="pre">UrdfConverterCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.cfg" title="Link to this definition">#</a></dt>
 <dd><p>The configuration instance for URDF to USD conversion.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.urdf_converter_cfg.UrdfConverterCfg"><span class="pre">UrdfConverterCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter.html#UrdfConverter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="omni.isaac.lab.sim.converters.urdf_converter_cfg.UrdfConverterCfg"><span class="pre">UrdfConverterCfg</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter.html#UrdfConverter.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.__init__" title="Link to this definition">#</a></dt>
 <dd><p>Initializes the class.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1118,19 +1118,19 @@ is “fixed”.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.usd_dir">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_dir" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the directory where the generated USD files are stored.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.usd_file_name">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_file_name" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The file name of the generated USD file.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.usd_instanceable_meshes_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_instanceable_meshes_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_instanceable_meshes_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_instanceable_meshes_path" title="Link to this definition">#</a></dt>
 <dd><p>The relative path to the USD file with meshes.</p>
 <p>The path is with respect to the USD directory <a class="reference internal" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_dir" title="omni.isaac.lab.sim.converters.UrdfConverter.usd_dir"><code class="xref py py-attr docutils literal notranslate"><span class="pre">usd_dir</span></code></a>. This is to ensure that the
 mesh references in the generated USD file are resolved relatively. Otherwise, it becomes
@@ -1139,7 +1139,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverter.usd_path">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_path" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">usd_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverter.usd_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the generated USD file.</p>
 </dd></dl>
 
@@ -1147,7 +1147,7 @@ difficult to move the USD asset to a different location.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">UrdfConverterCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter_cfg.html#UrdfConverterCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="Permalink to this definition">#</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.converters.</span></span><span class="sig-name descname"><span class="pre">UrdfConverterCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/converters/urdf_converter_cfg.html#UrdfConverterCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg" title="Link to this definition">#</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#omni.isaac.lab.sim.converters.AssetConverterBaseCfg" title="omni.isaac.lab.sim.converters.asset_converter_base_cfg.AssetConverterBaseCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">AssetConverterBaseCfg</span></code></a></p>
 <p>The configuration class for UrdfConverter.</p>
 <p><strong>Attributes:</strong></p>
@@ -1188,45 +1188,45 @@ difficult to move the USD asset to a different location.</p>
 </div>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.link_density">
-<span class="sig-name descname"><span class="pre">link_density</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.link_density" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">link_density</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.link_density" title="Link to this definition">#</a></dt>
 <dd><p>Default density used for links. Defaults to 0.</p>
 <p>This setting is only effective if <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> properties are missing in the URDF.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.import_inertia_tensor">
-<span class="sig-name descname"><span class="pre">import_inertia_tensor</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.import_inertia_tensor" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">import_inertia_tensor</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.import_inertia_tensor" title="Link to this definition">#</a></dt>
 <dd><p>Import the inertia tensor from urdf. Defaults to True.</p>
 <p>If the <code class="docutils literal notranslate"><span class="pre">&quot;inertial&quot;</span></code> tag is missing, then it is imported as an identity.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.convex_decompose_mesh">
-<span class="sig-name descname"><span class="pre">convex_decompose_mesh</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.convex_decompose_mesh" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">convex_decompose_mesh</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.convex_decompose_mesh" title="Link to this definition">#</a></dt>
 <dd><p>Decompose a convex mesh into smaller pieces for a closer fit. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base">
-<span class="sig-name descname"><span class="pre">fix_base</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">fix_base</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.fix_base" title="Link to this definition">#</a></dt>
 <dd><p>Create a fix joint to the root/base link. Defaults to True.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints">
-<span class="sig-name descname"><span class="pre">merge_fixed_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">merge_fixed_joints</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.merge_fixed_joints" title="Link to this definition">#</a></dt>
 <dd><p>Consolidate links that are connected by fixed joints. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.asset_path">
-<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.asset_path" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">asset_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.asset_path" title="Link to this definition">#</a></dt>
 <dd><p>The absolute path to the asset file to convert into USD.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_dir">
-<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_dir" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_dir</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_dir" title="Link to this definition">#</a></dt>
 <dd><p>The output directory path to store the generated USD file. Defaults to None.</p>
 <p>If None, it is resolved as <code class="docutils literal notranslate"><span class="pre">/tmp/IsaacLab/usd_{date}_{time}_{random}</span></code>, where
 the parameters in braces are runtime generated.</p>
@@ -1234,7 +1234,7 @@ the parameters in braces are runtime generated.</p>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_file_name">
-<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_file_name" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">usd_file_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.usd_file_name" title="Link to this definition">#</a></dt>
 <dd><p>The name of the generated usd file. Defaults to None.</p>
 <p>If None, it is resolved from the asset file name. For example, if the asset file
 name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.urdf&quot;</span></code>, then the generated USD file name is <code class="docutils literal notranslate"><span class="pre">&quot;my_asset.usd&quot;</span></code>.</p>
@@ -1244,14 +1244,14 @@ name is <code class="docutils literal notranslate"><span class="pre">&quot;my_as
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.force_usd_conversion">
-<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.force_usd_conversion" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">force_usd_conversion</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.force_usd_conversion" title="Link to this definition">#</a></dt>
 <dd><p>Force the conversion of the asset file to usd. Defaults to False.</p>
 <p>If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable">
-<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">make_instanceable</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.make_instanceable" title="Link to this definition">#</a></dt>
 <dd><p>Make the generated USD file instanceable. Defaults to True.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1263,13 +1263,13 @@ used in the scene. For more information, please check the USD documentation on
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision">
-<span class="sig-name descname"><span class="pre">self_collision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">self_collision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.self_collision" title="Link to this definition">#</a></dt>
 <dd><p>Activate self-collisions between links of the articulation. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type">
-<span class="sig-name descname"><span class="pre">default_drive_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'position'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'velocity'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">default_drive_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'none'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'position'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'velocity'</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_type" title="Link to this definition">#</a></dt>
 <dd><p>The drive type used for joints. Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>.</p>
 <p>The drive type dictates the loaded joint PD gains and USD attributes for joint control:</p>
 <ul class="simple">
@@ -1281,19 +1281,19 @@ used in the scene. For more information, please check the USD documentation on
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics">
-<span class="sig-name descname"><span class="pre">override_joint_dynamics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">override_joint_dynamics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.override_joint_dynamics" title="Link to this definition">#</a></dt>
 <dd><p>Override the joint dynamics parsed from the URDF file. Defaults to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness">
-<span class="sig-name descname"><span class="pre">default_drive_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">default_drive_stiffness</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_stiffness" title="Link to this definition">#</a></dt>
 <dd><p>The default stiffness of the joint drive. Defaults to 0.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping">
-<span class="sig-name descname"><span class="pre">default_drive_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">default_drive_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.converters.UrdfConverterCfg.default_drive_damping" title="Link to this definition">#</a></dt>
 <dd><p>The default damping of the joint drive. Defaults to 0.0.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
