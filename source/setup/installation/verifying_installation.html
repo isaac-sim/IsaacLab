@@ -32,7 +32,7 @@
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/sphinx-book-theme.css?v=a3416100" />
     <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=87e54e7c" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=eaadd390" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=b333a5fb" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
@@ -679,24 +679,20 @@ Windows</label><div class="sd-tab-content docutils">
 </div>
 </li>
 </ul>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
-<blockquote>
-<div><p>If you have been using a previous version of Isaac Sim, you
-need to run the following command for the <em>first</em> time after
-installation to remove all the old user data and cached variables:</p>
-</div></blockquote>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>If you have been using a previous version of Isaac Sim, you need to run the following command for the <em>first</em>
+time after installation to remove all the old user data and cached variables:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-6" name="sd-tab-set-3" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-6">
-Linux
- :sync: linux</label><div class="sd-tab-content docutils">
+Linux</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="si">${</span><span class="nv">ISAACSIM_PATH</span><span class="si">}</span>/isaac-sim.sh<span class="w"> </span>--reset-user
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-7" name="sd-tab-set-3" type="radio">
-<label class="sd-tab-label" data-sync-group="os" data-sync-id="windows" for="sd-tab-item-7">
+<label class="sd-tab-label" for="sd-tab-item-7">
 Windows</label><div class="sd-tab-content docutils">
 <div class="highlight-batch notranslate"><div class="highlight"><pre><span></span><span class="nv">%ISAACSIM_PATH%</span>\isaac-sim.bat --reset-user
 </pre></div>
