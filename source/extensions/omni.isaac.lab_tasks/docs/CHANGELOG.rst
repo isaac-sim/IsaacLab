@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.7.9 (2024-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update skrl wrapper to support training/evaluation using JAX
+
 0.7.8 (2024-06-26)
 ~~~~~~~~~~~~~~~~~~
 
