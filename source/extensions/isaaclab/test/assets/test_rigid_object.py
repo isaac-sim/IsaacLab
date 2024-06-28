@@ -149,7 +149,7 @@ class TestRigidObject(unittest.TestCase):
                             # check that the object is kinematic
                             default_root_state = cube_object.data.default_root_state.clone()
                             default_root_state[:, :3] += origins
-                            torch.testing.assert_allclose(cube_object.data.root_state_w, default_root_state)
+                            torch.testing.assert_close(cube_object.data.root_state_w, default_root_state)
 
     def test_initialization_with_no_rigid_body(self):
         """Test that initialization fails when no rigid body is found at the provided prim path."""
@@ -626,6 +626,36 @@ class TestRigidObject(unittest.TestCase):
 
                         # Check if mass is set correctly
                         torch.testing.assert_close(masses, masses_to_check)
+
+    def test_gravity_vec_w(self):
+        """Test that gravity vector direction is set correctly for the rigid object."""
+        for num_cubes in (1, 2):
+            for device in ("cuda:0", "cpu"):
+                for gravity_enabled in [True, False]:
+                    with self.subTest(num_cubes=num_cubes, device=device, gravity_enabled=gravity_enabled):
+                        with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
+                            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+                            # Obtain gravity direction
+                            if gravity_enabled:
+                                gravity_dir = (0.0, 0.0, -1.0)
+                            else:
+                                gravity_dir = (0.0, 0.0, 0.0)
+
+                            # Play sim
+                            sim.reset()
+
+                            # Check that gravity is set correctly
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 0], gravity_dir[0])
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 1], gravity_dir[1])
+                            self.assertEqual(cube_object.data.GRAVITY_VEC_W[0, 2], gravity_dir[2])
+
+                            # Simulate physics
+                            for _ in range(2):
+                                # perform rendering
+                                sim.step()
+                                # update object
+                                cube_object.update(sim.cfg.dt)
 
 
 if __name__ == "__main__":

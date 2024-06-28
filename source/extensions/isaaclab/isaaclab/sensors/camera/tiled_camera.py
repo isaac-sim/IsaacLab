@@ -39,15 +39,15 @@ class TiledCamera(Camera):
     - ``"rgb"``: A rendered color image.
     - ``"depth"``: An image containing the distance to camera optical center.
 
-    .. versionadded:: Isaac Sim 4.0
-
-        This feature is available starting from Isaac Sim 4.0. Before this version, the tiled rendering APIs
-        were not available.
-
     .. attention::
         Please note that the fidelity of RGB images may be lower than the standard camera sensor due to the
         tiled rendering process. Various ray tracing effects such as reflections, refractions, and shadows may not be
         accurately captured in the RGB images. We are currently working on improving the fidelity of the RGB images.
+
+    .. versionadded:: v1.0.0
+
+        This feature is available starting from Isaac Sim 4.0. Before this version, the tiled rendering APIs
+        were not available.
 
     """
 

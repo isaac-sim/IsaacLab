@@ -84,7 +84,7 @@ class DelayBuffer:
 
     @property
     def max_time_lag(self) -> int:
-        """Maximum number of time steps that can be delayed.
+        """Maximum amount of time steps that can be delayed.
 
         This value cannot be greater than :attr:`history_length`.
         """
