@@ -35,8 +35,7 @@ except ModuleNotFoundError:
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.articulations import ArticulationView
 from omni.isaac.core.utils.carb import set_carb_setting
-from omni.isaac.core.utils.viewports import set_camera_view
-from omni.isaac.core.world import World
+from omni.isaac.core.simulation_context import SimulationContext
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:
@@ -64,13 +63,11 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    world = World(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
-    # Set main camera
-    set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    set_carb_setting(world._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # -- Robot
     # resolve asset
@@ -84,33 +81,32 @@ def main():
     # Setup robot
     robot_view = ArticulationView(root_prim_path, name="ANYMAL")
 
-    # Check the reference count
-    print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
-    print("Referrers of the robot view: ", gc.get_referrers(robot_view))
-    print("---" * 10)
-
-    world.scene.add(robot_view)
-
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot_view))
     print("---" * 10)
 
     # Play the simulator
-    world.reset()
+    sim.reset()
+
+    print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
+    print("Referrers of the robot view: ", gc.get_referrers(robot_view))
+    print("---" * 10)
+
+    robot_view.initialize()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot_view))
     print("---" * 10)
 
     # Stop the simulator
-    world.stop()
+    sim.stop()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot_view))
     print("---" * 10)
 
     # Clean up
-    world.clear()
+    sim.clear()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot_view))
