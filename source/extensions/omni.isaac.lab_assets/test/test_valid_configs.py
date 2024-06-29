@@ -64,7 +64,7 @@ class TestValidEntitiesConfigs(unittest.TestCase):
                         sim.reset()
 
                         # check asset is initialized successfully
-                        self.assertTrue(entity._is_initialized)
+                        self.assertTrue(entity.is_initialized)
 
 
 if __name__ == "__main__":

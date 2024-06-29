@@ -102,7 +102,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertTrue(cube_object._is_initialized)
+                        self.assertTrue(cube_object.is_initialized)
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
@@ -133,7 +133,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertTrue(cube_object._is_initialized)
+                        self.assertTrue(cube_object.is_initialized)
                         self.assertEqual(len(cube_object.body_names), 1)
 
                         # Check buffers that exists and have correct shapes
@@ -166,7 +166,7 @@ class TestRigidObject(unittest.TestCase):
                         sim.reset()
 
                         # Check if object is initialized
-                        self.assertFalse(cube_object._is_initialized)
+                        self.assertFalse(cube_object.is_initialized)
 
     def test_external_force_on_single_body(self):
         """Test application of external force on the base of the object.
