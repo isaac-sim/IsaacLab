@@ -13,8 +13,12 @@ Reference: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_
 
 
 import argparse
+import contextlib
 
-from omni.isaac.lab.app import AppLauncher
+with contextlib.suppress(ModuleNotFoundError):
+    import isaacsim  # noqa: F401
+
+from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -27,14 +31,12 @@ parser.add_argument(
     default="isaaclab",
     help="The asset source location for the robot. Can be: isaaclab, oige, custom asset path.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
 # parse the arguments
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+simulation_app = SimulationApp({"headless": args_cli.headless})
 
 """Rest everything follows."""
 
@@ -67,8 +69,8 @@ if nucleus_utils.get_assets_root_path() is None:
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac/Samples/Orbit"
-"""Path to the `Isaac/Samples/Orbit` directory on the NVIDIA Nucleus Server."""
+ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
+"""Path to the `Isaac/IsaacLab` directory on the NVIDIA Nucleus Server."""
 
 
 """
