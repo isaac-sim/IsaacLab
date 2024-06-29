@@ -31,7 +31,11 @@ simulation_app = app_launcher.app
 import ctypes
 import gc
 
-import omni.isaac.lab.sim as sim_utils
+from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.core.utils.carb import set_carb_setting
+import omni.isaac.core.utils.prims as prim_utils
+
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from omni.isaac.lab.assets import Articulation
 
 ##
@@ -49,12 +53,26 @@ def main():
     """Spawns the ANYmal robot and clones it using Isaac Sim Cloner API."""
 
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device="cuda:0")
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = SimulationContext(physics_dt=0.005, rendering_dt=0.005, backend="torch", device="cuda:0")
+
+    # Enable hydra scene-graph instancing
+    # this is needed to visualize the scene when flatcache is enabled
+    set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+
+    # resolve asset
+    # usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+    # # add asset
+    # print("Loading robot from: ", usd_path)
+    # prim_utils.create_prim("/World/Robot", usd_path=usd_path, translation=(0.0, 0.0, 0.6))
 
     # Spawn things into stage
     # -- Robot
-    robot_view = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
+    cfg = ANYMAL_C_CFG.replace(prim_path="/World/Robot")
+
+    # cfg.spawn.func("/World/Robot", cfg.spawn)
+    # cfg.spawn = None
+
+    robot_view = Articulation(cfg)
 
     # Check the reference count
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
@@ -70,6 +88,13 @@ def main():
 
     # Stop the simulator
     sim.stop()
+
+    print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
+    print("Referrers of the robot view: ", gc.get_referrers(robot_view))
+    print("---" * 10)
+
+    # Clean up
+    sim.clear()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
     print("Referrers of the robot view: ", gc.get_referrers(robot_view))
