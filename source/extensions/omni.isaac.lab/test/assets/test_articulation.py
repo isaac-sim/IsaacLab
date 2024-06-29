@@ -75,6 +75,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that floating base
@@ -114,6 +118,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that floating base
@@ -153,6 +161,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that fixed base
@@ -207,6 +219,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that fixed base
@@ -247,6 +263,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that fixed base
@@ -281,6 +301,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that floating base
@@ -327,6 +351,10 @@ class TestArticulation(unittest.TestCase):
 
         # Play sim
         self.sim.reset()
+
+        # Check that boundedness of articulation is correct
+        self.assertEqual(ctypes.c_long.from_address(id(robot)).value, 1)
+
         # Check if robot is initialized
         self.assertTrue(robot._is_initialized)
         # Check that fixed base
