@@ -57,7 +57,7 @@
     <link rel="prev" title="Task Design Workflows" href="task_workflows.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 27, 2024"/>
+    <meta name="docbuild:last-update" content="Jun 29, 2024"/>
   </head>
   
   
@@ -581,7 +581,8 @@ a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab env
 Each process collects its own rollouts during the training process and has its own copy of the policy
 network. During training, gradients are aggregated across the processes and broadcasted back to the process
 at the end of the epoch.</p>
-<img alt="Multi-GPU training paradigm" class="align-center" src="../../_images/multigpu.png" />
+<a class="only-light reference internal image-reference" href="../../_images/a3c-light.svg"><img alt="Multi-GPU training paradigm" class="only-light align-center" src="../../_images/a3c-light.svg" width="80%" /></a>
+<a class="only-dark reference internal image-reference" href="../../_images/a3c-dark.svg"><img alt="Multi-GPU training paradigm" class="only-dark align-center" src="../../_images/a3c-dark.svg" width="80%" /></a>
 <p>To train with multiple GPUs, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
@@ -731,7 +732,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 27, 2024.
+  Last updated on Jun 29, 2024.
   <br/>
 </p>
   </div>
