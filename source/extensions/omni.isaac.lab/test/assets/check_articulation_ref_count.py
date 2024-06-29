@@ -28,12 +28,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import torch
 import ctypes
 import gc
-
-import omni.isaac.core.utils.prims as prim_utils
-from omni.isaac.cloner import GridCloner
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation
@@ -56,34 +52,9 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device="cuda:0")
     sim = sim_utils.SimulationContext(sim_cfg)
 
-    # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
-    cloner.define_base_env("/World/envs")
-    # Everything under the namespace "/World/envs/env_0" will be cloned
-    prim_utils.define_prim("/World/envs/env_0")
-
     # Spawn things into stage
-    # Lights-1
-    prim_utils.create_prim("/World/Light/GreySphere", "SphereLight", translation=(4.5, 3.5, 10.0))
-    # Lights-2
-    prim_utils.create_prim("/World/Light/WhiteSphere", "SphereLight", translation=(-4.5, 3.5, 10.0))
     # -- Robot
-    robot_view = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot"))
-
-    # Clone the scene
-    num_envs = args_cli.num_robots
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    envs_positions = cloner.clone(
-        source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True
-    )
-    # convert environment positions to torch tensor
-    envs_positions = torch.tensor(envs_positions, dtype=torch.float, device=sim.device)
-    # filter collisions within each environment instance
-    physics_scene_path = sim.get_physics_context().prim_path
-    cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
-    )
+    robot_view = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
 
     # Check the reference count
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot_view)).value)
