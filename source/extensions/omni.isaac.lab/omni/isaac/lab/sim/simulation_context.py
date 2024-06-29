@@ -642,6 +642,7 @@ class SimulationContext(_SimulationContext):
         # self._app.shutdown()
         self._framework.unload_all_plugins()
 
+
 @contextmanager
 def build_simulation_context(
     create_new_stage: bool = True,
