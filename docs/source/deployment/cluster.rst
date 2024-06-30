@@ -143,7 +143,7 @@ Defining the job parameters (PBS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The job parameters are defined inside the ``docker/cluster/submit_job.sh``.
-A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more 
+A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
 information, please check the `PBS Official Site`_.
 
 The default configuration is as follows:

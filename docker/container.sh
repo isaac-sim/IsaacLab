@@ -235,10 +235,10 @@ submit_job() {
 
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
-            cmd="sbatch"
+            CMD="sbatch"
             ;;
         "PBS")
-            cmd="bash"
+            CMD="bash"
             ;;
         *)
             echo "[ERROR] Unsupported job scheduler specified: $CLUSTER_JOB_SCHEDULER"
@@ -247,7 +247,7 @@ submit_job() {
     esac
 
     echo "[INFO] Arguments passed to job script ${@}"
-    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $cmd $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh \"$CLUSTER_JOB_SCHEDULER\" \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh \"$CLUSTER_JOB_SCHEDULER\" \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
 }
 
 #==
