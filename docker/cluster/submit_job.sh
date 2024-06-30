@@ -3,38 +3,40 @@
 # In case you need to load specific modules on the cluster, add them here
 # e.g., `module load eth_proxy` or `ml go-1.19.4/apptainer-1.1.8`
 
-# Check for the required number of arguments
-if [ "$#" -lt 4 ]; then
-  echo "Usage: $0 <SLURM|PBS> <CLUSTER_ISAACLAB_DIR> <CONTAINER_PROFILE> <additional_args...>"
-  exit 1
-fi
-
 scheduler="$1"
-isaaclab_dir="$2"
+cluster_isaaclab_dir="$2"
 container_profile="$3"
 
-cat <<EOT > job.sh
+if [ "$scheduler" == "SLURM" ]; then
+  cat <<'EOT' >> job.sh
 #!/bin/bash
 
-$(if [ "$scheduler" == "SLURM" ]; then
-  echo "#SBATCH -n 1"
-  echo "#SBATCH --cpus-per-task=8"
-  echo "#SBATCH --gpus=rtx_3090:1"
-  echo "#SBATCH --time=23:00:00"
-  echo "#SBATCH --mem-per-cpu=4048"
-  echo "#SBATCH --mail-type=END"
-  echo "#SBATCH --mail-user=name@mail"
-  echo "#SBATCH --job-name=training-$(date +"%Y-%m-%dT%H:%M")"
+#SBATCH -n 1
+#SBATCH --cpus-per-task=8
+#SBATCH --gpus=rtx_3090:1
+#SBATCH --time=23:00:00
+#SBATCH --mem-per-cpu=4048
+#SBATCH --mail-type=END
+#SBATCH --mail-user=name@mail
+#SBATCH --job-name=training-$(date +"%Y-%m-%dT%H:%M")
+EOT
 elif [ "$scheduler" == "PBS" ]; then
-  echo "#PBS -l select=1:ncpus=2:mpiprocs=12:ngpus=1"
-  echo "#PBS -l walltime=01:00:00"
-  echo "#PBS -j oe"
-  echo "#PBS -q gpu"
-  echo "#PBS -N isaaclab"
-fi)
+  cat <<'EOT' >> job.sh
+#!/bin/bash
+
+#PBS -l select=1:ncpus=8:mpiprocs=1:ngpus=1
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#PBS -q gpu
+#PBS -N isaaclab
+#PBS -m bea -M "user@mail"
+EOT
+fi
+
+cat <<EOT >> job.sh
 
 # Pass the container profile first to run_singularity.sh, then all arguments intended for the executed script
-sh "$isaaclab_dir/docker/cluster/run_singularity.sh" "$container_profile" "${@:4}"
+sh "$cluster_isaaclab_dir/docker/cluster/run_singularity.sh" "$container_profile" "${@:4}"
 EOT
 
 # Submit the job
@@ -43,7 +45,7 @@ if [ "$scheduler" == "SLURM" ]; then
 elif [ "$scheduler" == "PBS" ]; then
   qsub job.sh
 else
-  echo "Invalid argument. Please specify 'SLURM' or 'PBS'."
+  echo "Invalid job scheduler. Available options [SLURM/PBS]."
   rm job.sh
   exit 1
 fi
