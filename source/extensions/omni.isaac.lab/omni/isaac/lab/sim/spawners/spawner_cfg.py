@@ -99,3 +99,19 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
 
     This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.
     """
+
+
+@configclass
+class DeformableObjectSpawnerCfg(SpawnerCfg):
+    """Configuration parameters for spawning a deformable asset.
+
+    Note:
+        By default, all properties are set to None. This means that no properties will be added or modified
+        to the prim outside of the properties available by default when spawning the prim.
+    """
+
+    mass_props: schemas.MassPropertiesCfg | None = None
+    """Mass properties."""
+
+    deformable_props: schemas.DeformableBodyPropertiesCfg | None = None
+    """Deformable body properties."""

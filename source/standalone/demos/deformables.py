@@ -34,7 +34,6 @@ simulation_app = app_launcher.app
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def design_scene():
@@ -53,46 +52,41 @@ def design_scene():
     # create a new xform prim for all objects to be spawned under
     prim_utils.create_prim("/World/Objects", "Xform")
     # spawn a red cone
-    cfg_cone = sim_utils.ConeCfg(
+    cfg_cone = sim_utils.MeshConeCfg(
         radius=0.15,
         height=0.5,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
     )
-    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 1.0, 1.0))
-    cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-1.0, -1.0, 1.0))
+    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 0.0, 0.3))
+    cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-0.5, 0.0, 0.3))
 
     # spawn a green cone with colliders and rigid body
-    cfg_cone_rigid = sim_utils.ConeCfg(
-        radius=0.15,
-        height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+    cfg_sphere = sim_utils.MeshSphereCfg(
+        radius=0.25,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
-    cfg_cone_rigid.func(
-        "/World/Objects/ConeRigid", cfg_cone_rigid, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
+    cfg_sphere.func(
+        "/World/Objects/Sphere",
+        cfg_sphere,
+        translation=(0.0, 0.0, 0.6),
     )
 
     # spawn a blue cuboid with deformable body
-    cfg_cuboid_deformable = sim_utils.MeshCuboidCfg(
-        size=(0.2, 0.5, 0.2),
+    cfg_cuboid = sim_utils.MeshCuboidCfg(
+        size=(0.2, 0.2, 0.2),
         deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-        physics_material=sim_utils.DeformableBodyMaterialCfg(),
     )
-    cfg_cuboid_deformable.func("/World/Objects/CuboidDeformable", cfg_cuboid_deformable, translation=(0.15, 0.0, 2.0))
-
-    # spawn a usd file of a table into the scene
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-    cfg.func("/World/Objects/Table", cfg, translation=(0.0, 0.0, 1.05))
+    cfg_cuboid.func("/World/Objects/Cuboid", cfg_cuboid, translation=(0.5, 0.0, 0.3))
 
 
 def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, substeps=1)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
