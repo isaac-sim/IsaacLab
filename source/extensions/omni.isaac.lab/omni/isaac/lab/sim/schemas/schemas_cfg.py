@@ -316,7 +316,7 @@ class DeformableBodyPropertiesCfg:
     collision_simplification_remeshing: bool | None = True
     """Flag indicating if the simplification should be based on remeshing.
 
-    This is ignored if collision_simplification is False.
+    This is ignored if :attr:`collision_simplification` is False.
     """
 
     collision_simplification_remeshing_resolution: int | None = 0

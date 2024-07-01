@@ -37,17 +37,17 @@ import omni.isaac.lab.sim as sim_utils
 
 
 def design_scene():
-    """Designs the scene by spawning ground plane, light, objects and meshes from usd files."""
+    """Designs the scene by spawning ground plane, light, and deformable meshes."""
     # Ground-plane
     cfg_ground = sim_utils.GroundPlaneCfg()
     cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
 
     # spawn distant light
-    cfg_light_distant = sim_utils.DistantLightCfg(
+    cfg_light = sim_utils.DomeLightCfg(
         intensity=3000.0,
         color=(0.75, 0.75, 0.75),
     )
-    cfg_light_distant.func("/World/lightDistant", cfg_light_distant, translation=(1, 0, 10))
+    cfg_light.func("/World/light", cfg_light)
 
     # create a new xform prim for all objects to be spawned under
     prim_utils.create_prim("/World/Objects", "Xform")
@@ -58,7 +58,7 @@ def design_scene():
         deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
     )
-    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 0.0, 0.3))
+    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 0.0, 0.6))
     cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-0.5, 0.0, 0.3))
 
     # spawn a green cone with colliders and rigid body
@@ -80,16 +80,16 @@ def design_scene():
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg_cuboid.func("/World/Objects/Cuboid", cfg_cuboid, translation=(0.5, 0.0, 0.3))
+    cfg_cuboid.func("/World/Objects/Cuboid2", cfg_cuboid, translation=(1.0, 0.0, 0.6))
 
 
 def main():
     """Main function."""
-
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, substeps=1)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
+    sim.set_camera_view([0.0, 2.0, 1.5], [0.0, 0.0, 0.0])
 
     # Design scene by adding assets to it
     design_scene()
