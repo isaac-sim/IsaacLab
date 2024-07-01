@@ -7,13 +7,12 @@
 from __future__ import annotations
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 import omni.physx.scripts.utils as physx_utils
 from omni.physx.scripts import deformableUtils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
-from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema
+from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema, get_all_matching_child_prims
 from . import schemas_cfg
 
 """
@@ -685,22 +684,30 @@ def define_deformable_body_properties(
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    
     # traverse the prim and get the mesh
-    mesh_path = prim_utils.get_prim_path(
-        prim_utils.get_first_matching_child_prim(prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh")
-    )
+    matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
     # check if the mesh is valid
-    if mesh_path is None:
-        raise ValueError(f"Could not find any mesh in {prim_path}. Please check asset.")
+    if len(matching_prims) == 0:
+        raise ValueError(f"Could not find any mesh in '{prim_path}'. Please check asset.")
+    elif len(matching_prims) > 1:
+        # get list of all meshes found
+        mesh_paths = [p.GetPrimPath() for p in matching_prims]
+        raise ValueError(
+            f"Found multiple meshes in '{prim_path}': {mesh_paths}."
+            " Deformable body schema can only be applied to one mesh."
+        )
+
     # get deformable-body USD prim
-    deformable_body_prim = stage.GetPrimAtPath(mesh_path)
+    mesh_prim = matching_prims[0]
     # check if prim has deformable-body applied on it
-    if not PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim):
-        PhysxSchema.PhysxDeformableBodyAPI.Apply(deformable_body_prim)
+    if not PhysxSchema.PhysxDeformableBodyAPI(mesh_prim):
+        PhysxSchema.PhysxDeformableBodyAPI.Apply(mesh_prim)
     # set deformable body properties
-    modify_deformable_body_properties(prim_path, cfg, stage)
+    modify_deformable_body_properties(mesh_prim.GetPrimPath(), cfg, stage)
 
 
+@apply_nested
 def modify_deformable_body_properties(
     prim_path: str, cfg: schemas_cfg.DeformableBodyPropertiesCfg, stage: Usd.Stage | None = None
 ):
@@ -728,22 +735,22 @@ def modify_deformable_body_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    Raises:
+        ValueError: If the input prim path is not valid.
+        ValueError: If the input prim path does not contain a mesh or contains multiple meshes.
     """
     # obtain stage
     if stage is None:
         stage = stage_utils.get_current_stage()
-    # traverse the prim and get the mesh
-    mesh_path = prim_utils.get_prim_path(
-        prim_utils.get_first_matching_child_prim(prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh")
-    )
-    # check if the mesh is valid
-    if mesh_path is None:
-        raise ValueError(f"Could not find any mesh in {prim_path}. Please check asset.")
+
     # get deformable-body USD prim
-    deformable_body_prim = stage.GetPrimAtPath(mesh_path)
-    # check if prim has deformable-body applied on it
-    if not PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim):
+    deformable_body_prim = stage.GetPrimAtPath(prim_path)
+
+    # check if the prim is valid and has the deformable-body API
+    if not deformable_body_prim.IsValid() or not PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim):
         return False
+
     # retrieve the physx deformable-body api
     physx_deformable_body_api = PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim)
     # retrieve the physx deformable api
@@ -768,9 +775,11 @@ def modify_deformable_body_properties(
             "embedding",
         ]
     }
-    deformableUtils.add_physx_deformable_body(stage, prim_path=mesh_path, **attr_kwargs)
+    deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
+
     # set into PhysX API
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)
+
     # success
     return True
