@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.18.6 (2024-07-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the environment stepping logic. Earlier, the environments' rendering logic was updating the kit app which 
+  would in turn step the physics :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval` times. Now, a render 
+  call only does rendering and does not step the physics.
+
+
 0.18.5 (2024-06-26)
 ~~~~~~~~~~~~~~~~~~~
 
