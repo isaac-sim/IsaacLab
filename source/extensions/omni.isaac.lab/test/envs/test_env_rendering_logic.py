@@ -112,12 +112,12 @@ class TestEnvRenderingLogic(unittest.TestCase):
 
     def _physics_callback(self, dt):
         # called at every physics step
-        self.physics_dt += dt
+        self.physics_time += dt
         self.num_physics_steps += 1
 
     def _render_callback(self, event):
         # called at every render step
-        self.render_dt += event.payload["dt"]
+        self.render_time += event.payload["dt"]
         self.num_render_steps += 1
 
     def test_env_rendering_logic(self):
@@ -125,8 +125,8 @@ class TestEnvRenderingLogic(unittest.TestCase):
             for render_interval in [1, 4]:
                 with self.subTest(env_type=env_type, render_interval=render_interval):
                     # time tracking variables
-                    self.physics_dt = 0.0
-                    self.render_dt = 0.0
+                    self.physics_time = 0.0
+                    self.render_time = 0.0
                     # step tracking variables
                     self.num_physics_steps = 0
                     self.num_render_steps = 0
@@ -154,13 +154,13 @@ class TestEnvRenderingLogic(unittest.TestCase):
                         # check that we have completed the correct number of physics steps
                         self.assertEqual(self.num_physics_steps, (i + 1) * env.cfg.decimation)
                         # check that we have simulated physics for the correct amount of time
-                        self.assertAlmostEqual(self.physics_dt, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
+                        self.assertAlmostEqual(self.physics_time, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
                         # check that we have completed the correct number of rendering steps
                         self.assertEqual(
                             self.num_render_steps, (i + 1) * env.cfg.decimation // env.cfg.sim.render_interval
                         )
                         # check that we have rendered for the correct amount of time
-                        self.assertAlmostEqual(self.render_dt, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
+                        self.assertAlmostEqual(self.render_time, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
                 env.close()
 
 
