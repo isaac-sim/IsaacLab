@@ -9,9 +9,10 @@ from __future__ import annotations
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.physx.scripts.utils as physx_utils
+from omni.physx.scripts import deformableUtils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
-from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema
+from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema, get_all_matching_child_prims
 from . import schemas_cfg
 
 """
@@ -538,7 +539,7 @@ def modify_joint_drive_properties(
     .. caution::
 
         We highly recommend modifying joint properties of articulations through the functionalities in the
-        :mod:`omni.isaac.lab.actuators` module. The methods here are for setting simulation low-level
+        :mod:`omni.isaac.orbit.actuators` module. The methods here are for setting simulation low-level
         properties only.
 
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
@@ -649,5 +650,136 @@ def modify_fixed_tendon_properties(
         # set into PhysX API
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_schema(physx_tendon_axis_api, attr_name, value, camel_case=True)
+    # success
+    return True
+
+
+"""
+Deformable body properties.
+"""
+
+
+def define_deformable_body_properties(
+    prim_path: str, cfg: schemas_cfg.DeformableBodyPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Apply the deformable body schema on the input prim and set its properties.
+
+    See :func:`modify_deformable_body_properties` for more details on how the properties are set.
+
+    Args:
+        prim_path: The prim path where to apply the deformable body schema.
+        cfg: The configuration for the deformable body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Raises:
+        ValueError: When the prim path is not valid.
+        TypeError: When the prim already has conflicting API schemas.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+    # get USD prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim path is valid
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    
+    # traverse the prim and get the mesh
+    matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
+    # check if the mesh is valid
+    if len(matching_prims) == 0:
+        raise ValueError(f"Could not find any mesh in '{prim_path}'. Please check asset.")
+    elif len(matching_prims) > 1:
+        # get list of all meshes found
+        mesh_paths = [p.GetPrimPath() for p in matching_prims]
+        raise ValueError(
+            f"Found multiple meshes in '{prim_path}': {mesh_paths}."
+            " Deformable body schema can only be applied to one mesh."
+        )
+
+    # get deformable-body USD prim
+    mesh_prim = matching_prims[0]
+    # check if prim has deformable-body applied on it
+    if not PhysxSchema.PhysxDeformableBodyAPI(mesh_prim):
+        PhysxSchema.PhysxDeformableBodyAPI.Apply(mesh_prim)
+    # set deformable body properties
+    modify_deformable_body_properties(mesh_prim.GetPrimPath(), cfg, stage)
+
+
+@apply_nested
+def modify_deformable_body_properties(
+    prim_path: str, cfg: schemas_cfg.DeformableBodyPropertiesCfg, stage: Usd.Stage | None = None
+):
+    """Modify PhysX parameters for a deformable body prim.
+
+    A `deformable body`_ is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
+    A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by the user, but does not
+    respond to forces. They are similar to having static bodies that can be moved around.
+
+    The schema comprises of attributes that belong to the `PhysxDeformableBodyAPI`_. schemas containing the PhysX
+    parameters for the deformable body.
+
+    .. note::
+        We assume that the USD file for a deformable body contains a single mesh.
+        If the USD file contains multiple meshes, then the first mesh is used.
+
+    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/SoftBodies.html
+    .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html
+
+    Args:
+        prim_path: The prim path to the deformable body.
+        cfg: The configuration for the deformable body.
+        stage: The stage where to find the prim. Defaults to None, in which case the
+            current stage is used.
+
+    Returns:
+        True if the properties were successfully set, False otherwise.
+
+    Raises:
+        ValueError: If the input prim path is not valid.
+        ValueError: If the input prim path does not contain a mesh or contains multiple meshes.
+    """
+    # obtain stage
+    if stage is None:
+        stage = stage_utils.get_current_stage()
+
+    # get deformable-body USD prim
+    deformable_body_prim = stage.GetPrimAtPath(prim_path)
+
+    # check if the prim is valid and has the deformable-body API
+    if not deformable_body_prim.IsValid() or not PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim):
+        return False
+
+    # retrieve the physx deformable-body api
+    physx_deformable_body_api = PhysxSchema.PhysxDeformableBodyAPI(deformable_body_prim)
+    # retrieve the physx deformable api
+    physx_deformable_api = PhysxSchema.PhysxDeformableAPI(physx_deformable_body_api)
+
+    # convert to dict
+    cfg = cfg.to_dict()
+    # set into deformable body API
+    attr_kwargs = {
+        attr_name: cfg.pop(attr_name, None)
+        for attr_name in [
+            "kinematic_enabled",
+            "simulation_hexahedral_resolution",
+            "simulation_rest_points",
+            "collision_rest_points",
+            "collision_indices",
+            "collision_simplification",
+            "collision_simplification_remeshing",
+            "collision_simplification_remeshing_resolution",
+            "collision_simplification_target_triangle_count",
+            "collision_simplification_force_conforming",
+            "embedding",
+        ]
+    }
+    deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
+
+    # set into PhysX API
+    for attr_name, value in cfg.items():
+        safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)
+
     # success
     return True

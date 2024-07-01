@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,11 +15,11 @@ There are two main ways of using the spawners:
 
    .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    import omni.isaac.orbit.sim as sim_utils
+    from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # spawn using the function from the module
@@ -29,11 +29,11 @@ There are two main ways of using the spawners:
 
    .. code-block:: python
 
-    import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+    import omni.isaac.orbit.sim as sim_utils
+    from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # use the `func` reference in the config class
@@ -44,7 +44,7 @@ class and the function call in a single line of code.
 
 Depending on the type of prim, the spawning-functions can also deal with the creation of prims
 over multiple prim path. These need to be provided as a regex prim path expressions, which are
-resolved based on the parent prim paths using the :meth:`omni.isaac.lab.sim.utils.clone` function decorator.
+resolved based on the parent prim paths using the :meth:`omni.isaac.orbit.sim.utils.clone` function decorator.
 For example:
 
 * ``/World/Table_[1,2]/Robot`` will create the prims ``/World/Table_1/Robot`` and ``/World/Table_2/Robot``
@@ -57,6 +57,7 @@ For example:
 from .from_files import *  # noqa: F401, F403
 from .lights import *  # noqa: F401, F403
 from .materials import *  # noqa: F401, F403
+from .meshes import *  # noqa: F401, F403
 from .sensors import *  # noqa: F401, F403
 from .shapes import *  # noqa: F401, F403
 from .spawner_cfg import *  # noqa: F401, F403
