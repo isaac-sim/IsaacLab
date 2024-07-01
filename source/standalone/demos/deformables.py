@@ -31,9 +31,29 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
+import random
+import torch
+import tqdm
+
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
+
+
+def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
+    """Defines the origins of the the scene."""
+    # create tensor based on number of environments
+    env_origins = torch.zeros(num_origins, 3)
+    # create a grid of origins
+    num_cols = np.floor(np.sqrt(num_origins))
+    num_rows = np.ceil(num_origins / num_cols)
+    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
+    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
+    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
+    env_origins[:, 2] = torch.rand(num_origins) + 1.0
+    # return the origins
+    return env_origins.tolist()
 
 
 def design_scene():
@@ -51,36 +71,66 @@ def design_scene():
 
     # create a new xform prim for all objects to be spawned under
     prim_utils.create_prim("/World/Objects", "Xform")
+
     # spawn a red cone
+    cfg_sphere = sim_utils.MeshSphereCfg(
+        radius=0.25,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
+    )
+    cfg_cuboid = sim_utils.MeshCuboidCfg(
+        size=(0.2, 0.2, 0.2),
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
+    )
+    cfg_cylinder = sim_utils.MeshCylinderCfg(
+        radius=0.15,
+        height=0.5,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
+    )
+    cfg_capsule = sim_utils.MeshCapsuleCfg(
+        radius=0.15,
+        height=0.5,
+        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
+    )
     cfg_cone = sim_utils.MeshConeCfg(
         radius=0.15,
         height=0.5,
         deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+        visual_material=sim_utils.PreviewSurfaceCfg(),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
     )
-    cfg_cone.func("/World/Objects/Cone1", cfg_cone, translation=(-1.0, 0.0, 0.6))
-    cfg_cone.func("/World/Objects/Cone2", cfg_cone, translation=(-0.5, 0.0, 0.3))
+    # create a dictionary of all the objects to be spawned
+    objects_cfg = {
+        "sphere": cfg_sphere,
+        "cuboid": cfg_cuboid,
+        "cylinder": cfg_cylinder,
+        "capsule": cfg_capsule,
+        "cone": cfg_cone,
+    }
 
-    # spawn a green cone with colliders and rigid body
-    cfg_sphere = sim_utils.MeshSphereCfg(
-        radius=0.25,
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-    )
-    cfg_sphere.func(
-        "/World/Objects/Sphere",
-        cfg_sphere,
-        translation=(0.0, 0.0, 0.6),
-    )
-
-    # spawn a blue cuboid with deformable body
-    cfg_cuboid = sim_utils.MeshCuboidCfg(
-        size=(0.2, 0.2, 0.2),
-        deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
-    )
-    cfg_cuboid.func("/World/Objects/Cuboid", cfg_cuboid, translation=(0.5, 0.0, 0.3))
-    cfg_cuboid.func("/World/Objects/Cuboid2", cfg_cuboid, translation=(1.0, 0.0, 0.6))
+    # Create separate groups of deformable objects
+    origins = define_origins(num_origins=64, spacing=1.0)
+    print("[INFO]: Spawning objects...")
+    # Iterate over all the origins and randomly spawn objects
+    for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
+        # create a new xform prim for all objects to be spawned under
+        prim_utils.create_prim(f"/World/Objects/Origin{idx:02d}", "Xform", translation=origin)
+        # randomly select an object to spawn
+        obj_name = random.choice(list(objects_cfg.keys()))
+        obj_cfg = objects_cfg[obj_name]
+        # randomize the young modulus (somewhere between a Silicone 30 and Silicone 70)
+        obj_cfg.physics_material.youngs_modulus = random.uniform(0.7e6, 3.3e6)
+        # randomize the color
+        obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
+        # spawn the object
+        obj_cfg.func(f"/World/Objects/Origin{idx:02d}/Object", obj_cfg)
 
 
 def main():
@@ -89,7 +139,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view([0.0, 2.0, 1.5], [0.0, 0.0, 0.0])
+    sim.set_camera_view([8.0, 8.0, 5.0], [0.0, 0.0, 0.0])
 
     # Design scene by adding assets to it
     design_scene()

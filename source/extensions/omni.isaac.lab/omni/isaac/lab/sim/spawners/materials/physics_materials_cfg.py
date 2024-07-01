@@ -100,19 +100,30 @@ class DeformableBodyMaterialCfg(PhysicsMaterialCfg):
     func: Callable = physics_materials.spawn_deformable_body_material
 
     density: float | None = None
-    """The material density. Defaults to Autocomputed."""
+    """The material density. Defaults to None, in which case the simulation decides the default density."""
 
     dynamic_friction: float = 0.25
-    """The dynamic friction for the deformable material. Defaults to 0.25."""
+    """The dynamic friction. Defaults to 0.25."""
 
     youngs_modulus: float = 50000000.0
-    """The Youngs' modulus for the deformable material. Defaults to 50000000.0."""
+    """The Young's modulus, which defines the body's stiffness. Defaults to 50000000.0.
+
+    The Young's modulus is a measure of the material's ability to deform under stress. It is measured in Pascals (Pa).
+    """
 
     poissons_ratio: float = 0.45
-    """The Poissons' ratio for the deformable material. Defaults to 0.45."""
+    """The Poisson's ratio which defines the body's volume preservation. Defaults to 0.45.
+
+    The Poisson's ratio is a measure of the material's ability to expand in the lateral direction when compressed
+    in the axial direction. It is a dimensionless number between 0 and 0.5.
+    """
 
     elasticity_damping: float = 0.005
     """The elasticity damping for the deformable material. Defaults to 0.005."""
 
     damping_scale: float = 1.0
-    """The damping scale for the deformable material. Defaults to 1.0."""
+    """The damping scale for the deformable material. Defaults to 1.0.
+
+    A scale of 1 corresponds to default damping. A value of 0 will only apply damping to certain motions leading
+    to special effects that look similar to water filled soft bodies.
+    """

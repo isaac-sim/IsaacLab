@@ -27,8 +27,8 @@ The schemas are defined in the following links:
 
 Locally, the schemas are defined in the following files:
 
-* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda``
-* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/PhysxSchema/schema.usda``
+* ``_isaac_sim/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda``
+* ``_isaac_sim/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/generatedSchema.usda``
 
 """
 
