@@ -47,7 +47,7 @@ class SimulationContext(_SimulationContext):
     can be accessed using the ``instance()`` method.
 
     .. attention::
-        Since we only support the ``torch <https://pytorch.org/>``_ backend for simulation, the
+        Since we only support the `PyTorch <https://pytorch.org/>`_ backend for simulation, the
         simulation context is configured to use the ``torch`` backend by default. This means that
         all the data structures used in the simulation are ``torch.Tensor`` objects.
 
@@ -140,12 +140,14 @@ class SimulationContext(_SimulationContext):
         self._local_gui = carb_settings_iface.get("/app/window/enabled")
         # read flag for whether livestreaming GUI is enabled
         self._livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
+
         # read flag for whether the Isaac Lab viewport capture pipeline will be used,
         # casting None to False if the flag doesn't exist
         # this flag is set from the AppLauncher class
         self._offscreen_render = bool(carb_settings_iface.get("/isaaclab/render/offscreen"))
         # flag for whether any GUI will be rendered (local, livestreamed or viewport)
         self._has_gui = self._local_gui or self._livestream_gui
+
         # store the default render mode
         if not self._has_gui and not self._offscreen_render:
             # set default render mode
@@ -204,6 +206,7 @@ class SimulationContext(_SimulationContext):
             )
         else:
             self._app_control_on_stop_handle = None
+
         # flatten out the simulation dictionary
         sim_params = self.cfg.to_dict()
         if sim_params is not None:
@@ -588,30 +591,56 @@ class SimulationContext(_SimulationContext):
                 )
                 while self.app.is_running():
                     self.render()
-            # make sure that any replicator workflows finish rendering/writing
-            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
-                try:
-                    import omni.replicator.core as rep
 
-                    rep_status = rep.orchestrator.get_status()
-                    if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
-                        rep.orchestrator.stop()
-                    if rep_status != rep.orchestrator.Status.STOPPED:
-                        rep.orchestrator.wait_until_complete()
-                except Exception:
-                    pass
-            # clear the instance and all callbacks
-            # note: clearing callbacks is important to prevent memory leaks
-            self.clear_all_callbacks()
-            # workaround for exit issues, clean the stage first:
-            if omni.usd.get_context().can_close_stage():
-                omni.usd.get_context().close_stage()
-            # print logging information
-            self.app.print_and_log("Simulation is stopped. Shutting down the app.")
-            # shutdown the simulator
-            self.app.shutdown()
-            # disabled on linux to avoid a crash
-            carb.get_framework().unload_all_plugins()
+        # Note: For the following code:
+        #   The method is an exact copy of the implementation in the `omni.isaac.kit.SimulationApp` class.
+        #   We need to remove this method once the SimulationApp class becomes a singleton.
+
+        # make sure that any replicator workflows finish rendering/writing
+        try:
+            import omni.replicator.core as rep
+
+            rep_status = rep.orchestrator.get_status()
+            if rep_status not in [rep.orchestrator.Status.STOPPED, rep.orchestrator.Status.STOPPING]:
+                rep.orchestrator.stop()
+            if rep_status != rep.orchestrator.Status.STOPPED:
+                rep.orchestrator.wait_until_complete()
+
+            # Disable capture on play to avoid replicator engaging on any new timeline events
+            rep.orchestrator.set_capture_on_play(False)
+        except Exception:
+            pass
+
+        # clear the instance and all callbacks
+        # note: clearing callbacks is important to prevent memory leaks
+        self.clear_all_callbacks()
+
+        # workaround for exit issues, clean the stage first:
+        if omni.usd.get_context().can_close_stage():
+            omni.usd.get_context().close_stage()
+
+        # print logging information
+        self.app.print_and_log("Simulation is stopped. Shutting down the app...")
+
+        # Cleanup any running tracy instances so data is not lost
+        try:
+            profiler_tracy = carb.profiler.acquire_profiler_interface(plugin_name="carb.profiler-tracy.plugin")
+            if profiler_tracy:
+                profiler_tracy.set_capture_mask(0)
+                profiler_tracy.end(0)
+                profiler_tracy.shutdown()
+        except RuntimeError:
+            # Tracy plugin was not loaded, so profiler never started - skip checks.
+            pass
+
+        # Disable logging before shutdown to keep the log clean
+        # Warnings at this point don't matter as the python process is about to be terminated
+        logging = carb.logging.acquire_logging()
+        logging.set_level_threshold(carb.logging.LEVEL_ERROR)
+
+        # App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster
+        # self._app.shutdown()
+        self._framework.unload_all_plugins()
 
 
 @contextmanager
