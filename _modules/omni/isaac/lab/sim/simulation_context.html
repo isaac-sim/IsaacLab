@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jun 29, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 01, 2024"/>
   </head>
   
   
@@ -626,12 +626,14 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/window/enabled&quot;</span><span class="p">)</span>
         <span class="c1"># read flag for whether livestreaming GUI is enabled</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span> <span class="o">=</span> <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/app/livestream/enabled&quot;</span><span class="p">)</span>
+
         <span class="c1"># read flag for whether the Isaac Lab viewport capture pipeline will be used,</span>
         <span class="c1"># casting None to False if the flag doesn&#39;t exist</span>
         <span class="c1"># this flag is set from the AppLauncher class</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/isaaclab/render/offscreen&quot;</span><span class="p">))</span>
         <span class="c1"># flag for whether any GUI will be rendered (local, livestreamed or viewport)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_gui</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_livestream_gui</span>
+
         <span class="c1"># store the default render mode</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_gui</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offscreen_render</span><span class="p">:</span>
             <span class="c1"># set default render mode</span>
@@ -690,6 +692,7 @@ document.write(`
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_app_control_on_stop_handle</span> <span class="o">=</span> <span class="kc">None</span>
+
         <span class="c1"># flatten out the simulation dictionary</span>
         <span class="n">sim_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">sim_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -1074,30 +1077,56 @@ document.write(`
                 <span class="p">)</span>
                 <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
-            <span class="c1"># make sure that any replicator workflows finish rendering/writing</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
 
-                    <span class="n">rep_status</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
-                    <span class="k">if</span> <span class="n">rep_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">,</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPING</span><span class="p">]:</span>
-                        <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
-                    <span class="k">if</span> <span class="n">rep_status</span> <span class="o">!=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">:</span>
-                        <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">wait_until_complete</span><span class="p">()</span>
-                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                    <span class="k">pass</span>
-            <span class="c1"># clear the instance and all callbacks</span>
-            <span class="c1"># note: clearing callbacks is important to prevent memory leaks</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">clear_all_callbacks</span><span class="p">()</span>
-            <span class="c1"># workaround for exit issues, clean the stage first:</span>
-            <span class="k">if</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">can_close_stage</span><span class="p">():</span>
-                <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
-            <span class="c1"># print logging information</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">print_and_log</span><span class="p">(</span><span class="s2">&quot;Simulation is stopped. Shutting down the app.&quot;</span><span class="p">)</span>
-            <span class="c1"># shutdown the simulator</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
-            <span class="c1"># disabled on linux to avoid a crash</span>
-            <span class="n">carb</span><span class="o">.</span><span class="n">get_framework</span><span class="p">()</span><span class="o">.</span><span class="n">unload_all_plugins</span><span class="p">()</span></div>
+        <span class="c1"># Note: For the following code:</span>
+        <span class="c1">#   The method is an exact copy of the implementation in the `omni.isaac.kit.SimulationApp` class.</span>
+        <span class="c1">#   We need to remove this method once the SimulationApp class becomes a singleton.</span>
+
+        <span class="c1"># make sure that any replicator workflows finish rendering/writing</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">omni.replicator.core</span> <span class="k">as</span> <span class="nn">rep</span>
+
+            <span class="n">rep_status</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">get_status</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rep_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">,</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPING</span><span class="p">]:</span>
+                <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rep_status</span> <span class="o">!=</span> <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">STOPPED</span><span class="p">:</span>
+                <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">wait_until_complete</span><span class="p">()</span>
+
+            <span class="c1"># Disable capture on play to avoid replicator engaging on any new timeline events</span>
+            <span class="n">rep</span><span class="o">.</span><span class="n">orchestrator</span><span class="o">.</span><span class="n">set_capture_on_play</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># clear the instance and all callbacks</span>
+        <span class="c1"># note: clearing callbacks is important to prevent memory leaks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear_all_callbacks</span><span class="p">()</span>
+
+        <span class="c1"># workaround for exit issues, clean the stage first:</span>
+        <span class="k">if</span> <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">can_close_stage</span><span class="p">():</span>
+            <span class="n">omni</span><span class="o">.</span><span class="n">usd</span><span class="o">.</span><span class="n">get_context</span><span class="p">()</span><span class="o">.</span><span class="n">close_stage</span><span class="p">()</span>
+
+        <span class="c1"># print logging information</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">print_and_log</span><span class="p">(</span><span class="s2">&quot;Simulation is stopped. Shutting down the app...&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Cleanup any running tracy instances so data is not lost</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">profiler_tracy</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">acquire_profiler_interface</span><span class="p">(</span><span class="n">plugin_name</span><span class="o">=</span><span class="s2">&quot;carb.profiler-tracy.plugin&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">profiler_tracy</span><span class="p">:</span>
+                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">set_capture_mask</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">end</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">profiler_tracy</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="c1"># Tracy plugin was not loaded, so profiler never started - skip checks.</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># Disable logging before shutdown to keep the log clean</span>
+        <span class="c1"># Warnings at this point don&#39;t matter as the python process is about to be terminated</span>
+        <span class="n">logging</span> <span class="o">=</span> <span class="n">carb</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">acquire_logging</span><span class="p">()</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">set_level_threshold</span><span class="p">(</span><span class="n">carb</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">LEVEL_ERROR</span><span class="p">)</span>
+
+        <span class="c1"># App shutdown is disabled to prevent crashes on shutdown. Terminating carb is faster</span>
+        <span class="c1"># self._app.shutdown()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_framework</span><span class="o">.</span><span class="n">unload_all_plugins</span><span class="p">()</span></div>
 
 
 <span class="nd">@contextmanager</span>
@@ -1243,7 +1272,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 29, 2024.
+  Last updated on Jul 01, 2024.
   <br/>
 </p>
   </div>
