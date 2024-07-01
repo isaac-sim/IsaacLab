@@ -231,6 +231,25 @@ x11_cleanup() {
     fi
 }
 
+submit_job() {
+
+    case $CLUSTER_JOB_SCHEDULER in
+        "SLURM")
+            CMD="sbatch"
+            ;;
+        "PBS")
+            CMD="bash"
+            ;;
+        *)
+            echo "[ERROR] Unsupported job scheduler specified: $CLUSTER_JOB_SCHEDULER"
+            exit 1
+            ;;
+    esac
+
+    echo "[INFO] Arguments passed to job script ${@}"
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh \"$CLUSTER_JOB_SCHEDULER\" \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
+}
+
 #==
 # Main
 #==
@@ -366,18 +385,14 @@ case $mode in
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ISAACLAB_DIR"
         # Sync Isaac Lab code
         echo "[INFO] Syncing Isaac Lab code..."
-        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
+        rsync -rh  --exclude="*.git*" --exclude="wandb/" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
         # execute job script
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument
         if [ "$profile_arg" == "$container_profile" ] ; then
-            # if the second argument is a profile, we have to shift the arguments
-            echo "[INFO] Arguments passed to job script ${@:3}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:3}"
+            submit_job "${@:3}"
         else
-            # if the second argument is a job argument, we have to shift only one argument
-            echo "[INFO] Arguments passed to job script ${@:2}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:2}"
+            submit_job "${@:2}"
         fi
         ;;
     config)
