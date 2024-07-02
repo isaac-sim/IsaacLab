@@ -69,8 +69,10 @@ def design_scene():
     )
     cfg_light.func("/World/light", cfg_light)
 
-    # create a new xform prim for all objects to be spawned under
-    prim_utils.create_prim("/World/Objects", "Xform")
+    # create new xform prims for all objects to be spawned under
+    origins = define_origins(num_origins=4, spacing=5.5)
+    for idx, origin in enumerate(origins):
+        prim_utils.create_prim(f"/World/Origin{idx:02d}", "Xform", translation=origin)
 
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(
@@ -116,7 +118,7 @@ def design_scene():
     }
 
     # Create separate groups of deformable objects
-    origins = define_origins(num_origins=64, spacing=0.5)
+    origins = define_origins(num_origins=25, spacing=0.5)
     print("[INFO]: Spawning objects...")
     # Iterate over all the origins and randomly spawn objects
     for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
@@ -130,7 +132,7 @@ def design_scene():
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
         # spawn the object
-        obj_cfg.func(f"/World/Objects/Object{idx:02d}", obj_cfg, translation=origin)
+        obj_cfg.func(f"/World/Origin.*/Object{idx:02d}", obj_cfg, translation=origin)
 
 
 def main():
