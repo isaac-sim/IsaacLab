@@ -240,6 +240,9 @@ def _spawn_from_usd_file(
     # modify rigid body properties
     if cfg.rigid_props is not None:
         schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
+    # modify deformable body properties
+    if cfg.deformable_props is not None:
+        schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props)
     # modify collision properties
     if cfg.collision_props is not None:
         schemas.modify_collision_properties(prim_path, cfg.collision_props)

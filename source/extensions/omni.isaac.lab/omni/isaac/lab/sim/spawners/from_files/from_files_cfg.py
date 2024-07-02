@@ -10,7 +10,7 @@ from dataclasses import MISSING
 
 from omni.isaac.lab.sim import converters, schemas
 from omni.isaac.lab.sim.spawners import materials
-from omni.isaac.lab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
+from omni.isaac.lab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -18,7 +18,7 @@ from . import from_files
 
 
 @configclass
-class FileCfg(RigidObjectSpawnerCfg):
+class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Configuration parameters for spawning an asset from a file.
 
     Note:

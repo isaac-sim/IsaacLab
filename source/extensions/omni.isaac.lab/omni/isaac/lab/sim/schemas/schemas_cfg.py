@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from collections.abc import Sequence
 from typing import Literal
 
 from omni.isaac.lab.utils import configclass

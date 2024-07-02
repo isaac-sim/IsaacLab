@@ -9,10 +9,15 @@ from __future__ import annotations
 import carb
 import omni.isaac.core.utils.stage as stage_utils
 import omni.physx.scripts.utils as physx_utils
-from omni.physx.scripts import deformableUtils
+from omni.physx.scripts import deformableUtils as deformable_utils
 from pxr import PhysxSchema, Usd, UsdPhysics
 
-from ..utils import apply_nested, find_global_fixed_joint_prim, safe_set_attribute_on_usd_schema, get_all_matching_child_prims
+from ..utils import (
+    apply_nested,
+    find_global_fixed_joint_prim,
+    get_all_matching_child_prims,
+    safe_set_attribute_on_usd_schema,
+)
 from . import schemas_cfg
 
 """
@@ -539,7 +544,7 @@ def modify_joint_drive_properties(
     .. caution::
 
         We highly recommend modifying joint properties of articulations through the functionalities in the
-        :mod:`omni.isaac.orbit.actuators` module. The methods here are for setting simulation low-level
+        :mod:`omni.isaac.lab.actuators` module. The methods here are for setting simulation low-level
         properties only.
 
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
@@ -690,7 +695,7 @@ def define_deformable_body_properties(
     # check if the mesh is valid
     if len(matching_prims) == 0:
         raise ValueError(f"Could not find any mesh in '{prim_path}'. Please check asset.")
-    elif len(matching_prims) > 1:
+    if len(matching_prims) > 1:
         # get list of all meshes found
         mesh_paths = [p.GetPrimPath() for p in matching_prims]
         raise ValueError(
@@ -789,7 +794,7 @@ def modify_deformable_body_properties(
             "self_collision_filter_distance",
         ]
     }
-    status = deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
+    status = deformable_utils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
     # check if the deformable body was successfully added
     if not status:
         return False
