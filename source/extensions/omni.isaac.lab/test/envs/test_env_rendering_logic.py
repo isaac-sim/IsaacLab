@@ -120,7 +120,7 @@ class TestEnvRenderingLogic(unittest.TestCase):
 
     def test_env_rendering_logic(self):
         for env_type in ["manager_based_env", "manager_based_rl_env", "direct_rl_env"]:
-            for render_interval in [1, 4]:
+            for render_interval in [1, 2, 4, 8, 10]:
                 with self.subTest(env_type=env_type, render_interval=render_interval):
                     # time tracking variables
                     self.physics_time = 0.0
@@ -143,29 +143,40 @@ class TestEnvRenderingLogic(unittest.TestCase):
                     # enable the flag to render the environment
                     # note: this is only done for the unit testing to "fake" camera rendering
                     env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+
                     # disable the app from shutting down when the environment is closed
+                    # FIXME: Why is this needed in this test but not in the other tests?
+                    #   Without it, the test will exit after the environment is closed
                     env.sim._app_control_on_stop_handle = None  # type: ignore
 
-                    # we override these variables to make sure that sim.render() is called
+                    # check that we are in partial rendering mode for the environment
                     self.assertEqual(env.sim.render_mode, SimulationContext.RenderMode.PARTIAL_RENDERING)
 
                     # add physics and render callbacks
                     env.sim.add_physics_callback("physics_step", self._physics_callback)
                     env.sim.add_render_callback("render_step", self._render_callback)
 
+                    # create a zero action tensor for stepping the environment
                     actions = torch.zeros((env.num_envs, 0), device=env.device)
-                    for i in range(4):
+
+                    # run the environment and check the rendering logic
+                    for i in range(50):
+                        # apply zero actions
                         env.step(action=actions)
+
                         # check that we have completed the correct number of physics steps
                         self.assertEqual(self.num_physics_steps, (i + 1) * env.cfg.decimation)
                         # check that we have simulated physics for the correct amount of time
-                        self.assertAlmostEqual(self.physics_time, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
+                        self.assertAlmostEqual(self.physics_time, self.num_physics_steps * env.cfg.sim.dt)
+
                         # check that we have completed the correct number of rendering steps
                         self.assertEqual(
                             self.num_render_steps, (i + 1) * env.cfg.decimation // env.cfg.sim.render_interval
                         )
                         # check that we have rendered for the correct amount of time
-                        self.assertAlmostEqual(self.render_time, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
+                        self.assertAlmostEqual(
+                            self.render_time, self.num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval
+                        )
 
                     # close the environment
                     env.close()
