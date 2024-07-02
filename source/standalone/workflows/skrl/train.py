@@ -38,7 +38,7 @@ parser.add_argument(
     type=str,
     default="torch",
     choices=["torch", "jax", "jax-numpy"],
-    help="ML framework used for training.",
+    help="The ML framework used for training the skrl agent.",
 )
 
 # append AppLauncher cli args
@@ -83,7 +83,7 @@ from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper, process_
 
 def main():
     """Train with skrl agent."""
-    # configure the ML framework
+    # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
