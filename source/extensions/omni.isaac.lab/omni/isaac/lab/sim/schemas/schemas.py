@@ -684,7 +684,7 @@ def define_deformable_body_properties(
     # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    
+
     # traverse the prim and get the mesh
     matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
     # check if the mesh is valid
@@ -713,9 +713,20 @@ def modify_deformable_body_properties(
 ):
     """Modify PhysX parameters for a deformable body prim.
 
-    A `deformable body`_ is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
-    A dynamic body responds to forces and collisions. A `kinematic body`_ can be moved by the user, but does not
-    respond to forces. They are similar to having static bodies that can be moved around.
+    A `deformable body`_ is a single body that can be simulated by PhysX. Unlike rigid bodies, deformable bodies
+    support relative motion of the nodes in the mesh. Consequently, they can be used to simulate deformations
+    under applied forces.
+
+    PhysX soft body simulation employs Finite Element Analysis (FEA) to simulate the deformations of the mesh.
+    It uses two tetrahedral meshes to represent the deformable body:
+
+    1. **Simulation mesh**: This mesh is used for the simulation and is the one that is deformed by the solver.
+    2. **Collision mesh**: This mesh only needs to match the surface of the simulation mesh and is used for
+       collision detection.
+
+    For most applications, we assume that the above two meshes are computed from the "render mesh" of the deformable
+    body. The render mesh is the mesh that is visible in the scene and is used for rendering purposes. It is composed
+    of triangles and is the one that is used to compute the above meshes based on PhysX cookings.
 
     The schema comprises of attributes that belong to the `PhysxDeformableBodyAPI`_. schemas containing the PhysX
     parameters for the deformable body.
@@ -724,7 +735,7 @@ def modify_deformable_body_properties(
         We assume that the USD file for a deformable body contains a single mesh.
         If the USD file contains multiple meshes, then the first mesh is used.
 
-    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/SoftBodies.html
+    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html
     .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html
 
     Args:
@@ -760,19 +771,22 @@ def modify_deformable_body_properties(
     cfg = cfg.to_dict()
     # set into deformable body API
     attr_kwargs = {
-        attr_name: cfg.pop(attr_name, None)
+        attr_name: cfg.pop(attr_name)
         for attr_name in [
             "kinematic_enabled",
-            "simulation_hexahedral_resolution",
-            "simulation_rest_points",
-            "collision_rest_points",
-            "collision_indices",
             "collision_simplification",
             "collision_simplification_remeshing",
             "collision_simplification_remeshing_resolution",
             "collision_simplification_target_triangle_count",
             "collision_simplification_force_conforming",
-            "embedding",
+            "simulation_hexahedral_resolution",
+            "solver_position_iteration_count",
+            "vertex_velocity_damping",
+            "sleep_damping",
+            "sleep_threshold",
+            "settling_threshold",
+            "self_collision",
+            "self_collision_filter_distance",
         ]
     }
     deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)

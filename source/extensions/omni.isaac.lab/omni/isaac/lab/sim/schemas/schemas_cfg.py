@@ -239,6 +239,21 @@ class FixedTendonPropertiesCfg:
 class DeformableBodyPropertiesCfg:
     """Properties to apply to a deformable body.
 
+    A deformable body is a body that can deform under forces. The configuration allows users to specify
+    the properties of the deformable body, such as the solver iteration counts, damping, and self-collision.
+
+    An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh
+    is used for collision detection and the simulation mesh is used for simulation. The collision mesh is usually
+    a simplified version of the simulation mesh.
+
+    Based on the above, the PhysX team provides APIs to either set the simulation and collision mesh directly
+    (by specifying the points) or to simplify the collision mesh based on the simulation mesh. The simplification
+    process involves remeshing the collision mesh and simplifying it based on the target triangle count.
+
+    Since specifying the collision mesh points directly is not a common use case, we only expose the parameters
+    to simplify the collision mesh based on the simulation mesh. If you want to provide the collision mesh points,
+    please open an issue on the repository and we can add support for it.
+
     See :meth:`modify_deformable_body_properties` for more information.
 
     .. note::
@@ -249,94 +264,88 @@ class DeformableBodyPropertiesCfg:
     deformable_enabled: bool | None = None
     """Enables deformable body."""
 
-    kinematic_enabled: bool | None = False
-    """Enables kinematic body."""
+    kinematic_enabled: bool | None = None
+    """Enables kinematic body.
 
-    simulation_hexahedral_resolution: int | None = 10
-    """The parameter controlling the resolution of the soft body simulation mesh."""
-
-    simulation_rest_points: Sequence[float] | None = None
-    """List of vertices of the simulation tetrahedral mesh at rest.
-    If a simulation mesh is provided, the collision mesh needs to be provided too.
-    If no simulation mesh is provided it will be computed implicitly based on simulation_hexahedral_resolution.
-    """
-
-    simulation_indices: Sequence[int] | None = None
-    """List of indices of the simulation tetrahedral mesh.
-    It is mandatory to provide this list if simulation_rest_points is specified as well.
-    """
-
-    vertex_velocity_damping: float | None = None
-    """Velocity damping parameter controlling how much after every time step the nodal velocity is reduced."""
-
-    solver_position_iteration_count: int | None = None
-    """Number of the solver's positional iteration counts. Range: [1,255]"""
-
-    sleep_threshold: float | None = None
-    """Threshold that defines the maximal magnitude of the linear motion a soft body can move in one second
-    such that it can go to sleep in the next frame. Range: [1,inf)
-    """
-
-    sleep_damping: float | None = None
-    """Damping value that damps the motion of bodies that move slow enough to be candidates for sleeping.
-    Range: [1,inf)
-    """
-
-    settling_threshold: float | None = None
-    """Threshold that defines the maximal magnitude of the linear motion a fem body can move in one second before
-    it becomes a candidate for sleeping.
+    Similar to rigid bodies, this allows setting user-driven motion for the deformable body. For more information,
+    please refer to the `documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html#kinematic-soft-bodies>`_.
     """
 
     self_collision: bool | None = None
-    """Enables the self collision for the deformable body based on the rest position distances."""
+    """Whether to enable or disable self-collisions for the deformable body based on the rest position distances."""
 
     self_collision_filter_distance: float | None = None
     """Penetration value that needs to get exceeded before contacts for self collision are generated.
 
-    Will only have an effect if self collisions are enabled based on the rest position distances.
+    .. note::
+        This parameter has an effect only if :attr:`self_collision` is enabled.
     """
 
-    collision_rest_points: Sequence[float] | None = None
-    """List of vertices of the collision tetrahedral mesh at rest.
+    settling_threshold: float | None = None
+    """Threshold vertex velocity (in m/s) under which sleep damping is applied in addition to velocity damping."""
 
-    If a simulation mesh is provided, the collision mesh needs to be provided too.
-    If no collision mesh is provided, it will be computed implicitly based on the simplification parameter.
+    sleep_damping: float | None = None
+    """Coefficient for the additional damping term if fertex velocity drops below setting threshold."""
+
+    sleep_threshold: float | None = None
+    """The velocity threshold (in m/s) under which the vertex becomes a candidate for sleeping in the next step."""
+
+    solver_position_iteration_count: int | None = None
+    """Number of the solver positional iterations per step. Range is [1,255]"""
+
+    vertex_velocity_damping: float | None = None
+    """Coefficient for artificial damping on the vertex velocity.
+
+    This parameter can be used to approximate the effect of air drag on the deformable body.
     """
 
-    collision_indices: Sequence[int] | None = None
-    """List of indices of the collision tetrahedral mesh.
-    It is mandatory to provide this list if collision_rest_points is specified as well.
-    """
+    disable_gravity: bool | None = None
+    """Disables gravity for the deformable body."""
 
     collision_simplification: bool | None = True
-    """Flag indicating if simplification should be applied to the mesh before creating a soft body out of it.
-    This is ignored if simulation mesh has been provided.
+    """Whether or not to simplify the collision mesh before creating a soft body out of it. Defaults to True.
+
+    Note:
+        This flag is ignored if the user provides the simulation mesh points directly. However, we assume that
+        most users will not provide the simulation mesh points directly. Hence, this flag is enabled by default.
+
+        If you want to provide the simulation mesh points directly, please set this flag to False.
     """
 
     collision_simplification_remeshing: bool | None = True
-    """Flag indicating if the simplification should be based on remeshing.
+    """Whether or not the collision mesh should be remeshed before simplification. Defaults to True.
 
-    This is ignored if :attr:`collision_simplification` is False.
+    This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
     collision_simplification_remeshing_resolution: int | None = 0
-    """The resolution used for remeshing.
+    """The resolution used for remeshing. Defaults to 0, which means that a heuristic is used to determine the
+    resolution.
 
-    A value of 0 indicates that a heuristic is used to determine the resolution.
-    Ignored if collision_simplification_remeshing is False.
+    This parameter is ignored if :attr:`collision_simplification_remeshing` is False.
     """
 
     collision_simplification_target_triangle_count: int | None = 0
-    """The target triangle count used for the simplification.
+    """The target triangle count used for the simplification. Defaults to 0, which means that a heuristic based on
+    the :attr:`simulation_hexahedral_resolution` is used to determine the target count.
 
-    A value of 0 indicates that a heuristic based on the simulation_hexahedral_resolution is to determine
-    the target count. This is ignored if collision_simplification equals False.
+    This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
     collision_simplification_force_conforming: bool | None = True
-    """Flag indicating that the tretrahedralizer used to generate the collision mesh should produce tetrahedra
-    that conform to the triangle mesh. If False the implementation chooses the tretrahedralizer used.
+    """Whether or not the simplification should force the output mesh to conform to the input mesh. Defaults to True.
+
+    The flag indicates that the tretrahedralizer used to generate the collision mesh should produce tetrahedra
+    that conform to the triangle mesh. If False, the simplifier uses the output from the tretrahedralizer used.
+
+    This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
-    embedding: Sequence[int] | None = None
-    """Embedding information mapping collision points to the containing simulation tetrahedra."""
+    simulation_hexahedral_resolution: int | None = 10
+    """The target resolution for the hexahedral mesh used for simulation. Defaults to 10.
+
+    Note:
+        This value is ignored if the user provides the simulation mesh points directly. However, we assume that
+        most users will not provide the simulation mesh points directly. If you want to provide the simulation mesh
+        directly, please set this value to :obj:`None`.
+    """
