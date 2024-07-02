@@ -23,7 +23,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
     Rigid body materials are used to define the physical properties to meshes of a rigid body. These
     include the friction, restitution, and their respective combination modes. For more information on
-    rigid body material, please refer to the `documentation on PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/class_px_material.html>`_.
+    rigid body material, please refer to the `documentation on PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/class_px_material.html>`_.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths

@@ -84,7 +84,7 @@ def modify_articulation_root_properties(
         This function is decorated with :func:`apply_nested` that set the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Articulations.html
+    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Articulations.html
     .. _ArticulationRootAPI: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
     .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
 
@@ -234,7 +234,7 @@ def modify_rigid_body_properties(
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
-    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyOverview.html
+    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/RigidBodyOverview.html
     .. _kinematic body: https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies
     .. _RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
@@ -323,7 +323,7 @@ def modify_collision_properties(
 
     Tuning these parameters influence the contact behavior of the rigid body. For more information on
     tune them and their effect on the simulation, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html>`__.
+    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html>`__.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims

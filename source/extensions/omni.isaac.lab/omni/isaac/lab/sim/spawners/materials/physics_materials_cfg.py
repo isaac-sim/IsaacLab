@@ -19,7 +19,7 @@ class PhysicsMaterialCfg:
     Physics material are PhysX schemas that can be applied to a USD material prim to define the
     physical properties related to the material. For example, the friction coefficient, restitution
     coefficient, etc. For more information on physics material, please refer to the
-    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/class_px_base_material.html>`_.
+    `PhysX documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/class_px_base_material.html>`__.
     """
 
     func: Callable = MISSING
@@ -34,7 +34,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
     Note:
         The default values are the `default values used by PhysX 5
-        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials>`_.
+        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials>`__.
     """
 
     func: Callable = physics_materials.spawn_rigid_body_material
@@ -58,7 +58,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
         When two physics materials with different combine modes collide, the combine mode with the higher
         priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`_.
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`__.
     """
 
     restitution_combine_mode: Literal["average", "min", "multiply", "max"] = "average"
@@ -68,7 +68,7 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
         When two physics materials with different combine modes collide, the combine mode with the higher
         priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`_.
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode>`__.
     """
 
     compliant_contact_stiffness: float = 0.0
@@ -94,7 +94,7 @@ class DeformableBodyMaterialCfg(PhysicsMaterialCfg):
 
     Note:
         The default values are the `default values used by PhysX 5
-        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material>`_.
+        <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material>`__.
     """
 
     func: Callable = physics_materials.spawn_deformable_body_material
