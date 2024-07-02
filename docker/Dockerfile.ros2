@@ -1,11 +1,9 @@
 # Everything past this stage is to install
 # ROS2 Humble
-FROM orbit-base AS ros2
+FROM isaac-lab-base AS ros2
 
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
-# Home of the docker user, generally /root
-ARG DOCKER_USER_HOME
 
 # ROS2 Humble Apt installations
 RUN --mount=type=cache,target=/var/cache/apt \

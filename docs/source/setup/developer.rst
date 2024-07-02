@@ -11,7 +11,8 @@ using VSCode.
 Setting up Visual Studio Code
 -----------------------------
 
-The ``orbit`` repository includes the VSCode settings to easily allow setting
+The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
+The ``Isaac Lab`` repository includes the VSCode settings to easily allow setting
 up your development environment. These are included in the ``.vscode`` directory
 and include the following files:
 
@@ -30,7 +31,7 @@ and include the following files:
 
 To setup the IDE, please follow these instructions:
 
-1. Open the ``orbit`` directory on Visual Studio Code IDE
+1. Open the ``Isaac Lab`` directory on Visual Studio Code IDE
 2. Run VSCode `Tasks <https://code.visualstudio.com/docs/editor/tasks>`__, by
    pressing ``Ctrl+Shift+P``, selecting ``Tasks: Run Task`` and running the
    ``setup_python_env`` in the drop down menu.
@@ -50,7 +51,7 @@ For more information on VSCode support for Omniverse, please refer to the
 following links:
 
 * `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_advanced_python_debugging.html>`__
+* `Debugging with VSCode <https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_python_debugging.html>`__
 
 
 Configuring the python interpreter
@@ -78,22 +79,23 @@ refer to the `VSCode documentation <https://code.visualstudio.com/docs/python/en
 Repository organization
 -----------------------
 
-The ``orbit`` repository is structured as follows:
+The ``Isaac Lab`` repository is structured as follows:
 
 .. code-block:: bash
 
-   orbit
+   IsaacLab
    ├── .vscode
    ├── .flake8
    ├── LICENSE
-   ├── orbit.sh
+   ├── isaaclab.sh
    ├── pyproject.toml
    ├── README.md
    ├── docs
    ├── source
    │   ├── extensions
-   │   │   ├── omni.isaac.orbit
-   │   │   └── omni.isaac.orbit_tasks
+   │   │   ├── omni.isaac.lab
+   │   │   ├── omni.isaac.lab_assets
+   │   │   └── omni.isaac.lab_tasks
    │   ├── standalone
    │   │   ├── demos
    │   │   ├── environments
@@ -102,7 +104,7 @@ The ``orbit`` repository is structured as follows:
    │   │   └── workflows
    └── VERSION
 
-The ``source`` directory contains the source code for all ``orbit`` *extensions*
+The ``source`` directory contains the source code for all ``Isaac Lab`` *extensions*
 and *standalone applications*. The two are the different development workflows
 supported in `Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html>`__.
 These are described in the following sections.
@@ -117,7 +119,7 @@ standalone applications. A folder is recognized as an extension if it contains
 an ``extension.toml`` file in the ``config`` directory. More information on extensions can be found in the
 `Omniverse documentation <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/extensions_basic.html>`__.
 
-Orbit in itself provides extensions for robot learning. These are written into the
+Isaac Lab in itself provides extensions for robot learning. These are written into the
 ``source/extensions`` directory. Each extension is written as a python package and
 follows the following structure:
 
@@ -196,15 +198,15 @@ enabled that load the python module and run the python application. While this i
 workflow, it is not always possible to use this workflow. For example, for robot learning, it is
 essential to have complete control over simulation stepping and all the other functionalities
 instead of asynchronously waiting for the simulator to step. In such cases, it is necessary to
-write a standalone application that launches the simulator using :class:`~omni.isaac.orbit.app.AppLauncher`
-and allows complete control over the simulation through the :class:`~omni.isaac.orbit.sim.SimulationContext`
+write a standalone application that launches the simulator using :class:`~omni.isaac.lab.app.AppLauncher`
+and allows complete control over the simulation through the :class:`~omni.isaac.lab.sim.SimulationContext`
 class.
 
 .. code:: python
 
    """Launch Isaac Sim Simulator first."""
 
-   from omni.isaac.orbit.app import AppLauncher
+   from omni.isaac.lab.app import AppLauncher
 
    # launch omniverse app
    app_launcher = AppLauncher(headless=False)
@@ -213,7 +215,7 @@ class.
 
    """Rest everything follows."""
 
-   from omni.isaac.orbit.sim import SimulationContext
+   from omni.isaac.lab.sim import SimulationContext
 
    if __name__ == "__main__":
       # get simulation context
@@ -230,10 +232,10 @@ class.
 
 
 The ``source/standalone`` directory contains various standalone applications designed using the extensions
-provided by ``orbit``. These applications are written in python and are structured as follows:
+provided by ``Isaac Lab``. These applications are written in python and are structured as follows:
 
-* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.orbit``.
-* **environments**: Contains applications for running environments defined in ``omni.isaac.orbit_tasks`` with different agents.
+* **demos**: Contains various demo applications that showcase the core framework ``omni.isaac.lab``.
+* **environments**: Contains applications for running environments defined in ``omni.isaac.lab_tasks`` with different agents.
   These include a random policy, zero-action policy, teleoperation or scripted state machines.
 * **tools**: Contains applications for using the tools provided by the framework. These include converting assets, generating
   datasets, etc.

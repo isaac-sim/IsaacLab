@@ -1,21 +1,27 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to simulate a bipedal robot.
+This script demonstrates how to simulate bipedal robots.
+
+.. code-block:: bash
+
+    # Usage
+    ./isaaclab.sh -p source/standalone/demos/bipeds.py
 
 """
 
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import torch
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a bipedal robot.")
+parser = argparse.ArgumentParser(description="This script demonstrates how to simulate bipedal robots.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -27,14 +33,16 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import Articulation
-from omni.isaac.orbit.sim import SimulationContext
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation
+from omni.isaac.lab.sim import SimulationContext
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit_assets.cassie import CASSIE_CFG  # isort:skip
+from omni.isaac.lab_assets.cassie import CASSIE_CFG  # isort:skip
+from omni.isaac.lab_assets import H1_CFG  # isort:skip
+from omni.isaac.lab_assets import G1_CFG  # isort:skip
 
 
 def main():
@@ -42,7 +50,7 @@ def main():
 
     # Load kit helper
     sim = SimulationContext(
-        sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False, dt=0.005, physx=sim_utils.PhysxCfg(use_gpu=False))
+        sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False, dt=0.01, physx=sim_utils.PhysxCfg(use_gpu=False))
     )
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
@@ -55,12 +63,16 @@ def main():
     cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
 
+    origins = torch.tensor([
+        [0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 2.0, 0.0],
+    ])
     # Robots
-    robot_cfg = CASSIE_CFG
-    robot_cfg.spawn.func("/World/Cassie/Robot_1", robot_cfg.spawn, translation=(1.5, 0.5, 0.42))
-
-    # create handles for the robots
-    robots = Articulation(robot_cfg.replace(prim_path="/World/Cassie/Robot.*"))
+    cassie = Articulation(CASSIE_CFG.replace(prim_path="/World/Cassie"))
+    h1 = Articulation(H1_CFG.replace(prim_path="/World/H1"))
+    g1 = Articulation(G1_CFG.replace(prim_path="/World/G1"))
+    robots = [cassie, h1, g1]
 
     # Play the simulator
     sim.reset()
@@ -79,24 +91,28 @@ def main():
             # reset counters
             sim_time = 0.0
             count = 0
-            # reset dof state
-            joint_pos, joint_vel = robots.data.default_joint_pos, robots.data.default_joint_vel
-            robots.write_joint_state_to_sim(joint_pos, joint_vel)
-            robots.write_root_pose_to_sim(robots.data.default_root_state[:, :7])
-            robots.write_root_velocity_to_sim(robots.data.default_root_state[:, 7:])
-            robots.reset()
+            for index, robot in enumerate(robots):
+                # reset dof state
+                joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+                robot.write_joint_state_to_sim(joint_pos, joint_vel)
+                root_state = robot.data.default_root_state.clone()
+                root_state[:, :3] += origins[index]
+                robot.write_root_state_to_sim(root_state)
+                robot.reset()
             # reset command
             print(">>>>>>>> Reset!")
         # apply action to the robot
-        robots.set_joint_position_target(robots.data.default_joint_pos.clone())
-        robots.write_data_to_sim()
+        for robot in robots:
+            robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+            robot.write_data_to_sim()
         # perform step
         sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update buffers
-        robots.update(sim_dt)
+        for robot in robots:
+            robot.update(sim_dt)
 
 
 if __name__ == "__main__":

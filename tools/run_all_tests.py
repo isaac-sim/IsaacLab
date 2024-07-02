@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,16 +7,16 @@
 
 .. code-block:: bash
 
-    ./orbit.sh -p tools/run_all_tests.py
+    ./isaaclab.sh -p tools/run_all_tests.py
 
     # for dry run
-    ./orbit.sh -p tools/run_all_tests.py --discover_only
+    ./isaaclab.sh -p tools/run_all_tests.py --discover_only
 
     # for quiet run
-    ./orbit.sh -p tools/run_all_tests.py --quiet
+    ./isaaclab.sh -p tools/run_all_tests.py --quiet
 
     # for increasing timeout (default is 600 seconds)
-    ./orbit.sh -p tools/run_all_tests.py --timeout 1000
+    ./isaaclab.sh -p tools/run_all_tests.py --timeout 1000
 
 """
 
@@ -33,8 +33,8 @@ from prettytable import PrettyTable
 # Tests to skip
 from tests_to_skip import TESTS_TO_SKIP
 
-ORBIT_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-"""Path to the root directory of Orbit repository."""
+ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+"""Path to the root directory of the Isaac Lab repository."""
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     )
 
     # configure default test directory (source directory)
-    default_test_dir = os.path.join(ORBIT_PATH, "source")
+    default_test_dir = os.path.join(ISAACLAB_PATH, "source")
 
     parser.add_argument(
         "--test_dir", type=str, default=default_test_dir, help="Path to the directory containing the tests."
@@ -58,14 +58,14 @@ def parse_args() -> argparse.Namespace:
 
     # configure default logging path based on time stamp
     log_file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    default_log_path = os.path.join(ORBIT_PATH, "logs", "test_results", log_file_name)
+    default_log_path = os.path.join(ISAACLAB_PATH, "logs", "test_results", log_file_name)
 
     parser.add_argument(
         "--log_path", type=str, default=default_log_path, help="Path to the log file to store the results in."
     )
     parser.add_argument("--discover_only", action="store_true", help="Only discover and print tests, don't run them.")
     parser.add_argument("--quiet", action="store_true", help="Don't print to console, only log to file.")
-    parser.add_argument("--timeout", type=int, default=600, help="Timeout for each test in seconds.")
+    parser.add_argument("--timeout", type=int, default=1200, help="Timeout for each test in seconds.")
     # parse arguments
     args = parser.parse_args()
     return args
@@ -75,7 +75,7 @@ def test_all(
     test_dir: str,
     tests_to_skip: list[str],
     log_path: str,
-    timeout: float = 600.0,
+    timeout: float = 1200.0,
     discover_only: bool = False,
     quiet: bool = False,
 ) -> bool:

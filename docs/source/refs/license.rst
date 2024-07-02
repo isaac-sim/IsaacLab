@@ -7,16 +7,16 @@ NVIDIA Isaac Sim is available freely under `individual license
 <https://www.nvidia.com/en-us/omniverse/download/>`_. For more information
 about its license terms, please check `here <https://docs.omniverse.nvidia.com/app_isaacsim/common/NVIDIA_Omniverse_License_Agreement.html#software-support-supplement>`_.
 The license files for all its dependencies and included assets are available in its
-`documentation <https://docs.omniverse.nvidia.com/app_isaacsim/common/licenses.html>`_.
+`documentation <https://docs.omniverse.nvidia.com/isaacsim/latest/common/licenses.html>`_.
 
 
-Orbit framework is open-sourced under the
+The Isaac Lab framework is open-sourced under the
 `BSD-3-Clause license <https://opensource.org/licenses/BSD-3-Clause>`_.
 
 
 .. code-block:: text
 
-   Copyright (c) 2022-2024, The ORBIT Project Developers.
+   Copyright (c) 2022-2024, The Isaac Lab Project Developers.
    All rights reserved.
 
    SPDX-License-Identifier: BSD-3-Clause

@@ -13,7 +13,7 @@ There are three main components (relevant to robotics) in Omniverse:
    GPUs for real-time physically-based rendering
 
 Of these, the first two require a deeper understanding to start working
-with Omniverse and its constituent applications (Isaac Sim and Orbit).
+with Omniverse and its constituent applications (Isaac Sim and Isaac Lab).
 
 The main things to learn:
 
@@ -54,7 +54,7 @@ Using Omniverse USD Composer
 Materials and MDL
 
 -  `Five Things to Know About Materials in NVIDIA Omniverse <https://youtu.be/C0HmcQXaENc>`__
--  `How to apply materials? <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html%23applying-materials>`__
+-  `How to apply materials? <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/materials.html#applying-materials>`__
 
 Omniverse Physics and PhysX SDK
 
@@ -88,7 +88,7 @@ Thus, to script in Omniverse, you need to understand the USD APIs.
 
 .. note::
 
-   While Isaac Sim and Orbit try to "relieve" users from understanding
+   While Isaac Sim and Isaac Lab try to "relieve" users from understanding
    the core USD concepts and APIs, understanding these basics still
    help a lot once you start diving inside the codebase and modifying
    it for your own application.
@@ -99,11 +99,11 @@ USD basics <https://www.sidefx.com/docs/houdini/solaris/usd.html>`__ by
 Houdini, which is a 3D animation software.
 Make sure to go through the following sections:
 
--  `Quick example <https://www.sidefx.com/docs/houdini/solaris/usd.html%23quick-example>`__
--  `Attributes and primvars <https://www.sidefx.com/docs/houdini/solaris/usd.html%23attrs>`__
--  `Composition <https://www.sidefx.com/docs/houdini/solaris/usd.html%23compose>`__
--  `Schemas <https://www.sidefx.com/docs/houdini/solaris/usd.html%23schemas>`__
--  `Instances <https://www.sidefx.com/docs/houdini/solaris/usd.html%23instancing>`__
+-  `Quick example <https://www.sidefx.com/docs/houdini/solaris/usd.html#quick-example>`__
+-  `Attributes and primvars <https://www.sidefx.com/docs/houdini/solaris/usd.html#attrs>`__
+-  `Composition <https://www.sidefx.com/docs/houdini/solaris/usd.html#compose>`__
+-  `Schemas <https://www.sidefx.com/docs/houdini/solaris/usd.html#schemas>`__
+-  `Instances <https://www.sidefx.com/docs/houdini/solaris/usd.html#instancing>`__
    and `Scene-graph Instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`__
 
 As a test of understanding, make sure you can answer the following:
@@ -120,5 +120,5 @@ Part 3: More Resources
 - `Omniverse Glossary of Terms <https://docs.omniverse.nvidia.com/isaacsim/latest/common/glossary-of-terms.html>`__
 - `Omniverse Code Samples <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref.html>`__
 - `PhysX Collider Compatibility <https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#collidercompatibility>`__
-- `PhysX Limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/features/physics/physX_limitations.html>`__
+- `PhysX Limitations <https://docs.omniverse.nvidia.com/isaacsim/latest/simulation_fundamentals.html#omni-physics-and-physx-limitations>`__
 - `PhysX Documentation <https://nvidia-omniverse.github.io/PhysX/physx/>`__.

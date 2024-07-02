@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,27 +7,33 @@
 # Please check above link for license information.
 
 # Base image
-ARG ISAACSIM_VERSION
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION} AS base
+ARG ISAACSIM_VERSION_ARG
+FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION_ARG} AS base
+ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
 
 # Adds labels to the Dockerfile
 LABEL version="1.0"
-LABEL description="Dockerfile for building and running the Orbit framework inside Isaac Sim container image."
+LABEL description="Dockerfile for building and running the Isaac Lab framework inside Isaac Sim container image."
 
 # Arguments
 # Path to Isaac Sim root folder
-ARG ISAACSIM_ROOT_PATH
-# Path to orbit directory
-ARG ORBIT_PATH
+ARG ISAACSIM_ROOT_PATH_ARG
+ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
+# Path to the Isaac Lab directory
+ARG ISAACLAB_PATH_ARG
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 # Home dir of docker user, typically '/root'
-ARG DOCKER_USER_HOME
+ARG DOCKER_USER_HOME_ARG
+ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+
+USER root
 
 # Install dependencies and remove cache
 RUN --mount=type=cache,target=/var/cache/apt \
@@ -40,11 +46,11 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the orbit directory (files to exclude are defined in .dockerignore)
-COPY ../ ${ORBIT_PATH}
+# Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
+COPY ../ ${ISAACLAB_PATH}
 
-# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the orbit directory
-RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ORBIT_PATH}/_isaac_sim
+# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
+RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
@@ -66,20 +72,21 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
-# installing Orbit dependencies
+# installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ORBIT_PATH}/orbit.sh --install --extra
+    ${ISAACLAB_PATH}/isaaclab.sh --install
 
-# aliasing orbit.sh and python for convenience
-RUN echo "alias orbit=${ORBIT_PATH}/orbit.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ORBIT_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ORBIT_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ORBIT_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ORBIT_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ORBIT_PATH}/_isaac_sim/python.sh ${ORBIT_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
+# aliasing isaaclab.sh and python for convenience
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
+    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
+    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
+    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
+    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
+    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
+    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
-# make working directory as the orbit directory
+# make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
-WORKDIR ${ORBIT_PATH}
+WORKDIR ${ISAACLAB_PATH}

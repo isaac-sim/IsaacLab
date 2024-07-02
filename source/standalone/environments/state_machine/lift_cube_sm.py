@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./orbit.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 32
 
 """
 
@@ -19,7 +19,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for lift environments.")
@@ -45,11 +45,11 @@ from collections.abc import Sequence
 
 import warp as wp
 
-from omni.isaac.orbit.assets.rigid_object.rigid_object_data import RigidObjectData
+from omni.isaac.lab.assets.rigid_object.rigid_object_data import RigidObjectData
 
-import omni.isaac.orbit_tasks  # noqa: F401
-from omni.isaac.orbit_tasks.manipulation.lift.lift_env_cfg import LiftEnvCfg
-from omni.isaac.orbit_tasks.utils.parse_cfg import parse_env_cfg
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
 wp.init()

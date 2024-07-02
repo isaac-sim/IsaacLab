@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -25,10 +25,7 @@ import sys
 
 
 def parse_cli_args():
-    """Parse the input command line arguments.
-
-    Reference: https://developer.blender.org/diffusion/B/browse/master/release/scripts/templates_py/background_job.py
-    """
+    """Parse the input command line arguments."""
     import argparse
 
     # get the args passed to blender after "--", all of which are ignored by

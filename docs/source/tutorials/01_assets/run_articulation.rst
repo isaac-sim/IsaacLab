@@ -3,7 +3,7 @@
 Interacting with an articulation
 ================================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
 
 This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
@@ -15,7 +15,7 @@ robot.
 The Code
 ~~~~~~~~
 
-The tutorial corresponds to the ``run_articulation.py`` script in the ``orbit/source/standalone/tutorials/01_assets``
+The tutorial corresponds to the ``run_articulation.py`` script in the ``source/standalone/tutorials/01_assets``
 directory.
 
 .. dropdown:: Code for run_articulation.py
@@ -118,7 +118,7 @@ To run the code and see the results, let's run the script from the terminal:
 
 .. code-block:: bash
 
-   ./orbit.sh -p source/standalone/tutorials/01_assets/run_articulation.py
+   ./isaaclab.sh -p source/standalone/tutorials/01_assets/run_articulation.py
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.
@@ -130,12 +130,12 @@ of an articulation (its root and joint state) and how to apply commands to it. W
 buffers to read the latest state from the simulation.
 
 In addition to this tutorial, we also provide a few other scripts that spawn different robots.These are included
-in the ``orbit/source/standalone/demos`` directory. You can run these scripts as:
+in the ``source/standalone/demos`` directory. You can run these scripts as:
 
 .. code-block:: bash
 
    # Spawn many different single-arm manipulators
-   ./orbit.sh -p source/standalone/demos/arms.py
+   ./isaaclab.sh -p source/standalone/demos/arms.py
 
    # Spawn many different quadrupeds
-   ./orbit.sh -p source/standalone/demos/quadrupeds.py
+   ./isaaclab.sh -p source/standalone/demos/quadrupeds.py

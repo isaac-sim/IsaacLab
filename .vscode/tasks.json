@@ -16,7 +16,7 @@
             "label": "run_formatter",
             "type": "shell",
             "linux": {
-                "command": "${workspaceFolder}/orbit.sh --format"
+                "command": "${workspaceFolder}/isaaclab.sh --format"
             }
         }
     ]

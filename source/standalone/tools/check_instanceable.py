@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,10 +10,10 @@ Usage with different inputs (replace `<Asset-Path>` and `<Asset-Path-Instanced>`
 original asset and the instanced asset respectively):
 
 ```bash
-./orbit.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless --physics
-./orbit.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless --physics
-./orbit.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless
-./orbit.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless
+./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless --physics
+./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless --physics
+./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless
+./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless
 ```
 
 Output from the above commands:
@@ -44,8 +44,7 @@ import argparse
 import contextlib
 import os
 
-# omni-isaac-orbit
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser("Utility to empirically check if asset in instanced properly.")
@@ -70,8 +69,8 @@ from omni.isaac.cloner import GridCloner
 from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.carb import set_carb_setting
 
-from omni.isaac.orbit.utils import Timer
-from omni.isaac.orbit.utils.assets import check_file_path
+from omni.isaac.lab.utils import Timer
+from omni.isaac.lab.utils.assets import check_file_path
 
 
 def main():

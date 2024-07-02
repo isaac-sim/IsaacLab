@@ -1,14 +1,14 @@
 services:
-  orbit-base:
+  isaac-lab-base:
     environment:
       - DISPLAY
       - TERM
       - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=${__ORBIT_TMP_XAUTH}
+      - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
     volumes:
     - type: bind
-      source: ${__ORBIT_TMP_XAUTH}
-      target: ${__ORBIT_TMP_XAUTH}
+      source: ${__ISAACLAB_TMP_XAUTH}
+      target: ${__ISAACLAB_TMP_XAUTH}
     - type: bind
       source: /tmp/.X11-unix
       target: /tmp/.X11-unix
@@ -17,16 +17,16 @@ services:
       target: /etc/localtime
       read_only: true
 
-  orbit-ros2:
+  isaac-lab-ros2:
     environment:
       - DISPLAY
       - TERM
       - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=${__ORBIT_TMP_XAUTH}
+      - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
     volumes:
     - type: bind
-      source: ${__ORBIT_TMP_XAUTH}
-      target: ${__ORBIT_TMP_XAUTH}
+      source: ${__ISAACLAB_TMP_XAUTH}
+      target: ${__ISAACLAB_TMP_XAUTH}
     - type: bind
       source: /tmp/.X11-unix
       target: /tmp/.X11-unix

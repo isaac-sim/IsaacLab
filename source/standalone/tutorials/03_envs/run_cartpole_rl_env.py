@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on running the cartpole RL environment.")
@@ -28,9 +28,9 @@ simulation_app = app_launcher.app
 
 import torch
 
-from omni.isaac.orbit.envs import RLTaskEnv
+from omni.isaac.lab.envs import ManagerBasedRLEnv
 
-from omni.isaac.orbit_tasks.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from omni.isaac.lab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 
 
 def main():
@@ -39,7 +39,7 @@ def main():
     env_cfg = CartpoleEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     # setup RL environment
-    env = RLTaskEnv(cfg=env_cfg)
+    env = ManagerBasedRLEnv(cfg=env_cfg)
 
     # simulate physics
     count = 0

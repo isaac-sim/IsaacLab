@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,7 +13,7 @@ the terrain.
 .. code-block:: bash
 
     # Run the script
-    ./orbit.sh -p source/standalone/tutorials/04_envs/quadruped_base_env.py --num_envs 32
+    ./isaaclab.sh -p source/standalone/tutorials/04_envs/quadruped_base_env.py --num_envs 32
 
 """
 
@@ -22,7 +22,7 @@ the terrain.
 
 import argparse
 
-from omni.isaac.orbit.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a quadruped base environment.")
@@ -39,29 +39,28 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import os
 import torch
 
-import omni.isaac.orbit.envs.mdp as mdp
-import omni.isaac.orbit.sim as sim_utils
-from omni.isaac.orbit.assets import ArticulationCfg, AssetBaseCfg
-from omni.isaac.orbit.envs import BaseEnv, BaseEnvCfg
-from omni.isaac.orbit.managers import EventTermCfg as EventTerm
-from omni.isaac.orbit.managers import ObservationGroupCfg as ObsGroup
-from omni.isaac.orbit.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.orbit.managers import SceneEntityCfg
-from omni.isaac.orbit.scene import InteractiveSceneCfg
-from omni.isaac.orbit.sensors import RayCasterCfg, patterns
-from omni.isaac.orbit.terrains import TerrainImporterCfg
-from omni.isaac.orbit.utils import configclass
-from omni.isaac.orbit.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR, check_file_path, read_file
-from omni.isaac.orbit.utils.noise import AdditiveUniformNoiseCfg as Unoise
+import omni.isaac.lab.envs.mdp as mdp
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
+from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
+from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
+from omni.isaac.lab.managers import SceneEntityCfg
+from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.sensors import RayCasterCfg, patterns
+from omni.isaac.lab.terrains import TerrainImporterCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
+from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 ##
 # Pre-defined configs
 ##
-from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 ##
@@ -69,7 +68,7 @@ from omni.isaac.orbit_assets.anymal import ANYMAL_C_CFG  # isort: skip
 ##
 
 
-def constant_commands(env: BaseEnv) -> torch.Tensor:
+def constant_commands(env: ManagerBasedEnv) -> torch.Tensor:
     """The generated command from the command generator."""
     return torch.tensor([[1, 0, 0]], device=env.device).repeat(env.num_envs, 1)
 
@@ -178,7 +177,7 @@ class EventCfg:
 
 
 @configclass
-class QuadrupedEnvCfg(BaseEnvCfg):
+class QuadrupedEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
@@ -205,10 +204,10 @@ def main():
     """Main function."""
     # setup base environment
     env_cfg = QuadrupedEnvCfg()
-    env = BaseEnv(cfg=env_cfg)
+    env = ManagerBasedEnv(cfg=env_cfg)
 
     # load level policy
-    policy_path = os.path.join(ISAAC_ORBIT_NUCLEUS_DIR, "Policies", "ANYmal-C", "policy.pt")
+    policy_path = ISAACLAB_NUCLEUS_DIR + "/Policies/ANYmal-C/HeightScan/policy.pt"
     # check if policy file exists
     if not check_file_path(policy_path):
         raise FileNotFoundError(f"Policy file '{policy_path}' does not exist.")

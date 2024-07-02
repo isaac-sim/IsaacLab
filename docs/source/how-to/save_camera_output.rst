@@ -4,9 +4,9 @@
 Saving rendered images and 3D re-projection
 ===========================================
 
-.. currentmodule:: omni.isaac.orbit
+.. currentmodule:: omni.isaac.lab
 
-This guide accompanied with the ``run_usd_camera.py`` script in the ``orbit/source/standalone/tutorials/04_sensors``
+This guide accompanied with the ``run_usd_camera.py`` script in the ``IsaacLab/source/standalone/tutorials/04_sensors``
 directory.
 
 .. dropdown:: Code for run_usd_camera.py
@@ -55,7 +55,7 @@ PyTorch operations which allows faster computation.
 
 .. code-block:: python
 
-   from omni.isaac.orbit.utils.math import transform_points, unproject_depth
+   from omni.isaac.lab.utils.math import transform_points, unproject_depth
 
    # Pointcloud in world frame
    points_3d_cam = unproject_depth(
@@ -64,7 +64,7 @@ PyTorch operations which allows faster computation.
 
    points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
 
-Alternately, we can use the :meth:`omni.isaac.orbit.sensors.camera.utils.create_pointcloud_from_depth` function
+Alternately, we can use the :meth:`omni.isaac.lab.sensors.camera.utils.create_pointcloud_from_depth` function
 to create a point cloud from the depth image and transform it to the world frame.
 
 .. literalinclude:: ../../../source/standalone/tutorials/04_sensors/run_usd_camera.py
@@ -89,14 +89,14 @@ To run the accompanying script, execute the following command:
 .. code-block:: bash
 
    # Usage with saving and drawing
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --draw
 
    # Usage with saving only in headless mode
-   ./orbit.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --headless --offscreen_render
+   ./isaaclab.sh -p source/standalone/tutorials/04_sensors/run_usd_camera.py --save --headless --enable_cameras
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created
-in the ``orbit/source/standalone/tutorials/04_sensors`` directory, where the images will be saved. Additionally,
+in the ``IsaacLab/source/standalone/tutorials/04_sensors`` directory, where the images will be saved. Additionally,
 you should see the point cloud in the 3D space drawn on the viewport.
 
 To stop the simulation, close the window, press the ``STOP`` button in the UI, or use ``Ctrl+C`` in the terminal.

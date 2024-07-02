@@ -28,7 +28,7 @@ The explicit actuator model performs two steps: 1) it computes the desired joint
 the input commands, and 2) it clips the desired torques based on the motor capabilities. The clipped
 torques are the desired actuation efforts that are set into the simulation.
 
-As an example of an ideal explicit actuator model, we provide the :class:`omni.isaac.orbit.actuators.IdealPDActuator`
+As an example of an ideal explicit actuator model, we provide the :class:`omni.isaac.lab.actuators.IdealPDActuator`
 class, which implements a PD controller with feed-forward effort, and simple clipping based on the configured
 maximum effort:
 
@@ -47,8 +47,8 @@ Actuator groups
 ---------------
 
 The actuator models by themselves are computational blocks that take as inputs the desired joint commands
-and output the the joint commands to apply into the simulator. They do not contain any knowledge about the
-joints they are acting on themselves. These are handled by the :class:`omni.isaac.orbit.assets.Articulation`
+and output the joint commands to apply into the simulator. They do not contain any knowledge about the
+joints they are acting on themselves. These are handled by the :class:`omni.isaac.lab.assets.Articulation`
 class, which wraps around the physics engine's articulation class.
 
 Actuator are collected as a set of actuated joints on an articulation that are using the same actuator model.
@@ -59,12 +59,19 @@ actuator model, such as a DC motor, would require configuring a different actuat
 
 The following figure shows the actuator groups for a legged mobile manipulator:
 
-.. image:: ../_static/actuator_groups.svg
-    :width: 600
+.. image:: ../_static/actuator-group/actuator-light.svg
+    :class: only-light
     :align: center
-    :alt: Actuator groups for a legged mobile manipulator
+    :alt: Actuator models for a legged mobile manipulator
+    :width: 80%
+
+.. image:: ../_static/actuator-group/actuator-dark.svg
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Actuator models for a legged mobile manipulator
 
 .. seealso::
 
     We provide implementations for various explicit actuator models. These are detailed in
-    `omni.isaac.orbit.actuators <../api/orbit.actuators.html>`_ sub-package.
+    `omni.isaac.lab.actuators <../api/lab/omni.isaac.lab.actuators.html>`_ sub-package.
