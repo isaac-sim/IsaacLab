@@ -203,6 +203,58 @@ class TestWarpCamera(unittest.TestCase):
         np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
         np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
+    def test_camera_init_intrinsic_matrix(self):
+        # get the first camera
+        camera_1 = RayCasterCamera(cfg=self.camera_cfg)
+        # get intrinsic matrix
+        self.sim.reset()
+        intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+        self.tearDown()
+        # reinit the first camera
+        self.setUp()
+        camera_1 = RayCasterCamera(cfg=self.camera_cfg)
+        # initialize from intrinsic matrix
+        intrinsic_camera_cfg = RayCasterCameraCfg(
+            prim_path="/World/Camera",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            update_period=0,
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+            debug_vis=False,
+            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+                focal_length=self.camera_cfg.pattern_cfg.focal_length,
+                intrinsic_matrix=intrinsic_matrix,
+                height=self.camera_cfg.pattern_cfg.height,
+                width=self.camera_cfg.pattern_cfg.width,
+            ),
+            data_types=[
+                "distance_to_image_plane",
+            ],
+        )
+        camera_2 = RayCasterCamera(cfg=intrinsic_camera_cfg)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # update cameras
+        camera_1.update(self.dt)
+        camera_2.update(self.dt)
+
+        # check image data
+        torch.testing.assert_close(
+            camera_1.data.output["distance_to_image_plane"],
+            camera_2.data.output["distance_to_image_plane"],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+        # check that both intrinsic matrices are the same
+        torch.testing.assert_close(
+            camera_1.data.intrinsic_matrices[0],
+            camera_2.data.intrinsic_matrices[0],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
         # create two cameras with different prim paths

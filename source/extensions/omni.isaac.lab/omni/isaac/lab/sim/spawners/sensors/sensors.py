@@ -106,7 +106,7 @@ def spawn_camera(
         "lock_camera",
         "visible",
         "semantic_tags",
-        "intrinsic_matrix",
+        "from_intrinsic_matrix",
     ]
 
     # get camera prim
