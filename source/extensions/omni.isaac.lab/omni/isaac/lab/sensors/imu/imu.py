@@ -185,15 +185,13 @@ class IMU(SensorBase):
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
         # arrow-direction
-        # -- the function is meant for camera where the image is in -z direction, as here the "look" should be in +z
-        #    direction, we have to switch the sign in front of z target location
         quat_opengl = math_utils.quat_from_matrix(
             create_rotation_matrix_from_view(
                 self._data.pos_w,
-                self._data.pos_w + self._data.lin_acc_b * torch.tensor([[1, 1, -1]], device=self._device),
+                self._data.pos_w + math_utils.quat_rotate(self._data.quat_w, self._data.lin_acc_b),
                 device=self._device,
             )
         )
-        arrow_quat = convert_orientation_convention(quat_opengl, "ros", "world")
+        quat_w = convert_orientation_convention(quat_opengl, "opengl", "world")
         # display markers
-        self.acceleration_visualizer.visualize(base_pos_w, arrow_quat, arrow_scale)
+        self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)

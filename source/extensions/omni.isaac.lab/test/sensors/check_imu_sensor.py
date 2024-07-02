@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """
 Visual test script for the imu sensor from the Orbit framework.
 """
@@ -142,6 +137,8 @@ def main():
         prim_path="/World/envs/env_.*/ball",
         debug_vis=not args_cli.headless,
     )
+    # increase scale of the arrows for better visualization
+    imu_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
     imu = IMU(cfg=imu_cfg)
 
     # Play simulator and init the IMU
