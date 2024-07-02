@@ -427,6 +427,8 @@ class DirectRLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # close entities related to the environment
+            # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
                 del self.event_manager
             del self.scene
