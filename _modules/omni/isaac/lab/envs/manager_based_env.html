@@ -567,7 +567,11 @@ document.write(`
             <span class="c1"># since it gets confused with Isaac Sim&#39;s SimulationContext class</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Simulation context already exists. Cannot create a new one.&quot;</span><span class="p">)</span>
+            <span class="c1"># simulation context should only be created before the environment</span>
+            <span class="c1"># when in extension mode</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Simulation context already exists. Cannot create a new one.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="p">:</span> <span class="n">SimulationContext</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
 
         <span class="c1"># print useful information</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Base environment:&quot;</span><span class="p">)</span>

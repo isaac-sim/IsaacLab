@@ -550,7 +550,10 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-visual-studio-code">Setting up Visual Studio Code</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-the-python-interpreter">Configuring the python interpreter</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repository-organization">Repository organization</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#extensions">Extensions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#extensions">Extensions</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#extension-dependency-management">Extension Dependency Management</a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#standalone-applications">Standalone applications</a></li>
 </ul>
 </li>
@@ -728,6 +731,28 @@ important to note that Omniverse also provides a similar
 <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html">testing framework</a>.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.</p>
+<section id="extension-dependency-management">
+<h4>Extension Dependency Management<a class="headerlink" href="#extension-dependency-management" title="Permalink to this heading">#</a></h4>
+<p>Certain extensions may have dependencies which need to be installed before the extension can be run.
+While Python dependencies can be expressed via the <code class="docutils literal notranslate"><span class="pre">INSTALL_REQUIRES</span></code> array in <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, we need
+a separate installation pipeline to handle non-Python dependencies. We have therefore created
+an additional setup procedure, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tools/install_deps.py</span> <span class="pre">{dep_type}</span> <span class="pre">{extensions_dir}</span></code>, which scans the <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code>
+file of the directories under the <code class="docutils literal notranslate"><span class="pre">{extensions_dir}</span></code> (such as <code class="docutils literal notranslate"><span class="pre">${ISAACLAB_PATH}/source/extensions</span></code>) for <code class="docutils literal notranslate"><span class="pre">apt</span></code> and <code class="docutils literal notranslate"><span class="pre">rosdep</span></code> dependencies.</p>
+<p>This example <code class="docutils literal notranslate"><span class="pre">extension.toml</span></code> has both <code class="docutils literal notranslate"><span class="pre">apt_deps</span></code> and <code class="docutils literal notranslate"><span class="pre">ros_ws</span></code> specified, so both
+<code class="docutils literal notranslate"><span class="pre">apt</span></code> and <code class="docutils literal notranslate"><span class="pre">rosdep</span></code> packages will be installed if <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tools/install_deps.py</span> <span class="pre">all</span> <span class="pre">${ISAACLAB_PATH}/source/extensions</span></code>
+is passed:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[isaaclab_settings]</span>
+<span class="n">apt_deps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;example_package&quot;</span><span class="p">]</span>
+<span class="n">ros_ws</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;path/from/extension_root/to/ros_ws&quot;</span>
+</pre></div>
+</div>
+<p>From the <code class="docutils literal notranslate"><span class="pre">apt_deps</span></code> in the above example, the package <code class="docutils literal notranslate"><span class="pre">example_package</span></code> would be installed via <code class="docutils literal notranslate"><span class="pre">apt</span></code>.
+From the <code class="docutils literal notranslate"><span class="pre">ros_ws</span></code>, a <code class="docutils literal notranslate"><span class="pre">rosdep</span> <span class="pre">install</span> <span class="pre">--from-paths</span> <span class="pre">{ros_ws}/src</span> <span class="pre">--ignore-src</span></code> command will be called.
+This will install all the <a class="reference external" href="https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html">ROS package.xml dependencies</a>
+in the directory structure below. Currently the ROS distro is assumed to be <code class="docutils literal notranslate"><span class="pre">humble</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">apt</span></code> deps are automatically installed this way during the build process of the <code class="docutils literal notranslate"><span class="pre">Dockerfile.base</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">rosdep</span></code> deps during the build process of <code class="docutils literal notranslate"><span class="pre">Dockerfile.ros2</span></code>.</p>
+</section>
 </section>
 <section id="standalone-applications">
 <h3>Standalone applications<a class="headerlink" href="#standalone-applications" title="Permalink to this heading">#</a></h3>
@@ -830,7 +855,10 @@ reinforcement learning or imitation learning libraries.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-up-visual-studio-code">Setting up Visual Studio Code</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuring-the-python-interpreter">Configuring the python interpreter</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repository-organization">Repository organization</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#extensions">Extensions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#extensions">Extensions</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#extension-dependency-management">Extension Dependency Management</a></li>
+</ul>
+</li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#standalone-applications">Standalone applications</a></li>
 </ul>
 </li>

@@ -498,6 +498,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.usd</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.cloner</span> <span class="kn">import</span> <span class="n">GridCloner</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.core.prims</span> <span class="kn">import</span> <span class="n">XFormPrimView</span>
+<span class="kn">from</span> <span class="nn">omni.isaac.version</span> <span class="kn">import</span> <span class="n">get_version</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.sim</span> <span class="k">as</span> <span class="nn">sim_utils</span>
@@ -598,7 +599,12 @@ document.write(`
                     <span class="n">base_env_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_ns</span><span class="p">,</span>
                     <span class="n">root_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">env_regex_ns</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
                 <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">)</span></div>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_collisions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_global_prim_paths</span><span class="p">)</span>
+
+        <span class="c1"># read isaac sim version (this includes build tag, release tag etc.)</span>
+        <span class="c1"># note: we do it once here because it reads the VERSION file from disk and is not expected to change.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_isaac_sim_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">get_version</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span></div>
 
 <div class="viewcode-block" id="InteractiveScene.clone_environments"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.clone_environments">[docs]</a>    <span class="k">def</span> <span class="nf">clone_environments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">copy_from_source</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates clones of the environment ``/World/envs/env_0``.</span>
@@ -760,12 +766,12 @@ document.write(`
         <span class="c1"># -- sensors</span>
         <span class="k">for</span> <span class="n">sensor</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sensors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">sensor</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># -- flush physics sim view if called in extension mode</span>
-        <span class="c1"># this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying</span>
-        <span class="c1"># PhysX buffers that might live on a separate device</span>
-        <span class="c1"># note: In standalone mode, this method is called in the `step()` method of the simulation context.</span>
-        <span class="c1">#   So we only need to flush when running in extension mode.</span>
-        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="c1"># -- flush physics sim view if called in extension mode and Isaac Sim version is &lt; 4.0</span>
+            <span class="c1"># this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying</span>
+            <span class="c1"># PhysX buffers that might live on a separate device</span>
+            <span class="c1"># note: In standalone mode, this method is called in the `step()` method of the simulation context.</span>
+            <span class="c1">#   So we only need to flush when running in extension mode.</span>
             <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>  <span class="c1"># pyright: ignore [reportOptionalMemberAccess]</span></div>
 
 <div class="viewcode-block" id="InteractiveScene.write_data_to_sim"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.write_data_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -775,12 +781,12 @@ document.write(`
             <span class="n">articulation</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">rigid_object</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rigid_objects</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
             <span class="n">rigid_object</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-        <span class="c1"># -- flush physics sim view if called in extension mode</span>
-        <span class="c1"># this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying</span>
-        <span class="c1"># PhysX buffers that might live on a separate device</span>
-        <span class="c1"># note: In standalone mode, this method is called in the `step()` method of the simulation context.</span>
-        <span class="c1">#   So we only need to flush when running in extension mode.</span>
-        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_isaac_sim_version</span> <span class="o">&lt;</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="c1"># -- flush physics sim view if called in extension mode and Isaac Sim version is &lt; 4.0</span>
+            <span class="c1"># this is needed when using PhysX GPU pipeline since the data needs to be sent to the underlying</span>
+            <span class="c1"># PhysX buffers that might live on a separate device</span>
+            <span class="c1"># note: In standalone mode, this method is called in the `step()` method of the simulation context.</span>
+            <span class="c1">#   So we only need to flush when running in extension mode.</span>
             <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">physics_sim_view</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>  <span class="c1"># pyright: ignore [reportOptionalMemberAccess]</span></div>
 
 <div class="viewcode-block" id="InteractiveScene.update"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.scene.html#omni.isaac.lab.scene.InteractiveScene.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>

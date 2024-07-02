@@ -567,15 +567,6 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">common_step_counter</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="c1"># -- init buffers</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_buf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
-
-        <span class="c1"># setup the action and observation spaces for Gym</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_configure_gym_env_spaces</span><span class="p">()</span>
-
-        <span class="c1"># perform events at the start of the simulation</span>
-        <span class="k">if</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span>
-
-        <span class="c1"># print the environment information</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Completed setting up the environment...&quot;</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -613,7 +604,12 @@ document.write(`
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Reward Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reward_manager</span><span class="p">)</span>
         <span class="c1"># -- curriculum manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span> <span class="o">=</span> <span class="n">CurriculumManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">curriculum</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Curriculum Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span><span class="p">)</span></div>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Curriculum Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span><span class="p">)</span>
+        <span class="c1"># setup the action and observation spaces for Gym</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_configure_gym_env_spaces</span><span class="p">()</span>
+        <span class="c1"># perform events at the start of the simulation</span>
+        <span class="k">if</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP</span>
