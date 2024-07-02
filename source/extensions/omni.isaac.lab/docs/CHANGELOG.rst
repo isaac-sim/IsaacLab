@@ -1,9 +1,9 @@
 Changelog
 ---------
 
-* Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
-  sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
-  :class:`omni.isaac.orbit.sensors.IMUData`.
+* Added IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.lab.sensors.IMU`. The
+  sensor comes with a configuration class :class:`omni.isaac.lab.sensors.IMUCfg` and data class
+  :class:`omni.isaac.lab.sensors.IMUData`.
 
 
 0.18.6 (2024-07-01)
@@ -991,14 +991,6 @@ Fixed
 Added
 ^^^^^
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-* Added new IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.orbit.sensors.IMU`. The
-  sensor comes with a configuration class :class:`omni.isaac.orbit.sensors.IMUCfg` and data class
-  :class:`omni.isaac.orbit.sensors.IMUData`.
-=======
->>>>>>> b88bf40944ca6243bc9a56ed4a9fb0ffad8ed655
 * Added support for using articulations as visualization markers. This disables all physics APIs from
   the articulation and allows the user to use it as a visualization marker. It is useful for creating
   visualization markers for the end-effectors or base of the robot.
@@ -1010,10 +1002,6 @@ Fixed
   :class:`omni.isaac.lab.markers.VisualizationMarkers` class. Earlier, the properties were applied on
   the XForm prim instead of the Mesh prim.
 
-<<<<<<< HEAD
-=======
->>>>>>> main
->>>>>>> b88bf40944ca6243bc9a56ed4a9fb0ffad8ed655
 
 0.10.5 (2023-12-18)
 ~~~~~~~~~~~~~~~~~~~

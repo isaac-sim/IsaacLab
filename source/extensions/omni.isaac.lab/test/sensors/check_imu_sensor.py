@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2024, The ORBIT Project Developers.
 # All rights reserved.
 #
@@ -44,14 +49,14 @@ from omni.isaac.core.simulation_context import SimulationContext
 from omni.isaac.core.utils.viewports import set_camera_view
 from pxr import PhysxSchema
 
-import omni.isaac.orbit.sim as sim_utils
-import omni.isaac.orbit.terrains as terrain_gen
-from omni.isaac.orbit.assets import RigidObject, RigidObjectCfg
-from omni.isaac.orbit.sensors.imu import IMU, IMUCfg
-from omni.isaac.orbit.terrains.config.rough import ROUGH_TERRAINS_CFG
-from omni.isaac.orbit.terrains.terrain_importer import TerrainImporter
-from omni.isaac.orbit.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.orbit.utils.timer import Timer
+import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.terrains as terrain_gen
+from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.sensors.imu import IMU, IMUCfg
+from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.utils.timer import Timer
 
 
 def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:

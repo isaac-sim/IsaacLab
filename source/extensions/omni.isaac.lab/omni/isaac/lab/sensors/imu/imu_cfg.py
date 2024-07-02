@@ -1,13 +1,13 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
 
-from omni.isaac.orbit.markers import VisualizationMarkersCfg
-from omni.isaac.orbit.markers.config import RED_ARROW_X_MARKER_CFG
-from omni.isaac.orbit.utils import configclass
+from omni.isaac.lab.markers import VisualizationMarkersCfg
+from omni.isaac.lab.markers.config import RED_ARROW_X_MARKER_CFG
+from omni.isaac.lab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .imu import IMU
@@ -17,7 +17,7 @@ from .imu import IMU
 class IMUCfg(SensorBaseCfg):
     """Configuration for a camera sensor."""
 
-    class_type: IMU = IMU
+    class_type: type = IMU
 
     @configclass
     class OffsetCfg:

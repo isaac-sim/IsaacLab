@@ -1,8 +1,7 @@
-# Copyright (c) 2022-2024, The ORBIT Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 
 from __future__ import annotations
 
@@ -13,9 +12,9 @@ from typing import TYPE_CHECKING
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
-import omni.isaac.orbit.sim as sim_utils
-import omni.isaac.orbit.utils.math as math_utils
-from omni.isaac.orbit.markers import VisualizationMarkers
+import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
+from omni.isaac.lab.markers import VisualizationMarkers
 
 from ..camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
 from ..sensor_base import SensorBase
