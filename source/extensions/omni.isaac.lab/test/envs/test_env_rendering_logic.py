@@ -32,8 +32,8 @@ from omni.isaac.lab.utils import configclass
 
 
 @configclass
-class EmptyActionsCfg:
-    """Action specifications for the environment."""
+class EmptyManagerCfg:
+    """Empty specifications for the environment."""
 
     pass
 
@@ -48,7 +48,8 @@ def create_manager_based_env(render_interval: int):
         decimation: int = 4
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
-        actions: EmptyActionsCfg = EmptyActionsCfg()
+        actions: EmptyManagerCfg = EmptyManagerCfg()
+        observations: EmptyManagerCfg = EmptyManagerCfg()
 
     return ManagerBasedEnv(cfg=EnvCfg())
 
