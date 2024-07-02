@@ -62,6 +62,9 @@ class UsdFileCfg(FileCfg):
     .. note::
         The configuration parameters include various properties. If not `None`, these properties
         are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
     """
 
     func: Callable = from_files.spawn_from_usd
@@ -88,6 +91,10 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     .. note::
         The configuration parameters include various properties. If not `None`, these properties
         are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
+
     """
 
     func: Callable = from_files.spawn_from_urdf
