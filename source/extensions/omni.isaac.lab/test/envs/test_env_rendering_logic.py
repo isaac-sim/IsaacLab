@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# ignore private usage of variables warning
-# pyright: reportPrivateUsage=none
-
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.lab.app import AppLauncher, run_tests
