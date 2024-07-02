@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.18.7 (2024-07-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a lidar pattern function :func:`~omni.isaac.lab.sensors.ray_caster.patterns.patterns.lidar_pattern` with 
+  corresponding config :class:`~omni.isaac.lab.sensors.ray_caster.patterns_cfg.LidarPatternCfg`.
+
+
 0.18.6 (2024-07-01)
 ~~~~~~~~~~~~~~~~~~~
 
