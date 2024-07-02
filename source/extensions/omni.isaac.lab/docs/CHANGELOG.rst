@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added possibility to initialize cameras directly with the intrinsic matrix, which can be added as attribute to the
+* Added possibility to initialize camera configurations with an intrinsic matrix by adding a new classmethod to the
   :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg` class or respectively
   :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg`.
 
