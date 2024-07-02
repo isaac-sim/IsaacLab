@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 01, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 02, 2024"/>
   </head>
   
   
@@ -774,9 +774,13 @@ document.write(`
         <span class="c1"># add action noise</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">action_noise_model</span><span class="p">:</span>
             <span class="n">action</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_action_noise_model</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">action</span><span class="o">.</span><span class="n">clone</span><span class="p">())</span>
-
         <span class="c1"># process actions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_physics_step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+        <span class="c1"># check if we need to do rendering within the physics loop</span>
+        <span class="c1"># note: checked here once to avoid multiple checks within the loop</span>
+        <span class="n">is_rendering</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span>
+
         <span class="c1"># perform physics stepping</span>
         <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">decimation</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_sim_step_counter</span> <span class="o">+=</span> <span class="mi">1</span>
@@ -784,11 +788,13 @@ document.write(`
             <span class="bp">self</span><span class="o">.</span><span class="n">_apply_action</span><span class="p">()</span>
             <span class="c1"># set actions into simulator</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
-            <span class="n">render</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_step_counter</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_gui</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">has_rtx_sensors</span><span class="p">()</span>
-            <span class="p">)</span>
             <span class="c1"># simulate</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">render</span><span class="o">=</span><span class="n">render</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">render</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="c1"># render between steps only if the GUI or an RTX sensor needs it</span>
+            <span class="c1"># note: we assume the render interval to be the shortest accepted rendering interval.</span>
+            <span class="c1">#    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_step_counter</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">is_rendering</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render</span><span class="p">()</span>
             <span class="c1"># update buffers at sim dt</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">physics_dt</span><span class="p">)</span>
 
@@ -909,6 +915,8 @@ document.write(`
 <div class="viewcode-block" id="DirectRLEnv.close"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.DirectRLEnv.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Cleanup for the environment.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_closed</span><span class="p">:</span>
+            <span class="c1"># close entities related to the environment</span>
+            <span class="c1"># note: this is order-sensitive to avoid any dangling references</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">:</span>
                 <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span>
             <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span>
@@ -1139,7 +1147,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 01, 2024.
+  Last updated on Jul 02, 2024.
   <br/>
 </p>
   </div>
