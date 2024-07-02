@@ -110,8 +110,5 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | None = None
-    """Mass properties."""
-
     deformable_props: schemas.DeformableBodyPropertiesCfg | None = None
     """Deformable body properties."""
