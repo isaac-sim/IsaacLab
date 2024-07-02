@@ -117,6 +117,18 @@ class Camera(SensorBase):
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
             rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
             rot_offset = rot_offset.squeeze(0).numpy()
+            # if intrinsic matrix is set, override aperture parameters in config
+            if self.cfg.spawn.intrinsic_matrix is not None:
+                # extract parameters from matrix
+                f_x = self.cfg.spawn.intrinsic_matrix[0]
+                c_x = self.cfg.spawn.intrinsic_matrix[2]
+                f_y = self.cfg.spawn.intrinsic_matrix[4]
+                c_y = self.cfg.spawn.intrinsic_matrix[5]
+                # resolve parameters for usd camera
+                self.cfg.spawn.horizontal_aperture = self.cfg.width * self.cfg.spawn.focal_length / f_x
+                self.cfg.spawn.vertical_aperture = self.cfg.height * self.cfg.spawn.focal_length / f_y
+                self.cfg.spawn.horizontal_aperture_offset = (c_x - self.cfg.width / 2) / f_x
+                self.cfg.spawn.vertical_aperture_offset = (c_y - self.cfg.height / 2) / f_y
             # spawn the asset
             self.cfg.spawn.func(
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset

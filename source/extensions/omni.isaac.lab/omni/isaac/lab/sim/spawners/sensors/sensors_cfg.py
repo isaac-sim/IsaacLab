@@ -64,6 +64,22 @@ class PinholeCameraCfg(SpawnerCfg):
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
     vertical_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate vertically. Defaults to 0.0."""
+    intrinsic_matrix: tuple[float, float, float, float, float, float, float, float, float] | None = None
+    """Intrinsic matrix of the camera. Defaults to None.
+
+    The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and the 2D image.
+    The matrix is defined as:
+
+    .. math::
+        \\begin{bmatrix}
+        f_x & 0 & c_x \\\\
+        0 & f_y & c_y \\\\
+        0 & 0 & 1
+        \\end{bmatrix}
+    
+    Note:
+        In the case both, aperture parameters and intrinsic matrix is defined, the intrinsic matrix will be used.
+    """
     lock_camera: bool = True
     """Locks the camera in the Omniverse viewport. Defaults to True.
 

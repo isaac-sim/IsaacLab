@@ -346,17 +346,22 @@ class RayCasterCamera(RayCaster):
         """Computes the intrinsic matrices for the camera based on the config provided."""
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
-        # compute the intrinsic matrix
-        vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
-        f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
-        f_y = pattern_cfg.height * pattern_cfg.focal_length / vertical_aperture
-        c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
-        c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
-        # allocate the intrinsic matrices
-        self._data.intrinsic_matrices[:, 0, 0] = f_x
-        self._data.intrinsic_matrices[:, 0, 2] = c_x
-        self._data.intrinsic_matrices[:, 1, 1] = f_y
-        self._data.intrinsic_matrices[:, 1, 2] = c_y
+        if not hasattr(pattern_cfg.intrinsic_matrix) or pattern_cfg.intrinsic_matrix is None:
+            # compute the intrinsic matrix
+            vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
+            f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
+            f_y = pattern_cfg.height * pattern_cfg.focal_length / vertical_aperture
+            c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
+            c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
+            # allocate the intrinsic matrices
+            self._data.intrinsic_matrices[:, 0, 0] = f_x
+            self._data.intrinsic_matrices[:, 0, 2] = c_x
+            self._data.intrinsic_matrices[:, 1, 1] = f_y
+            self._data.intrinsic_matrices[:, 1, 2] = c_y
+        else:
+            # use the provided intrinsic matrix
+            matrix = torch.tensor(pattern_cfg.intrinsic_matrix, device=self._device).reshape(3, 3)
+            self._data.intrinsic_matrices = matrix.unsqueeze(0).repeat(self._view.count, 1, 1)
         # save focal length
         self._focal_length = pattern_cfg.focal_length
 
