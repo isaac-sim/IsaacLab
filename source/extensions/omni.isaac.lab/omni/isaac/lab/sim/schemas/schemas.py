@@ -671,6 +671,11 @@ def define_deformable_body_properties(
 
     See :func:`modify_deformable_body_properties` for more details on how the properties are set.
 
+    .. note::
+        If the input prim is not a mesh, this function will traverse the prim and find the first mesh
+        under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable
+        body schema can only be applied to a single mesh.
+
     Args:
         prim_path: The prim path where to apply the deformable body schema.
         cfg: The configuration for the deformable body.
@@ -679,7 +684,7 @@ def define_deformable_body_properties(
 
     Raises:
         ValueError: When the prim path is not valid.
-        TypeError: When the prim already has conflicting API schemas.
+        ValueError: When the prim has no mesh or multiple meshes.
     """
     # obtain stage
     if stage is None:
@@ -736,10 +741,6 @@ def modify_deformable_body_properties(
     The schema comprises of attributes that belong to the `PhysxDeformableBodyAPI`_. schemas containing the PhysX
     parameters for the deformable body.
 
-    .. note::
-        We assume that the USD file for a deformable body contains a single mesh.
-        If the USD file contains multiple meshes, then the first mesh is used.
-
     .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html
     .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html
 
@@ -751,10 +752,6 @@ def modify_deformable_body_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
-
-    Raises:
-        ValueError: If the input prim path is not valid.
-        ValueError: If the input prim path does not contain a mesh or contains multiple meshes.
     """
     # obtain stage
     if stage is None:
