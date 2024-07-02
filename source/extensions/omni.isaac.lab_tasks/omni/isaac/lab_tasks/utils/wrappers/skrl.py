@@ -27,6 +27,8 @@ Or, equivalently, by directly calling the skrl library API as follows:
 # needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
+from typing import Literal
+
 from omni.isaac.lab.envs import DirectRLEnv, ManagerBasedRLEnv
 
 """
@@ -34,18 +36,18 @@ Configuration Parser.
 """
 
 
-def process_skrl_cfg(cfg: dict, ml_framework: str = "torch") -> dict:
+def process_skrl_cfg(cfg: dict, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch") -> dict:
     """Convert simple YAML types to skrl classes/components.
 
     Args:
         cfg: A configuration dictionary.
-        ml_framework: ML framework to be used. Supported values are ``"torch"`` (default) and ``"jax"``.
-
-    Raises:
-        ValueError: If the specified ML framework is not valid.
+        ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
 
     Returns:
         A dictionary containing the converted configuration.
+
+    Raises:
+        ValueError: If the specified ML framework is not valid.
     """
     _direct_eval = [
         "learning_rate_scheduler",
@@ -72,7 +74,9 @@ def process_skrl_cfg(cfg: dict, ml_framework: str = "torch") -> dict:
             from skrl.resources.schedulers.jax import KLAdaptiveLR  # noqa: F401
             from skrl.utils.model_instantiators.jax import Shape  # noqa: F401
         else:
-            ValueError(f"Invalid ML framework: {ml_framework}")
+            ValueError(
+                f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+            )
 
         for key, value in d.items():
             if isinstance(value, dict):
@@ -96,7 +100,7 @@ Vectorized environment wrapper.
 """
 
 
-def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: str = "torch"):
+def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch"):
     """Wraps around Isaac Lab environment for skrl.
 
     This function wraps around the Isaac Lab environment. Since the :class:`ManagerBasedRLEnv` environment
@@ -106,7 +110,7 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: str = "torch"):
 
     Args:
         env: The environment to wrap around.
-        ml_framework: ML framework to be used. Supported values are ``"torch"`` (default) and ``"jax"``.
+        ml_framework: The ML framework to use for the wrapper. Defaults to "torch".
 
     Raises:
         ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv`.
@@ -127,7 +131,9 @@ def SkrlVecEnvWrapper(env: ManagerBasedRLEnv, ml_framework: str = "torch"):
     elif ml_framework.startswith("jax"):
         from skrl.envs.wrappers.jax import wrap_env
     else:
-        ValueError(f"Invalid ML framework: {ml_framework}")
+        ValueError(
+            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+        )
 
     # wrap and return the environment
     return wrap_env(env, wrapper="isaaclab")
