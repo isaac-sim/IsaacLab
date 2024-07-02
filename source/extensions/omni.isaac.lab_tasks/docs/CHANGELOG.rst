@@ -9,6 +9,18 @@ Added
 
 * Extended skrl wrapper to support training/evaluation using JAX
 
+
+0.7.9 (2024-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the action space check in the Stable-Baselines3 wrapper. Earlier, the wrapper checked
+  the action space via :meth:`gymnasium.spaces.Box.is_bounded` method, which returned a bool
+  value instead of a string.
+
+
 0.7.8 (2024-06-26)
 ~~~~~~~~~~~~~~~~~~
 
