@@ -27,8 +27,16 @@ Each process collects its own rollouts during the training process and has its o
 network. During training, gradients are aggregated across the processes and broadcasted back to the process
 at the end of the epoch.
 
-.. image:: ../_static/multigpu.png
+.. image:: ../_static/multi-gpu-rl/a3c-light.svg
+    :class: only-light
     :align: center
+    :alt: Multi-GPU training paradigm
+    :width: 80%
+
+.. image:: ../_static/multi-gpu-rl/a3c-dark.svg
+    :class: only-dark
+    :align: center
+    :width: 80%
     :alt: Multi-GPU training paradigm
 
 To train with multiple GPUs, use the following command, where ``--proc_per_node`` represents the number of available GPUs:
