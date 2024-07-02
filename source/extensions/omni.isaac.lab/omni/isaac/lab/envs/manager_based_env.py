@@ -271,6 +271,9 @@ class ManagerBasedEnv:
             self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
+            # render between steps only if the GUI or an RTX sensor needs it
+            # note: we assume the render interval to be the shortest accepted rendering interval.
+            #    If a camera needs rendering at a faster frequency, this will lead to errors 
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
                 self.sim.has_gui() or self.sim.has_rtx_sensors()
             ):
