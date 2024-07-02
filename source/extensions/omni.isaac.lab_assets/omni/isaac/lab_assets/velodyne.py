@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for a simple Cartpole robot."""
+"""Configuration for Velodyne LiDAR sensors."""
 
 
 from omni.isaac.lab.sensors import RayCasterCfg, patterns
