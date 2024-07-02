@@ -22,7 +22,10 @@ Reference:
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
 from omni.isaac.lab.assets.articulation import ArticulationCfg
+from omni.isaac.lab.sensors import RayCasterCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from .velodyne import VELODYNE_VLP_16_CFG
 
 ##
 # Configuration - Actuators.
@@ -160,3 +163,11 @@ Note:
     Since we don't have a publicly available actuator network for ANYmal-D, we use the same network as ANYmal-C.
     This may impact the sim-to-real transfer performance.
 """
+
+
+##
+# Configuration - Sensors.
+##
+
+ANYMAL_LIDAR_CFG = VELODYNE_VLP_16_CFG.replace(offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.6)))
+"""Configuration for the Velodyne-16 sensor mounted on the ANYmal robot."""
