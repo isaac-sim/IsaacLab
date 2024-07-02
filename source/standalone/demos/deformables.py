@@ -125,6 +125,8 @@ def design_scene():
         obj_cfg = objects_cfg[obj_name]
         # randomize the young modulus (somewhere between a Silicone 30 and Silicone 70)
         obj_cfg.physics_material.youngs_modulus = random.uniform(0.7e6, 3.3e6)
+        # randomize the poisson's ratio
+        obj_cfg.physics_material.poissons_ratio = random.uniform(0.25, 0.5)
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
         # spawn the object

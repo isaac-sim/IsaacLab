@@ -115,7 +115,8 @@ class DeformableBodyMaterialCfg(PhysicsMaterialCfg):
     """The Poisson's ratio which defines the body's volume preservation. Defaults to 0.45.
 
     The Poisson's ratio is a measure of the material's ability to expand in the lateral direction when compressed
-    in the axial direction. It is a dimensionless number between 0 and 0.5.
+    in the axial direction. It is a dimensionless number between 0 and 0.5. Using a value of 0.5 will make the
+    material incompressible.
     """
 
     elasticity_damping: float = 0.005
