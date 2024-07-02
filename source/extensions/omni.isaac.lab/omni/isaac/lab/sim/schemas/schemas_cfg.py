@@ -264,8 +264,8 @@ class DeformableBodyPropertiesCfg:
     deformable_enabled: bool | None = None
     """Enables deformable body."""
 
-    kinematic_enabled: bool | None = None
-    """Enables kinematic body.
+    kinematic_enabled: bool = False
+    """Enables kinematic body. Defaults to False, which means that the body is not kinematic.
 
     Similar to rigid bodies, this allows setting user-driven motion for the deformable body. For more information,
     please refer to the `documentation <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html#kinematic-soft-bodies>`_.
@@ -277,8 +277,9 @@ class DeformableBodyPropertiesCfg:
     self_collision_filter_distance: float | None = None
     """Penetration value that needs to get exceeded before contacts for self collision are generated.
 
-    .. note::
-        This parameter has an effect only if :attr:`self_collision` is enabled.
+    This parameter must be greater than of equal to twice the :attr:`rest_offset` value.
+
+    This value has an effect only if :attr:`self_collision` is enabled.
     """
 
     settling_threshold: float | None = None
@@ -299,10 +300,16 @@ class DeformableBodyPropertiesCfg:
     This parameter can be used to approximate the effect of air drag on the deformable body.
     """
 
-    disable_gravity: bool | None = None
-    """Disables gravity for the deformable body."""
+    simulation_hexahedral_resolution: int = 10
+    """The target resolution for the hexahedral mesh used for simulation. Defaults to 10.
 
-    collision_simplification: bool | None = True
+    Note:
+        This value is ignored if the user provides the simulation mesh points directly. However, we assume that
+        most users will not provide the simulation mesh points directly. If you want to provide the simulation mesh
+        directly, please set this value to :obj:`None`.
+    """
+
+    collision_simplification: bool = True
     """Whether or not to simplify the collision mesh before creating a soft body out of it. Defaults to True.
 
     Note:
@@ -312,27 +319,27 @@ class DeformableBodyPropertiesCfg:
         If you want to provide the simulation mesh points directly, please set this flag to False.
     """
 
-    collision_simplification_remeshing: bool | None = True
+    collision_simplification_remeshing: bool = True
     """Whether or not the collision mesh should be remeshed before simplification. Defaults to True.
 
     This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
-    collision_simplification_remeshing_resolution: int | None = 0
+    collision_simplification_remeshing_resolution: int = 0
     """The resolution used for remeshing. Defaults to 0, which means that a heuristic is used to determine the
     resolution.
 
     This parameter is ignored if :attr:`collision_simplification_remeshing` is False.
     """
 
-    collision_simplification_target_triangle_count: int | None = 0
+    collision_simplification_target_triangle_count: int = 0
     """The target triangle count used for the simplification. Defaults to 0, which means that a heuristic based on
     the :attr:`simulation_hexahedral_resolution` is used to determine the target count.
 
     This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
-    collision_simplification_force_conforming: bool | None = True
+    collision_simplification_force_conforming: bool = True
     """Whether or not the simplification should force the output mesh to conform to the input mesh. Defaults to True.
 
     The flag indicates that the tretrahedralizer used to generate the collision mesh should produce tetrahedra
@@ -341,11 +348,21 @@ class DeformableBodyPropertiesCfg:
     This parameter is ignored if :attr:`collision_simplification` is False.
     """
 
-    simulation_hexahedral_resolution: int | None = 10
-    """The target resolution for the hexahedral mesh used for simulation. Defaults to 10.
+    contact_offset: float | None = None
+    """Contact offset for the collision shape (in m).
 
-    Note:
-        This value is ignored if the user provides the simulation mesh points directly. However, we assume that
-        most users will not provide the simulation mesh points directly. If you want to provide the simulation mesh
-        directly, please set this value to :obj:`None`.
+    The collision detector generates contact points as soon as two shapes get closer than the sum of their
+    contact offsets. This quantity should be non-negative which means that contact generation can potentially start
+    before the shapes actually penetrate.
     """
+
+    rest_offset: float | None = None
+    """Rest offset for the collision shape (in m).
+
+    The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
+    vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
+    offset, the shapes will be separated at rest by an air gap.
+    """
+
+    max_depenetration_velocity: float | None = None
+    """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""

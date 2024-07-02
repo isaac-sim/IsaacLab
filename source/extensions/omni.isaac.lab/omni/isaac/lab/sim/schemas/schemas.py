@@ -789,11 +789,20 @@ def modify_deformable_body_properties(
             "self_collision_filter_distance",
         ]
     }
-    deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
+    status = deformableUtils.add_physx_deformable_body(stage, prim_path=prim_path, **attr_kwargs)
+    # check if the deformable body was successfully added
+    if not status:
+        return False
+
+    # obtain the PhysX collision API (this is set when the deformable body is added)
+    physx_collision_api = PhysxSchema.PhysxCollisionAPI(deformable_body_prim)
 
     # set into PhysX API
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)
+        if attr_name in ["rest_offset", "collision_offset"]:
+            safe_set_attribute_on_usd_schema(physx_collision_api, attr_name, value, camel_case=True)
+        else:
+            safe_set_attribute_on_usd_schema(physx_deformable_api, attr_name, value, camel_case=True)
 
     # success
     return True
