@@ -100,7 +100,14 @@ def spawn_camera(
     else:
         attribute_types = CUSTOM_FISHEYE_CAMERA_ATTRIBUTES
     # custom attributes in the config that are not USD Camera parameters
-    non_usd_cfg_param_names = ["func", "copy_from_source", "lock_camera", "visible", "semantic_tags", "intrinsic_matrix"]
+    non_usd_cfg_param_names = [
+        "func",
+        "copy_from_source",
+        "lock_camera",
+        "visible",
+        "semantic_tags",
+        "intrinsic_matrix",
+    ]
 
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)

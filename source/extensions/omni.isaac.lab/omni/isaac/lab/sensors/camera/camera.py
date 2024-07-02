@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 import numpy as np
 import re
 import torch
@@ -553,17 +552,21 @@ class Camera(SensorBase):
             # get camera parameters
             focal_length = sensor_prim.GetFocalLengthAttr().Get()
             horiz_aperture = sensor_prim.GetHorizontalApertureAttr().Get()
+            vert_aperture = sensor_prim.GetVerticalApertureAttr().Get()
+            horiz_aperture_offset = sensor_prim.GetHorizontalApertureOffsetAttr().Get()
+            vert_aperture_offset = sensor_prim.GetVerticalApertureOffsetAttr().Get()
             # get viewport parameters
             height, width = self.image_shape
-            # calculate the field of view
-            fov = 2 * math.atan(horiz_aperture / (2 * focal_length))
-            # calculate the focal length in pixels
-            focal_px = width * 0.5 / math.tan(fov / 2)
+            # extract intrinsic parameters
+            f_x = (width * focal_length) / horiz_aperture
+            f_y = (height * focal_length) / vert_aperture
+            c_x = width * 0.5 + horiz_aperture_offset * f_x
+            c_y = height * 0.5 + vert_aperture_offset * f_y
             # create intrinsic matrix for depth linear
-            self._data.intrinsic_matrices[i, 0, 0] = focal_px
-            self._data.intrinsic_matrices[i, 0, 2] = width * 0.5
-            self._data.intrinsic_matrices[i, 1, 1] = focal_px
-            self._data.intrinsic_matrices[i, 1, 2] = height * 0.5
+            self._data.intrinsic_matrices[i, 0, 0] = f_x
+            self._data.intrinsic_matrices[i, 0, 2] = c_x
+            self._data.intrinsic_matrices[i, 1, 1] = f_y
+            self._data.intrinsic_matrices[i, 1, 2] = c_y
             self._data.intrinsic_matrices[i, 2, 2] = 1
 
     def _update_poses(self, env_ids: Sequence[int]):

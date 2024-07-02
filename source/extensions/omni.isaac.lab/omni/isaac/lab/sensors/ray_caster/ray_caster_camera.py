@@ -346,7 +346,11 @@ class RayCasterCamera(RayCaster):
         """Computes the intrinsic matrices for the camera based on the config provided."""
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
-        if not hasattr(pattern_cfg.intrinsic_matrix) or pattern_cfg.intrinsic_matrix is None:
+        if hasattr(pattern_cfg, "intrinsic_matrix") and pattern_cfg.intrinsic_matrix is not None:
+            # use the provided intrinsic matrix
+            matrix = torch.tensor(pattern_cfg.intrinsic_matrix, device=self._device).reshape(3, 3)
+            self._data.intrinsic_matrices = matrix.unsqueeze(0).repeat(self._view.count, 1, 1)
+        else:
             # compute the intrinsic matrix
             vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
             f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
@@ -358,10 +362,7 @@ class RayCasterCamera(RayCaster):
             self._data.intrinsic_matrices[:, 0, 2] = c_x
             self._data.intrinsic_matrices[:, 1, 1] = f_y
             self._data.intrinsic_matrices[:, 1, 2] = c_y
-        else:
-            # use the provided intrinsic matrix
-            matrix = torch.tensor(pattern_cfg.intrinsic_matrix, device=self._device).reshape(3, 3)
-            self._data.intrinsic_matrices = matrix.unsqueeze(0).repeat(self._view.count, 1, 1)
+
         # save focal length
         self._focal_length = pattern_cfg.focal_length
 
