@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script demonstrates how to spawn prims into the scene.
+"""This script demonstrates how to spawn deformable prims into the scene.
 
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/standalone/tutorials/00_sim/spawn_prims.py
+    ./isaaclab.sh -p source/standalone/demos/deformables.py
 
 """
 
@@ -20,7 +20,7 @@ import argparse
 from omni.isaac.lab.app import AppLauncher
 
 # create argparser
-parser = argparse.ArgumentParser(description="Tutorial on spawning prims into the scene.")
+parser = argparse.ArgumentParser(description="This script demonstrates how to spawn deformable prims into the scene.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
