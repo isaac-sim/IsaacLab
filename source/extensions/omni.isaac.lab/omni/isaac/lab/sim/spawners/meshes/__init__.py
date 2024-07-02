@@ -5,12 +5,14 @@
 
 """Sub-module for spawning meshes in the simulation.
 
-NVIDIA Omniverse deals with meshes as USDGeomMesh prims. This sub-module provides various
+NVIDIA Omniverse deals with meshes as `USDGeomMesh`_ prims. This sub-module provides various
 configurations to spawn different types of meshes. Based on the configuration, the spawned prim can be:
 
 * a visual mesh (no physics)
 * a static collider (no rigid body)
-* a deformable body (with deformable properties).
+* a deformable body (with deformable properties)
+
+.. _USDGeomMesh: https://openusd.org/release/api/class_usd_geom_mesh.html
 """
 
 from .meshes import spawn_mesh_capsule, spawn_mesh_cone, spawn_mesh_cuboid, spawn_mesh_cylinder, spawn_mesh_sphere
