@@ -141,7 +141,8 @@ class TestEnvRenderingLogic(unittest.TestCase):
                         env = create_direct_rl_env(render_interval)
 
                     # enable the flag to render the environment
-                    # note: this is only done for the unit testing to "fake" camera rendering
+                    # note: this is only done for the unit testing to "fake" camera rendering.
+                    #   normally this is set to True when cameras are created.
                     env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
 
                     # disable the app from shutting down when the environment is closed
@@ -150,6 +151,7 @@ class TestEnvRenderingLogic(unittest.TestCase):
                     env.sim._app_control_on_stop_handle = None  # type: ignore
 
                     # check that we are in partial rendering mode for the environment
+                    # this is enabled due to app launcher setting "enable_cameras=True"
                     self.assertEqual(env.sim.render_mode, SimulationContext.RenderMode.PARTIAL_RENDERING)
 
                     # add physics and render callbacks
@@ -165,17 +167,25 @@ class TestEnvRenderingLogic(unittest.TestCase):
                         env.step(action=actions)
 
                         # check that we have completed the correct number of physics steps
-                        self.assertEqual(self.num_physics_steps, (i + 1) * env.cfg.decimation)
+                        self.assertEqual(
+                            self.num_physics_steps, (i + 1) * env.cfg.decimation, msg="Physics steps mismatch"
+                        )
                         # check that we have simulated physics for the correct amount of time
-                        self.assertAlmostEqual(self.physics_time, self.num_physics_steps * env.cfg.sim.dt)
+                        self.assertAlmostEqual(
+                            self.physics_time, self.num_physics_steps * env.cfg.sim.dt, msg="Physics time mismatch"
+                        )
 
                         # check that we have completed the correct number of rendering steps
                         self.assertEqual(
-                            self.num_render_steps, (i + 1) * env.cfg.decimation // env.cfg.sim.render_interval
+                            self.num_render_steps,
+                            (i + 1) * env.cfg.decimation // env.cfg.sim.render_interval,
+                            msg="Render steps mismatch",
                         )
                         # check that we have rendered for the correct amount of time
                         self.assertAlmostEqual(
-                            self.render_time, self.num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval
+                            self.render_time,
+                            self.num_render_steps * env.cfg.sim.dt * env.cfg.sim.render_interval,
+                            msg="Render time mismatch",
                         )
 
                     # close the environment
