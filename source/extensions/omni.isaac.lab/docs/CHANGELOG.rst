@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added a lidar pattern function :func:`~omni.isaac.lab.sensors.ray_caster.patterns.patterns.lidar_pattern` with 
+* Added a lidar pattern function :func:`~omni.isaac.lab.sensors.ray_caster.patterns.patterns.lidar_pattern` with
   corresponding config :class:`~omni.isaac.lab.sensors.ray_caster.patterns_cfg.LidarPatternCfg`.
 
 
