@@ -81,7 +81,11 @@ class ManagerBasedEnv:
             # since it gets confused with Isaac Sim's SimulationContext class
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
-            raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            # simulation context should only be created before the environment
+            # when in extension mode
+            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            self.sim: SimulationContext = SimulationContext.instance()
 
         # print useful information
         print("[INFO]: Base environment:")

@@ -81,15 +81,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-
-        # setup the action and observation spaces for Gym
-        self._configure_gym_env_spaces()
-
-        # perform events at the start of the simulation
-        if "startup" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="startup")
-
-        # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -128,6 +119,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        # setup the action and observation spaces for Gym
+        self._configure_gym_env_spaces()
+        # perform events at the start of the simulation
+        if "startup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="startup")
 
     """
     Operations - MDP
