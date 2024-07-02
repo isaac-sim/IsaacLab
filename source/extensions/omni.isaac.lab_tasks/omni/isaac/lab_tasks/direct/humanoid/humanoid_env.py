@@ -20,8 +20,16 @@ from omni.isaac.lab_tasks.direct.locomotion.locomotion_env import LocomotionEnv
 
 @configclass
 class HumanoidEnvCfg(DirectRLEnvCfg):
+    # env
+    episode_length_s = 15.0
+    decimation = 2
+    action_scale = 1.0
+    num_actions = 21
+    num_observations = 75
+    num_states = 0
+
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
@@ -64,14 +72,6 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
         22.5,  # left_foot
         22.5,  # left_foot
     ]
-
-    # env
-    episode_length_s = 15.0
-    decimation = 2
-    action_scale = 1.0
-    num_actions = 21
-    num_observations = 75
-    num_states = 0
 
     heading_weight: float = 0.5
     up_weight: float = 0.1

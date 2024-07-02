@@ -69,7 +69,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
-   source/features/workflows
+   source/features/task_workflows
    source/features/multi_gpu
    source/features/tiled_rendering
    source/features/environments
@@ -81,7 +81,6 @@ Table of Contents
    :caption: Resources
    :titlesonly:
 
-   source/migration/index
    source/tutorials/index
    source/how-to/index
    source/deployment/index
@@ -94,9 +93,17 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :caption: Migration Guides
+   :titlesonly:
+
+   source/migration/migrating_from_isaacgymenvs
+   source/migration/migrating_from_omniisaacgymenvs
+   source/migration/migrating_from_orbit
+
+.. toctree::
+   :maxdepth: 1
    :caption: References
 
-   source/refs/migration
    source/refs/contributing
    source/refs/troubleshooting
    source/refs/issues
@@ -109,6 +116,8 @@ Table of Contents
     :caption: Project Links
 
     GitHub <https://github.com/isaac-sim/IsaacLab>
+    NVIDIA Isaac Sim <https://docs.omniverse.nvidia.com/isaacsim/latest/index.html>
+    NVIDIA PhysX <https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/index.html>
 
 Indices and tables
 ==================
@@ -117,4 +126,4 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html
+.. _NVIDIA Isaac Sim: https://docs.omniverse.nvidia.com/isaacsim/latest/index.html

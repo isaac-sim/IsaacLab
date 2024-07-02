@@ -11,6 +11,7 @@ using VSCode.
 Setting up Visual Studio Code
 -----------------------------
 
+The following is only applicable for Isaac Sim installed via the Omniverse Launcher.
 The ``Isaac Lab`` repository includes the VSCode settings to easily allow setting
 up your development environment. These are included in the ``.vscode`` directory
 and include the following files:
@@ -50,7 +51,7 @@ For more information on VSCode support for Omniverse, please refer to the
 following links:
 
 * `Isaac Sim VSCode support <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_standalone_python.html#isaac-sim-python-vscode>`__
-* `Debugging with VSCode <https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/tutorial_advanced_python_debugging.html>`__
+* `Debugging with VSCode <https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_python_debugging.html>`__
 
 
 Configuring the python interpreter
@@ -93,6 +94,7 @@ The ``Isaac Lab`` repository is structured as follows:
    ├── source
    │   ├── extensions
    │   │   ├── omni.isaac.lab
+   │   │   ├── omni.isaac.lab_assets
    │   │   └── omni.isaac.lab_tasks
    │   ├── standalone
    │   │   ├── demos
@@ -187,34 +189,6 @@ important to note that Omniverse also provides a similar
 `testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html>`__.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.
-
-Extension Dependency Management
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Certain extensions may have dependencies which need to be installed before the extension can be run.
-While Python dependencies can be expressed via the ``INSTALL_REQUIRES`` array in ``setup.py``, we need
-a separate installation pipeline to handle non-Python dependencies. We have therefore created
-an additional setup procedure, ``./isaaclab.sh --install-deps {dep_type}``, which scans the ``extension.toml``
-file of the directories under ``source/extensions`` for ``apt`` and ``rosdep`` dependencies.
-
-This example ``extension.toml`` has both ``apt_deps`` and ``ros_ws`` specified, so both
-``apt`` and ``rosdep`` packages will be installed if ``./isaaclab.sh --install-deps all``
-is passed:
-
-.. code-block:: toml
-
-   [isaaclab_settings]
-   apt_deps = ["example_package"]
-   ros_ws = "path/from/extension_root/to/ros_ws"
-
-From the ``apt_deps`` in the above example, the package ``example_package`` would be installed via ``apt``.
-From the ``ros_ws``, a ``rosdep install --from-paths {ros_ws}/src --ignore-src`` command will be called.
-This will install all the `ROS package.xml dependencies <https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html>`__
-in the directory structure below. Currently the ROS distro is assumed to be ``humble``.
-
-``apt`` deps are automatically installed this way during the build process of the ``Dockerfile.base``,
-and ``rosdep`` deps during the build process of ``Dockerfile.ros2``.
-
 
 Standalone applications
 ~~~~~~~~~~~~~~~~~~~~~~~

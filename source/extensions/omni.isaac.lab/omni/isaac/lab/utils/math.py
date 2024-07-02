@@ -499,9 +499,6 @@ def quat_box_minus(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
 
     Returns:
         The difference between the two quaternions. Shape is (N, 3).
-
-    Reference:
-        https://docs.leggedrobotics.com/kindr/cheatsheet_latest.pdf
     """
     quat_diff = quat_mul(q1, quat_conjugate(q2))  # q1 * q2^-1
     re = quat_diff[:, 0]  # real part, q = [w, x, y, z] = [re, im]

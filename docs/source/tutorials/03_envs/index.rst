@@ -10,8 +10,8 @@ different aspects of the framework to create a simulation environment for agent 
     :maxdepth: 1
     :titlesonly:
 
-    create_base_env
-    create_rl_env
+    create_manager_base_env
+    create_manager_rl_env
     create_direct_rl_env
     register_rl_env_gym
     run_rl_training

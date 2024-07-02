@@ -1,6 +1,121 @@
 Changelog
 ---------
 
+0.18.5 (2024-06-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData`class.
+  Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
+  gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
+  and used to compute the projection of the gravity vector on the object.
+
+
+0.18.4 (2024-06-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed double reference count of the physics sim view inside the asset classes. This was causing issues
+  when destroying the asset class instance since the physics sim view was not being properly released.
+
+Added
+^^^^^
+
+* Added the attribute :attr:`~omni.isaac.lab.assets.AssetBase.is_initialized` to check if the asset and sensor
+  has been initialized properly. This can be used to ensure that the asset or sensor is ready to use in the simulation.
+
+
+0.18.3 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the docstrings at multiple places related to the different buffer implementations inside the
+  :mod:`omni.isaac.lab.utils.buffers` module. The docstrings were not clear and did not provide enough
+  information about the classes and their methods.
+
+Added
+^^^^^
+
+* Added the field for fixed tendom names in the :class:`omni.isaac.lab.assets.ArticulationData` class.
+  Earlier, this information was not exposed which was inconsistent with other name related information
+  such as joint or body names.
+
+Changed
+^^^^^^^
+
+* Renamed the fields ``min_num_time_lags`` and ``max_num_time_lags`` to ``min_delay`` and
+  ``max_delay`` in the :class:`omni.isaac.lab.actuators.DelayedPDActuatorCfg` class. This is to make
+  the naming simpler to understand.
+
+
+0.18.2 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration for tile-rendered camera into its own file named ``tiled_camera_cfg.py``.
+  This makes it easier to follow where the configuration is located and how it is related to the class.
+
+
+0.18.1 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Ensured that a parity between class and its configuration class is explicitly visible in the
+  :mod:`omni.isaac.lab.envs` module. This makes it easier to follow where definitions are located and how
+  they are related. This should not be a breaking change as the classes are still accessible through the same module.
+
+
+0.18.0 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect and rendering
+  would happen once every env.step() when active.
+
+Changed
+^^^^^^^
+
+* Renamed :attr:`omni.isaac.lab.sim.SimulationCfg.substeps` to :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+  The render logic is now integrated in the decimation loop of the environment.
+
+
+0.17.13 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the orientation reset logic in :func:`omni.isaac.lab.envs.mdp.events.reset_root_state_uniform` to make it relative to
+  the default orientation. Earlier, the position was sampled relative to the default and the orientation not.
+
+
+0.17.12 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`omni.isaac.lab.utils.buffers.TimestampedBuffer` to store timestamped data.
+
+Changed
+^^^^^^^
+
+* Added time-stamped buffers in the classes :class:`omni.isaac.lab.assets.RigidObjectData` and :class:`omni.isaac.lab.assets.ArticulationData`
+  to update some values lazily and avoid unnecessary computations between physics updates. Before, all the data was always
+  updated at every step, even if it was not used by the task.
+
 
 0.17.11 (2024-05-30)
 ~~~~~~~~~~~~~~~~~~~~

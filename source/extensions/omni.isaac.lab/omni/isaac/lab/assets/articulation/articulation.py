@@ -88,6 +88,14 @@ class Articulation(RigidObject):
     cfg: ArticulationCfg
     """Configuration instance for the articulations."""
 
+    actuators: dict[str, ActuatorBase]
+    """Dictionary of actuator instances for the articulation.
+
+    The keys are the actuator names and the values are the actuator instances. The actuator instances
+    are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
+    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    """
+
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
@@ -95,10 +103,6 @@ class Articulation(RigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # container for data access
-        self._data = ArticulationData()
-        # data for storing actuator group
-        self.actuators: dict[str, ActuatorBase] = dict.fromkeys(self.cfg.actuators.keys())
 
     """
     Properties
@@ -132,6 +136,11 @@ class Articulation(RigidObject):
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
         return self.root_physx_view.shared_metatype.dof_names
+
+    @property
+    def fixed_tendon_names(self) -> list[str]:
+        """Ordered names of fixed tendons in articulation."""
+        return self._fixed_tendon_names
 
     @property
     def body_names(self) -> list[str]:
@@ -205,30 +214,6 @@ class Articulation(RigidObject):
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
             self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
 
-    def update(self, dt: float):
-        # -- root state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.root_state_w[:, :7] = self.root_physx_view.get_root_transforms()
-        self._data.root_state_w[:, 3:7] = math_utils.convert_quat(self._data.root_state_w[:, 3:7], to="wxyz")
-        self._data.root_state_w[:, 7:] = self.root_physx_view.get_root_velocities()
-
-        # -- body-state (note: we roll the quaternion to match the convention used in Isaac Sim -- wxyz)
-        self._data.body_state_w[..., :7] = self.root_physx_view.get_link_transforms()
-        self._data.body_state_w[..., 3:7] = math_utils.convert_quat(self._data.body_state_w[..., 3:7], to="wxyz")
-        self._data.body_state_w[..., 7:] = self.root_physx_view.get_link_velocities()
-
-        # -- joint states
-        self._data.joint_pos[:] = self.root_physx_view.get_dof_positions()
-        self._data.joint_vel[:] = self.root_physx_view.get_dof_velocities()
-        if dt > 0.0:
-            self._data.joint_acc[:] = (self._data.joint_vel - self._previous_joint_vel) / dt
-
-        # -- update common data
-        # note: these are computed in the base class
-        self._update_common_data(dt)
-
-        # -- update history buffers
-        self._previous_joint_vel[:] = self._data.joint_vel[:]
-
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
     ) -> tuple[list[int], list[str]]:
@@ -256,13 +241,14 @@ class Articulation(RigidObject):
     ) -> tuple[list[int], list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
-        Please see the :func:`omni.isaac.orbit.utils.string.resolve_matching_names` function for more information
+        Please see the :func:`omni.isaac.lab.utils.string.resolve_matching_names` function for more information
         on the name matching.
 
         Args:
-            name_keys: A regular expression or a list of regular expressions to match the joint names with fixed tendons.
-            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means all joints
-                in the articulation are searched.
+            name_keys: A regular expression or a list of regular expressions to match the joint
+                names with fixed tendons.
+            tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
+                all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
@@ -320,6 +306,7 @@ class Articulation(RigidObject):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
+        self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_root_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
 
@@ -350,7 +337,7 @@ class Articulation(RigidObject):
         # set into internal buffers
         self._data.joint_pos[env_ids, joint_ids] = position
         self._data.joint_vel[env_ids, joint_ids] = velocity
-        self._previous_joint_vel[env_ids, joint_ids] = velocity
+        self._data._previous_joint_vel[env_ids, joint_ids] = velocity
         self._data.joint_acc[env_ids, joint_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
@@ -604,6 +591,10 @@ class Articulation(RigidObject):
         # set targets
         self._data.joint_effort_target[env_ids, joint_ids] = target
 
+    """
+    Operations - Tendons.
+    """
+
     def set_fixed_tendon_stiffness(
         self,
         stiffness: torch.Tensor,
@@ -846,7 +837,7 @@ class Articulation(RigidObject):
         prim_paths = self._body_physx_view.prim_paths[: self.num_bodies]
         body_view_body_names = [path.split("/")[-1] for path in prim_paths]
         # -- mapping from articulation view to body view
-        self._body_view_ordering = [body_view_body_names.index(name) for name in root_view_body_names]
+        self._body_view_ordering = [root_view_body_names.index(name) for name in body_view_body_names]
         self._body_view_ordering = torch.tensor(self._body_view_ordering, dtype=torch.long, device=self.device)
 
         # log information about the articulation
@@ -860,6 +851,9 @@ class Articulation(RigidObject):
         # -- assert that parsing was successful
         if set(physx_body_names) != set(self.body_names):
             raise RuntimeError("Failed to parse all bodies properly in the articulation.")
+
+        # container for data access
+        self._data = ArticulationData(self.root_physx_view, self.device)
 
         # create buffers
         self._create_buffers()
@@ -877,30 +871,29 @@ class Articulation(RigidObject):
     def _create_buffers(self):
         # allocate buffers
         super()._create_buffers()
-        # history buffers
-        self._previous_joint_vel = torch.zeros(self.num_instances, self.num_joints, device=self.device)
 
         # asset data
         # -- properties
         self._data.joint_names = self.joint_names
-        # -- joint states
-        self._data.joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
-        self._data.joint_vel = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_acc = torch.zeros_like(self._data.joint_pos)
-        self._data.default_joint_pos = torch.zeros_like(self._data.joint_pos)
-        self._data.default_joint_vel = torch.zeros_like(self._data.joint_pos)
+
+        # -- default joint state
+        self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
+        self._data.default_joint_vel = torch.zeros_like(self._data.default_joint_pos)
+
         # -- joint commands
-        self._data.joint_pos_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_vel_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_effort_target = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_stiffness = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_damping = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_armature = torch.zeros_like(self._data.joint_pos)
-        self._data.joint_friction = torch.zeros_like(self._data.joint_pos)
+        self._data.joint_pos_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_vel_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_effort_target = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_stiffness = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_damping = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_armature = torch.zeros_like(self._data.default_joint_pos)
+        self._data.joint_friction = torch.zeros_like(self._data.default_joint_pos)
         self._data.joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
         # -- joint commands (explicit)
-        self._data.computed_torque = torch.zeros_like(self._data.joint_pos)
-        self._data.applied_torque = torch.zeros_like(self._data.joint_pos)
+        self._data.computed_torque = torch.zeros_like(self._data.default_joint_pos)
+        self._data.applied_torque = torch.zeros_like(self._data.default_joint_pos)
+
         # -- tendons
         if self.num_fixed_tendons > 0:
             self._data.fixed_tendon_stiffness = torch.zeros(
@@ -924,12 +917,15 @@ class Articulation(RigidObject):
         self._data.soft_joint_pos_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
         self._data.soft_joint_vel_limits = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.gear_ratio = torch.ones(self.num_instances, self.num_joints, device=self.device)
-        # -- initialize default buffers
+
+        # -- initialize default buffers related to joint properties
         self._data.default_joint_stiffness = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_damping = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_armature = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_friction = torch.zeros(self.num_instances, self.num_joints, device=self.device)
         self._data.default_joint_limits = torch.zeros(self.num_instances, self.num_joints, 2, device=self.device)
+
+        # -- initialize default buffers related to fixed tendon properties
         if self.num_fixed_tendons > 0:
             self._data.default_fixed_tendon_stiffness = torch.zeros(
                 self.num_instances, self.num_fixed_tendons, device=self.device
@@ -980,6 +976,7 @@ class Articulation(RigidObject):
         )
         self._data.default_joint_vel[:, indices_list] = torch.tensor(values_list, device=self.device)
 
+        # -- joint limits
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
 
@@ -989,9 +986,12 @@ class Articulation(RigidObject):
 
     def _process_actuators_cfg(self):
         """Process and apply articulation joint properties."""
+        # create actuators
+        self.actuators = dict()
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+
         # cache the values coming from the usd
         usd_stiffness = self.root_physx_view.get_dof_stiffnesses().clone()
         usd_damping = self.root_physx_view.get_dof_dampings().clone()
@@ -999,6 +999,7 @@ class Articulation(RigidObject):
         usd_friction = self.root_physx_view.get_dof_friction_coefficients().clone()
         usd_effort_limit = self.root_physx_view.get_dof_max_forces().clone()
         usd_velocity_limit = self.root_physx_view.get_dof_max_velocities().clone()
+
         # iterate over all actuator configurations
         for actuator_name, actuator_cfg in self.cfg.actuators.items():
             # type annotation for type checkers
@@ -1069,17 +1070,23 @@ class Articulation(RigidObject):
 
     def _process_fixed_tendons(self):
         """Process fixed tendons."""
-        self.fixed_tendon_names = list()
+        # create a list to store the fixed tendon names
+        self._fixed_tendon_names = list()
+
+        # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0:
             stage = stage_utils.get_current_stage()
+
+            # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
                 usd_joint_path = self.root_physx_view.dof_paths[0][j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(stage, usd_joint_path)
                 if joint.GetPrim().HasAPI(PhysxSchema.PhysxTendonAxisRootAPI):
                     joint_name = usd_joint_path.split("/")[-1]
-                    self.fixed_tendon_names.append(joint_name)
+                    self._fixed_tendon_names.append(joint_name)
 
+            self._data.fixed_tendon_names = self._fixed_tendon_names
             self._data.default_fixed_tendon_stiffness = self.root_physx_view.get_fixed_tendon_stiffnesses().clone()
             self._data.default_fixed_tendon_damping = self.root_physx_view.get_fixed_tendon_dampings().clone()
             self._data.default_fixed_tendon_limit_stiffness = (

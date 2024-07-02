@@ -4,9 +4,9 @@ myst-parser
 sphinxcontrib-bibtex==2.5.0
 autodocsumm
 sphinx-copybutton
+sphinx-icon
 sphinx_design
 sphinxemoji
-sphinx-tabs
 
 # basic python
 numpy
