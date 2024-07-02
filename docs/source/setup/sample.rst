@@ -35,6 +35,12 @@ A few quick showroom scripts to run and checkout:
 
       ./isaaclab.sh -p source/standalone/demos/procedural_terrain.py
 
+-  Spawn different deformable (soft) bodies and let them fall from a height:
+
+   .. code:: bash
+
+      ./isaaclab.sh -p source/standalone/demos/deformables.py
+
 -  Spawn multiple markers that are useful for visualizations:
 
    .. code:: bash
