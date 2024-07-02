@@ -291,9 +291,6 @@ def _spawn_mesh_geom_from_mesh(
     # apply deformable body properties
     if cfg.deformable_props is not None:
         schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props)
-    # apply mass properties
-    if cfg.mass_props is not None:
-        schemas.define_mass_properties(mesh_prim_path, cfg.mass_props)
 
     # apply visual material
     if cfg.visual_material is not None:
