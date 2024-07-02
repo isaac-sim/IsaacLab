@@ -534,7 +534,8 @@ class AppLauncher:
         for key, value in hacked_modules.items():
             sys.modules[key] = value
 
-    def _rendering_enabled(self):
+    def _rendering_enabled(self) -> bool:
+        """Check if rendering is required by the app."""
         # Indicates whether rendering is required by the app.
         # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
         return not self._headless or self._livestream >= 1 or self._enable_cameras

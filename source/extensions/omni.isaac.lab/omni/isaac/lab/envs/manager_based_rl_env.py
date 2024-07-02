@@ -161,11 +161,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
-            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
-                self.sim.has_gui() or self.sim.has_rtx_sensors()
-            )
             # simulate
-            self.sim.step(render=render)
+            self.sim.step(render=False)
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
+                self.sim.has_gui() or self.sim.has_rtx_sensors()
+            ):
+                self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 

@@ -288,9 +288,13 @@ class DirectRLEnv(gym.Env):
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model.apply(action.clone())
-
         # process actions
         self._pre_physics_step(action)
+
+        # check if we need to do rendering within the physics loop
+        # note: checked here once to avoid multiple checks within the loop
+        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+
         # perform physics stepping
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
@@ -298,11 +302,13 @@ class DirectRLEnv(gym.Env):
             self._apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
-            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
-                self.sim.has_gui() or self.sim.has_rtx_sensors()
-            )
             # simulate
-            self.sim.step(render=render)
+            self.sim.step(render=False)
+            # render between steps only if the GUI or an RTX sensor needs it
+            # note: we assume the render interval to be the shortest accepted rendering interval.
+            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
@@ -423,6 +429,8 @@ class DirectRLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # close entities related to the environment
+            # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
                 del self.event_manager
             del self.scene
