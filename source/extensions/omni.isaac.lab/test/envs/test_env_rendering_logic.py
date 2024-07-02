@@ -8,7 +8,8 @@
 from omni.isaac.lab.app import AppLauncher, run_tests
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=True)
+# need to set "enable_cameras" true to be able to do rendering tests
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -64,7 +65,8 @@ def create_manager_based_rl_env(render_interval: int):
         decimation: int = 4
         sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval)
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
-        actions: EmptyActionsCfg = EmptyActionsCfg()
+        actions: EmptyManagerCfg = EmptyManagerCfg()
+        observations: EmptyManagerCfg = EmptyManagerCfg()
 
     return ManagerBasedRLEnv(cfg=EnvCfg())
 
@@ -104,7 +106,7 @@ def create_direct_rl_env(render_interval: int):
 
 
 class TestEnvRenderingLogic(unittest.TestCase):
-    """Test the rendering logic of the different environments."""
+    """Test the rendering logic of the different environment workflows."""
 
     def _physics_callback(self, dt):
         # called at every physics step
@@ -126,8 +128,10 @@ class TestEnvRenderingLogic(unittest.TestCase):
                     # step tracking variables
                     self.num_physics_steps = 0
                     self.num_render_steps = 0
+
                     # create a new stage
                     omni.usd.get_context().new_stage()
+
                     # create environment
                     if env_type == "manager_based_env":
                         env = create_manager_based_env(render_interval)
@@ -136,9 +140,14 @@ class TestEnvRenderingLogic(unittest.TestCase):
                     else:
                         env = create_direct_rl_env(render_interval)
 
+                    # enable the flag to render the environment
+                    # note: this is only done for the unit testing to "fake" camera rendering
+                    env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+                    # disable the app from shutting down when the environment is closed
+                    env.sim._app_control_on_stop_handle = None  # type: ignore
+
                     # we override these variables to make sure that sim.render() is called
-                    env.sim._has_gui = True
-                    env.sim.render_mode = SimulationContext.RenderMode.PARTIAL_RENDERING
+                    self.assertEqual(env.sim.render_mode, SimulationContext.RenderMode.PARTIAL_RENDERING)
 
                     # add physics and render callbacks
                     env.sim.add_physics_callback("physics_step", self._physics_callback)
@@ -157,7 +166,9 @@ class TestEnvRenderingLogic(unittest.TestCase):
                         )
                         # check that we have rendered for the correct amount of time
                         self.assertAlmostEqual(self.render_time, (i + 1) * env.cfg.decimation * env.cfg.sim.dt)
-                env.close()
+
+                    # close the environment
+                    env.close()
 
 
 if __name__ == "__main__":
