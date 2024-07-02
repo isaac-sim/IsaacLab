@@ -12,8 +12,10 @@ from omni.isaac.lab.sensors import RayCasterCfg, patterns
 # Configuration
 ##
 
+# Source: https://velodynelidar.com/wp-content/uploads/2019/12/63-9229_Rev-K_Puck-_Datasheet_Web.pdf
 VELODYNE_VLP_16_CFG =  RayCasterCfg(
     attach_yaw_only=False,
     pattern_cfg=patterns.LidarPatternCfg(channels=16, vertical_fov_range=(-15.0, 15.0), horizontal_fov_range=(-180.0, 180.0), horizontal_res=0.2),
     debug_vis=True,
+    max_distance=100,
 )
