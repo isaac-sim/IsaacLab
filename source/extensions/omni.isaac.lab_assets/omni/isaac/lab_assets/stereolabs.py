@@ -7,10 +7,10 @@
 
 The following configuration parameters are available:
 
-* :obj:`ZED_X_NARROW_RAYCASTER_CFG`: The ZED X Camera with narrow field of view as RayCasterCameraCfg
-* :obj:`ZED_X_MINI_WIDE_RAYCASTER_CFG`: The ZED X Mini Camera with wide field of view as RayCasterCameraCfg
-* :obj:`ZED_X_NARROW_USD_CFG`: The ZED X Camera with narrow field of view as CameraCfg
-* :obj:`ZED_X_MINI_WIDE_USD_CFG`: The ZED X Mini Camera with wide field of view as CameraCfg
+* :obj:`ZED_X_NARROW_RAYCASTER_CFG`: The ZED-X Camera with a narrow field of view as an instance of :class:`RayCasterCameraCfg`.
+* :obj:`ZED_X_MINI_WIDE_RAYCASTER_CFG`: The ZED-X Mini Camera with a wide field of view as an instance of :class:`RayCasterCameraCfg`.
+* :obj:`ZED_X_NARROW_USD_CFG`: The ZED-X Camera with a narrow field of view as an instance of :class:`CameraCfg`.
+* :obj:`ZED_X_MINI_WIDE_USD_CFG`: The ZED-X Mini Camera with a wide field of view as an instance of :class:`CameraCfg`.
 
 Reference:
 
@@ -34,7 +34,7 @@ ZED_X_NARROW_RAYCASTER_CFG = RayCasterCameraCfg(
         width=960,
     ),
     debug_vis=True,
-    max_distance=20,
+    max_distance=20.0,
     data_types=["distance_to_image_plane"],
 )
 
