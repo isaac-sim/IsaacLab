@@ -89,18 +89,23 @@ class PinholeCameraCfg(SpawnerCfg):
         vertical_aperture_offset: float = 0.0,
         lock_camera: bool = True,
     ) -> PinholeCameraCfg:
-        """Create a PinholeCameraCfg from an intrinsic matrix. The intrinsic matrix is a 3x3 matrix that
-        defines the mapping between the 3D world coordinates and the 2D image. The matrix is defined as:
+        """Create a :class:`PinholeCameraCfg` from an intrinsic matrix.
+         
+        The intrinsic matrix is a 3x3 matrix that defines the mapping between the 3D world coordinates and 
+        the 2D image. The matrix is defined as:
 
         .. math::
-            \\begin{bmatrix}
-            f_x & 0 & c_x \\\\
-            0 & f_y & c_y \\\\
+            \begin{bmatrix}
+            f_x & 0 & c_x \\
+            0 & f_y & c_y \\
             0 & 0 & 1
-            \\end{bmatrix}
+            \end{bmatrix}
+            
+        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
+        principle point offsets along x and y direction respectively.
 
         Args:
-            intrinsic_matrix: Intrinsic matrix of the camera (shape: (9,)).
+            intrinsic_matrix: Intrinsic matrix of the camera in row-major format. Shape is (9,).
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
             projection_type: Type of projection to use for the camera. Defaults to "pinhole".
@@ -116,6 +121,10 @@ class PinholeCameraCfg(SpawnerCfg):
         Returns:
             PinholeCameraCfg: The configuration for the pinhole camera pattern.
         """
+        # raise not implemented error is projection type is not pinhole
+        if projection_type != "pinhole":
+            raise NotImplementedError("Only pinhole projection type is supported.")
+
         # extract parameters from matrix
         f_x = intrinsic_matrix[0]
         c_x = intrinsic_matrix[2]
@@ -123,6 +132,7 @@ class PinholeCameraCfg(SpawnerCfg):
         c_y = intrinsic_matrix[5]
         # resolve parameters for usd camera
         horizontal_aperture = width * focal_length / f_x
+        # TODO: currently assume square pixels, need to handle non-square pixels when supported in omniverse
         # vertical_aperture = height * focal_length / f_y
         horizontal_aperture_offset = (c_x - width / 2) / f_x
         vertical_aperture_offset = (c_y - height / 2) / f_y

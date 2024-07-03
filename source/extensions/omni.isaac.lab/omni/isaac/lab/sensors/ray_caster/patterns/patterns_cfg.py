@@ -118,10 +118,10 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
             
         where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
         principle point offsets along x and y direction respectively.
+        
         Args:
             focal_length: Focal length of the camera (in cm).
-            intrinsic_matrix: Intrinsic matrix of the camera in row-major format. 
- Shape is (9,).
+            intrinsic_matrix: Intrinsic matrix of the camera in row-major format. Shape is (9,).
             width: Width of the image (in pixels).
             height: Height of the image (in pixels).
 
