@@ -246,7 +246,7 @@ submit_job() {
             exit 1
             ;;
     esac
-    
+
 }
 
 #==
