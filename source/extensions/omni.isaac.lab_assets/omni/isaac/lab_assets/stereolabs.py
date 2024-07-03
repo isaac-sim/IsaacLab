@@ -37,6 +37,7 @@ ZED_X_NARROW_RAYCASTER_CFG = RayCasterCameraCfg(
     max_distance=20,
     data_types=["distance_to_image_plane"],
 )
+"""ZED X Camera with narrow field of view as RayCaster Sensor."""
 
 ZED_X_MINI_WIDE_RAYCASTER_CFG = RayCasterCameraCfg(
     pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
@@ -49,6 +50,7 @@ ZED_X_MINI_WIDE_RAYCASTER_CFG = RayCasterCameraCfg(
     max_distance=20,
     data_types=["distance_to_image_plane"],
 )
+"""ZED X Mini Camera with wide field of view as RayCaster Sensor."""
 
 
 ##
@@ -66,6 +68,8 @@ ZED_X_NARROW_USD_CFG = CameraCfg(
     width=960,
     data_types=["distance_to_image_plane", "rgb"],
 )
+"""ZED X Camera with narrow field of view as USD Sensor."""
+
 
 ZED_X_MINI_WIDE_USD_CFG = CameraCfg(
     spawn=PinholeCameraCfg.from_intrinsic_matrix(
@@ -78,3 +82,4 @@ ZED_X_MINI_WIDE_USD_CFG = CameraCfg(
     width=960,
     data_types=["distance_to_image_plane", "rgb"],
 )
+"""ZED X Mini Camera with wide field of view as USD Sensor."""

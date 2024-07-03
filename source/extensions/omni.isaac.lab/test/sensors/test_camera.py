@@ -261,7 +261,6 @@ class TestCamera(unittest.TestCase):
 
         # play sim
         self.sim.reset()
-        self.sim.play()
 
         # update cameras
         camera_1.update(self.dt)
