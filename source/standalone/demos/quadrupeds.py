@@ -107,7 +107,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # Origin 7 with Boston Dynamics Spot
-    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[5])
+    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
     spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
 
