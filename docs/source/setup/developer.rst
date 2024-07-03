@@ -200,7 +200,7 @@ packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are 
 To handle these dependencies, we have created an additional setup procedure described in the next section.
 
 There are two types of dependencies that can be specified in the ``extension.toml`` file
-under the ``isaaclab_settings`` section:
+under the ``isaac_lab_settings`` section:
 
 1. **apt_deps**: A list of apt packages that need to be installed. These are installed using the
    `apt <https://ubuntu.com/server/docs/package-management>`__ package manager.
@@ -211,7 +211,7 @@ As an example, the following ``extension.toml`` file specifies the dependencies 
 
 .. code-block:: toml
 
-   [isaaclab_settings]
+   [isaac_lab_settings]
    # apt dependencies
    apt_deps = ["libboost-all-dev"]
 
