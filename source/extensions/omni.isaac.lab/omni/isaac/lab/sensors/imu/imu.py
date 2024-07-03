@@ -16,7 +16,6 @@ import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.markers import VisualizationMarkers
 
-from ..camera.utils import convert_orientation_convention, create_rotation_matrix_from_view
 from ..sensor_base import SensorBase
 from .imu_data import IMUData
 
@@ -25,7 +24,11 @@ if TYPE_CHECKING:
 
 
 class IMU(SensorBase):
-    """The inertia measurement unit."""
+    """The inertia measurement unit sensor.
+    
+    The sensor can be attached to any RigidObject in the scene. The sensor provides the linear acceleration and angular
+    velocity of the object in the body frame. The sensor also provides the orientation of the object in the world frame.
+    """
 
     cfg: IMUCfg
     """The configuration parameters."""
@@ -130,17 +133,17 @@ class IMU(SensorBase):
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         # store the poses
         # note: we clone here because the obtained tensors are read-only
-        self._data.pos_w[env_ids] = pos_w.clone() + math_utils.quat_rotate(quat_w.clone(), self._offset_pos)
-        self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w.clone(), self._offset_quat)
+        self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos)
+        self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat)
 
         # obtain the velocities of the sensors
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
         # store the velocities
         # note: we clone here because the obtained tensors are read-only
-        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w.clone())
+        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
         self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
             self._data.quat_w[env_ids],
-            (lin_vel_w.clone() - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period),
+            (lin_vel_w - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period),
         )
         self._last_lin_vel_w[env_ids] = lin_vel_w.clone()
 
@@ -186,12 +189,12 @@ class IMU(SensorBase):
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
         # arrow-direction
         quat_opengl = math_utils.quat_from_matrix(
-            create_rotation_matrix_from_view(
+            math_utils.create_rotation_matrix_from_view(
                 self._data.pos_w,
                 self._data.pos_w + math_utils.quat_rotate(self._data.quat_w, self._data.lin_acc_b),
                 device=self._device,
             )
         )
-        quat_w = convert_orientation_convention(quat_opengl, "opengl", "world")
+        quat_w = math_utils.convert_orientation_convention(quat_opengl, "opengl", "world")
         # display markers
         self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)

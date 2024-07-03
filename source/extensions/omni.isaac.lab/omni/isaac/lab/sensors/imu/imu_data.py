@@ -28,11 +28,11 @@ class IMUData:
     ang_vel_b: torch.Tensor = None
     """Root angular velocity in body frame.
 
-    Shape is (N, B, 3), where ``N`` is the number of sensors and ``B`` is the number of bodies in each sensor.
+    Shape is (N, 3), where ``N`` is the number of sensors.
     """
 
     lin_acc_b: torch.Tensor = None
     """Root linear acceleration in body frame.
 
-    Shape is (N, B, 3), where ``N`` is the number of sensors and ``B`` is the number of bodies in each sensor.
+    Shape is (N, 3), where ``N`` is the number of sensors.
     """
