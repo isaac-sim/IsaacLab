@@ -31,8 +31,8 @@ extract_isaacsim_path() {
         # Use local build (for internal development) or user specified path
         local isaac_path=${ISAACSIM_PATH}
     else
-        # Check if we have isaacsim-rl package installed
-        if [ pip show isaacsim-rl > /dev/null 2>&1 ]; then
+        # Check if we have pip package installed
+        if [ $(pip list | grep -c 'isaacsim-rl') ]; then
             # Use the python executable to get the path
             local python_exe=$(extract_python_exe)
             # Retrieve the path importing isaac sim and getting the environment path
@@ -59,9 +59,10 @@ extract_python_exe() {
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     else
-        if [ pip show isaacsim-rl > /dev/null 2>&1 ]; then
+        # check if pip package is installed
+        if [ $(pip list | grep -c 'isaacsim-rl') ]; then
             # use current python executable
-            local python_exe=$(which python)
+            local python_exe=$(which python3)
         else
             # obtain the isaac sim path
             local isaac_path=$(extract_isaacsim_path)
@@ -71,7 +72,7 @@ extract_python_exe() {
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
-        echo "[ERROR] No python executable found at path: ${isaac_path}" >&2
+        echo "[ERROR] No python executable found at path: ${python_exe}" >&2
         exit 1
     fi
     # return the result
