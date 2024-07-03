@@ -16,7 +16,7 @@ from omni.isaac.version import get_version
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObject, DeformableObjectCfg, RigidObject, RigidObjectCfg
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -79,6 +79,7 @@ class InteractiveScene:
         # initialize scene elements
         self._terrain = None
         self._articulations = dict()
+        self._deformable_objects = dict()
         self._rigid_objects = dict()
         self._sensors = dict()
         self._extras = dict()
@@ -119,6 +120,9 @@ class InteractiveScene:
         # read isaac sim version (this includes build tag, release tag etc.)
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
         self._isaac_sim_version = int(get_version()[0][0])
+
+        # flag for getting default nodal states for deformable objects
+        self.deformable_nodal_init_state = False
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
@@ -233,6 +237,11 @@ class InteractiveScene:
         return self._articulations
 
     @property
+    def deformable_objects(self) -> dict[str, DeformableObject]:
+        """A dictionary of deformable objects in the scene."""
+        return self._deformable_objects
+
+    @property
     def rigid_objects(self) -> dict[str, RigidObject]:
         """A dictionary of rigid objects in the scene."""
         return self._rigid_objects
@@ -275,6 +284,11 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.reset(env_ids)
+            if not self.deformable_nodal_init_state:
+                deformable_object.get_default_nodal_state_w()
+                self.deformable_nodal_init_state = True
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors
@@ -293,6 +307,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
             rigid_object.write_data_to_sim()
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL and self._isaac_sim_version < 4:
@@ -312,6 +328,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for deformable_object in self._deformable_objects.values():
+            deformable_object.update()
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
@@ -329,7 +347,7 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [self._articulations, self._deformable_objects, self._rigid_objects, self._sensors, self._extras]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -348,7 +366,7 @@ class InteractiveScene:
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self._articulations, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [self._articulations, self._deformable_objects, self._rigid_objects, self._sensors, self._extras]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:
@@ -387,6 +405,8 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, DeformableObjectCfg):
+                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
