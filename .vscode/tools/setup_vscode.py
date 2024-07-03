@@ -180,12 +180,6 @@ def main():
         with open(isaaclab_vscode_launch_filename, "w") as f:
             f.write(isaaclab_launch_settings)
 
-    # save the current set of environment variables into the .env file
-    isaaclab_env_filename = os.path.join(ISAACLAB_DIR, ".vscode", ".python.env")
-    with open(isaaclab_env_filename, "w") as f:
-        for key, value in os.environ.items():
-            f.write(f"{key}={value}\n")
-
 
 if __name__ == "__main__":
     main()

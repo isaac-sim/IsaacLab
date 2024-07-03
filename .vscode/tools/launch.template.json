@@ -12,8 +12,7 @@
             "console": "integratedTerminal",
             "env": {
                 "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env"
+            }
         },
         {
             "name": "Python: Attach (windows-x86_64/linux-x86_64)",
@@ -31,8 +30,7 @@
             "console": "integratedTerminal",
             "env": {
                 "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env"
+            }
         },
         {
             "name": "Python: Play Environment",
@@ -43,8 +41,7 @@
             "console": "integratedTerminal",
             "env": {
                 "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env"
+            }
         }
     ]
 }
