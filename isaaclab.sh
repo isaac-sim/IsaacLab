@@ -238,12 +238,6 @@ while [[ $# -gt 0 ]]; do
             export -f install_isaaclab_extension
             # source directory
             find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
-            # unset local variables
-            unset install_isaaclab_extension
-            # setup vscode settings
-            if ! ${python_exe} -m pip show isaacsim-rl &>/dev/null; then
-                update_vscode_settings
-            fi
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             # check if specified which rl-framework to install
@@ -261,6 +255,11 @@ while [[ $# -gt 0 ]]; do
             fi
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
+            # setup vscode settings
+            update_vscode_settings
+            # unset local variables
+            unset extract_python_exe
+            unset install_isaaclab_extension
             shift # past argument
             ;;
         -c|--conda)
@@ -287,7 +286,7 @@ while [[ $# -gt 0 ]]; do
             fi
             # run the formatter over the repository
             # check if pre-commit is installed
-            if ! command -v pre-commit &>/dev/null; then
+            if [ ! command -v pre-commit &>/dev/null ]; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
             fi

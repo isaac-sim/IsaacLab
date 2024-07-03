@@ -241,12 +241,6 @@ if "%arg%"=="-i" (
         set ext_folder="%%d"
         call :install_isaaclab_extension
     )
-    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
-    rem if not installing from pip, set up VScode
-    if errorlevel 1 (
-        rem setup vscode settings
-        call :update_vscode_settings
-    )
     rem install the python packages for supported reinforcement learning frameworks
     echo [INFO] Installing extra requirements such as learning frameworks...
     if "%~2"=="" (
@@ -263,6 +257,8 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    rem setup vscode settings
+    call :update_vscode_settings
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in omni.isaac.rl/source directory
