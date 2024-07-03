@@ -12,17 +12,40 @@ goto main
 
 rem Helper functions
 
-rem extract the python from isaacsim
-:extract_python_exe
+rem extract Isaac Sim directory
+:extract_isaacsim_path
 rem Check if IsaacSim directory manually specified
-rem Note: for manually build isaacsim, this: _build/linux-x86_64/release
 if not "%ISAACSIM_PATH%"=="" (
     rem Use local build
-    set build_path=%ISAACSIM_PATH%
+    set isaac_path=%ISAACSIM_PATH%
 ) else (
-    rem Use TeamCity build
-    set build_path=%ISAACLAB_PATH%\_isaac_sim
+    rem check if isaacsim is installed
+    pip show isaacsim-rl > nul 2>&1
+    if errorlevel 1 (
+        rem Use TeamCity build or pip install
+        set isaac_path=%ISAACLAB_PATH%\_isaac_sim
+    ) else (
+        rem obtain the path from isaacsim-rl package
+        set "isaac_path="
+        for /f "delims=" %%i in ('pip show isaacsim-rl ^| findstr /c:"Location"') do (
+            if not defined isaac_path (
+                set "isaac_path=%%i"
+            )
+        )
+    )
 )
+rem Check if the directory exists
+if not exist "%isaac_path%" (
+    echo [ERROR] Isaac Sim directory not found at path: %isaac_path%
+    echo [ERROR] Please specify the path to Isaac Sim directory using 'ISAACSIM_PATH' environment variable.
+    exit /b 1
+)
+goto :eof
+
+rem extract the python from isaacsim
+:extract_python_exe
+rem obtain isaacsim path
+call :extract_isaacsim_path
 rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
@@ -32,7 +55,7 @@ if not "%CONDA_PREFIX%"=="" (
     pip show isaacsim-rl > nul 2>&1
     if errorlevel 1 (
         rem use python from kit if Isaac Sim not installed from pip
-        set python_exe=%build_path%\python.bat
+        set python_exe=%isaac_path%\python.bat
     ) else (
         rem use current python if Isaac Sim is installed from pip
         set "python_exe="
@@ -45,7 +68,7 @@ if not "%CONDA_PREFIX%"=="" (
 )
 rem check if there is a python path available
 if "%python_exe%"=="" (
-    echo [ERROR] No python executable found at path: %build_path%
+    echo [ERROR] No python executable found at path: %isaac_path%
     exit /b 1
 )
 goto :eof
@@ -53,20 +76,13 @@ goto :eof
 
 rem extract the simulator exe from isaacsim
 :extract_isaacsim_exe
-rem Check if IsaacSim directory manually specified
-rem Note: for manually build isaacsim, this: _build\linux-x86_64\release
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set build_path=%ISAACSIM_PATH%
-) else (
-    rem Use TeamCity build
-    set build_path=%ISAACLAB_PATH%\_isaac_sim
-)
+rem obtain isaacsim path
+call :extract_isaacsim_path
 rem python executable to use
-set isaacsim_exe=%build_path%\isaac-sim.bat
+set isaacsim_exe=%isaac_path%\isaac-sim.bat
 rem check if there is a python path available
 if not exist "%isaacsim_exe%" (
-    echo [ERROR] No isaac-sim executable found at path: %build_path%
+    echo [ERROR] No isaac-sim executable found at path: %isaac_path%
     exit /b 1
 )
 goto :eof
@@ -95,15 +111,6 @@ if errorlevel 1 (
     echo [ERROR] Conda could not be found. Please install conda and try again.
     exit /b 1
 )
-rem check if Isaac Sim directory manually specified
-rem Note: for manually build Isaac Sim, this: _build\windows-x86_64\release
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set "build_path=%ISAACSIM_PATH%"
-) else (
-    rem Use TeamCity build
-    set "build_path=%ISAACLAB_PATH%\_isaac_sim"
-)
 rem check if the environment exists
 call conda env list | findstr /c:"%env_name%" >nul
 if %errorlevel% equ 0 (
@@ -128,18 +135,11 @@ rem add variables to environment during activation
 (
     echo @echo off
     rem for isaac-sim
-    echo set CARB_APP_PATH=%build_path%\kit
-    echo set EXP_PATH=%build_path%\apps
-    echo set ISAAC_PATH=%build_path%
-    echo set PYTHONPATH=%PYTHONPATH%;%build_path%\site
     echo set "RESOURCE_NAME=IsaacSim"
+    rem for isaac-lab
     echo doskey isaaclab=isaaclab.bat $*
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
 (
-    echo $env:CARB_APP_PATH="%build_path%\kit"
-    echo $env:EXP_PATH="%build_path%\apps"
-    echo $env:ISAAC_PATH="%build_path%"
-    echo $env:PYTHONPATH="%PYTHONPATH%;%build_path%\site"
     echo $env:RESOURCE_NAME="IsaacSim"
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
 
@@ -149,10 +149,8 @@ rem remove variables from environment during deactivation
 (
     echo @echo off
     echo rem for isaac-sim
-    echo set "CARB_APP_PATH="
-    echo set "EXP_PATH="
-    echo set "ISAAC_PATH="
     echo set "RESOURCE_NAME="
+    echo rem for isaac-lab
     echo doskey isaaclab =
     echo.
     echo rem restore paths
@@ -160,9 +158,6 @@ rem remove variables from environment during deactivation
     echo set "LD_LIBRARY_PATH=%cache_ld_library_path%"
 ) > "%CONDA_PREFIX%\etc\conda\deactivate.d\unsetenv_vars.bat"
 (
-    echo $env:CARB_APP_PATH=""
-    echo $env:EXP_PATH=""
-    echo $env:ISAAC_PATH=""
     echo $env:RESOURCE_NAME=""
     echo $env:PYTHONPATH="%cache_pythonpath%"
     echo $env:LD_LIBRARY_PATH="%cache_pythonpath%"

@@ -22,34 +22,54 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
-# extract the python from isaacsim
-extract_python_exe() {
+# extract isaac sim path
+extract_isaacsim_path() {
     # Check if IsaacSim directory manually specified
     # Note: for manually build isaacsim, this: _build/linux-x86_64/release
     if [ ! -z ${ISAACSIM_PATH} ];
     then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
+        # Use local build (for internal development) or user specified path
+        local isaac_path=${ISAACSIM_PATH}
     else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
+        # Check if we have isaacsim-rl package installed
+        if [ pip show isaacsim-rl > /dev/null 2>&1 ]; then
+            # Retrieve the path from location of isaacsim-rl package
+            local isaac_path=$(pip show isaacsim-rl | grep Location | cut -d ' ' -f 2)
+        else
+            # Use the sym-link path to Isaac Sim directory
+            local isaac_path=${ISAACLAB_PATH}/_isaac_sim
+        fi
     fi
+    # check if there is a path available
+    if [ ! -d "${isaac_path}" ]; then
+        echo "[ERROR] No Isaac Sim directory found at path: ${isaac_path}" >&2
+        echo "[ERROR] Please specify the path to the Isaac Sim directory using 'ISAACSIM_PATH' environment variable." >&2
+        exit 1
+    fi
+    # return the result
+    echo ${isaac_path}
+}
+
+# extract the python from isaacsim
+extract_python_exe() {
     # check if using conda
     if ! [[ -z "${CONDA_PREFIX}" ]]; then
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     else
-        if pip show isaacsim-rl > /dev/null 2>&1; then
+        if [ pip show isaacsim-rl > /dev/null 2>&1 ]; then
             # use current python executable
-            python_exe=$(which python)
+            local python_exe=$(which python)
         else
+            # obtain the isaac sim path
+            local isaac_path=$(extract_isaacsim_path)
             # use python from kit
-            local python_exe=${build_path}/python.sh
+            local python_exe=${isaac_path}/python.sh
         fi
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
-        echo "[ERROR] No python executable found at path: ${build_path}" >&2
+        echo "[ERROR] No python executable found at path: ${isaac_path}" >&2
         exit 1
     fi
     # return the result
@@ -58,21 +78,13 @@ extract_python_exe() {
 
 # extract the simulator exe from isaacsim
 extract_isaacsim_exe() {
-    # Check if IsaacSim directory manually specified
-    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
-    if [ ! -z ${ISAACSIM_PATH} ];
-    then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
-    else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
-    fi
+    # obtain the isaac sim path
+    local isaac_path=$(extract_isaacsim_path)
     # python executable to use
-    local isaacsim_exe=${build_path}/isaac-sim.sh
+    local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
-        echo "[ERROR] No isaac-sim executable found at path: ${build_path}" >&2
+        echo "[ERROR] No Isaac Sim executable found at path: ${isaacsim_exe}" >&2
         exit 1
     fi
     # return the result
@@ -100,16 +112,7 @@ setup_conda_env() {
         echo "[ERROR] Conda could not be found. Please install conda and try again."
         exit 1
     fi
-    # Check if IsaacSim directory manually specified
-    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
-    if [ ! -z ${ISAACSIM_PATH} ];
-    then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
-    else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
-    fi
+
     # check if the environment exists
     if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
@@ -117,6 +120,7 @@ setup_conda_env() {
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
         conda create -y --name ${env_name} python=3.10
     fi
+
     # cache current paths for later
     cache_pythonpath=$PYTHONPATH
     cache_ld_library_path=$LD_LIBRARY_PATH
@@ -129,12 +133,9 @@ setup_conda_env() {
     # setup directories to load Isaac Sim variables
     mkdir -p ${CONDA_PREFIX}/etc/conda/activate.d
     mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
+
     # add variables to environment during activation
-    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
     printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for Isaac Sim' \
-        'source '${isaacsim_setup_conda_env_script}'' \
-        '' \
         '# for Isaac Lab' \
         'export ISAACLAB_PATH='${ISAACLAB_PATH}'' \
         'alias isaaclab='${ISAACLAB_PATH}'/isaaclab.sh' \
@@ -142,9 +143,11 @@ setup_conda_env() {
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+
     # reactivate the environment to load the variables
     # needed because deactivate complains about Isaac Lab alias since it otherwise doesn't exist
     conda activate ${env_name}
+
     # remove variables from environment during deactivation
     printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for Isaac Lab' \
@@ -152,9 +155,6 @@ setup_conda_env() {
         'unset ISAACLAB_PATH' \
         '' \
         '# for Isaac Sim' \
-        'unset CARB_APP_PATH' \
-        'unset EXP_PATH' \
-        'unset ISAAC_PATH' \
         'unset RESOURCE_NAME' \
         '' \
         '# restore paths' \
@@ -164,6 +164,7 @@ setup_conda_env() {
     # install some extra dependencies
     echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
     conda install -c conda-forge -y importlib_metadata &> /dev/null
+
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
@@ -187,7 +188,7 @@ update_vscode_settings() {
     if [ -f "${setup_vscode_script}" ]; then
         ${python_exe} "${setup_vscode_script}"
     else
-        echo "[WARNING] setup_vscode.py not found. Aborting vscode settings setup."
+        echo "[WARNING] Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup."
     fi
 }
 
