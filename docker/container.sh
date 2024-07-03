@@ -233,21 +233,20 @@ x11_cleanup() {
 
 submit_job() {
 
+    echo "[INFO] Arguments passed to job script ${@}"
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
-            CMD="sbatch"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job_slurm.sh \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
             ;;
         "PBS")
-            CMD="bash"
+            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && bash $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job_pbs.sh \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
             ;;
         *)
             echo "[ERROR] Unsupported job scheduler specified: $CLUSTER_JOB_SCHEDULER"
             exit 1
             ;;
     esac
-
-    echo "[INFO] Arguments passed to job script ${@}"
-    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh \"$CLUSTER_JOB_SCHEDULER\" \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
+    
 }
 
 #==
@@ -385,7 +384,7 @@ case $mode in
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ISAACLAB_DIR"
         # Sync Isaac Lab code
         echo "[INFO] Syncing Isaac Lab code..."
-        rsync -rh  --exclude="*.git*" --exclude="wandb/" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
+        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
         # execute job script
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument
