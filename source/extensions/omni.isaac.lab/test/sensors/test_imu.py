@@ -22,7 +22,7 @@ import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import RigidObjectCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.sensors.imu import IMU, IMUCfg
+from omni.isaac.lab.sensors.imu import IMUCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 
@@ -32,7 +32,7 @@ class MySceneCfg(InteractiveSceneCfg):
     """Example scene configuration."""
 
     # terrain - flat terrain plane
-    terrain = TerrainImporterCfg(        
+    terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
         max_init_terrain_level=None,
@@ -47,8 +47,8 @@ class MySceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),            
-        )
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+        ),
     )
 
     # sensors - frame transformer (filled inside unit test)
@@ -87,7 +87,9 @@ class TestIMU(unittest.TestCase):
         for _ in range(2):
             # set velocity
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
-                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(self.scene.num_envs, 1)
+                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    self.scene.num_envs, 1
+                )
             )
             # write data to sim
             self.scene.write_data_to_sim()
@@ -99,7 +101,9 @@ class TestIMU(unittest.TestCase):
         # check the imu data
         torch.testing.assert_close(
             self.scene.sensors["imu"].data.lin_acc_b,
-            torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(self.scene.num_envs, 1),
+            torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                self.scene.num_envs, 1
+            ),
             rtol=1e-4,
             atol=1e-4,
         )
@@ -109,7 +113,10 @@ class TestIMU(unittest.TestCase):
         for idx in range(10):
             # set acceleration
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
-                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(self.scene.num_envs, 1) * (idx + 1)
+                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    self.scene.num_envs, 1
+                )
+                * (idx + 1)
             )
             # write data to sim
             self.scene.write_data_to_sim()
@@ -127,7 +134,10 @@ class TestIMU(unittest.TestCase):
                 self.scene.sensors["imu"].data.lin_acc_b,
                 math_utils.quat_rotate_inverse(
                     self.scene.rigid_objects["balls"].data.root_quat_w,
-                    torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(self.scene.num_envs, 1) / self.sim.get_physics_dt(),
+                    torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                        self.scene.num_envs, 1
+                    )
+                    / self.sim.get_physics_dt(),
                 ),
                 rtol=1e-4,
                 atol=1e-4,
