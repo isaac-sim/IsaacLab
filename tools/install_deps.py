@@ -116,7 +116,7 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                     # check if the workspace exists
                     if not os.path.exists(f"{ws_path}/src"):
                         raise FileNotFoundError(
-                            f"During the installation of 'rosdep' dependencies, unable to find a"
+                            "During the installation of 'rosdep' dependencies, unable to find a"
                             f" valid ROS workspace at: {path}/{ws_path}."
                         )
                     # install rosdep if not already installed
