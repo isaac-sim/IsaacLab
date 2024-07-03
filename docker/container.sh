@@ -232,21 +232,25 @@ x11_cleanup() {
 }
 
 submit_job() {
-
+    
     echo "[INFO] Arguments passed to job script ${@}"
+    
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job_slurm.sh \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
+            CMD=sbatch
+            job_script_file=submit_job_slurm.sh
             ;;
         "PBS")
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && bash $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job_pbs.sh \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
+            CMD=bash
+            job_script_file=submit_job_pbs.sh
             ;;
         *)
-            echo "[ERROR] Unsupported job scheduler specified: $CLUSTER_JOB_SCHEDULER"
+            echo "[ERROR] Unsupported job scheduler specified: '$CLUSTER_JOB_SCHEDULER'. Supported options are: ['SLURM', 'PBS']"
             exit 1
             ;;
     esac
 
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
 }
 
 #==
@@ -389,8 +393,10 @@ case $mode in
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument
         if [ "$profile_arg" == "$container_profile" ] ; then
+            # if the second argument is a profile, we have to shift the arguments
             submit_job "${@:3}"
         else
+            # if the second argument is a job argument, we have to shift only one argument
             submit_job "${@:2}"
         fi
         ;;
