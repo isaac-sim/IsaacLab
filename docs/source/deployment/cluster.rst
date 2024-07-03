@@ -111,48 +111,54 @@ specified, the default profile ``base`` will be used.
 Job Submission and Execution
 ----------------------------
 
-Defining the job parameters (SLURM)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Defining the job parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The job parameters are defined inside the ``docker/cluster/submit_job.sh``.
+The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.
+
+- For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
+- For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
+
+### Defining the job parameters (SLURM)
+
+The job parameters are defined inside the ``docker/cluster/submit_job_slurm.sh``.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
 the time limit. For more information, please check the `SLURM documentation`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../docker/cluster/submit_job.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
-  :lines: 14-22
+  :lines: 12-19
   :linenos:
-  :lineno-start: 14
+  :lineno-start: 12
 
 An essential requirement for the cluster is that the compute node has access to the internet at all times.
 This is required to load assets from the Nucleus server. For some cluster architectures, extra modules
 must be loaded to allow internet access.
 
 For instance, on ETH Zurich Euler cluster, the ``eth_proxy`` module needs to be loaded. This can be done
-by adding the following line to the ``submit_job.sh`` script:
+by adding the following line to the ``submit_job_slurm.sh`` script:
 
-.. literalinclude:: ../../../docker/cluster/submit_job.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 3-5
   :linenos:
   :lineno-start: 3
 
-Defining the job parameters (PBS)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+### Defining the job parameters (PBS)
 
-The job parameters are defined inside the ``docker/cluster/submit_job.sh``.
+The job parameters are defined inside the ``docker/cluster/submit_job_pbs.sh``.
 A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
 information, please check the `PBS Official Site`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../docker/cluster/submit_job.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_pbs.sh
   :language: bash
-  :lines: 27-33
+  :lines: 11-17
   :linenos:
-  :lineno-start: 27
+  :lineno-start: 11
 
 
 Submitting a job
