@@ -12,7 +12,7 @@
 # 1. Build the Docker image:
 #       docker build -t isaac-lab:latest -f docker/Dockerfile.pip .
 # 2. Run the Docker container:
-#       docker run -it --gpus all --rm --network=host --name isaac-lab isaac-lab:latest -v $(pwd):/root/isaaclab
+#       docker run -it --gpus all --rm --network=host --name isaac-lab -v $(pwd):/root/isaaclab isaac-lab:latest 
 
 # Base image: Ubuntu 22.04
 FROM ubuntu:22.04 AS base
