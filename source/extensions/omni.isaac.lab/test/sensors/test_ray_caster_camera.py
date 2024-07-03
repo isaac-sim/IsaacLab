@@ -653,15 +653,22 @@ class TestWarpCamera(unittest.TestCase):
         )
 
     def test_output_equal_to_usdcamera_intrinsics(self):
-        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are 
+        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are
         initialized with the same intrinsic matrix."""
 
         # create cameras
         offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
         prim_utils.create_prim("/World/Camera_warp", "Xform")
         # get camera cfgs
-        camera_warp_cfg = ZED_X_NARROW_RAYCASTER_CFG.replace(prim_path="/World/Camera_warp", mesh_prim_paths=["/World/defaultGroundPlane"], offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"))
-        camera_usd_cfg = ZED_X_NARROW_USD_CFG.replace(prim_path="/World/Camera_usd", offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"))
+        camera_warp_cfg = ZED_X_NARROW_RAYCASTER_CFG.replace(
+            prim_path="/World/Camera_warp",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+        )
+        camera_usd_cfg = ZED_X_NARROW_USD_CFG.replace(
+            prim_path="/World/Camera_usd",
+            offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+        )
         # set aperture offsets to 0, as currently not supported for usd camera
         camera_warp_cfg.pattern_cfg.horizontal_aperture_offset = 0
         camera_warp_cfg.pattern_cfg.vertical_aperture_offset = 0
@@ -692,7 +699,9 @@ class TestWarpCamera(unittest.TestCase):
         cam_usd_output[torch.isinf(cam_usd_output)] = 0
 
         # check that both have the same intrinsic matrices
-        torch.testing.assert_close(camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0], rtol=5e-3, atol=1e-4)
+        torch.testing.assert_close(
+            camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0], rtol=5e-3, atol=1e-4
+        )
 
         # check image data
         torch.testing.assert_close(
