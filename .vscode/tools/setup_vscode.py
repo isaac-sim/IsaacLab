@@ -80,7 +80,7 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
 
     # change the path names to be relative to the Isaac Lab directory
     rel_path = os.path.relpath(ISAACSIM_DIR, ISAACLAB_DIR)
-    path_names = ['"${workspaceFolder}/' + rel_path + '/' + path_name + '"' for path_name in path_names]
+    path_names = ['"${workspaceFolder}/' + rel_path + "/" + path_name + '"' for path_name in path_names]
 
     # add the path names that are in the Isaac Lab extensions directory
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source", "extensions"))
