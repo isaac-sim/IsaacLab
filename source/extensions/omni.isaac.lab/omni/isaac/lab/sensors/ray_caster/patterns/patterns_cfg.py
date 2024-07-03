@@ -87,6 +87,16 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
     Note:
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
+    vertical_aperture: float | None = None
+    """Vertical aperture (in mm). Defaults to None.
+
+    Emulates sensor/film height on a camera. If None, then the vertical aperture is calculated based on the
+    horizontal aperture and the aspect ratio of the image to maintain squared pixels. In this case, the vertical
+    aperture is calculated as:
+
+    .. math::
+        \text{vertical aperture} = \text{horizontal aperture} \times \frac{\text{height}}{\text{width}}
+    """
     horizontal_aperture_offset: float = 0.0
     """Offsets Resolution/Film gate horizontally. Defaults to 0.0."""
     vertical_aperture_offset: float = 0.0
@@ -135,13 +145,14 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
         c_y = intrinsic_matrix[5]
         # resolve parameters for usd camera
         horizontal_aperture = width * focal_length / f_x
-        # vertical_aperture = height * focal_length / f_y
+        vertical_aperture = height * focal_length / f_y
         horizontal_aperture_offset = (c_x - width / 2) / f_x
         vertical_aperture_offset = (c_y - height / 2) / f_y
 
         return cls(
             focal_length=focal_length,
             horizontal_aperture=horizontal_aperture,
+            vertical_aperture=vertical_aperture,
             horizontal_aperture_offset=horizontal_aperture_offset,
             vertical_aperture_offset=vertical_aperture_offset,
             width=width,

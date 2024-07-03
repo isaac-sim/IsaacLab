@@ -116,6 +116,9 @@ class Camera(SensorBase):
             rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32).unsqueeze(0)
             rot_offset = convert_orientation_convention(rot, origin=self.cfg.offset.convention, target="opengl")
             rot_offset = rot_offset.squeeze(0).numpy()
+            # ensure vertical aperture is set, otherwise replace with default for squared pixels
+            if self.cfg.spawn.vertical_aperture is None:
+                self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
             # spawn the asset
             self.cfg.spawn.func(
                 self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset
@@ -242,6 +245,9 @@ class Camera(SensorBase):
                 "horizontal_aperture_offset": (c_x - width / 2) / f_x,
                 "vertical_aperture_offset": (c_y - height / 2) / f_y,
             }
+            # TODO: Adjust to handle aperture offsets once supported by omniverse
+            if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
+                print("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
             # set parameters for camera

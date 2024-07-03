@@ -27,7 +27,7 @@ from omni.isaac.lab.sim.spawners import PinholeCameraCfg
 ##
 
 ZED_X_NARROW_RAYCASTER_CFG = RayCasterCameraCfg(
-    pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
+    pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
         focal_length=38.0,
         intrinsic_matrix=[380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0],
         height=540,
@@ -40,7 +40,7 @@ ZED_X_NARROW_RAYCASTER_CFG = RayCasterCameraCfg(
 """ZED X Camera with narrow field of view as RayCaster Sensor."""
 
 ZED_X_MINI_WIDE_RAYCASTER_CFG = RayCasterCameraCfg(
-    pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
+    pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
         focal_length=22.0,
         intrinsic_matrix=[369.7771, 0.0, 489.9926, 0.0, 369.7771, 275.9385, 0.0, 0.0, 1.0],
         height=540,
@@ -58,7 +58,7 @@ ZED_X_MINI_WIDE_RAYCASTER_CFG = RayCasterCameraCfg(
 ##
 
 ZED_X_NARROW_USD_CFG = CameraCfg(
-    spawn=PinholeCameraCfg.from_intrinsic_matrix(
+    spawn=PinholeCameraCfg().from_intrinsic_matrix(
         focal_length=38.0,
         intrinsic_matrix=[380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0],
         height=540,
@@ -72,7 +72,7 @@ ZED_X_NARROW_USD_CFG = CameraCfg(
 
 
 ZED_X_MINI_WIDE_USD_CFG = CameraCfg(
-    spawn=PinholeCameraCfg.from_intrinsic_matrix(
+    spawn=PinholeCameraCfg().from_intrinsic_matrix(
         focal_length=22.0,
         intrinsic_matrix=[369.7771, 0.0, 489.9926, 0.0, 369.7771, 275.9385, 0.0, 0.0, 1.0],
         height=540,
