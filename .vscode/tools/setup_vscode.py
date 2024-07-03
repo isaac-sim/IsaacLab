@@ -67,7 +67,9 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
             vscode_settings = f.read()
         # extract the path names
         # search for the python.analysis.extraPaths section and extract the contents
-        settings = re.search(r"\"python.analysis.extraPaths\": \[.*?\]", vscode_settings, flags=re.MULTILINE | re.DOTALL)
+        settings = re.search(
+            r"\"python.analysis.extraPaths\": \[.*?\]", vscode_settings, flags=re.MULTILINE | re.DOTALL
+        )
         settings = settings.group(0)
         settings = settings.split('"python.analysis.extraPaths": [')[-1]
         settings = settings.split("]")[0]
