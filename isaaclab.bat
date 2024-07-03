@@ -25,9 +25,11 @@ if not "%ISAACSIM_PATH%"=="" (
         rem Use TeamCity build or pip install
         set isaac_path=%ISAACLAB_PATH%\_isaac_sim
     ) else (
-        rem obtain the path from isaacsim-rl package
+        rem use the python executable to get the path
+        call :extract_python_exe
+        rem retrieve the isaacsim path
         set "isaac_path="
-        for /f "delims=" %%i in ('pip show isaacsim-rl ^| findstr /c:"Location"') do (
+        for /f "delims=" %%i in ('!python_exe! -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"') do (
             if not defined isaac_path (
                 set "isaac_path=%%i"
             )

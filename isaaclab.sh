@@ -33,8 +33,10 @@ extract_isaacsim_path() {
     else
         # Check if we have isaacsim-rl package installed
         if [ pip show isaacsim-rl > /dev/null 2>&1 ]; then
-            # Retrieve the path from location of isaacsim-rl package
-            local isaac_path=$(pip show isaacsim-rl | grep Location | cut -d ' ' -f 2)
+            # Use the python executable to get the path
+            local python_exe=$(extract_python_exe)
+            # Retrieve the path importing isaac sim and getting the environment path
+            local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         else
             # Use the sym-link path to Isaac Sim directory
             local isaac_path=${ISAACLAB_PATH}/_isaac_sim
