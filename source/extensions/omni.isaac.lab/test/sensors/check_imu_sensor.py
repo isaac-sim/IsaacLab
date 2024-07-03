@@ -59,7 +59,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type=args_cli.terrain_type,
+        terrain_type="generator",
         terrain_generator=ROUGH_TERRAINS_CFG,
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
         max_init_terrain_level=None,

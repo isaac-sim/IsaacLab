@@ -22,7 +22,7 @@ from pxr import UsdGeom
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import to_camel_case
 from omni.isaac.lab.utils.array import convert_to_torch
-from omni.isaac.lab.utils.math import quat_from_matrix, convert_orientation_convention, create_rotation_matrix_from_view
+from omni.isaac.lab.utils.math import convert_orientation_convention, create_rotation_matrix_from_view, quat_from_matrix
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData

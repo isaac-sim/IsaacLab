@@ -218,7 +218,9 @@ class RayCasterCamera(RayCaster):
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
         # camera position and rotation in opengl convention
-        orientations = math_utils.quat_from_matrix(math_utils.create_rotation_matrix_from_view(eyes, targets, device=self._device))
+        orientations = math_utils.quat_from_matrix(
+            math_utils.create_rotation_matrix_from_view(eyes, targets, device=self._device)
+        )
         self.set_world_poses(eyes, orientations, env_ids, convention="opengl")
 
     """

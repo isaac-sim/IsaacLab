@@ -8,15 +8,14 @@
 # needed to import for allowing type-hinting: torch.Tensor | np.ndarray
 from __future__ import annotations
 
-import numpy as np
 import math
+import numpy as np
 import torch
 import torch.nn.functional
 from typing import Literal
 
-from pxr import UsdGeom
-
 import omni.isaac.core.utils.stage as stage_utils
+from pxr import UsdGeom
 
 """
 General
@@ -1381,16 +1380,13 @@ def convert_orientation_convention(
         rotm = matrix_from_quat(quat_gl)
         rotm = torch.matmul(
             rotm,
-            matrix_from_euler(
-                torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ"
-            ).T,
+            matrix_from_euler(torch.tensor([math.pi / 2, -math.pi / 2, 0], device=orientation.device), "XYZ").T,
         )
         return quat_from_matrix(rotm)
     else:
         return quat_gl.clone()
 
 
-@torch.jit.script
 def create_rotation_matrix_from_view(
     eyes: torch.Tensor,
     targets: torch.Tensor,
