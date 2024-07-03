@@ -16,7 +16,8 @@ extension's config directory. If the extension.toml file exists, the script will
 [isaac_lab_settings] section:
 
 * **apt_deps**: A list of apt packages to install.
-* **ros_ws**: The path to the ROS workspace in the extension.
+* **ros_ws**: The path to the ROS workspace in the extension. If the path is not absolute, the script assumes that
+  the path is relative to the extension root and resolves it accordingly.
 
 If the type is 'all', the script will install both apt and rosdep packages. If the type is 'apt', the script will only
 install apt packages. If the type is 'rosdep', the script will only install rosdep packages.
