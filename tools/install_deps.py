@@ -37,7 +37,7 @@ from subprocess import run
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
 parser.add_argument("type", type=str, choices=["all", "apt", "rosdep"], help="The type of packages to install.")
 parser.add_argument("extensions_dir", type=str, help="The path to the directory containing extensions.")
-parser.add_argument("ros_distro", type=str, default="humble", help="The ROS distribution to use for rosdep.")
+parser.add_argument("--ros_distro", type=str, default="humble", help="The ROS distribution to use for rosdep.")
 
 
 def install_apt_packages(paths: list[str]):
