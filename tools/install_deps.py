@@ -52,7 +52,7 @@ def install_apt_packages(paths: list[str]):
 
     Raises:
         FileNotFoundError: If the extension.toml file is not found.
-        RuntimeError: If 'apt' is not a known command.
+        SystemError: If 'apt' is not a known command. This is a system error.
     """
     for path in paths:
         if shutil.which("apt"):
@@ -73,7 +73,7 @@ def install_apt_packages(paths: list[str]):
                 else:
                     print(f"[INFO] No apt packages specified for the extension at: {path}")
         else:
-            raise RuntimeError("Unable to find 'apt' command. Please ensure that 'apt' is installed on your system.")
+            raise SystemError("Unable to find 'apt' command. Please ensure that 'apt' is installed on your system.")
 
 
 def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
@@ -95,7 +95,7 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
     Raises:
         FileNotFoundError: If the extension.toml file is not found under the path.
         FileNotFoundError: If a valid ROS workspace is not found while installing ROS dependencies.
-        RuntimeError: If 'rosdep' is not a known command
+        SystemError: If 'rosdep' is not a known command. This is raised if 'rosdep' is not installed on the system.
     """
     for path in paths:
         if shutil.which("rosdep"):
@@ -136,7 +136,7 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                 else:
                     print(f"[INFO] No rosdep packages specified for the extension at: {path}")
         else:
-            raise RuntimeError(
+            raise SystemError(
                 "Unable to find 'rosdep' command. Please ensure that 'rosdep' is installed on your system."
                 "You can install it by running:\n\t sudo apt-get install python3-rosdep"
             )
