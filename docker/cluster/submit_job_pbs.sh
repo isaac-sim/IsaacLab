@@ -8,8 +8,6 @@
 cat <<EOT > job.sh
 #!/bin/bash
 
-#!/bin/bash
-
 #PBS -l select=1:ncpus=8:mpiprocs=1:ngpus=1
 #PBS -l walltime=01:00:00
 #PBS -j oe
