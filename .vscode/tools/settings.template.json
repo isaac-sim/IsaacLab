@@ -68,7 +68,7 @@
     "autoDocstring.docstringFormat": "google",
     "autoDocstring.guessTypes": true,
     // Python environment path
-    // note: the default interpreter is overriden when user selects a workspace interpreter
+    // note: the default interpreter is overridden when user selects a workspace interpreter
     //     in the status bar. For example, the virtual environment python interpreter
     "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
     // ROS distribution
