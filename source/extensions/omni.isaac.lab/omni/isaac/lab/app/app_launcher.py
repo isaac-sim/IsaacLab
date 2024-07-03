@@ -14,7 +14,6 @@ fault occurs. The launched :class:`omni.isaac.kit.SimulationApp` instance is acc
 
 import argparse
 import contextlib
-import faulthandler
 import os
 import re
 import signal
@@ -69,9 +68,6 @@ class AppLauncher:
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.kit/docs/index.html
         """
-        # Enable call-stack on crash
-        faulthandler.enable()
-
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
         # used by the calling script. Those which we appended via add_app_launcher_args
@@ -538,7 +534,8 @@ class AppLauncher:
         for key, value in hacked_modules.items():
             sys.modules[key] = value
 
-    def _rendering_enabled(self):
+    def _rendering_enabled(self) -> bool:
+        """Check if rendering is required by the app."""
         # Indicates whether rendering is required by the app.
         # Extensions required for rendering bring startup and simulation costs, so we do not enable them if not required.
         return not self._headless or self._livestream >= 1 or self._enable_cameras
