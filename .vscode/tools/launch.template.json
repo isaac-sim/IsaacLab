@@ -11,11 +11,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
                 "RESOURCE_NAME": "IsaacSim"
             },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
+            "envFile": "${workspaceFolder}/.vscode/.python.env"
         },
         {
             "name": "Python: Attach (windows-x86_64/linux-x86_64)",
@@ -32,11 +30,9 @@
             "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train.py",
             "console": "integratedTerminal",
             "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
                 "RESOURCE_NAME": "IsaacSim"
             },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
+            "envFile": "${workspaceFolder}/.vscode/.python.env"
         },
         {
             "name": "Python: Play Environment",
@@ -46,11 +42,9 @@
             "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/play.py",
             "console": "integratedTerminal",
             "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
                 "RESOURCE_NAME": "IsaacSim"
             },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
-        },
+            "envFile": "${workspaceFolder}/.vscode/.python.env"
+        }
     ]
 }
