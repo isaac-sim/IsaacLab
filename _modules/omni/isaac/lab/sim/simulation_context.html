@@ -493,6 +493,7 @@ document.write(`
 <span class="kn">import</span> <span class="nn">enum</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">import</span> <span class="nn">traceback</span>
 <span class="kn">import</span> <span class="nn">weakref</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Iterator</span>
@@ -680,6 +681,12 @@ document.write(`
         <span class="c1"># read isaac sim version (this includes build tag, release tag etc.)</span>
         <span class="c1"># note: we do it once here because it reads the VERSION file from disk and is not expected to change.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_isaacsim_version</span> <span class="o">=</span> <span class="n">get_version</span><span class="p">()</span>
+
+        <span class="c1"># create a tensor for gravity</span>
+        <span class="c1"># note: this line is needed to create a &quot;tensor&quot; in the device to avoid issues with torch 2.1 onwards.</span>
+        <span class="c1">#   the issue is with some heap memory corruption when torch tensor is created inside the asset class.</span>
+        <span class="c1">#   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gravity_tensor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gravity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
         <span class="c1"># add callback to deal the simulation app when simulation is stopped.</span>
         <span class="c1"># this is needed because physics views go invalid once we stop the simulation</span>
