@@ -57,7 +57,7 @@
     <link rel="prev" title="Developer’s Guide" href="developer.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 03, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 04, 2024"/>
   </head>
   
   
@@ -726,6 +726,10 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 </li>
 <li><p>Training an agent with
 <a class="reference external" href="https://skrl.readthedocs.io">SKRL</a> on <code class="docutils literal notranslate"><span class="pre">Isaac-Reach-Franka-v0</span></code>:</p>
+<div class="sd-tab-set docutils">
+<input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-0">
+PyTorch</label><div class="sd-tab-content docutils">
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
 <span class="c1"># run script for training</span>
@@ -733,6 +737,22 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <span class="c1"># run script for playing with 32 environments</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
 </pre></div>
+</div>
+</div>
+<input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" for="sd-tab-item-1">
+JAX</label><div class="sd-tab-content docutils">
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for skrl)</span>
+./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>skrl
+<span class="c1"># install skrl dependencies for JAX. Visit https://skrl.readthedocs.io/en/latest/intro/installation.html for more details</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>skrl<span class="o">[</span><span class="s2">&quot;jax&quot;</span><span class="o">]</span>
+<span class="c1"># run script for training</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--headless<span class="w"> </span>--ml_framework<span class="w"> </span>jax
+<span class="c1"># run script for playing with 32 environments</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/skrl/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Reach-Franka-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w">  </span>--ml_framework<span class="w"> </span>jax<span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.pt
+</pre></div>
+</div>
+</div>
 </div>
 </li>
 <li><p>Training an agent with
@@ -858,7 +878,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 03, 2024.
+  Last updated on Jul 04, 2024.
   <br/>
 </p>
   </div>

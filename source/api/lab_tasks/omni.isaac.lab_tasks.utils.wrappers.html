@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab_tasks.utils" href="omni.isaac.lab_tasks.utils.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 03, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 04, 2024"/>
   </head>
   
   
@@ -1538,11 +1538,12 @@ wrapper.</p>
 <p>The following example shows how to wrap an environment for skrl:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab_tasks.utils.wrappers.skrl</span> <span class="kn">import</span> <span class="n">SkrlVecEnvWrapper</span>
 
-<span class="n">env</span> <span class="o">=</span> <span class="n">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+<span class="n">env</span> <span class="o">=</span> <span class="n">SkrlVecEnvWrapper</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">ml_framework</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">)</span>  <span class="c1"># or ml_framework=&quot;jax&quot;</span>
 </pre></div>
 </div>
 <p>Or, equivalently, by directly calling the skrl library API as follows:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">skrl.envs.torch.wrappers</span> <span class="kn">import</span> <span class="n">wrap_env</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">skrl.envs.torch.wrappers</span> <span class="kn">import</span> <span class="n">wrap_env</span>  <span class="c1"># for PyTorch, or...</span>
+<span class="kn">from</span> <span class="nn">skrl.envs.jax.wrappers</span> <span class="kn">import</span> <span class="n">wrap_env</span>    <span class="c1"># for JAX</span>
 
 <span class="n">env</span> <span class="o">=</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">wrapper</span><span class="o">=</span><span class="s2">&quot;isaaclab&quot;</span><span class="p">)</span>
 </pre></div>
@@ -1550,10 +1551,10 @@ wrapper.</p>
 <p><strong>Functions:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg" title="omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_skrl_cfg</span></code></a>(cfg)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg" title="omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">process_skrl_cfg</span></code></a>(cfg[, ml_framework])</p></td>
 <td><p>Convert simple YAML types to skrl classes/components.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkrlVecEnvWrapper</span></code></a>(env)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SkrlVecEnvWrapper</span></code></a>(env[, ml_framework])</p></td>
 <td><p>Wraps around Isaac Lab environment for skrl.</p></td>
 </tr>
 </tbody>
@@ -1561,21 +1562,27 @@ wrapper.</p>
 </div>
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">process_skrl_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#process_skrl_cfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">process_skrl_cfg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ml_framework</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'torch'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'jax'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'jax-numpy'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'torch'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#process_skrl_cfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.process_skrl_cfg" title="Permalink to this definition">#</a></dt>
 <dd><p>Convert simple YAML types to skrl classes/components.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>cfg</strong> – A configuration dictionary.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – A configuration dictionary.</p></li>
+<li><p><strong>ml_framework</strong> – The ML framework to use for the wrapper. Defaults to “torch”.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A dictionary containing the converted configuration.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the specified ML framework is not valid.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper">
-<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">SkrlVecEnvWrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab_tasks.utils.wrappers.skrl.</span></span><span class="sig-name descname"><span class="pre">SkrlVecEnvWrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../lab/omni.isaac.lab.envs.html#omni.isaac.lab.envs.ManagerBasedRLEnv" title="omni.isaac.lab.envs.manager_based_rl_env.ManagerBasedRLEnv"><span class="pre">ManagerBasedRLEnv</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ml_framework</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'torch'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'jax'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'jax-numpy'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'torch'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab_tasks/utils/wrappers/skrl.html#SkrlVecEnvWrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab_tasks.utils.wrappers.skrl.SkrlVecEnvWrapper" title="Permalink to this definition">#</a></dt>
 <dd><p>Wraps around Isaac Lab environment for skrl.</p>
 <p>This function wraps around the Isaac Lab environment. Since the <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code> environment
 wrapping functionality is defined within the skrl library itself, this implementation
@@ -1583,10 +1590,16 @@ is maintained for compatibility with the structure of the extension that contain
 Internally it calls the <code class="xref py py-func docutils literal notranslate"><span class="pre">wrap_env()</span></code> from the skrl library API.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>env</strong> – The environment to wrap around.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>env</strong> – The environment to wrap around.</p></li>
+<li><p><strong>ml_framework</strong> – The ML framework to use for the wrapper. Defaults to “torch”.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the environment is not an instance of <code class="xref py py-class docutils literal notranslate"><span class="pre">ManagerBasedRLEnv</span></code>.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the specified ML framework is not valid.</p></li>
+</ul>
 </dd>
 </dl>
 <dl class="simple">
@@ -1937,7 +1950,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 03, 2024.
+  Last updated on Jul 04, 2024.
   <br/>
 </p>
   </div>
