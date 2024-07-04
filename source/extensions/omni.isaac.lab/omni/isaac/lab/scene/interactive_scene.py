@@ -30,6 +30,22 @@ class InteractiveScene:
     Based on the specified number of environments, it clones the entities and groups them into different
     categories (e.g., articulations, sensors, etc.).
 
+    Cloning can be performed in two ways:
+
+    * For tasks where all environments contain the same assets, a more performant cloning paradigm
+      can be used to allow for faster environment creation. This is specified by the ``replicate_physics`` flag.
+
+      .. code-block:: python
+
+          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=True))
+
+    * For tasks that require having separate assets in the environments, ``replicate_physics`` would have to
+      be set to False, which will add some costs to the overall startup time.
+
+      .. code-block:: python
+
+          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=False))
+
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:
 
@@ -58,6 +74,14 @@ class InteractiveScene:
         robot = scene["robot"]
         # access the robot based on its type
         robot = scene.articulations["robot"]
+
+    If the :class:`InteractiveSceneCfg` class does not include asset entities, the cloning process
+    can still be triggered if assets were added to the stage outside of the :class:`InteractiveScene` class:
+
+    .. code-block:: python
+
+        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
+        scene.clone_environments()
 
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
@@ -90,10 +114,11 @@ class InteractiveScene:
         self.cloner = GridCloner(spacing=self.cfg.env_spacing)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
-        # environment origins
-        self._default_env_origins = None
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+
+        # environment origins
+        self._default_env_origins = None
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
@@ -142,6 +167,8 @@ class InteractiveScene:
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
         )
+
+        # in case of heterogeneous cloning, the env origins is specified at init
         if self._default_env_origins is None:
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
 
@@ -164,6 +191,10 @@ class InteractiveScene:
             self.env_prim_paths,
             global_paths=global_prim_paths,
         )
+
+        # set global prim paths list if not previously defined
+        if len(self._global_prim_paths) < 1:
+            self._global_prim_paths += global_prim_paths
 
     def __str__(self) -> str:
         """Returns a string representation of the scene."""
