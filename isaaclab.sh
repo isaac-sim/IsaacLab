@@ -62,7 +62,7 @@ extract_python_exe() {
         # check if pip package is installed
         if [ $(pip list | grep -c 'isaacsim-rl') ]; then
             # use current python executable
-            local python_exe=$(which python3)
+            local python_exe=$(which python)
         else
             # obtain the isaac sim path
             local isaac_path=$(extract_isaacsim_path)
@@ -73,6 +73,12 @@ extract_python_exe() {
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
         echo "[ERROR] No python executable found at path: ${python_exe}" >&2
+        exit 1
+    fi
+    # kit dependencies are built with python 3.10 so any other version will not work
+    # this is needed in case users have multiple python versions installed and the wrong one is being used
+    if [ "$(${python_exe} --version | grep -c '3.10')" -eq 0 ]; then
+        echo "[ERROR] Found version: $(${python_exe} --version) while expecting 3.10. Please use the correct python version." >&2
         exit 1
     fi
     # return the result
