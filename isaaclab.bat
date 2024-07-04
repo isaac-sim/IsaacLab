@@ -256,7 +256,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
     rem setup vscode settings
     call :update_vscode_settings
     shift
@@ -284,7 +284,6 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
-    rem if not installing from pip, set up VScode
     rem setup vscode settings
     call :update_vscode_settings
     shift

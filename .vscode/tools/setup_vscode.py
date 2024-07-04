@@ -95,8 +95,8 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source", "extensions"))
     path_names.extend(['"${workspaceFolder}/source/extensions/' + ext + '"' for ext in isaaclab_extensions])
 
-    # combine them into a single string
-    path_names = ",\n\t\t".expandtabs(4).join(path_names)
+    # combine them into a single string and standardize to forward slashes
+    path_names = ",\n\t\t".expandtabs(4).join(path_names).replace("\\", "/")
 
     # replace the path names in the Isaac Lab settings file with the path names parsed
     isaaclab_settings = re.sub(
@@ -123,7 +123,7 @@ def overwrite_default_python_interpreter(isaaclab_settings: str) -> str:
         The settings string with overwritten default python interpreter.
     """
     # read executable name
-    python_exe = sys.executable
+    python_exe = sys.executable.replace("\\", "/")
     # replace the default python interpreter in the Isaac Lab settings file with the path to the
     # python interpreter in the Isaac Lab directory
     isaaclab_settings = re.sub(
