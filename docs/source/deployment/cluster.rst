@@ -112,7 +112,7 @@ Job Submission and Execution
 ----------------------------
 
 Defining the job parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
 The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.
 
