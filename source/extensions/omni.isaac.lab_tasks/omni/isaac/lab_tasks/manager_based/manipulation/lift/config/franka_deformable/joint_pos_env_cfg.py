@@ -4,12 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from omni.isaac.lab.assets import DeformableObjectCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
+from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.utils import configclass
 
 from omni.isaac.lab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.config.franka import joint_pos_env_cfg
+
+from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 
 ##
 # Pre-defined configs
@@ -23,6 +27,8 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        self.scene.replicate_physics = False
+
         FRANKA_PANDA_CFG.actuators["panda_hand"].effort_limit = 2.0
 
         # Set Deformable Cube as object
@@ -33,6 +39,16 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
                 usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Props/DeformableCube/deformable_cube.usd",
                 scale=(0.06, 0.06, 0.06),
             ),
+        )
+
+        self.events.reset_object_position = EventTerm(
+        func=mdp.reset_nodal_state_uniform,
+        mode="reset",
+        params={
+            "position_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
         )
 
 
