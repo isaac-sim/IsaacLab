@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.19.0 (2024-07-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed parsing of articulations with nested rigid links while using the :class:`omni.isaac.lab.assets.Articulation`
+  class. Earlier, the class initialization failed when the articulation had nested rigid links since the rigid
+  links were not being parsed correctly by the PhysX view.
+
+Removed
+^^^^^^^
+
+* Removed the attribute :attr:`body_physx_view` from the :class:`omni.isaac.lab.assets.Articulation` and
+  :class:`omni.isaac.lab.assets.RigidObject` classes. These were causing confusions when used with articulation
+  view since the body names were not following the same ordering.
+* Dropped support for Isaac Sim 2023.1.1. The minimum supported version is now Isaac Sim 4.0.0.
+
+
 0.18.6 (2024-07-01)
 ~~~~~~~~~~~~~~~~~~~
 
