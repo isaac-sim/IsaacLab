@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -89,20 +88,6 @@ class RigidObject(AssetBase):
         """
         return self._root_physx_view
 
-    @property
-    def body_physx_view(self) -> physx.RigidBodyView:
-        """Rigid body view for the asset (PhysX).
-
-        .. deprecated:: v0.3.0
-
-            The attribute 'body_physx_view' will be removed in v0.4.0. Please use :attr:`root_physx_view` instead.
-
-        """
-        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-        return self.root_physx_view
-
     """
     Operations.
     """
@@ -128,7 +113,7 @@ class RigidObject(AssetBase):
                 force_data=self._external_force_b.view(-1, 3),
                 torque_data=self._external_torque_b.view(-1, 3),
                 position_data=None,
-                indices=self._ALL_BODY_INDICES,
+                indices=self._ALL_INDICES,
                 is_global=False,
             )
 
@@ -332,9 +317,7 @@ class RigidObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        self._ALL_BODY_INDICES = torch.arange(
-            self.root_physx_view.count * self.num_bodies, dtype=torch.long, device=self.device
-        )
+
         # external forces and torques
         self.has_external_wrench = False
         self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)

@@ -93,10 +93,6 @@ class TestArticulation(unittest.TestCase):
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
 
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
-
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -132,10 +128,6 @@ class TestArticulation(unittest.TestCase):
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
 
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
-
         # Simulate physics
         for _ in range(10):
             # perform rendering
@@ -170,10 +162,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -224,10 +212,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Simulate physics
         for _ in range(10):
@@ -298,10 +282,6 @@ class TestArticulation(unittest.TestCase):
         # -- link names (check within articulation ordering is correct)
         prim_path_body_names = [path.split("/")[-1] for path in robot.root_physx_view.link_paths[0]]
         self.assertListEqual(prim_path_body_names, robot.body_names)
-
-        # Check that the body_physx_view is deprecated
-        with self.assertWarns(DeprecationWarning):
-            robot.body_physx_view
 
         # Root state should be at the default state
         robot.write_root_state_to_sim(robot.data.default_root_state.clone())
