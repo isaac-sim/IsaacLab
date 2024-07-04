@@ -90,20 +90,28 @@ class InteractiveScene:
         self.cloner = GridCloner(spacing=self.cfg.env_spacing)
         self.cloner.define_base_env(self.env_ns)
         self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
+        # environment origins
+        self._default_env_origins = None
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # clone the env xform
-        env_origins = self.cloner.clone(
-            source_prim_path=self.env_prim_paths[0],
-            prim_paths=self.env_prim_paths,
-            replicate_physics=False,
-            copy_from_source=True,
-        )
-        self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
+        # this triggers per-object level cloning in the spawner.
+        if not self.cfg.replicate_physics:
+            # clone the env xform
+            env_origins = self.cloner.clone(
+                source_prim_path=self.env_prim_paths[0],
+                prim_paths=self.env_prim_paths,
+                replicate_physics=False,
+                copy_from_source=True,
+            )
+            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
             # add entities from config
             self._add_entities_from_cfg()
+            # clone environments on a global scope if environment is homogeneous
+            if self.cfg.replicate_physics:
+                self.clone_environments(copy_from_source=False)
             # replicate physics if we have more than one environment
             # this is done to make scene initialization faster at play time
             if self.cfg.replicate_physics and self.cfg.num_envs > 1:
@@ -128,12 +136,14 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
-        self.cloner.clone(
+        env_origins = self.cloner.clone(
             source_prim_path=self.env_prim_paths[0],
             prim_paths=self.env_prim_paths,
             replicate_physics=self.cfg.replicate_physics,
             copy_from_source=copy_from_source,
         )
+        if self._default_env_origins is None:
+            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
 
     def filter_collisions(self, global_prim_paths: list[str] = []):
         """Filter environments collisions.

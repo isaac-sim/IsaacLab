@@ -85,4 +85,8 @@ class InteractiveSceneCfg:
     """
 
     replicate_physics: bool = True
-    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True."""
+    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
+
+    If true, the environment will be assumed to be homogeneous and cloning happens on a global scope.
+    Set this to False for heterogeneous environments, where cloning happens per-object.
+    """
