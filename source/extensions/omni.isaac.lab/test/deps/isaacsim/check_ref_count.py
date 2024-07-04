@@ -11,6 +11,7 @@ However, in this script, the reference count of the robot view is 2 after the cl
 This causes a memory leak in the Isaac Sim simulator and the robot view is not garbage collected.
 
 The issue is observed with torch 2.2 and Isaac Sim 4.0. It works fine with torch 2.0.1 and Isaac Sim 2023.1.
+It can be resolved by uncommenting the line that creates a dummy tensor in the main function.
 
 To reproduce the issue, run this script and check the reference count of the robot view.
 
@@ -88,6 +89,8 @@ class AnymalArticulation:
 
     def __del__(self):
         """Delete the Anymal articulation class."""
+        print("Deleting the Anymal view.")
+        self.view = None
 
     def initialize(self):
         """Initialize the Anymal view."""
@@ -110,7 +113,7 @@ def main():
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create a dummy tensor for testing
-    # Uncommenting this line will yield a reference count of 1 for the robot (as desired)
+    # Uncommenting the following line will yield a reference count of 1 for the robot (as desired)
     # dummy_tensor = torch.zeros(1, device="cuda:0")
 
     # Robot
