@@ -9,13 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal",
-            "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
-                "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
+            "console": "integratedTerminal"
         },
         {
             "name": "Python: Attach (windows-x86_64/linux-x86_64)",
@@ -30,13 +24,7 @@
             "request": "launch",
             "args" : ["--task", "Isaac-Reach-Franka-v0", "--headless"],
             "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/train.py",
-            "console": "integratedTerminal",
-            "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
-                "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
+            "console": "integratedTerminal"
         },
         {
             "name": "Python: Play Environment",
@@ -44,13 +32,7 @@
             "request": "launch",
             "args" : ["--task", "Isaac-Reach-Franka-v0", "--num_envs", "32"],
             "program": "${workspaceFolder}/source/standalone/workflows/rsl_rl/play.py",
-            "console": "integratedTerminal",
-            "env": {
-                "EXP_PATH": "${workspaceFolder}/_isaac_sim/apps",
-                "RESOURCE_NAME": "IsaacSim"
-            },
-            "envFile": "${workspaceFolder}/.vscode/.python.env",
-            "preLaunchTask": "setup_python_env"
-        },
+            "console": "integratedTerminal"
+        }
     ]
 }

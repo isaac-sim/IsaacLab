@@ -81,7 +81,11 @@ class ManagerBasedEnv:
             # since it gets confused with Isaac Sim's SimulationContext class
             self.sim: SimulationContext = SimulationContext(self.cfg.sim)
         else:
-            raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            # simulation context should only be created before the environment
+            # when in extension mode
+            if not builtins.ISAAC_LAUNCHED_FROM_TERMINAL:
+                raise RuntimeError("Simulation context already exists. Cannot create a new one.")
+            self.sim: SimulationContext = SimulationContext.instance()
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -262,6 +266,11 @@ class ManagerBasedEnv:
         """
         # process actions
         self.action_manager.process_action(action)
+
+        # check if we need to do rendering within the physics loop
+        # note: checked here once to avoid multiple checks within the loop
+        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+
         # perform physics stepping
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
@@ -269,11 +278,13 @@ class ManagerBasedEnv:
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
-            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
-                self.sim.has_gui() or self.sim.has_rtx_sensors()
-            )
             # simulate
-            self.sim.step(render=render)
+            self.sim.step(render=False)
+            # render between steps only if the GUI or an RTX sensor needs it
+            # note: we assume the render interval to be the shortest accepted rendering interval.
+            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 

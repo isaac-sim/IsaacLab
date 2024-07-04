@@ -184,14 +184,31 @@ from the environments into the respective libraries function argument and return
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
 
-   .. code:: bash
+   .. tab-set::
 
-      # install python module (for skrl)
-      ./isaaclab.sh -i skrl
-      # run script for training
-      ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
-      # run script for playing with 32 environments
-      ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+      .. tab-item:: PyTorch
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./isaaclab.sh -i skrl
+            # run script for training
+            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
+            # run script for playing with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+
+      .. tab-item:: JAX
+
+         .. code:: bash
+
+            # install python module (for skrl)
+            ./isaaclab.sh -i skrl
+            # install skrl dependencies for JAX. Visit https://skrl.readthedocs.io/en/latest/intro/installation.html for more details
+            ./isaaclab.sh -p -m pip install skrl["jax"]
+            # run script for training
+            ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
+            # run script for playing with 32 environments
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
