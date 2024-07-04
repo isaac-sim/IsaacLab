@@ -601,11 +601,11 @@ pressing <code class="docutils literal notranslate"><span class="pre">Ctrl+Shift
 <a class="reference internal image-reference" href="../../_images/vscode_tasks.png"><img alt="VSCode Tasks" class="align-center" src="../../_images/vscode_tasks.png" style="width: 600px;" /></a>
 </li>
 </ol>
-<p>If everything executes correctly, it should create a file
-<code class="docutils literal notranslate"><span class="pre">.python.env</span></code> in the <code class="docutils literal notranslate"><span class="pre">.vscode</span></code> directory. The file contains the python
-paths to all the extensions provided by Isaac Sim and Omniverse. This helps
-in indexing all the python modules for intelligent suggestions while writing
-code.</p>
+<p>If everything executes correctly, it should create the following files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.vscode/launch.json</span></code>: Contains the launch configurations for debugging python code.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code>: Contains the settings for the python interpreter and the python environment.</p></li>
+</ul>
 <p>For more information on VSCode support for Omniverse, please refer to the
 following links:</p>
 <ul class="simple">
@@ -619,8 +619,7 @@ following links:</p>
 python executable provided by Omniverse. This is specified in the
 <code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code> file:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">   </span><span class="nt">&quot;python.defaultInterpreterPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/_isaac_sim/kit/python/bin/python3&quot;</span><span class="p">,</span>
-<span class="w">   </span><span class="nt">&quot;python.envFile&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/.vscode/.python.env&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;python.defaultInterpreterPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/_isaac_sim/python.sh&quot;</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
