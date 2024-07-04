@@ -14,20 +14,16 @@ rem Helper functions
 
 rem extract Isaac Sim directory
 :extract_isaacsim_path
-rem Check if IsaacSim directory manually specified
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set isaac_path=%ISAACSIM_PATH%
-) else (
-    rem check if isaacsim is installed
-    pip show isaacsim-rl > nul 2>&1
+rem check if conda environment is activated and isaacsim package is installed
+if not "%CONDA_PREFIX%"=="" (
+    rem use conda python
+    set python_exe=%CONDA_PREFIX%\python
+    call %python_exe% -m pip show isaacsim-rl > nul 2>&1
     if errorlevel 1 (
-        rem Use TeamCity build or pip install
-        set isaac_path=%ISAACLAB_PATH%\_isaac_sim
+        rem set isaac path to empty
+        set isaac_path=
     ) else (
-        rem use the python executable to get the path
-        call :extract_python_exe
-        rem retrieve the isaacsim path
+        rem retrieve the isaacsim path from the installed package
         set "isaac_path="
         for /f "delims=" %%i in ('!python_exe! -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"') do (
             if not defined isaac_path (
@@ -35,11 +31,16 @@ if not "%ISAACSIM_PATH%"=="" (
             )
         )
     )
+) else (
+    rem Use the sym-link path to Isaac Sim directory
+    set isaac_path=%ISAACLAB_PATH%\_isaac_sim
 )
 rem Check if the directory exists
 if not exist "%isaac_path%" (
-    echo [ERROR] Isaac Sim directory not found at path: %isaac_path%
-    echo [ERROR] Please specify the path to Isaac Sim directory using 'ISAACSIM_PATH' environment variable.
+    echo [ERROR] Unable to find the Isaac Sim directory: %isaac_path%
+    echo /tThis could be due to the following reasons:
+    echo /t1. Conda environment with Isaac Sim pip package is not activated.
+    echo /t2. Isaac Sim directory is not available at the default path: %ISAACLAB_PATH%\_isaac_sim
     exit /b 1
 )
 goto :eof
@@ -51,26 +52,17 @@ if not "%CONDA_PREFIX%"=="" (
     rem use conda python
     set python_exe=%CONDA_PREFIX%\python
 ) else (
-    rem check if isaacsim is installed
-    pip show isaacsim-rl > nul 2>&1
-    if errorlevel 1 (
-        rem obtain isaacsim path
-        call :extract_isaacsim_path
-        rem use python from kit if Isaac Sim not installed from pip
-        set python_exe=%isaac_path%\python.bat
-    ) else (
-        rem use current python if Isaac Sim is installed from pip
-        set "python_exe="
-        for /f "delims=" %%i in ('where python') do (
-            if not defined python_exe (
-                set "python_exe=%%i"
-            )
-        )
-    )
+    rem obtain isaacsim path
+    call :extract_isaacsim_path
+    rem use python from kit if Isaac Sim not installed from pip
+    set python_exe=%isaac_path%\python.bat
 )
 rem check if there is a python path available
 if "%python_exe%"=="" (
-    echo [ERROR] No python executable found at path: %isaac_path%
+    echo [ERROR] Unable to find any Python executable at path: %isaac_path%
+    echo /tThis could be due to the following reasons:
+    echo /t1. Conda environment is not activated.
+    echo /t2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
 goto :eof
@@ -257,8 +249,6 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
-    rem setup vscode settings
-    call :update_vscode_settings
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in omni.isaac.rl/source directory
