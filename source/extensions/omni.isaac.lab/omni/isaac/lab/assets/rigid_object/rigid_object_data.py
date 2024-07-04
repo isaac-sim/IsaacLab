@@ -36,7 +36,7 @@ class RigidObjectData:
         """Initializes the rigid object data.
 
         Args:
-            root_physx_view: The root rigid body view of the object.
+            root_physx_view: The root rigid body view.
             device: The device used for processing.
         """
         # Set the parameters
@@ -143,6 +143,10 @@ class RigidObjectData:
         forward_w = math_utils.quat_apply(self.root_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
+    ##
+    # Derived properties.
+    ##
+
     @property
     def root_pos_w(self) -> torch.Tensor:
         """Root position in simulation world frame. Shape is (num_instances, 3)."""
@@ -202,3 +206,13 @@ class RigidObjectData:
     def body_ang_vel_w(self) -> torch.Tensor:
         """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
         return self.body_state_w[..., 10:13]
+
+    @property
+    def body_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 0:3]
+
+    @property
+    def body_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 3:6]

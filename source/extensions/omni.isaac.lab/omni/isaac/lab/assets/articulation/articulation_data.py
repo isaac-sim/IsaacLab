@@ -4,16 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
+import weakref
 
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.utils.buffers import TimestampedBuffer
 
-from ..rigid_object import RigidObjectData
 
-
-class ArticulationData(RigidObjectData):
+class ArticulationData:
     """Data container for an articulation.
 
     This class extends the :class:`RigidObjectData` class to provide additional data for
@@ -29,13 +28,39 @@ class ArticulationData(RigidObjectData):
     """
 
     def __init__(self, root_physx_view: physx.ArticulationView, device: str):
-        # Initialize the parent class
-        super().__init__(root_physx_view, device)  # type: ignore
+        """Initializes the articulation data.
+
+        Args:
+            root_physx_view: The root articulation view.
+            device: The device used for processing.
+        """
+        # Set the parameters
+        self.device = device
+        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
+        # Set initial time stamp
+        self._sim_timestamp = 0.0
+
+        # Obtain global physics sim view
+        physics_sim_view = physx.create_simulation_view("torch")
+        physics_sim_view.set_subspace_roots("/")
+        gravity = physics_sim_view.get_gravity()
+        # Convert to direction vector
+        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
+
+        # Initialize constants
+        self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
+        self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
+
+        # Initialize buffers for finite differencing
+        self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
 
         # Initialize history for finite differencing
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
         # Initialize the lazy buffers.
+        self._root_state_w = TimestampedBuffer()
+        self._body_acc_w = TimestampedBuffer()
         self._body_state_w = TimestampedBuffer()
         self._joint_pos = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
@@ -45,11 +70,15 @@ class ArticulationData(RigidObjectData):
         self._sim_timestamp += dt
         # Trigger an update of the joint acceleration buffer at a higher frequency
         # since we do finite differencing.
+        self.body_acc_w
         self.joint_acc
 
     ##
     # Names.
     ##
+
+    body_names: list[str] = None
+    """Body names in the order parsed by the simulation view."""
 
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
@@ -60,6 +89,12 @@ class ArticulationData(RigidObjectData):
     ##
     # Defaults.
     ##
+
+    default_root_state: torch.Tensor = None
+    """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13)."""
+
+    default_mass: torch.Tensor = None
+    """ Default mass provided by simulation. Shape is (num_instances, num_bodies)."""
 
     default_joint_pos: torch.Tensor = None
     """Default joint positions of all joints. Shape is (num_instances, num_joints)."""
@@ -246,14 +281,20 @@ class ArticulationData(RigidObjectData):
         return self._body_acc_w.data
 
     @property
-    def body_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
-        return self.body_acc_w[..., 0:3]
+    def projected_gravity_b(self):
+        """Projection of the gravity direction on base frame. Shape is (num_instances, 3)."""
+        return math_utils.quat_rotate_inverse(self.root_quat_w, self.GRAVITY_VEC_W)
 
     @property
-    def body_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
-        return self.body_acc_w[..., 3:6]
+    def heading_w(self):
+        """Yaw heading of the base frame (in radians). Shape is (num_instances,).
+
+        Note:
+            This quantity is computed by assuming that the forward-direction of the base
+            frame is along x-direction, i.e. :math:`(1, 0, 0)`.
+        """
+        forward_w = math_utils.quat_apply(self.root_quat_w, self.FORWARD_VEC_B)
+        return torch.atan2(forward_w[:, 1], forward_w[:, 0])
 
     @property
     def joint_pos(self):
@@ -285,3 +326,77 @@ class ArticulationData(RigidObjectData):
             # update the previous joint velocity
             self._previous_joint_vel[:] = self.joint_vel
         return self._joint_acc.data
+
+    ##
+    # Derived properties.
+    ##
+
+    @property
+    def root_pos_w(self) -> torch.Tensor:
+        """Root position in simulation world frame. Shape is (num_instances, 3)."""
+        return self.root_state_w[:, :3]
+
+    @property
+    def root_quat_w(self) -> torch.Tensor:
+        """Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4)."""
+        return self.root_state_w[:, 3:7]
+
+    @property
+    def root_vel_w(self) -> torch.Tensor:
+        """Root velocity in simulation world frame. Shape is (num_instances, 6)."""
+        return self.root_state_w[:, 7:13]
+
+    @property
+    def root_lin_vel_w(self) -> torch.Tensor:
+        """Root linear velocity in simulation world frame. Shape is (num_instances, 3)."""
+        return self.root_state_w[:, 7:10]
+
+    @property
+    def root_ang_vel_w(self) -> torch.Tensor:
+        """Root angular velocity in simulation world frame. Shape is (num_instances, 3)."""
+        return self.root_state_w[:, 10:13]
+
+    @property
+    def root_lin_vel_b(self) -> torch.Tensor:
+        """Root linear velocity in base frame. Shape is (num_instances, 3)."""
+        return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_lin_vel_w)
+
+    @property
+    def root_ang_vel_b(self) -> torch.Tensor:
+        """Root angular velocity in base world frame. Shape is (num_instances, 3)."""
+        return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
+
+    @property
+    def body_pos_w(self) -> torch.Tensor:
+        """Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_state_w[..., :3]
+
+    @property
+    def body_quat_w(self) -> torch.Tensor:
+        """Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4)."""
+        return self.body_state_w[..., 3:7]
+
+    @property
+    def body_vel_w(self) -> torch.Tensor:
+        """Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6)."""
+        return self.body_state_w[..., 7:13]
+
+    @property
+    def body_lin_vel_w(self) -> torch.Tensor:
+        """Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_state_w[..., 7:10]
+
+    @property
+    def body_ang_vel_w(self) -> torch.Tensor:
+        """Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_state_w[..., 10:13]
+
+    @property
+    def body_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 0:3]
+
+    @property
+    def body_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        return self.body_acc_w[..., 3:6]

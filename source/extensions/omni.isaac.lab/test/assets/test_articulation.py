@@ -47,6 +47,8 @@ class TestArticulation(unittest.TestCase):
         sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda:0")
         self.sim = sim_utils.SimulationContext(sim_cfg)
 
+        torch.zeros(1, device=self.sim.device)  # dummy tensor to initialize CUDA context
+
     def tearDown(self):
         """Stops simulator after each test."""
         # stop simulation
