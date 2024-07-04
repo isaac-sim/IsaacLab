@@ -6,6 +6,7 @@
 import builtins
 import enum
 import numpy as np
+import torch
 import sys
 import traceback
 import weakref
@@ -192,6 +193,12 @@ class SimulationContext(_SimulationContext):
         # read isaac sim version (this includes build tag, release tag etc.)
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
         self._isaacsim_version = get_version()
+
+        # create a tensor for gravity
+        # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
+        #   the issue is with some heap memory corruption when torch tensor is created inside the asset class.
+        #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
+        self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
 
         # add callback to deal the simulation app when simulation is stopped.
         # this is needed because physics views go invalid once we stop the simulation

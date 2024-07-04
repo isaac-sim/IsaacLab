@@ -28,6 +28,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import torch
 import ctypes
 import gc
 
@@ -58,6 +59,10 @@ def main():
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
     set_carb_setting(sim._settings, "/persistent/omnihydra/useSceneGraphInstancing", True)
+
+    # create a dummy torch
+    # FIXME: Why do we need this dummy tensor creation to make reference count work?
+    torch.ones(1, device=sim.device)
 
     # resolve asset
     # usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"

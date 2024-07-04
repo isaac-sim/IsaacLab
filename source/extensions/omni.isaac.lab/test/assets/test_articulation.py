@@ -20,7 +20,6 @@ import ctypes
 import torch
 import unittest
 
-import omni.isaac.core.utils.prims as prim_utils
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.lab.sim as sim_utils
@@ -47,8 +46,6 @@ class TestArticulation(unittest.TestCase):
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda:0")
         self.sim = sim_utils.SimulationContext(sim_cfg)
-        # Define base prim
-        prim_utils.create_prim("/World")
 
     def tearDown(self):
         """Stops simulator after each test."""
