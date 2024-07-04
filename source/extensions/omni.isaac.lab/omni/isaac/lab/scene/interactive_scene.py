@@ -117,8 +117,6 @@ class InteractiveScene:
         # create source prim
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
 
-        # environment origins
-        self._default_env_origins = None
         # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
         # this triggers per-object level cloning in the spawner.
         if not self.cfg.replicate_physics:
@@ -130,6 +128,10 @@ class InteractiveScene:
                 copy_from_source=True,
             )
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+        else:
+            # otherwise, environment origins will be initialized during cloning at the end of environment creation
+            self._default_env_origins = None
+
         self._global_prim_paths = list()
         if self._is_scene_setup_from_cfg():
             # add entities from config
