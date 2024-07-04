@@ -232,9 +232,9 @@ x11_cleanup() {
 }
 
 submit_job() {
-    
+
     echo "[INFO] Arguments passed to job script ${@}"
-    
+
     case $CLUSTER_JOB_SCHEDULER in
         "SLURM")
             CMD=sbatch
