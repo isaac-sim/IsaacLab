@@ -119,7 +119,8 @@ The job parameters need to be defined based on the job scheduler used by your cl
 - For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
 - For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
 
-### Defining the job parameters (SLURM)
+For SLURM
+~~~~~~~~~
 
 The job parameters are defined inside the ``docker/cluster/submit_job_slurm.sh``.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
@@ -146,7 +147,8 @@ by adding the following line to the ``submit_job_slurm.sh`` script:
   :linenos:
   :lineno-start: 3
 
-### Defining the job parameters (PBS)
+For PBS
+~~~~~~~
 
 The job parameters are defined inside the ``docker/cluster/submit_job_pbs.sh``.
 A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
@@ -162,7 +164,7 @@ The default configuration is as follows:
 
 
 Submitting a job
-~~~~~~~~~~~~~~~~
+----------------
 
 To submit a job on the cluster, the following command can be used:
 
