@@ -5,6 +5,16 @@
 
 """
 This script demonstrates reference count of the robot view in Isaac Sim.
+
+When we make a class instance, the reference count of the class instance should always be 1.
+However, in this script, the reference count of the robot view is 2 after the class is created.
+This causes a memory leak in the Isaac Sim simulator and the robot view is not garbage collected.
+
+The issue is observed with torch 2.2 and Isaac Sim 4.0. It works fine with torch 2.0.1 and Isaac Sim 2023.1.
+
+To reproduce the issue, run this script and check the reference count of the robot view.
+
+For more details, please check: https://github.com/isaac-sim/IsaacLab/issues/639
 """
 
 """Launch Isaac Sim Simulator first."""
