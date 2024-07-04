@@ -16,10 +16,10 @@ There are two main ways of using the spawners:
    .. code-block:: python
 
     import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
+    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # spawn using the function from the module
@@ -30,10 +30,10 @@ There are two main ways of using the spawners:
    .. code-block:: python
 
     import omni.isaac.lab.sim as sim_utils
-    from omni.isaac.lab.utils.assets import ISAAC_ORBIT_NUCLEUS_DIR
+    from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_ORBIT_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # use the `func` reference in the config class
