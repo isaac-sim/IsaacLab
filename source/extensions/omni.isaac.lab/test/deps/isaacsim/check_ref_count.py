@@ -34,8 +34,8 @@ except ModuleNotFoundError:
 
 import omni.isaac.core.utils.prims as prim_utils
 from omni.isaac.core.articulations import ArticulationView
-from omni.isaac.core.utils.carb import set_carb_setting
 from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.core.utils.carb import set_carb_setting
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:

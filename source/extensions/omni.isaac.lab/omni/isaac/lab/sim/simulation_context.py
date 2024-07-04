@@ -6,8 +6,8 @@
 import builtins
 import enum
 import numpy as np
-import torch
 import sys
+import torch
 import traceback
 import weakref
 from collections.abc import Iterator
