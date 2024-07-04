@@ -41,11 +41,10 @@ To setup the IDE, please follow these instructions:
       :align: center
       :alt: VSCode Tasks
 
-If everything executes correctly, it should create a file
-``.python.env`` in the ``.vscode`` directory. The file contains the python
-paths to all the extensions provided by Isaac Sim and Omniverse. This helps
-in indexing all the python modules for intelligent suggestions while writing
-code.
+If everything executes correctly, it should create the following files:
+
+* ``.vscode/launch.json``: Contains the launch configurations for debugging python code.
+* ``.vscode/settings.json``: Contains the settings for the python interpreter and the python environment.
 
 For more information on VSCode support for Omniverse, please refer to the
 following links:
@@ -64,8 +63,7 @@ python executable provided by Omniverse. This is specified in the
 .. code-block:: json
 
    {
-      "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
-      "python.envFile": "${workspaceFolder}/.vscode/.python.env",
+      "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
    }
 
 If you want to use a different python interpreter (for instance, from your conda environment),
