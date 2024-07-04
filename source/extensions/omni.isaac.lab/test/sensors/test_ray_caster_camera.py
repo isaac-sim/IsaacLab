@@ -106,7 +106,7 @@ class TestWarpCamera(unittest.TestCase):
         # Play sim
         self.sim.reset()
         # Check if camera is initialized
-        self.assertTrue(camera._is_initialized)
+        self.assertTrue(camera.is_initialized)
         # Simulate for a few steps
         # note: This is a workaround to ensure that the textures are loaded.
         #   Check "Known Issues" section in the documentation for more details.
