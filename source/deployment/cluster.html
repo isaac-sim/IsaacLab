@@ -552,11 +552,12 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#exporting-to-singularity-image">Exporting to singularity image</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#job-submission-and-execution">Job Submission and Execution</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-the-job-parameters">Defining the job parameters</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#submitting-a-job">Submitting a job</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-the-job-parameters">Defining the job parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-slurm">For SLURM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-pbs">For PBS</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#submitting-a-job">Submitting a job</a></li>
 </ul>
             </nav>
         </div>
@@ -581,7 +582,8 @@ convert the Isaac Lab Docker image into a singularity image and use it to submit
 <div class="admonition attention">
 <p class="admonition-title">Attention</p>
 <p>Cluster setup varies across different institutions. The following instructions have been
-tested on the <a class="reference external" href="https://scicomp.ethz.ch/wiki/Euler">ETH Zurich Euler</a> cluster, which uses the SLURM workload manager.</p>
+tested on the <a class="reference external" href="https://scicomp.ethz.ch/wiki/Euler">ETH Zurich Euler</a> cluster (which uses the SLURM workload manager), and the
+IIT Genoa Franklin cluster (which uses PBS workload manager).</p>
 <p>The instructions may need to be adapted for other clusters. If you have successfully
 adapted the instructions for another cluster, please consider contributing to the
 documentation.</p>
@@ -617,7 +619,12 @@ The latest versions (<code class="docutils literal notranslate"><span class="pre
 <section id="configuring-the-cluster-parameters">
 <h3>Configuring the cluster parameters<a class="headerlink" href="#configuring-the-cluster-parameters" title="Permalink to this heading">#</a></h3>
 <p>First, you need to configure the cluster-specific parameters in <code class="docutils literal notranslate"><span class="pre">docker/.env.base</span></code> file.
-The following describes the parameters that need to be configured:</p>
+The following describes the parameters that need to be configured:
+- <code class="docutils literal notranslate"><span class="pre">CLUSTER_JOB_SCHEDULER</span></code>:</p>
+<blockquote>
+<div><p>The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
+PBS workload managers [SLURM | PBS].</p>
+</div></blockquote>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAAC_SIM_CACHE_DIR</span></code>:
 The directory on the cluster where the Isaac Sim cache is stored. This directory
@@ -662,11 +669,16 @@ access by removing the flag in <code class="docutils literal notranslate"><span 
 </div>
 </section>
 </section>
-<section id="job-submission-and-execution">
-<h2>Job Submission and Execution<a class="headerlink" href="#job-submission-and-execution" title="Permalink to this heading">#</a></h2>
 <section id="defining-the-job-parameters">
-<h3>Defining the job parameters<a class="headerlink" href="#defining-the-job-parameters" title="Permalink to this heading">#</a></h3>
-<p>The job parameters are defined inside the <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job.sh</span></code>.
+<h2>Defining the job parameters<a class="headerlink" href="#defining-the-job-parameters" title="Permalink to this heading">#</a></h2>
+<p>The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.</p>
+<ul class="simple">
+<li><p>For SLURM, update the parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_slurm.sh</span></code>.</p></li>
+<li><p>For PBS, update the parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_pbs.sh</span></code>.</p></li>
+</ul>
+<section id="for-slurm">
+<h3>For SLURM<a class="headerlink" href="#for-slurm" title="Permalink to this heading">#</a></h3>
+<p>The job parameters are defined inside the <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_slurm.sh</span></code>.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
 the time limit. For more information, please check the <a class="reference external" href="https://www.slurm.schedmd.com/sbatch.html">SLURM documentation</a>.</p>
 <p>The default configuration is as follows:</p>
@@ -683,14 +695,30 @@ the time limit. For more information, please check the <a class="reference exter
 This is required to load assets from the Nucleus server. For some cluster architectures, extra modules
 must be loaded to allow internet access.</p>
 <p>For instance, on ETH Zurich Euler cluster, the <code class="docutils literal notranslate"><span class="pre">eth_proxy</span></code> module needs to be loaded. This can be done
-by adding the following line to the <code class="docutils literal notranslate"><span class="pre">submit_job.sh</span></code> script:</p>
+by adding the following line to the <code class="docutils literal notranslate"><span class="pre">submit_job_slurm.sh</span></code> script:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">3</span><span class="c1"># in the case you need to load specific modules on the cluster, add them here</span>
 <span class="linenos">4</span><span class="c1"># e.g., `module load eth_proxy`</span>
 </pre></div>
 </div>
 </section>
+<section id="for-pbs">
+<h3>For PBS<a class="headerlink" href="#for-pbs" title="Permalink to this heading">#</a></h3>
+<p>The job parameters are defined inside the <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_pbs.sh</span></code>.
+A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
+information, please check the <a class="reference external" href="https://openpbs.org/">PBS Official Site</a>.</p>
+<p>The default configuration is as follows:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="linenos">11</span><span class="c1">#PBS -l select=1:ncpus=8:mpiprocs=1:ngpus=1</span>
+<span class="linenos">12</span><span class="c1">#PBS -l walltime=01:00:00</span>
+<span class="linenos">13</span><span class="c1">#PBS -j oe</span>
+<span class="linenos">14</span><span class="c1">#PBS -q gpu</span>
+<span class="linenos">15</span><span class="c1">#PBS -N isaaclab</span>
+<span class="linenos">16</span><span class="c1">#PBS -m bea -M &quot;user@mail&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
 <section id="submitting-a-job">
-<h3>Submitting a job<a class="headerlink" href="#submitting-a-job" title="Permalink to this heading">#</a></h3>
+<h2>Submitting a job<a class="headerlink" href="#submitting-a-job" title="Permalink to this heading">#</a></h2>
 <p>To submit a job on the cluster, the following command can be used:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/container.sh<span class="w"> </span>job<span class="w"> </span><span class="o">[</span>profile<span class="o">]</span><span class="w"> </span><span class="s2">&quot;argument1&quot;</span><span class="w"> </span><span class="s2">&quot;argument2&quot;</span><span class="w"> </span>...
 </pre></div>
@@ -715,7 +743,6 @@ it will not delete any files that have been deleted locally. These files will st
 which can lead to issues. In this case, we recommend removing the <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code> directory on
 the cluster and re-run the command.</p>
 </div>
-</section>
 </section>
 </section>
 
@@ -769,11 +796,12 @@ the cluster and re-run the command.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#exporting-to-singularity-image">Exporting to singularity image</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#job-submission-and-execution">Job Submission and Execution</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-the-job-parameters">Defining the job parameters</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#submitting-a-job">Submitting a job</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-the-job-parameters">Defining the job parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-slurm">For SLURM</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-pbs">For PBS</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#submitting-a-job">Submitting a job</a></li>
 </ul>
   </nav></div>
 
