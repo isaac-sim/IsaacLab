@@ -95,8 +95,10 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     isaaclab_extensions = os.listdir(os.path.join(ISAACLAB_DIR, "source", "extensions"))
     path_names.extend(['"${workspaceFolder}/source/extensions/' + ext + '"' for ext in isaaclab_extensions])
 
-    # combine them into a single string and standardize to forward slashes
-    path_names = ",\n\t\t".expandtabs(4).join(path_names).replace("\\", "/")
+    # combine them into a single string
+    path_names = ",\n\t\t".expandtabs(4).join(path_names)
+    # deal with the path separator being different on Windows and Unix
+    path_names = path_names.replace("\\", "/")
 
     # replace the path names in the Isaac Lab settings file with the path names parsed
     isaaclab_settings = re.sub(
