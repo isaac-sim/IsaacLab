@@ -68,8 +68,9 @@
     "autoDocstring.docstringFormat": "google",
     "autoDocstring.guessTypes": true,
     // Python environment path
-    "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
-    "python.envFile": "${workspaceFolder}/.vscode/.python.env",
+    // note: the default interpreter is overridden when user selects a workspace interpreter
+    //     in the status bar. For example, the virtual environment python interpreter
+    "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
     // ROS distribution
     "ros.distro": "noetic",
     // Language specific settings
