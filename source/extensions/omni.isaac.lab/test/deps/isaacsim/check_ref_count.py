@@ -22,9 +22,9 @@ simulation_app = SimulationApp({"headless": True})
 
 """Rest everything follows."""
 
-import torch  # noqa: F401
 import ctypes
 import gc
+import torch  # noqa: F401
 
 import carb
 
