@@ -46,8 +46,6 @@ goto :eof
 
 rem extract the python from isaacsim
 :extract_python_exe
-rem obtain isaacsim path
-call :extract_isaacsim_path
 rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
@@ -56,6 +54,8 @@ if not "%CONDA_PREFIX%"=="" (
     rem check if isaacsim is installed
     pip show isaacsim-rl > nul 2>&1
     if errorlevel 1 (
+        rem obtain isaacsim path
+        call :extract_isaacsim_path
         rem use python from kit if Isaac Sim not installed from pip
         set python_exe=%isaac_path%\python.bat
     ) else (
@@ -176,8 +176,8 @@ echo [INFO] Created conda environment named '%env_name%'.
 echo.
 echo       1. To activate the environment, run:                conda activate %env_name%
 echo       2. To install Isaac Lab extensions, run:            isaaclab -i
-echo       4. To perform formatting, run:                      isaaclab -f
-echo       5. To deactivate the environment, run:              conda deactivate
+echo       3. To perform formatting, run:                      isaaclab -f
+echo       4. To deactivate the environment, run:              conda deactivate
 echo.
 goto :eof
 
@@ -268,12 +268,6 @@ if "%arg%"=="-i" (
         set ext_folder="%%d"
         call :install_isaaclab_extension
     )
-    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
-    rem if not installing from pip, set up VScode
-    if errorlevel 1 (
-        rem setup vscode settings
-        call :update_vscode_settings
-    )
     rem install the python packages for supported reinforcement learning frameworks
     echo [INFO] Installing extra requirements such as learning frameworks...
     if "%~2"=="" (
@@ -289,7 +283,10 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    rem if not installing from pip, set up VScode
+    rem setup vscode settings
+    call :update_vscode_settings
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided

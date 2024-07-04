@@ -97,8 +97,6 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
 
     # combine them into a single string
     path_names = ",\n\t\t".expandtabs(4).join(path_names)
-    # deal with the path separator being different on Windows and Unix
-    path_names = path_names.replace("/", os.sep)
 
     # replace the path names in the Isaac Lab settings file with the path names parsed
     isaaclab_settings = re.sub(
