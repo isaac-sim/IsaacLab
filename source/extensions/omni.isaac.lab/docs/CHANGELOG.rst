@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.19.2 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics` to determine whether environment is homogeneous or heterogeneous.
+
+
 0.19.1 (2024-07-05)
 ~~~~~~~~~~~~~~~~~~~
 
