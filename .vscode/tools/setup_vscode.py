@@ -27,6 +27,11 @@ try:
     isaacsim_dir = os.environ.get("ISAAC_PATH", "")
 except ModuleNotFoundError or ImportError:
     isaacsim_dir = os.path.join(ISAACLAB_DIR, "_isaac_sim")
+except EOFError:
+    print("Unable to trigger EULA acceptance. This is likely due to the script being run in a non-interactive shell.")
+    print("Please run the script in an interactive shell to accept the EULA.")
+    print("Skipping the setup of the VSCode settings...")
+    sys.exit(0)
 
 # check if the isaac-sim directory exists
 if not os.path.exists(isaacsim_dir):
