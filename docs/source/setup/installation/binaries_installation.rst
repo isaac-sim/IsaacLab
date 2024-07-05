@@ -1,3 +1,6 @@
+.. _isaacsim-binaries-installation:
+
+
 Installation using Isaac Sim Binaries
 =====================================
 
