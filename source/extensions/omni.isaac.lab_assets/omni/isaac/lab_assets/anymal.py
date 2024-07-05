@@ -170,4 +170,4 @@ Note:
 ##
 
 ANYMAL_LIDAR_CFG = VELODYNE_VLP_16_CFG.replace(offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.6)))
-"""Configuration for the Velodyne-16 sensor mounted on the ANYmal robot."""
+"""Configuration for the Velodyne VLP-16 sensor mounted on the ANYmal robot's base."""

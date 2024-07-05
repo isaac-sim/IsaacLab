@@ -12,7 +12,6 @@ from omni.isaac.lab.sensors import RayCasterCfg, patterns
 # Configuration
 ##
 
-# Source: https://velodynelidar.com/wp-content/uploads/2019/12/63-9229_Rev-K_Puck-_Datasheet_Web.pdf
 VELODYNE_VLP_16_CFG = RayCasterCfg(
     attach_yaw_only=False,
     pattern_cfg=patterns.LidarPatternCfg(
@@ -21,3 +20,7 @@ VELODYNE_VLP_16_CFG = RayCasterCfg(
     debug_vis=True,
     max_distance=100,
 )
+"""Configuration for Velodyne Puck LiDAR (VLP-16) as a :class:`RayCasterCfg`.
+
+Reference: https://velodynelidar.com/wp-content/uploads/2019/12/63-9229_Rev-K_Puck-_Datasheet_Web.pdf
+"""
