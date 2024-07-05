@@ -300,6 +300,9 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    rem update the vscode settings
+    rem once we have a docker container, we need to disable vscode settings
+    call :update_vscode_settings
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided
