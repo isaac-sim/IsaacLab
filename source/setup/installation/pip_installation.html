@@ -565,20 +565,19 @@ document.write(`
                 <article class="bd-article">
                   
   <section id="installation-using-isaac-sim-pip">
-<h1>Installation using Isaac Sim pip<a class="headerlink" href="#installation-using-isaac-sim-pip" title="Permalink to this heading">#</a></h1>
+<span id="isaacsim-pip-installation"></span><h1>Installation using Isaac Sim pip<a class="headerlink" href="#installation-using-isaac-sim-pip" title="Permalink to this heading">#</a></h1>
 <section id="installing-isaac-sim">
 <h2>Installing Isaac Sim<a class="headerlink" href="#installing-isaac-sim" title="Permalink to this heading">#</a></h2>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Installing Isaac Sim from pip is currently an experimental feature.
-If errors occur, please report them to the
-<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html">Isaac Sim Forums</a>
-and install Isaac Sim from pre-built binaries.</p>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
+<p>From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip. This approach is experimental and may have
+compatibility issues with some Linux distributions. If you encounter any issues, please report them to the
+<a class="reference external" href="https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html">Isaac Sim Forums</a>.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
 <p>Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
 To check the GLIBC version on your system, use command <code class="docutils literal notranslate"><span class="pre">ldd</span> <span class="pre">--version</span></code>.</p>
+<p>This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
+by default. If you encounter compatibility issues, we recommend following the
+<a class="reference internal" href="binaries_installation.html#isaacsim-binaries-installation"><span class="std std-ref">Isaac Sim Binaries Installation</span></a> approach.</p>
 </div>
 <ul>
 <li><p>To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
