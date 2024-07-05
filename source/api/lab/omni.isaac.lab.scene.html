@@ -632,6 +632,21 @@ actions to the scene. All these are handled by different “managers” in the f
 <p>The interactive scene parses the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class to create the scene.
 Based on the specified number of environments, it clones the entities and groups them into different
 categories (e.g., articulations, sensors, etc.).</p>
+<p>Cloning can be performed in two ways:</p>
+<ul>
+<li><p>For tasks where all environments contain the same assets, a more performant cloning paradigm
+can be used to allow for faster environment creation. This is specified by the <code class="docutils literal notranslate"><span class="pre">replicate_physics</span></code> flag.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</pre></div>
+</div>
+</li>
+<li><p>For tasks that require having separate assets in the environments, <code class="docutils literal notranslate"><span class="pre">replicate_physics</span></code> would have to
+be set to False, which will add some costs to the overall startup time.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">replicate_physics</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+</pre></div>
+</div>
+</li>
+</ul>
 <p>Each entity is registered to scene based on its name in the configuration class. For example, if the user
 specifies a robot in the configuration class as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">omni.isaac.lab.scene</span> <span class="kn">import</span> <span class="n">InteractiveSceneCfg</span>
@@ -655,6 +670,12 @@ specifies a robot in the configuration class as follows:</p>
 <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
 <span class="c1"># access the robot based on its type</span>
 <span class="n">robot</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">articulations</span><span class="p">[</span><span class="s2">&quot;robot&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>If the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveSceneCfg" title="omni.isaac.lab.scene.InteractiveSceneCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveSceneCfg</span></code></a> class does not include asset entities, the cloning process
+can still be triggered if assets were added to the stage outside of the <a class="reference internal" href="#omni.isaac.lab.scene.InteractiveScene" title="omni.isaac.lab.scene.InteractiveScene"><code class="xref py py-class docutils literal notranslate"><span class="pre">InteractiveScene</span></code></a> class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="n">cfg</span><span class="o">=</span><span class="n">InteractiveSceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">replicate_physics</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="n">scene</span><span class="o">.</span><span class="n">clone_environments</span><span class="p">()</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -764,13 +785,14 @@ for more details.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveScene.filter_collisions">
-<span class="sig-name descname"><span class="pre">filter_collisions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">global_prim_paths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.filter_collisions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">filter_collisions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">global_prim_paths</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/scene/interactive_scene.html#InteractiveScene.filter_collisions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveScene.filter_collisions" title="Permalink to this definition">#</a></dt>
 <dd><p>Filter environments collisions.</p>
 <p>Disables collisions between the environments in <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*</span></code> and enables collisions with the prims
 in global prim paths (e.g. ground plane).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>global_prim_paths</strong> – The global prim paths to enable collisions with.</p>
+<dd class="field-odd"><p><strong>global_prim_paths</strong> – A list of global prim paths to enable collisions with.
+Defaults to None, in which case no global prim paths are considered.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1004,6 +1026,15 @@ data is updated every time sensors are updated.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics">
 <span class="sig-name descname"><span class="pre">replicate_physics</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics" title="Permalink to this definition">#</a></dt>
 <dd><p>Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.</p>
+<p>If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
+Internally, this ensures optimization in setting up the scene and parsing it via the physics stage parser.</p>
+<p>If False, the simulation allows having separate asset instances (USD prims) in each environment.
+This flexibility comes at a cost of slowdowns in setting up and parsing the scene.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Optimized parsing of certain prim types (such as deformable objects) is not currently supported
+by the physics engine. In these cases, this flag needs to be set to False.</p>
+</div>
 </dd></dl>
 
 </dd></dl>
