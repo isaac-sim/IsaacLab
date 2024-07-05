@@ -94,7 +94,7 @@ class TestCamera(unittest.TestCase):
         # Play sim
         self.sim.reset()
         # Check if camera is initialized
-        self.assertTrue(camera._is_initialized)
+        self.assertTrue(camera.is_initialized)
         # Check if camera prim is set correctly and that it is a camera prim
         self.assertEqual(camera._sensor_prims[0].GetPath().pathString, self.camera_cfg.prim_path)
         self.assertIsInstance(camera._sensor_prims[0], UsdGeom.Camera)
