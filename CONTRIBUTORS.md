@@ -53,6 +53,7 @@ Guidelines for modifications:
 * Shafeef Omar
 * Vladimir Fokow
 * Zhengyu Zhang
+* Ziqi Fan
 
 ## Acknowledgements
 
