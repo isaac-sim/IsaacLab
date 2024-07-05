@@ -49,3 +49,13 @@ RS-Bpearl Pattern
     :members:
     :inherited-members:
     :exclude-members: __init__, func
+
+LiDAR Pattern
+-------------
+
+.. autofunction:: omni.isaac.lab.sensors.patterns.lidar_pattern
+
+.. autoclass:: LidarPatternCfg
+    :members:
+    :inherited-members:
+    :exclude-members: __init__, func

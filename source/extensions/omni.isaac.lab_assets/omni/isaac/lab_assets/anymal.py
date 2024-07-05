@@ -25,7 +25,7 @@ from omni.isaac.lab.assets.articulation import ArticulationCfg
 from omni.isaac.lab.sensors import RayCasterCfg
 from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from .velodyne import VELODYNE_VLP_16_CFG
+from .velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
 
 ##
 # Configuration - Actuators.
@@ -169,5 +169,7 @@ Note:
 # Configuration - Sensors.
 ##
 
-ANYMAL_LIDAR_CFG = VELODYNE_VLP_16_CFG.replace(offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.6)))
+ANYMAL_LIDAR_CFG = VELODYNE_VLP_16_RAYCASTER_CFG.replace(
+    offset=RayCasterCfg.OffsetCfg(pos=(-0.310, 0.000, 0.159), rot=(0.0, 0.0, 0.0, 1.0))
+)
 """Configuration for the Velodyne VLP-16 sensor mounted on the ANYmal robot's base."""
