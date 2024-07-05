@@ -18,7 +18,7 @@ rem check if conda environment is activated and isaacsim package is installed
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
     set python_exe=%CONDA_PREFIX%\python
-    call %python_exe% -m pip show isaacsim-rl > nul 2>&1
+    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
     if errorlevel 1 (
         rem set isaac path to empty
         set isaac_path=
@@ -38,9 +38,9 @@ if not "%CONDA_PREFIX%"=="" (
 rem Check if the directory exists
 if not exist "%isaac_path%" (
     echo [ERROR] Unable to find the Isaac Sim directory: %isaac_path%
-    echo /tThis could be due to the following reasons:
-    echo /t1. Conda environment with Isaac Sim pip package is not activated.
-    echo /t2. Isaac Sim directory is not available at the default path: %ISAACLAB_PATH%\_isaac_sim
+    echo %tab%This could be due to the following reasons:
+    echo %tab%1. Conda environment with Isaac Sim pip package is not activated.
+    echo %tab%2. Isaac Sim directory is not available at the default path: %ISAACLAB_PATH%\_isaac_sim
     exit /b 1
 )
 goto :eof
@@ -55,14 +55,14 @@ if not "%CONDA_PREFIX%"=="" (
     rem obtain isaacsim path
     call :extract_isaacsim_path
     rem use python from kit if Isaac Sim not installed from pip
-    set python_exe=%isaac_path%\python.bat
+    set python_exe=!isaac_path!\python.bat
 )
 rem check if there is a python path available
 if "%python_exe%"=="" (
     echo [ERROR] Unable to find any Python executable at path: %isaac_path%
-    echo /tThis could be due to the following reasons:
-    echo /t1. Conda environment is not activated.
-    echo /t2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
+    echo %tab%This could be due to the following reasons:
+    echo %tab%1. Conda environment is not activated.
+    echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
 goto :eof
@@ -70,13 +70,20 @@ goto :eof
 
 rem extract the simulator exe from isaacsim
 :extract_isaacsim_exe
-rem obtain isaacsim path
-call :extract_isaacsim_path
-rem python executable to use
-set isaacsim_exe=%isaac_path%\isaac-sim.bat
+call :extract_python_exe
+call !python_exe! -m pip show isaacsim-rl > nul 2>&1
+if errorlevel 1 (
+    rem obtain isaacsim path
+    call :extract_isaacsim_path
+    rem python executable to use
+    set isaacsim_exe=!isaac_path!\isaac-sim.bat
+) else (
+    rem if isaac sim installed from pip
+    set isaacsim_exe=isaacsim
+)
 rem check if there is a python path available
 if not exist "%isaacsim_exe%" (
-    echo [ERROR] No isaac-sim executable found at path: %isaac_path%
+    echo [ERROR] No isaac-sim executable found at path: !isaac_path!
     exit /b 1
 )
 goto :eof
@@ -178,7 +185,7 @@ rem Update the vscode settings from template and Isaac Sim settings
 :update_vscode_settings
 echo [INFO] Setting up vscode settings...
 rem Retrieve the python executable
-call :extract_python_exe python_exe
+call :extract_python_exe
 rem Path to setup_vscode.py
 set "setup_vscode_script=%ISAACLAB_PATH%\.vscode\tools\setup_vscode.py"
 rem Check if the file exists before attempting to run it
@@ -274,8 +281,6 @@ if "%arg%"=="-i" (
     )
     rem install the rl-frameworks specified
     call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
-    rem setup vscode settings
-    call :update_vscode_settings
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided
@@ -392,7 +397,7 @@ if "%arg%"=="-i" (
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
     call :extract_isaacsim_exe
-    echo [INFO] Running isaac-sim from: %isaacsim_exe%
+    echo [INFO] Running isaac-sim from: !isaacsim_exe!
     set "allArgs="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one
@@ -407,7 +412,7 @@ if "%arg%"=="-i" (
 ) else if "%arg%"=="--sim" (
     rem run the simulator exe provided by Isaac Sim
     call :extract_isaacsim_exe
-    echo [INFO] Running isaac-sim from: %isaacsim_exe%
+    echo [INFO] Running isaac-sim from: !isaacsim_exe!
     set "allArgs="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one
