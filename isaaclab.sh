@@ -172,7 +172,7 @@ setup_conda_env() {
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
-    
+
     # check if we have _isaac_sim directory -> if so that means binaries were installed.
     # we need to setup conda variables to load the binaries
     local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
@@ -201,7 +201,7 @@ setup_conda_env() {
         '# for Isaac Sim' \
         'unset RESOURCE_NAME' \
         '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
-    
+
     # check if we have _isaac_sim directory -> if so that means binaries were installed.
     if [ -f "${isaacsim_setup_conda_env_script}" ]; then
         # add variables to environment during activation
@@ -212,7 +212,7 @@ setup_conda_env() {
             'unset ISAAC_PATH' \
             '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     fi
-    
+
     # install some extra dependencies
     echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
     conda install -c conda-forge -y importlib_metadata &> /dev/null
