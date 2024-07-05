@@ -182,6 +182,7 @@ class InteractiveScene:
 
         Args:
             global_prim_paths: A list of global prim paths to enable collisions with.
+                Defaults to None, in which case no global prim paths are considered.
         """
         # obtain the current physics scene
         physics_scene_prim_path = self.physics_scene_path
