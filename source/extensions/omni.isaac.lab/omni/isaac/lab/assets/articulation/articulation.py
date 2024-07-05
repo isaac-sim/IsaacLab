@@ -286,6 +286,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -318,6 +319,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -348,6 +350,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -376,6 +379,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # move tensor to cpu if needed
@@ -407,6 +411,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -434,6 +439,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -462,6 +468,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -492,6 +499,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
@@ -516,6 +524,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
@@ -540,6 +549,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
