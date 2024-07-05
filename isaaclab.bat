@@ -20,8 +20,8 @@ if not "%CONDA_PREFIX%"=="" (
     set python_exe=%CONDA_PREFIX%\python
     call !python_exe! -m pip show isaacsim-rl > nul 2>&1
     if errorlevel 1 (
-        rem set isaac path to empty
-        set isaac_path=
+        rem Use the sym-link path to Isaac Sim directory
+        set isaac_path=%ISAACLAB_PATH%\_isaac_sim
     ) else (
         rem retrieve the isaacsim path from the installed package
         set "isaac_path="
@@ -132,25 +132,43 @@ call conda activate %env_name%
 rem setup directories to load isaac-sim variables
 mkdir "%CONDA_PREFIX%\etc\conda\activate.d" 2>nul
 mkdir "%CONDA_PREFIX%\etc\conda\deactivate.d" 2>nul
+
+rem obtain isaacsim path
+call :extract_isaacsim_path
+
 rem add variables to environment during activation
 (
     echo @echo off
-    rem for isaac-sim
+    echo rem for isaac-sim
     echo set "RESOURCE_NAME=IsaacSim"
-    rem for isaac-lab
+    echo set CARB_APP_PATH=!isaac_path!\kit
+    echo set EXP_PATH=!isaac_path!\apps
+    echo set ISAAC_PATH=!isaac_path!
+    echo set PYTHONPATH=%PYTHONPATH%;!isaac_path!\site
+    echo.
+    echo rem for isaac-lab
     echo doskey isaaclab=isaaclab.bat $*
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
 (
+    echo $env:CARB_APP_PATH="!isaac_path!\kit"
+    echo $env:EXP_PATH="!isaac_path!\apps"
+    echo $env:ISAAC_PATH="!isaac_path!"
+    echo $env:PYTHONPATH="%PYTHONPATH%;!isaac_path!\site"
     echo $env:RESOURCE_NAME="IsaacSim"
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
 
 rem reactivate the environment to load the variables
 call conda activate %env_name%
+
 rem remove variables from environment during deactivation
 (
     echo @echo off
     echo rem for isaac-sim
+    echo set "CARB_APP_PATH="
+    echo set "EXP_PATH="
+    echo set "ISAAC_PATH="
     echo set "RESOURCE_NAME="
+    echo.
     echo rem for isaac-lab
     echo doskey isaaclab =
     echo.
@@ -167,6 +185,7 @@ rem remove variables from environment during deactivation
 rem install some extra dependencies
 echo [INFO] Installing extra dependencies (this might take a few minutes)...
 call conda install -c conda-forge -y importlib_metadata >nul 2>&1
+
 rem deactivate the environment
 call conda deactivate
 rem add information to the user about alias

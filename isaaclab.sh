@@ -32,10 +32,11 @@ extract_isaacsim_path() {
         if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
             local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         else
-            # If package not installed, use an empty path for failure
-            local isaac_path=''
+            # If package not installed, try with the default path
+            local isaac_path=${ISAACLAB_PATH}/_isaac_sim
         fi
     elif command -v python &> /dev/null; then
+        # note: we need to deal with this case because of docker containers
         # Use the python executable to get the path
         local python_exe=$(which python)
         # Retrieve the path importing isaac sim and getting the environment path
@@ -71,6 +72,7 @@ extract_python_exe() {
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     elif command -v python &> /dev/null; then
+        # note: we need to deal with this case because of docker containers
         # use the python executable to get the path
         if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
             local python_exe=$(which python)
@@ -170,6 +172,17 @@ setup_conda_env() {
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    
+    # check if we have _isaac_sim directory -> if so that means binaries were installed.
+    # we need to setup conda variables to load the binaries
+    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
+    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
+        # add variables to environment during activation
+        printf '' \
+            '# for Isaac Sim' \
+            'source '${isaacsim_setup_conda_env_script}'' \
+            '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    fi
 
     # reactivate the environment to load the variables
     # needed because deactivate complains about Isaac Lab alias since it otherwise doesn't exist
@@ -181,13 +194,25 @@ setup_conda_env() {
         'unalias isaaclab &>/dev/null' \
         'unset ISAACLAB_PATH' \
         '' \
-        '# for Isaac Sim' \
-        'unset RESOURCE_NAME' \
-        '' \
         '# restore paths' \
         'export PYTHONPATH='${cache_pythonpath}'' \
         'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
+        '' \
+        '# for Isaac Sim' \
+        'unset RESOURCE_NAME' \
         '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    
+    # check if we have _isaac_sim directory -> if so that means binaries were installed.
+    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
+        # add variables to environment during activation
+        printf '' \
+            '# for Isaac Sim' \
+            'unset CARB_APP_PATH' \
+            'unset EXP_PATH' \
+            'unset ISAAC_PATH' \
+            '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    fi
+    
     # install some extra dependencies
     echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
     conda install -c conda-forge -y importlib_metadata &> /dev/null
