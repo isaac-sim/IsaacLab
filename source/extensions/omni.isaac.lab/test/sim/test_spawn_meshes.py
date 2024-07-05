@@ -223,7 +223,7 @@ class TestSpawningMeshGeometries(unittest.TestCase):
             ),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-            physics_material=sim_utils.materials.DeformableBodyMaterialCfg(),
+            physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
         )
         prim = cfg.func("/World/Cone", cfg)
         # Check validity
@@ -274,6 +274,33 @@ class TestSpawningMeshGeometries(unittest.TestCase):
                 height=2.0,
                 collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
                 deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
+            )
+            cfg.func("/World/Cone", cfg)
+
+    def test_spawn_deformable_incorrect_material(self):
+        """Test specifying incorrect material for deformable object causes an error."""
+        # Spawn cone
+        with self.assertRaises(ValueError):
+            cfg = sim_utils.MeshConeCfg(
+                radius=1.0,
+                height=2.0,
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
+                visual_material=sim_utils.materials.PreviewSurfaceCfg(),
+                physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
+            )
+            cfg.func("/World/Cone", cfg)
+
+    def test_spawn_rigid_incorrect_material(self):
+        """Test specifying incorrect material for rigid object causes an error."""
+        # Spawn cone
+        with self.assertRaises(ValueError):
+            cfg = sim_utils.MeshConeCfg(
+                radius=1.0,
+                height=2.0,
+                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
+                visual_material=sim_utils.materials.PreviewSurfaceCfg(),
+                physics_material=sim_utils.materials.DeformableBodyMaterialCfg(),
             )
             cfg.func("/World/Cone", cfg)
 

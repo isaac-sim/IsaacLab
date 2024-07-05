@@ -16,6 +16,8 @@ from pxr import Usd
 from omni.isaac.lab.sim import schemas
 from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone
 
+from ..materials import RigidBodyMaterialCfg, DeformableBodyMaterialCfg
+
 if TYPE_CHECKING:
     from . import meshes_cfg
 
@@ -266,6 +268,8 @@ def _spawn_mesh_geom_from_mesh(
         ValueError: If a prim already exists at the given path.
         ValueError: If both deformable and rigid properties are used.
         ValueError: If both deformable and collision properties are used.
+        ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
+            physics material, and rigid properties require a rigid physics material.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -280,6 +284,13 @@ def _spawn_mesh_geom_from_mesh(
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
         raise ValueError("Cannot use both deformable and collision properties at the same time.")
+    # check material types are correct
+    if cfg.deformable_props is not None and cfg.physics_material is not None:
+        if not isinstance(cfg.physics_material, DeformableBodyMaterialCfg):
+            raise ValueError("Deformable properties require a deformable physics material.")
+    if cfg.rigid_props is not None and cfg.physics_material is not None:
+        if not isinstance(cfg.physics_material, RigidBodyMaterialCfg):
+            raise ValueError("Rigid properties require a rigid physics material.")
 
     # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"
