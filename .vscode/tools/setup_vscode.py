@@ -85,10 +85,11 @@ def overwrite_python_analysis_extra_paths(isaaclab_settings: str) -> str:
     else:
         path_names = []
         print(
-            f"[WARN] Could not find Isaac Sim VSCode settings file: {isaacsim_vscode_filename}."
-            "\n\tThis will result in missing python.analysis.extraPaths in Isaac Lab VSCode settings from Isaac Sim."
-            " It limits the functionality of Python language server in VSCode."
+            f"[WARN] Could not find Isaac Sim VSCode settings: {isaacsim_vscode_filename}."
+            "\n\tThis will result in missing 'python.analysis.extraPaths' in the VSCode"
+            "\n\tsettings, which limits the functionality of the Python language server."
             "\n\tHowever, it does not affect the functionality of the Isaac Lab project."
+            "\n\tWe are working on a fix for this issue with the Isaac Sim team."
         )
 
     # add the path names that are in the Isaac Lab extensions directory

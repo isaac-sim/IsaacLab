@@ -37,11 +37,9 @@ extract_isaacsim_path() {
         fi
     elif command -v python &> /dev/null; then
         # note: we need to deal with this case because of docker containers
-        # Use the python executable to get the path
-        local python_exe=$(which python)
         # Retrieve the path importing isaac sim and getting the environment path
-        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
-            local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
+        if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
+            local isaac_path=$(python -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         else
             # If package not installed, use an empty path for failure
             local isaac_path=''
@@ -73,18 +71,15 @@ extract_python_exe() {
         local python_exe=${CONDA_PREFIX}/bin/python
     elif command -v python &> /dev/null; then
         # note: we need to deal with this case because of docker containers
-        # use the python executable to get the path
-        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
+        if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
             local python_exe=$(which python)
         else
             # leave a blank path for failure
             local python_exe=''
         fi
     else
-        # obtain the isaac sim path
-        local isaac_path=$(extract_isaacsim_path)
         # use python from kit
-        local python_exe=${isaac_path}/python.sh
+        local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
@@ -308,6 +303,7 @@ while [[ $# -gt 0 ]]; do
             # check if we are inside a docker container (in that case don't setup VSCode)
             if [ -f "/.dockerenv" ]; then
                 echo "[INFO] Running inside a docker container. Skipping VSCode settings setup."
+                echo "[INFO] To setup VSCode settings, run 'isaaclab -v'."
             else
                 # update the vscode settings
                 update_vscode_settings
