@@ -246,6 +246,12 @@ def _spawn_mesh_geom_from_mesh(
     This function is similar to :func:`shapes._spawn_geom_from_prim_type` but spawns the prim from a given mesh.
     In case of the mesh, it is spawned as a USDGeomMesh prim with the given vertices and faces.
 
+    There is a difference in how the properties are applied to the prim based on the type of object:
+
+    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
+
     Args:
         prim_path: The prim path to spawn the asset at.
         cfg: The config containing the properties to apply.
@@ -258,6 +264,8 @@ def _spawn_mesh_geom_from_mesh(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If both deformable and rigid properties are used.
+        ValueError: If both deformable and collision properties are used.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -266,6 +274,12 @@ def _spawn_mesh_geom_from_mesh(
         prim_utils.create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
+    # check that invalid schema types are not used
+    if cfg.deformable_props is not None and cfg.rigid_props is not None:
+        raise ValueError("Cannot use both deformable and rigid properties at the same time.")
+    if cfg.deformable_props is not None and cfg.collision_props is not None:
+        raise ValueError("Cannot use both deformable and collision properties at the same time.")
 
     # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"
@@ -288,12 +302,15 @@ def _spawn_mesh_geom_from_mesh(
 
     # note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.
     #   this is different from rigid objects where we apply the properties to the parent prim.
-    # apply deformable body properties
     if cfg.deformable_props is not None:
+        # apply deformable body properties
         schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props)
-    # apply mass properties
-    if cfg.mass_props is not None:
-        schemas.define_mass_properties(mesh_prim_path, cfg.mass_props)
+        # apply mass properties
+        if cfg.mass_props is not None:
+            schemas.define_mass_properties(mesh_prim_path, cfg.mass_props)
+    elif cfg.collision_props is not None:
+        # apply collision properties
+        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -316,3 +333,11 @@ def _spawn_mesh_geom_from_mesh(
         cfg.physics_material.func(material_path, cfg.physics_material)
         # apply material
         bind_physics_material(mesh_prim_path, material_path)
+
+    # note: we apply the rigid properties to the parent prim in case of rigid objects.
+    # apply rigid properties
+    if cfg.rigid_props is not None:
+        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
+        # apply mass properties
+        if cfg.mass_props is not None:
+            schemas.define_mass_properties(prim_path, cfg.mass_props)

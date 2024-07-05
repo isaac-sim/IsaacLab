@@ -185,8 +185,8 @@ class TestSpawningMeshGeometries(unittest.TestCase):
         for _ in range(10):
             self.sim.step()
 
-    def test_spawn_cone_with_all_props(self):
-        """Test spawning of UsdGeomMesh prim for a cone with all properties."""
+    def test_spawn_cone_with_all_deformable_props(self):
+        """Test spawning of UsdGeomMesh prim for a cone with all deformable properties."""
         # Spawn cone
         cfg = sim_utils.MeshConeCfg(
             radius=1.0,
@@ -210,6 +210,72 @@ class TestSpawningMeshGeometries(unittest.TestCase):
         self.sim.play()
         for _ in range(10):
             self.sim.step()
+
+    def test_spawn_cone_with_all_rigid_props(self):
+        """Test spawning of UsdGeomMesh prim for a cone with all rigid properties."""
+        # Spawn cone
+        cfg = sim_utils.MeshConeCfg(
+            radius=1.0,
+            height=2.0,
+            mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
+            physics_material=sim_utils.materials.DeformableBodyMaterialCfg(),
+        )
+        prim = cfg.func("/World/Cone", cfg)
+        # Check validity
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/Cone"))
+        self.assertTrue(prim_utils.is_prim_path_valid("/World/Cone/geometry/material"))
+        # Check properties
+        # -- rigid body
+        prim = prim_utils.get_prim_at_path("/World/Cone")
+        self.assertEqual(prim.GetAttribute("physics:rigidBodyEnabled").Get(), cfg.rigid_props.rigid_body_enabled)
+        self.assertEqual(
+            prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get(),
+            cfg.rigid_props.solver_position_iteration_count,
+        )
+        self.assertAlmostEqual(
+            prim.GetAttribute("physxRigidBody:sleepThreshold").Get(), cfg.rigid_props.sleep_threshold
+        )
+        # -- mass
+        self.assertEqual(prim.GetAttribute("physics:mass").Get(), cfg.mass_props.mass)
+        # -- collision shape
+        prim = prim_utils.get_prim_at_path("/World/Cone/geometry/mesh")
+        self.assertEqual(prim.GetAttribute("physics:collisionEnabled").Get(), True)
+
+        # check sim playing
+        self.sim.play()
+        for _ in range(10):
+            self.sim.step()
+
+    def test_spawn_deformable_rigid_cone_invalid(self):
+        """Test specifying both rigid and deformable properties for a cone causes an error."""
+        # Spawn cone
+        with self.assertRaises(ValueError):
+            cfg = sim_utils.MeshConeCfg(
+                radius=1.0,
+                height=2.0,
+                mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
+            )
+            cfg.func("/World/Cone", cfg)
+
+    def test_spawn_deformable_collider_cone_invalid(self):
+        """Test specifying both deformable and collider properties for a cone causes an error."""
+        # Spawn cone
+        with self.assertRaises(ValueError):
+            cfg = sim_utils.MeshConeCfg(
+                radius=1.0,
+                height=2.0,
+                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(deformable_enabled=True),
+            )
+            cfg.func("/World/Cone", cfg)
 
     """
     Cloning.
