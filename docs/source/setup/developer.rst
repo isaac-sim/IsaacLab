@@ -191,29 +191,46 @@ standalone applications.
 Extension Dependency Management
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Certain extensions may have dependencies which need to be installed before the extension can be run.
-While Python dependencies can be expressed via the ``INSTALL_REQUIRES`` array in ``setup.py``, we need
-a separate installation pipeline to handle non-Python dependencies. We have therefore created
-an additional setup procedure, ``python tools/install_deps.py {dep_type} {extensions_dir}``, which scans the ``extension.toml``
-file of the directories under the ``{extensions_dir}`` (such as ``${ISAACLAB_PATH}/source/extensions``) for ``apt`` and ``rosdep`` dependencies.
+Certain extensions may have dependencies which require installation of additional packages before the extension
+can be used. While Python dependencies are handled by the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
+package and specified in the ``setup.py`` file, non-Python dependencies such as `ROS <https://www.ros.org/>`__
+packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are not handled by setuptools.
+To handle these dependencies, we have created an additional setup procedure described in the next section.
 
-This example ``extension.toml`` has both ``apt_deps`` and ``ros_ws`` specified, so both
-``apt`` and ``rosdep`` packages will be installed if ``python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions``
-is passed:
+There are two types of dependencies that can be specified in the ``extension.toml`` file
+under the ``isaac_lab_settings`` section:
+
+1. **apt_deps**: A list of apt packages that need to be installed. These are installed using the
+   `apt <https://ubuntu.com/server/docs/package-management>`__ package manager.
+2. **ros_ws**: The path to the ROS workspace that contains the ROS packages. These are installed using
+   the `rosdep <https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html>`__ dependency manager.
+
+As an example, the following ``extension.toml`` file specifies the dependencies for the extension:
 
 .. code-block:: toml
 
-   [isaaclab_settings]
-   apt_deps = ["example_package"]
-   ros_ws = "path/from/extension_root/to/ros_ws"
+   [isaac_lab_settings]
+   # apt dependencies
+   apt_deps = ["libboost-all-dev"]
 
-From the ``apt_deps`` in the above example, the package ``example_package`` would be installed via ``apt``.
-From the ``ros_ws``, a ``rosdep install --from-paths {ros_ws}/src --ignore-src`` command will be called.
-This will install all the `ROS package.xml dependencies <https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html>`__
-in the directory structure below. Currently the ROS distro is assumed to be ``humble``.
+   # ROS workspace
+   # note: if this path is relative, it is relative to the extension directory's root
+   ros_ws = "/home/user/catkin_ws"
 
-``apt`` deps are automatically installed this way during the build process of the ``Dockerfile.base``,
-and ``rosdep`` deps during the build process of ``Dockerfile.ros2``.
+These dependencies are installed using the ``install_deps.py`` script provided in the ``tools`` directory.
+To install all dependencies for all extensions, run the following command:
+
+.. code-block:: bash
+
+   # execute from the root of the repository
+   # the script expects the type of dependencies to install and the path to the extensions directory
+   # available types are: 'apt', 'rosdep' and 'all'
+   python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions
+
+.. note::
+   Currently, this script is automatically executed during the build process of the ``Dockerfile.base``
+   and ``Dockerfile.ros2``. This ensures that all the 'apt' and 'rosdep' dependencies are installed
+   before building the extensions respectively.
 
 
 Standalone applications
