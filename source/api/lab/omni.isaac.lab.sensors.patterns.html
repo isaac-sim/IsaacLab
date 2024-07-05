@@ -590,6 +590,17 @@ document.write(`
 </li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lidar-pattern">LiDAR Pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.lidar_pattern"><code class="docutils literal notranslate"><span class="pre">lidar_pattern()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.vertical_fov_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.horizontal_fov_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.horizontal_res</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -908,6 +919,74 @@ are not evenly spaced.</p>
 </dd></dl>
 
 </section>
+<section id="lidar-pattern">
+<h2>LiDAR Pattern<a class="headerlink" href="#lidar-pattern" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.lidar_pattern">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">lidar_pattern</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg" title="omni.isaac.lab.sensors.ray_caster.patterns.patterns_cfg.LidarPatternCfg"><span class="pre">patterns_cfg.LidarPatternCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.3)"><span class="pre">torch.Tensor</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.lidar_pattern" title="Permalink to this definition">#</a></dt>
+<dd><p>Lidar sensor pattern for ray casting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – The configuration instance for the pattern.</p></li>
+<li><p><strong>device</strong> – The device to create the pattern on.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The starting positions and directions of the rays.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.LidarPatternCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sensors.patterns.</span></span><span class="sig-name descname"><span class="pre">LidarPatternCfg</span></span><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Configuration for the LiDAR pattern for ray-casting.</p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels" title="omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels"><code class="xref py py-obj docutils literal notranslate"><span class="pre">channels</span></code></a></p></td>
+<td><p>Number of Channels (Beams).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range" title="omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_fov_range</span></code></a></p></td>
+<td><p>Vertical field of view range in degrees.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range" title="omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_fov_range</span></code></a></p></td>
+<td><p>Horizontal field of view range in degrees.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res" title="omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_res</span></code></a></p></td>
+<td><p>Horizontal resolution (in degrees).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels">
+<span class="sig-name descname"><span class="pre">channels</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of Channels (Beams). Determines the vertical resolution of the LiDAR sensor.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range">
+<span class="sig-name descname"><span class="pre">vertical_fov_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range" title="Permalink to this definition">#</a></dt>
+<dd><p>Vertical field of view range in degrees.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range">
+<span class="sig-name descname"><span class="pre">horizontal_fov_range</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range" title="Permalink to this definition">#</a></dt>
+<dd><p>Horizontal field of view range in degrees.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res">
+<span class="sig-name descname"><span class="pre">horizontal_res</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res" title="Permalink to this definition">#</a></dt>
+<dd><p>Horizontal resolution (in degrees).</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -992,6 +1071,17 @@ are not evenly spaced.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_fov"><code class="docutils literal notranslate"><span class="pre">BpearlPatternCfg.horizontal_fov</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.horizontal_res"><code class="docutils literal notranslate"><span class="pre">BpearlPatternCfg.horizontal_res</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.BpearlPatternCfg.vertical_ray_angles"><code class="docutils literal notranslate"><span class="pre">BpearlPatternCfg.vertical_ray_angles</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lidar-pattern">LiDAR Pattern</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.lidar_pattern"><code class="docutils literal notranslate"><span class="pre">lidar_pattern()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.channels"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.channels</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.vertical_fov_range"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.vertical_fov_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_fov_range"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.horizontal_fov_range</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.patterns.LidarPatternCfg.horizontal_res"><code class="docutils literal notranslate"><span class="pre">LidarPatternCfg.horizontal_res</span></code></a></li>
 </ul>
 </li>
 </ul>
