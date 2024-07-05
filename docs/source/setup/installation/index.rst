@@ -19,7 +19,7 @@ Installation Guide
 
 .. caution::
 
-   We have dropped support for Isaac Sim versions 2023.1.0 and below. We recommend using the latest
+   We have dropped support for Isaac Sim versions 2023.1.1 and below. We recommend using the latest
    Isaac Sim 4.0 release to benefit from the latest features and improvements.
 
    For more information, please refer to the

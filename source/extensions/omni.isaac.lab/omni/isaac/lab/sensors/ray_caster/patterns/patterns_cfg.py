@@ -122,3 +122,22 @@ class BpearlPatternCfg(PatternBaseCfg):
         We manually set the vertical ray angles to match the Bpearl sensor. The ray-angles
         are not evenly spaced.
     """
+
+
+@configclass
+class LidarPatternCfg(PatternBaseCfg):
+    """Configuration for the LiDAR pattern for ray-casting."""
+
+    func: Callable = patterns.lidar_pattern
+
+    channels: int = MISSING
+    """Number of Channels (Beams). Determines the vertical resolution of the LiDAR sensor."""
+
+    vertical_fov_range: tuple[float, float] = MISSING
+    """Vertical field of view range in degrees."""
+
+    horizontal_fov_range: tuple[float, float] = MISSING
+    """Horizontal field of view range in degrees."""
+
+    horizontal_res: float = MISSING
+    """Horizontal resolution (in degrees)."""
