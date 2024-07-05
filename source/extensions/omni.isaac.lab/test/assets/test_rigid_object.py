@@ -48,8 +48,7 @@ def generate_cubes_scene(
         device: Device to use for the simulation.
 
     Returns:
-        RigidObject: The rigid object representing the cubes.
-        origins: The origins of the cubes.
+        A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
@@ -93,6 +92,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Check that boundedness of rigid object is correct
@@ -122,6 +122,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, origins = generate_cubes_scene(
                             num_cubes=num_cubes, kinematic_enabled=True, device=device
                         )
@@ -157,6 +158,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False, device=device)
 
                         # Check that boundedness of rigid object is correct
@@ -178,6 +180,7 @@ class TestRigidObject(unittest.TestCase):
         for num_cubes in (2, 4):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
+                    # Generate cubes scene
                     with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
                         cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
@@ -239,6 +242,7 @@ class TestRigidObject(unittest.TestCase):
                     # Turn off gravity for this test as we don't want any external forces acting on the object
                     # to ensure state remains static
                     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
@@ -297,6 +301,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play the simulator
@@ -334,7 +339,7 @@ class TestRigidObject(unittest.TestCase):
                     with build_simulation_context(
                         device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
                     ) as sim:
-                        # Create rigid object(s)
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
                         # Play sim
@@ -369,6 +374,7 @@ class TestRigidObject(unittest.TestCase):
             for device in ("cuda:0", "cpu"):
                 with self.subTest(num_cubes=num_cubes, device=device):
                     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                        # Generate cubes scene
                         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
                         # Create ground plane with no friction
