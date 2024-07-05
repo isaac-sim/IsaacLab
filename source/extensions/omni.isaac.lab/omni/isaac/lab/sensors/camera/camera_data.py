@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from tensordict import TensorDict
 from typing import Any
 
-from .utils import convert_orientation_convention
+from omni.isaac.lab.utils.math import convert_orientation_convention
 
 
 @dataclass
