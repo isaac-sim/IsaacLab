@@ -11,12 +11,12 @@ import trimesh.transformations
 from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from omni.isaac.lab.sim import schemas
 from omni.isaac.lab.sim.utils import bind_physics_material, bind_visual_material, clone
 
-from ..materials import RigidBodyMaterialCfg, DeformableBodyMaterialCfg
+from ..materials import DeformableBodyMaterialCfg, RigidBodyMaterialCfg
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -297,7 +297,7 @@ def _spawn_mesh_geom_from_mesh(
     mesh_prim_path = geom_prim_path + "/mesh"
 
     # create the mesh prim
-    prim_utils.create_prim(
+    mesh_prim = prim_utils.create_prim(
         mesh_prim_path,
         prim_type="Mesh",
         translation=translation,
@@ -314,12 +314,24 @@ def _spawn_mesh_geom_from_mesh(
     # note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.
     #   this is different from rigid objects where we apply the properties to the parent prim.
     if cfg.deformable_props is not None:
-        # apply deformable body properties
-        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props)
         # apply mass properties
         if cfg.mass_props is not None:
             schemas.define_mass_properties(mesh_prim_path, cfg.mass_props)
+        # apply deformable body properties
+        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props)
     elif cfg.collision_props is not None:
+        # decide on type of collision approximation based on the mesh
+        if cfg.__class__.__name__ == "MeshSphereCfg":
+            collision_approximation = "boundingSphere"
+        elif cfg.__class__.__name__ == "MeshCuboidCfg":
+            collision_approximation = "boundingCube"
+        else:
+            # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
+            collision_approximation = "convexHull"
+        # apply collision approximation to mesh
+        # note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.
+        mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
+        mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
         # apply collision properties
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props)
 
@@ -346,9 +358,9 @@ def _spawn_mesh_geom_from_mesh(
         bind_physics_material(mesh_prim_path, material_path)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
-    # apply rigid properties
     if cfg.rigid_props is not None:
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
         # apply mass properties
         if cfg.mass_props is not None:
             schemas.define_mass_properties(prim_path, cfg.mass_props)
+        # apply rigid properties
+        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props)
