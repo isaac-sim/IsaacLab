@@ -304,7 +304,7 @@ while [[ $# -gt 0 ]]; do
             fi
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
-            
+
             # check if we are inside a docker container (in that case don't setup VSCode)
             if [ -f "/.dockerenv" ]; then
                 echo "[INFO] Running inside a docker container. Skipping VSCode settings setup."
