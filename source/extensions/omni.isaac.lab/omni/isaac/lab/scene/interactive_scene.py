@@ -174,29 +174,36 @@ class InteractiveScene:
         if self._default_env_origins is None:
             self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
 
-    def filter_collisions(self, global_prim_paths: list[str] = []):
+    def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
 
         Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
         in global prim paths (e.g. ground plane).
 
         Args:
-            global_prim_paths: The global prim paths to enable collisions with.
+            global_prim_paths: A list of global prim paths to enable collisions with.
         """
         # obtain the current physics scene
         physics_scene_prim_path = self.physics_scene_path
+
+        # validate paths in global prim paths
+        if global_prim_paths is None:
+            global_prim_paths = []
+        else:
+            # remove duplicates in paths
+            global_prim_paths = list(set(global_prim_paths))
+
+        # set global prim paths list if not previously defined
+        if len(self._global_prim_paths) < 1:
+            self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
         self.cloner.filter_collisions(
             physics_scene_prim_path,
             "/World/collisions",
             self.env_prim_paths,
-            global_paths=global_prim_paths,
+            global_paths=self._global_prim_paths,
         )
-
-        # set global prim paths list if not previously defined
-        if len(self._global_prim_paths) < 1:
-            self._global_prim_paths += global_prim_paths
 
     def __str__(self) -> str:
         """Returns a string representation of the scene."""
