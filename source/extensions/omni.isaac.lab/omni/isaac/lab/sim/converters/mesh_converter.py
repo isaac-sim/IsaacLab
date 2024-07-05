@@ -102,7 +102,7 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collision approximation to mesh
-                    # TODO: https://github.com/isaac-orbit/orbit/issues/163 Move this to a new Schema
+                    # TODO: Move this to a new Schema: https://github.com/isaac-orbit/IsaacLab/issues/163
                     mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(child_mesh_prim)
                     mesh_collision_api.GetApproximationAttr().Set(cfg.collision_approximation)
                     # -- Collider properties such as offset, scale, etc.
