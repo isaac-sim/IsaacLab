@@ -495,7 +495,6 @@ document.write(`
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">prettytable</span> <span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
@@ -642,25 +641,6 @@ document.write(`
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_physx_view</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Rigid body view for the asset (PhysX).</span>
-
-<span class="sd">        .. deprecated:: v0.3.0</span>
-
-<span class="sd">            In previous versions, this attribute returned the rigid body view over all the links of the articulation.</span>
-<span class="sd">            However, this led to confusion with the link ordering as they were not ordered in the same way as the</span>
-<span class="sd">            articulation view.</span>
-
-<span class="sd">            Therefore, this attribute will be removed in v0.4.0. Please use the :attr:`root_physx_view` attribute</span>
-<span class="sd">            instead.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dep_msg</span> <span class="o">=</span> <span class="s2">&quot;The attribute &#39;body_physx_view&#39; will be removed in v0.4.0. Please use &#39;root_physx_view&#39; instead.&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_physx_view</span>
-
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -680,16 +660,8 @@ document.write(`
 <span class="sd">        If any explicit actuators are present, then the actuator models are used to compute the</span>
 <span class="sd">        joint commands. Otherwise, the joint commands are directly set into the simulation.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># write external wrench</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span><span class="p">:</span>
-            <span class="c1"># apply external forces and torques</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_body_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
-                <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_body_view_b</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
-                <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_body_view_b</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
-                <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_BODY_INDICES</span><span class="p">,</span>
-                <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="p">)</span>
+        <span class="c1"># apply external forces and torques</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
 
         <span class="c1"># apply actuator models</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_actuator_model</span><span class="p">()</span>
@@ -747,24 +719,6 @@ document.write(`
         <span class="k">return</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names</span><span class="p">(</span><span class="n">name_keys</span><span class="p">,</span> <span class="n">tendon_subsets</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Operations - Setters.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="Articulation.set_external_force_and_torque"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_external_force_and_torque">[docs]</a>    <span class="k">def</span> <span class="nf">set_external_force_and_torque</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">forces</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-        <span class="n">torques</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
-        <span class="n">body_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">):</span>
-        <span class="c1"># call parent to set the external forces and torques into buffers</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">set_external_force_and_torque</span><span class="p">(</span><span class="n">forces</span><span class="p">,</span> <span class="n">torques</span><span class="p">,</span> <span class="n">body_ids</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span>
-        <span class="c1"># reordering of the external forces and torques to match the body view ordering</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_body_view_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_view_ordering</span><span class="p">]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_body_view_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_view_ordering</span><span class="p">]</span></div>
-
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - Writers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -818,6 +772,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -850,6 +805,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -880,6 +836,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -908,6 +865,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># move tensor to cpu if needed</span>
@@ -939,6 +897,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -966,6 +925,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -994,6 +954,7 @@ document.write(`
             <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set into internal buffers</span>
@@ -1024,6 +985,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
@@ -1048,6 +1010,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
@@ -1072,6 +1035,7 @@ document.write(`
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">joint_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">joint_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># broadcast env_ids if needed to allow double indexing</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="n">joint_ids</span> <span class="o">!=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
         <span class="c1"># set targets</span>
@@ -1307,24 +1271,6 @@ document.write(`
         <span class="n">root_prim_path_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span> <span class="o">+</span> <span class="n">root_prim_path</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">template_prim_path</span><span class="p">)</span> <span class="p">:]</span>
         <span class="c1"># -- articulation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_articulation_view</span><span class="p">(</span><span class="n">root_prim_path_expr</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
-        <span class="c1"># -- link views</span>
-        <span class="c1"># note: we use the root view to get the body names, but we use the body view to get the</span>
-        <span class="c1">#       actual data. This is mainly needed to apply external forces to the bodies.</span>
-        <span class="n">physx_body_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">link_names</span>
-        <span class="n">body_names_regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">physx_body_names</span><span class="p">)</span> <span class="o">+</span> <span class="sa">r</span><span class="s2">&quot;)&quot;</span>
-        <span class="n">body_names_regex</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">body_names_regex</span><span class="si">}</span><span class="s2">&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_body_physx_view</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span><span class="o">.</span><span class="n">create_rigid_body_view</span><span class="p">(</span><span class="n">body_names_regex</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
-
-        <span class="c1"># create ordering from articulation view to body view for body names</span>
-        <span class="c1"># note: we need to do this since the body view is not ordered in the same way as the articulation view</span>
-        <span class="c1"># -- root view</span>
-        <span class="n">root_view_body_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span>
-        <span class="c1"># -- body view</span>
-        <span class="n">prim_paths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_physx_view</span><span class="o">.</span><span class="n">prim_paths</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">]</span>
-        <span class="n">body_view_body_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">prim_paths</span><span class="p">]</span>
-        <span class="c1"># -- mapping from articulation view to body view</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_body_view_ordering</span> <span class="o">=</span> <span class="p">[</span><span class="n">root_view_body_names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">body_view_body_names</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_body_view_ordering</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_body_view_ordering</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
 
         <span class="c1"># log information about the articulation</span>
         <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Articulation initialized at: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">prim_path</span><span class="si">}</span><span class="s2"> with root &#39;</span><span class="si">{</span><span class="n">root_prim_path_expr</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
@@ -1334,9 +1280,6 @@ document.write(`
         <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of joints: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Joint names: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
         <span class="n">carb</span><span class="o">.</span><span class="n">log_info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of fixed tendons: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-        <span class="c1"># -- assert that parsing was successful</span>
-        <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">physx_body_names</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_names</span><span class="p">):</span>
-            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Failed to parse all bodies properly in the articulation.&quot;</span><span class="p">)</span>
 
         <span class="c1"># container for data access</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">ArticulationData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
