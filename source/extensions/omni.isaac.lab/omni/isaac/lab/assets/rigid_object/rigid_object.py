@@ -242,14 +242,17 @@ class RigidObject(AssetBase):
             # resolve all indices
             # -- env_ids
             if env_ids is None:
-                env_ids = self._ALL_INDICES
-            elif not isinstance(env_ids, torch.Tensor):
-                env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+                env_ids = slice(None)
+            # -- body_ids
+            if body_ids is None:
+                body_ids = slice(None)
+            # broadcast env_ids if needed to allow double indexing
+            if env_ids != slice(None) and body_ids != slice(None):
+                env_ids = env_ids[:, None]
 
             # set into internal buffers
-            # note: these are applied in the write_to_sim function
-            self._external_force_b[env_ids] = forces
-            self._external_torque_b[env_ids] = torques
+            self._external_force_b[env_ids, body_ids] = forces
+            self._external_torque_b[env_ids, body_ids] = torques
         else:
             self.has_external_wrench = False
 
