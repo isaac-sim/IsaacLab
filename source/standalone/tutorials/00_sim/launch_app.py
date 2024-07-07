@@ -59,34 +59,53 @@ def design_scene():
     cfg_light_distant.func("/World/lightDistant", cfg_light_distant, translation=(1, 0, 10))
 
     # spawn a cuboid
-    cfg_cuboid = sim_utils.CuboidCfg(
-        size=[args_cli.size] * 3,
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
-    )
-    # Spawn cuboid, altering translation on the z-axis to scale to its size
-    cfg_cuboid.func("/World/Objects/cuboid", cfg_cuboid, translation=(0.0, 0.0, args_cli.size / 2))
+    # no rigid body properties defined, penetrating this one!!!
+    # cfg_cuboid = sim_utils.CuboidCfg(
+    #     size=[args_cli.size] * 3,
+    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, max_depenetration_velocity=1),
+    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    #     physics_material=sim_utils.RigidBodyMaterialCfg(),
+    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+    # )
+    # # Spawn cuboid, altering translation on the z-axis to scale to its size
+    # cfg_cuboid.func("/World/Objects/cuboid", cfg_cuboid, translation=(0.0, 0.0, args_cli.size / 2))
+
+    # not penetrating, but cannot adjust size
+    # cube_cfg = sim_utils.UsdFileCfg(
+    #     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
+    #     rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    #     mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+    #     collision_props=sim_utils.CollisionPropertiesCfg(),
+    #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
+    # )
+    # cube_cfg.func("/World/Objects/cube", cube_cfg, translation=(0.0, 0.0, args_cli.size / 2))
 
     # -- multi-color cube
     # cfg_mc_cube = sim_utils.UsdFileCfg(usd_path=f"source/extensions/omni.isaac.lab_assets/data/Props/CubeMultiColor/cube_multicolor.usd")
     # cfg_mc_cube.func("/World/multicolor_cube", cfg_mc_cube)
 
-    cfg_chef_can = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned/002_master_chef_can.usd")
-    cfg_chef_can.func("/World/Objects/chef_can", cfg_chef_can, translation=(0.0, 0.0, 1.05))
+    cfg_cracker_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd")
+    cfg_cracker_box.func("/World/Objects/cracker_box", cfg_cracker_box, translation=(0, 0, 1.05))
 
-    cfg_cracker_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned/003_cracker_box.usd")
-    cfg_cracker_box.func("/World/Objects/cracker_box", cfg_cracker_box, translation=(0.2, 0.2, 1.05))
+    cfg_sugar_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd")
+    cfg_sugar_box.func("/World/Objects/sugar_box", cfg_sugar_box, translation=(0, 0.1, 1.05))
 
-    cfg_sugar_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned/004_sugar_box.usd")
-    cfg_sugar_box.func("/World/Objects/sugar_box", cfg_sugar_box, translation=(0.2, -0.2, 1.05))
-
-    cfg_tomato_soup_can = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned/005_tomato_soup_can.usd")
+    cfg_tomato_soup_can = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd")
     cfg_tomato_soup_can.func("/World/Objects/tomato_soup_can", cfg_tomato_soup_can, translation=(-0.2, -0.2, 1.05))
 
-    cfg_mustard_bottle = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned/006_mustard_bottle.usd")
+    cfg_mustard_bottle = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd")
     cfg_mustard_bottle.func("/World/Objects/mustard_bottle", cfg_mustard_bottle, translation=(-0.2, 0.2, 1.05))
 
-    # cfg_klt = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_BIN/small_KLT.usd")
-    # cfg_klt.func("/World/Objects/klt", cfg_klt, translation=(-1, 0, 0.5))
+    cube_cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        # collision_props=sim_utils.CollisionPropertiesCfg(),
+    )
+    cube_cfg.func("/World/Objects/cube", cube_cfg, translation=(0.0, 0.0, 1.55))
+
+    cfg_klt = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd")
+    cfg_klt.func("/World/Objects/klt", cfg_klt, translation=(0, 0, 0.56))
 
 
 def main():
