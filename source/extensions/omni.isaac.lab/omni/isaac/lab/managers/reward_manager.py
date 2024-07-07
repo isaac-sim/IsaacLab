@@ -213,6 +213,9 @@ class RewardManager(ManagerBase):
                     f"Weight for the term '{term_name}' is not of type float or int."
                     f" Received: '{type(term_cfg.weight)}'."
                 )
+            # skip terms with weight 0
+            if term_cfg.weight == 0.0:
+                continue
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=1)
             # add function to list
