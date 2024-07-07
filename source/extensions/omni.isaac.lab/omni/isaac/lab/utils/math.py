@@ -14,9 +14,6 @@ import torch
 import torch.nn.functional
 from typing import Literal
 
-import omni.isaac.core.utils.stage as stage_utils
-from pxr import UsdGeom
-
 """
 General
 """
@@ -1390,9 +1387,11 @@ def convert_orientation_convention(
 def create_rotation_matrix_from_view(
     eyes: torch.Tensor,
     targets: torch.Tensor,
+    up_axis: Literal["Y", "Z"] = "Z",
     device: str = "cpu",
 ) -> torch.Tensor:
-    """
+    """Compute the rotation matrix from world to view coordinates.
+
     This function takes a vector ''eyes'' which specifies the location
     of the camera in world coordinates and the vector ''targets'' which
     indicate the position of the object.
@@ -1407,6 +1406,7 @@ def create_rotation_matrix_from_view(
     Args:
         eyes: position of the camera in world coordinates
         targets: position of the object in world coordinates
+        up_axis: The up axis of the camera. Defaults to "Z".
 
     The vectors are broadcast against each other so they all have shape (N, 3).
 
@@ -1416,17 +1416,16 @@ def create_rotation_matrix_from_view(
     Reference:
     Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685)
     """
-    up_axis_token = stage_utils.get_stage_up_axis()
-    if up_axis_token == UsdGeom.Tokens.y:
-        up_axis = torch.tensor((0, 1, 0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
-    elif up_axis_token == UsdGeom.Tokens.z:
-        up_axis = torch.tensor((0, 0, 1), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+    if up_axis == "Y":
+        up_axis_vec = torch.tensor((0, 1, 0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+    elif up_axis == "Z":
+        up_axis_vec = torch.tensor((0, 0, 1), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
     else:
-        raise ValueError(f"Invalid up axis: {up_axis_token}")
+        raise ValueError(f"Invalid up axis: {up_axis}")
 
     # get rotation matrix in opengl format (-Z forward, +Y up)
     z_axis = -torch.nn.functional.normalize(targets - eyes, eps=1e-5)
-    x_axis = torch.nn.functional.normalize(torch.cross(up_axis, z_axis, dim=1), eps=1e-5)
+    x_axis = torch.nn.functional.normalize(torch.cross(up_axis_vec, z_axis, dim=1), eps=1e-5)
     y_axis = torch.nn.functional.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
     is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(dim=1, keepdim=True)
     if is_close.any():

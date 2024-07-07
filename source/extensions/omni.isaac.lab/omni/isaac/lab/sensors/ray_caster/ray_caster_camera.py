@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
+import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.sensors.camera import CameraData
@@ -217,9 +218,11 @@ class RayCasterCamera(RayCaster):
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # camera position and rotation in opengl convention
         orientations = math_utils.quat_from_matrix(
-            math_utils.create_rotation_matrix_from_view(eyes, targets, device=self._device)
+            math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis=up_axis, device=self._device)
         )
         self.set_world_poses(eyes, orientations, env_ids, convention="opengl")
 

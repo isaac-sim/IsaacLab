@@ -9,6 +9,7 @@ import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import omni.isaac.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
 from pxr import UsdPhysics
 
@@ -132,7 +133,6 @@ class IMU(SensorBase):
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         # store the poses
-        # note: we clone here because the obtained tensors are read-only
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos)
         self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat)
 
@@ -187,11 +187,14 @@ class IMU(SensorBase):
         # -- resolve the scales
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
         arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.shape[0], 1)
+        # get up axis of current stage
+        up_axis = stage_utils.get_stage_up_axis()
         # arrow-direction
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
                 self._data.pos_w,
                 self._data.pos_w + math_utils.quat_rotate(self._data.quat_w, self._data.lin_acc_b),
+                up_axis=up_axis,
                 device=self._device,
             )
         )
