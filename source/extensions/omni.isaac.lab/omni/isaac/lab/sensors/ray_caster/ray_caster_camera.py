@@ -10,9 +10,9 @@ from collections.abc import Sequence
 from tensordict import TensorDict
 from typing import TYPE_CHECKING, ClassVar, Literal
 
+import omni.isaac.core.utils.stage as stage_utils
 import omni.physics.tensors.impl.api as physx
 from omni.isaac.core.prims import XFormPrimView
-import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.sensors.camera import CameraData

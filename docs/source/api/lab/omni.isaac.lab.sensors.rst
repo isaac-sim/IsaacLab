@@ -31,6 +31,8 @@
     RayCasterCfg
     RayCasterCamera
     RayCasterCameraCfg
+    IMU
+    IMUCfg
 
 Sensor Base
 -----------
@@ -146,6 +148,20 @@ Ray-Cast Camera
     :show-inheritance:
 
 .. autoclass:: RayCasterCameraCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Inertia Measurement Unit
+------------------------
+
+.. autoclass:: IMU
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: IMUCfg
     :members:
     :inherited-members:
     :show-inheritance:

@@ -14,10 +14,10 @@ from tensordict import TensorDict
 from typing import TYPE_CHECKING, Any, Literal
 
 import carb
+import omni.isaac.core.utils.stage as stage_utils
 import omni.kit.commands
 import omni.usd
 from omni.isaac.core.prims import XFormPrimView
-import omni.isaac.core.utils.stage as stage_utils
 from pxr import UsdGeom
 
 import omni.isaac.lab.sim as sim_utils
