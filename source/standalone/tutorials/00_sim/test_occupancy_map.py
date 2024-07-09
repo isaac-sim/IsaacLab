@@ -4,7 +4,7 @@ from omni.isaac.lab.app import AppLauncher
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on creating an empty stage.")
-parser.add_argument("--size", type=float, default=1.0, help="Side-length of cuboid")
+parser.add_argument("--size", type=float, default=0.5, help="Side-length of cuboid")
 # parser.headless = True
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -18,10 +18,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import omni
-import sys
-sys.path.insert(0,'/home/frankie/git/isaac/IsaacLab/_isaac_sim/exts/omni.isaac.occupancy_map')
+# import sys
+# sys.path.insert(0,'/home/frankie/git/isaac/IsaacLab/_isaac_sim/exts/omni.isaac.occupancy_map')
 # print(sys.path)
-import omni
+from omni.isaac.core.utils.extensions import enable_extension
+enable_extension("omni.isaac.occupancy_map")
 from omni.isaac.occupancy_map.bindings import _occupancy_map
 
 import omni.isaac.lab.sim as sim_utils
@@ -49,7 +50,7 @@ def design_scene():
     #     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0)),
     # )
     # # Spawn cuboid, altering translation on the z-axis to scale to its size
-    # cfg_cuboid.func("/World/Objects/cuboid", cfg_cuboid, translation=(0, 0, args_cli.size / 2))
+    # cfg_cuboid.func("/World/Objects/cuboid", cfg_cuboid, translation=(0, 0, 1))
 
     cfg_cracker_box = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd", 
                                            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),)
