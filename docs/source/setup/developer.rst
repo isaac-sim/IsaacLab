@@ -41,11 +41,10 @@ To setup the IDE, please follow these instructions:
       :align: center
       :alt: VSCode Tasks
 
-If everything executes correctly, it should create a file
-``.python.env`` in the ``.vscode`` directory. The file contains the python
-paths to all the extensions provided by Isaac Sim and Omniverse. This helps
-in indexing all the python modules for intelligent suggestions while writing
-code.
+If everything executes correctly, it should create the following files:
+
+* ``.vscode/launch.json``: Contains the launch configurations for debugging python code.
+* ``.vscode/settings.json``: Contains the settings for the python interpreter and the python environment.
 
 For more information on VSCode support for Omniverse, please refer to the
 following links:
@@ -64,8 +63,7 @@ python executable provided by Omniverse. This is specified in the
 .. code-block:: json
 
    {
-      "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/kit/python/bin/python3",
-      "python.envFile": "${workspaceFolder}/.vscode/.python.env",
+      "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
    }
 
 If you want to use a different python interpreter (for instance, from your conda environment),
@@ -189,6 +187,51 @@ important to note that Omniverse also provides a similar
 `testing framework <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/104.0/guide/testing_exts_python.html>`__.
 However, it requires going through the build process and does not support testing of the python module in
 standalone applications.
+
+Extension Dependency Management
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Certain extensions may have dependencies which require installation of additional packages before the extension
+can be used. While Python dependencies are handled by the `setuptools <https://setuptools.readthedocs.io/en/latest/>`__
+package and specified in the ``setup.py`` file, non-Python dependencies such as `ROS <https://www.ros.org/>`__
+packages or `apt <https://en.wikipedia.org/wiki/APT_(software)>`__ packages are not handled by setuptools.
+To handle these dependencies, we have created an additional setup procedure described in the next section.
+
+There are two types of dependencies that can be specified in the ``extension.toml`` file
+under the ``isaac_lab_settings`` section:
+
+1. **apt_deps**: A list of apt packages that need to be installed. These are installed using the
+   `apt <https://ubuntu.com/server/docs/package-management>`__ package manager.
+2. **ros_ws**: The path to the ROS workspace that contains the ROS packages. These are installed using
+   the `rosdep <https://docs.ros.org/en/humble/Tutorials/Intermediate/Rosdep.html>`__ dependency manager.
+
+As an example, the following ``extension.toml`` file specifies the dependencies for the extension:
+
+.. code-block:: toml
+
+   [isaac_lab_settings]
+   # apt dependencies
+   apt_deps = ["libboost-all-dev"]
+
+   # ROS workspace
+   # note: if this path is relative, it is relative to the extension directory's root
+   ros_ws = "/home/user/catkin_ws"
+
+These dependencies are installed using the ``install_deps.py`` script provided in the ``tools`` directory.
+To install all dependencies for all extensions, run the following command:
+
+.. code-block:: bash
+
+   # execute from the root of the repository
+   # the script expects the type of dependencies to install and the path to the extensions directory
+   # available types are: 'apt', 'rosdep' and 'all'
+   python tools/install_deps.py all ${ISAACLAB_PATH}/source/extensions
+
+.. note::
+   Currently, this script is automatically executed during the build process of the ``Dockerfile.base``
+   and ``Dockerfile.ros2``. This ensures that all the 'apt' and 'rosdep' dependencies are installed
+   before building the extensions respectively.
+
 
 Standalone applications
 ~~~~~~~~~~~~~~~~~~~~~~~

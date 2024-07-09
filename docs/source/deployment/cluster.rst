@@ -17,7 +17,8 @@ convert the Isaac Lab Docker image into a singularity image and use it to submit
 .. attention::
 
     Cluster setup varies across different institutions. The following instructions have been
-    tested on the `ETH Zurich Euler`_ cluster, which uses the SLURM workload manager.
+    tested on the `ETH Zurich Euler`_ cluster (which uses the SLURM workload manager), and the
+    IIT Genoa Franklin cluster (which uses PBS workload manager).
 
     The instructions may need to be adapted for other clusters. If you have successfully
     adapted the instructions for another cluster, please consider contributing to the
@@ -59,7 +60,9 @@ Configuring the cluster parameters
 
 First, you need to configure the cluster-specific parameters in ``docker/.env.base`` file.
 The following describes the parameters that need to be configured:
-
+- ``CLUSTER_JOB_SCHEDULER``:
+  The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
+  PBS workload managers [SLURM | PBS].
 - ``CLUSTER_ISAAC_SIM_CACHE_DIR``:
   The directory on the cluster where the Isaac Sim cache is stored. This directory
   has to end on ``docker-isaac-sim``. This directory will be copied to the compute node
@@ -105,19 +108,25 @@ specified, the default profile ``base`` will be used.
   access by removing the flag in ``docker/container.sh``.
 
 
-Job Submission and Execution
-----------------------------
-
 Defining the job parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------
 
-The job parameters are defined inside the ``docker/cluster/submit_job.sh``.
+
+The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.
+
+- For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
+- For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
+
+For SLURM
+~~~~~~~~~
+
+The job parameters are defined inside the ``docker/cluster/submit_job_slurm.sh``.
 A typical SLURM operation requires specifying the number of CPUs and GPUs, the memory, and
 the time limit. For more information, please check the `SLURM documentation`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../docker/cluster/submit_job.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 12-19
   :linenos:
@@ -128,16 +137,32 @@ This is required to load assets from the Nucleus server. For some cluster archit
 must be loaded to allow internet access.
 
 For instance, on ETH Zurich Euler cluster, the ``eth_proxy`` module needs to be loaded. This can be done
-by adding the following line to the ``submit_job.sh`` script:
+by adding the following line to the ``submit_job_slurm.sh`` script:
 
-.. literalinclude:: ../../../docker/cluster/submit_job.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 3-5
   :linenos:
   :lineno-start: 3
 
+For PBS
+~~~~~~~
+
+The job parameters are defined inside the ``docker/cluster/submit_job_pbs.sh``.
+A typical PBS operation requires specifying the number of CPUs and GPUs, and the time limit. For more
+information, please check the `PBS Official Site`_.
+
+The default configuration is as follows:
+
+.. literalinclude:: ../../../docker/cluster/submit_job_pbs.sh
+  :language: bash
+  :lines: 11-17
+  :linenos:
+  :lineno-start: 11
+
+
 Submitting a job
-~~~~~~~~~~~~~~~~
+----------------
 
 To submit a job on the cluster, the following command can be used:
 
@@ -173,6 +198,7 @@ The above will, in addition, also render videos of the training progress and sto
 
 .. _Singularity: https://docs.sylabs.io/guides/2.6/user-guide/index.html
 .. _ETH Zurich Euler: https://scicomp.ethz.ch/wiki/Euler
+.. _PBS Official Site: https://openpbs.org/
 .. _apptainer: https://apptainer.org/
 .. _documentation: https://www.apptainer.org/docs/admin/main/installation.html#install-ubuntu-packages
 .. _SLURM documentation: https://www.slurm.schedmd.com/sbatch.html

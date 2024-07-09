@@ -3,31 +3,32 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Nvidia Dockerfiles: https://github.com/NVIDIA-Omniverse/IsaacSim-dockerfiles
-# Please check above link for license information.
+# This Dockerfile is used to build a Docker image for the Isaac Lab framework.
+#
+# It uses the pip package manager to install Isaac Sim and the Isaac Lab framework.
+#
+# To build the Docker image and run the Docker container, follow the steps below:
+#
+# 1. Build the Docker image:
+#       docker build -t isaac-lab-pip:latest -f docker/Dockerfile.pip .
+# 2. Run the Docker container:
+#       docker run -it --gpus all --rm --network=host --name isaac-lab -v $(pwd):/root/isaaclab isaac-lab-pip:latest
 
-# Base image
-ARG ISAACSIM_VERSION_ARG
-FROM nvcr.io/nvidia/isaac-sim:${ISAACSIM_VERSION_ARG} AS base
-ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
+# Base image: Ubuntu 22.04
+FROM ubuntu:22.04 AS base
 
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
 
 # Adds labels to the Dockerfile
 LABEL version="1.0"
-LABEL description="Dockerfile for building and running the Isaac Lab framework inside Isaac Sim container image."
+LABEL description="Dockerfile for building and running the Isaac Lab framework in Ubuntu 22.04 container image."
 
 # Arguments
-# Path to Isaac Sim root folder
-ARG ISAACSIM_ROOT_PATH_ARG
-ENV ISAACSIM_ROOT_PATH=${ISAACSIM_ROOT_PATH_ARG}
 # Path to the Isaac Lab directory
-ARG ISAACLAB_PATH_ARG
-ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
+ENV ISAACLAB_PATH=/root/isaaclab
 # Home dir of docker user, typically '/root'
-ARG DOCKER_USER_HOME_ARG
-ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ENV DOCKER_USER_HOME=/root
 
 # Set environment variables
 ENV LANG=C.UTF-8
@@ -46,21 +47,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the Isaac Lab directory (files to exclude are defined in .dockerignore)
-COPY ../ ${ISAACLAB_PATH}
-
-# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
-RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
-
-# Install apt dependencies for extensions that declare them in their extension.toml
-RUN --mount=type=cache,target=/var/cache/apt \
-    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source/extensions && \
-    apt -y autoremove && apt clean autoclean && \
-    rm -rf /var/lib/apt/lists/*
-
 # for singularity usage, have to create the directories that will binded
-RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
-    mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
+RUN mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/pip && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/nvidia/GLCache &&  \
     mkdir -p ${DOCKER_USER_HOME}/.nv/ComputeCache && \
@@ -78,6 +66,25 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
+# Install python3 and pip
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip && \
+    apt -y autoremove && apt clean autoclean && \
+    rm -rf /var/lib/apt/lists/*
+# Maintain python3 as the default python version
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+RUN update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+# Install python packages
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu118
+
+RUN pip install isaacsim-rl isaacsim-replicator isaacsim-extscache-physics isaacsim-extscache-kit-sdk isaacsim-extscache-kit isaacsim-app --extra-index-url https://pypi.nvidia.com
+
+# Mount the Isaac Lab directory (files to exclude are defined in .dockerignore)
+COPY ../ ${ISAACLAB_PATH}
+
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
@@ -86,11 +93,6 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc
 
 # make working directory as the Isaac Lab directory

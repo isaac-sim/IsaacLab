@@ -81,15 +81,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.common_step_counter = 0
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-
-        # setup the action and observation spaces for Gym
-        self._configure_gym_env_spaces()
-
-        # perform events at the start of the simulation
-        if "startup" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="startup")
-
-        # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -128,6 +119,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        # setup the action and observation spaces for Gym
+        self._configure_gym_env_spaces()
+        # perform events at the start of the simulation
+        if "startup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="startup")
 
     """
     Operations - MDP
@@ -154,6 +150,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         # process actions
         self.action_manager.process_action(action)
+
+        # check if we need to do rendering within the physics loop
+        # note: checked here once to avoid multiple checks within the loop
+        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+
         # perform physics stepping
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
@@ -161,11 +162,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.action_manager.apply_action()
             # set actions into simulator
             self.scene.write_data_to_sim()
-            render = self._sim_step_counter % self.cfg.sim.render_interval == 0 and (
-                self.sim.has_gui() or self.sim.has_rtx_sensors()
-            )
             # simulate
-            self.sim.step(render=render)
+            self.sim.step(render=False)
+            # render between steps only if the GUI or an RTX sensor needs it
+            # note: we assume the render interval to be the shortest accepted rendering interval.
+            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
+                self.sim.render()
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 

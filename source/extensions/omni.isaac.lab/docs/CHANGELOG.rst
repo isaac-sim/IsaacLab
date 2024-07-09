@@ -1,6 +1,55 @@
 Changelog
 ---------
 
+0.19.2 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics` to determine whether environment is homogeneous or heterogeneous.
+
+
+0.19.1 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a lidar pattern function :func:`~omni.isaac.lab.sensors.ray_caster.patterns.patterns.lidar_pattern` with
+  corresponding config :class:`~omni.isaac.lab.sensors.ray_caster.patterns_cfg.LidarPatternCfg`.
+
+
+0.19.0 (2024-07-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed parsing of articulations with nested rigid links while using the :class:`omni.isaac.lab.assets.Articulation`
+  class. Earlier, the class initialization failed when the articulation had nested rigid links since the rigid
+  links were not being parsed correctly by the PhysX view.
+
+Removed
+^^^^^^^
+
+* Removed the attribute :attr:`body_physx_view` from the :class:`omni.isaac.lab.assets.Articulation` and
+  :class:`omni.isaac.lab.assets.RigidObject` classes. These were causing confusions when used with articulation
+  view since the body names were not following the same ordering.
+* Dropped support for Isaac Sim 2023.1.1. The minimum supported version is now Isaac Sim 4.0.0.
+
+
+0.18.6 (2024-07-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the environment stepping logic. Earlier, the environments' rendering logic was updating the kit app which
+  would in turn step the physics :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval` times. Now, a render
+  call only does rendering and does not step the physics.
+
+
 0.18.5 (2024-06-26)
 ~~~~~~~~~~~~~~~~~~~
 

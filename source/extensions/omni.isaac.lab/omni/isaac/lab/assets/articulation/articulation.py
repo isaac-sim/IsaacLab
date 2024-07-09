@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -156,25 +155,6 @@ class Articulation(RigidObject):
         """
         return self._root_physx_view
 
-    @property
-    def body_physx_view(self) -> physx.RigidBodyView:
-        """Rigid body view for the asset (PhysX).
-
-        .. deprecated:: v0.3.0
-
-            In previous versions, this attribute returned the rigid body view over all the links of the articulation.
-            However, this led to confusion with the link ordering as they were not ordered in the same way as the
-            articulation view.
-
-            Therefore, this attribute will be removed in v0.4.0. Please use the :attr:`root_physx_view` attribute
-            instead.
-
-        """
-        dep_msg = "The attribute 'body_physx_view' will be removed in v0.4.0. Please use 'root_physx_view' instead."
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-        return self._body_physx_view
-
     """
     Operations.
     """
@@ -194,16 +174,8 @@ class Articulation(RigidObject):
         If any explicit actuators are present, then the actuator models are used to compute the
         joint commands. Otherwise, the joint commands are directly set into the simulation.
         """
-        # write external wrench
-        if self.has_external_wrench:
-            # apply external forces and torques
-            self._body_physx_view.apply_forces_and_torques_at_position(
-                force_data=self._external_force_body_view_b.view(-1, 3),
-                torque_data=self._external_torque_body_view_b.view(-1, 3),
-                position_data=None,
-                indices=self._ALL_BODY_INDICES,
-                is_global=False,
-            )
+        # apply external forces and torques
+        super().write_data_to_sim()
 
         # apply actuator models
         self._apply_actuator_model()
@@ -261,24 +233,6 @@ class Articulation(RigidObject):
         return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
-    Operations - Setters.
-    """
-
-    def set_external_force_and_torque(
-        self,
-        forces: torch.Tensor,
-        torques: torch.Tensor,
-        body_ids: Sequence[int] | slice | None = None,
-        env_ids: Sequence[int] | None = None,
-    ):
-        # call parent to set the external forces and torques into buffers
-        super().set_external_force_and_torque(forces, torques, body_ids, env_ids)
-        # reordering of the external forces and torques to match the body view ordering
-        if self.has_external_wrench:
-            self._external_force_body_view_b = self._external_force_b[:, self._body_view_ordering]
-            self._external_torque_body_view_b = self._external_torque_b[:, self._body_view_ordering]
-
-    """
     Operations - Writers.
     """
 
@@ -332,6 +286,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -364,6 +319,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -394,6 +350,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -422,6 +379,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # move tensor to cpu if needed
@@ -453,6 +411,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -480,6 +439,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -508,6 +468,7 @@ class Articulation(RigidObject):
             physx_env_ids = self._ALL_INDICES
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set into internal buffers
@@ -538,6 +499,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
@@ -562,6 +524,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
@@ -586,6 +549,7 @@ class Articulation(RigidObject):
             env_ids = slice(None)
         if joint_ids is None:
             joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
         if env_ids != slice(None) and joint_ids != slice(None):
             env_ids = env_ids[:, None]
         # set targets
@@ -821,24 +785,6 @@ class Articulation(RigidObject):
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
-        # -- link views
-        # note: we use the root view to get the body names, but we use the body view to get the
-        #       actual data. This is mainly needed to apply external forces to the bodies.
-        physx_body_names = self.root_physx_view.shared_metatype.link_names
-        body_names_regex = r"(" + "|".join(physx_body_names) + r")"
-        body_names_regex = f"{self.cfg.prim_path}/{body_names_regex}"
-        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex.replace(".*", "*"))
-
-        # create ordering from articulation view to body view for body names
-        # note: we need to do this since the body view is not ordered in the same way as the articulation view
-        # -- root view
-        root_view_body_names = self.body_names
-        # -- body view
-        prim_paths = self._body_physx_view.prim_paths[: self.num_bodies]
-        body_view_body_names = [path.split("/")[-1] for path in prim_paths]
-        # -- mapping from articulation view to body view
-        self._body_view_ordering = [root_view_body_names.index(name) for name in body_view_body_names]
-        self._body_view_ordering = torch.tensor(self._body_view_ordering, dtype=torch.long, device=self.device)
 
         # log information about the articulation
         carb.log_info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
@@ -848,9 +794,6 @@ class Articulation(RigidObject):
         carb.log_info(f"Number of joints: {self.num_joints}")
         carb.log_info(f"Joint names: {self.joint_names}")
         carb.log_info(f"Number of fixed tendons: {self.num_fixed_tendons}")
-        # -- assert that parsing was successful
-        if set(physx_body_names) != set(self.body_names):
-            raise RuntimeError("Failed to parse all bodies properly in the articulation.")
 
         # container for data access
         self._data = ArticulationData(self.root_physx_view, self.device)
