@@ -272,7 +272,12 @@ def clone(func: Callable) -> Callable:
         if len(prim_paths) > 1:
             cloner = Cloner()
             # clone the prim
-            cloner.clone(prim_paths[0], prim_paths[1:], replicate_physics=False, copy_from_source=cfg.copy_from_source)
+            cloner.clone(
+                prim_paths[0],
+                prim_paths[1:],
+                replicate_physics=False,
+                copy_from_source=cfg.copy_from_source if hasattr(cfg, "copy_from_source") else False,
+            )
         # return the source prim
         return prim
 
