@@ -16,6 +16,8 @@ import omni.kit.commands
 import omni.usd
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics
 
+from omni.isaac.lab.ui.widgets.ui_visualizer_mixin import UiVisualizerMixin
+
 if TYPE_CHECKING:
     import omni.ui
 
@@ -56,6 +58,9 @@ class BaseEnvWindow:
             *self.env.scene.rigid_objects.keys(),
             *self.env.scene.articulations.keys(),
         ]
+
+        # Listeners for environment selection changes
+        self._env_selection_listeners: list[UiVisualizerMixin] = []
 
         print("Creating window for environment.")
         # create window for UI
@@ -200,9 +205,6 @@ class BaseEnvWindow:
         that has it implemented. If the element does not have a debug visualization implemented,
         a label is created instead.
         """
-        # import omni.isaac.ui.ui_utils as ui_utils
-        # import omni.ui
-
         # create collapsable frame for debug visualization
         self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
             title="Scene Debug Visualization",
@@ -357,6 +359,9 @@ class BaseEnvWindow:
             raise ValueError("Viewport camera controller is not initialized! Please check the rendering mode.")
         # store the desired env index, UI is 1-indexed
         vcc.set_view_env_index(model.as_int - 1)
+        # notify additional listeners
+        for listener in self._env_selection_listeners:
+            listener.set_env_selection(model.as_int - 1)
 
     """
     Helper functions - UI building.
@@ -382,10 +387,23 @@ class BaseEnvWindow:
             self.ui_window_elements[f"{name}_cb"] = SimpleCheckBox(
                 model=omni.ui.SimpleBoolModel(),
                 enabled=elem.has_debug_vis_implementation,
-                checked=elem.cfg.debug_vis,
+                checked=(hasattr(elem.cfg, "debug_vis") and elem.cfg.debug_vis)
+                or (hasattr(elem, "debug_vis") and elem.debug_vis),
                 on_checked_fn=lambda value, e=weakref.proxy(elem): e.set_debug_vis(value),
             )
             omni.isaac.ui.ui_utils.add_line_rect_flourish()
+
+        if isinstance(elem, UiVisualizerMixin) and elem.has_window_implementation:
+            elem.set_window(self.ui_window)
+
+        # Create a panel for the debug visualization
+        if isinstance(elem, UiVisualizerMixin) and elem.has_vis_frame_implementation:
+            self.ui_window_elements[f"{name}_panel"] = omni.ui.Frame(width=omni.ui.Fraction(1))
+            elem.set_vis_frame(self.ui_window_elements[f"{name}_panel"])
+
+        # Add listener for environment selection changes
+        if isinstance(elem, UiVisualizerMixin) and elem.has_env_selection_implementation:
+            self._env_selection_listeners.append(elem)
 
     async def _dock_window(self, window_title: str):
         """Docks the custom UI window to the property window."""

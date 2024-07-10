@@ -36,3 +36,18 @@ class ManagerBasedRLEnvWindow(BaseEnvWindow):
                 with self.ui_window_elements["debug_vstack"]:
                     self._create_debug_vis_ui_element("commands", self.env.command_manager)
                     self._create_debug_vis_ui_element("actions", self.env.action_manager)
+
+                    # Add live-plots for manager terms
+                    self._create_debug_vis_ui_element("actions", self.env.action_manager)
+                    self._create_debug_vis_ui_element("observations", self.env.observation_manager)
+                    self._visualize_manager(title="rewards", class_name="reward_manager")
+                    self._visualize_manager(title="curriculum", class_name="curriculum_manager")
+                    self._visualize_manager(title="termination", class_name="termination_manager")
+
+    def _visualize_manager(self, title: str, class_name: str):
+        """Checks if the attribute with the name 'class_name' can be visualized. If yes, create vis interface."""
+
+        if hasattr(self.env, class_name):
+            manager = getattr(self.env, class_name)
+            if hasattr(manager, "has_debug_vis_implementation"):
+                self._create_debug_vis_ui_element(title, manager)

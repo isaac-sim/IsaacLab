@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
+from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
-class CurriculumManager(ManagerBase):
+class CurriculumManager(ManagerBase, ManagerLivePlotMixin):
     """Manager to implement and execute specific curricula.
 
     The curriculum manager updates various quantities of the environment subject to a training curriculum by
@@ -130,6 +131,35 @@ class CurriculumManager(ManagerBase):
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
             state = term_cfg.func(self._env, env_ids, **term_cfg.params)
             self._curriculum_state[name] = state
+
+    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        Returns:
+            The active terms.
+        """
+
+        terms = []
+
+        for term_name, term_state in self._curriculum_state.items():
+            if term_state is not None:
+                # deal with dict
+                data = []
+
+                if isinstance(term_state, dict):
+                    # each key is a separate state to log
+                    for key, value in term_state.items():
+                        if isinstance(value, torch.Tensor):
+                            value = value.item()
+                        terms[term_name].append(value)
+                else:
+                    # log directly if not a dict
+                    if isinstance(term_state, torch.Tensor):
+                        term_state = term_state.item()
+                    data.append(term_state)
+                terms.append((term_name, data))
+
+        return terms
 
     """
     Helper functions.

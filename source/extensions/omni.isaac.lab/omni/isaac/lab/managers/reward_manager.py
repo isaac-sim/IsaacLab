@@ -14,12 +14,13 @@ from typing import TYPE_CHECKING
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
+from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
 
 
-class RewardManager(ManagerBase):
+class RewardManager(ManagerBase, ManagerLivePlotMixin):
     """Manager for computing reward signals for a given world.
 
     The reward manager computes the total reward as a sum of the weighted reward terms. The reward
@@ -54,6 +55,9 @@ class RewardManager(ManagerBase):
             self._episode_sums[term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         # create buffer for managing reward per environment
         self._reward_buf = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+
+        # Buffer which stores the current step reward for each term for each environment
+        self._step_reward = torch.zeros((self.num_envs, len(self._term_names)), dtype=torch.float, device=self.device)
 
     def __str__(self) -> str:
         """Returns: A string representation for reward manager."""
@@ -142,6 +146,9 @@ class RewardManager(ManagerBase):
             # update episodic sum
             self._episode_sums[name] += value
 
+            # Update current reward for this step.
+            self._step_reward[:, self._term_names.index(name)] = value / dt
+
         return self._reward_buf
 
     """
@@ -179,6 +186,17 @@ class RewardManager(ManagerBase):
             raise ValueError(f"Reward term '{term_name}' not found.")
         # return the configuration
         return self._term_cfgs[self._term_names.index(term_name)]
+
+    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        Returns:
+            The active terms.
+        """
+        terms = []
+        for idx, name in enumerate(self._term_names):
+            terms.append((name, [self._step_reward[self._viewer_env_idx, idx].cpu().item()]))
+        return terms
 
     """
     Helper functions.

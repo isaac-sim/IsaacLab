@@ -21,6 +21,7 @@ from omni.isaac.lab.assets import AssetBase
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
+from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
@@ -160,7 +161,7 @@ class ActionTerm(ManagerTermBase):
         raise NotImplementedError(f"Debug visualization is not implemented for {self.__class__.__name__}.")
 
 
-class ActionManager(ManagerBase):
+class ActionManager(ManagerBase, ManagerLivePlotMixin):
     """Manager for processing and applying actions for a given world.
 
     The action manager handles the interpretation and application of user-defined
@@ -252,6 +253,20 @@ class ActionManager(ManagerBase):
     """
     Operations.
     """
+
+    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        Returns:
+            The active terms.
+        """
+        terms = []
+        idx = 0
+        for name, term in self._terms.items():
+            term_actions = self._action[self._viewer_env_idx, idx : idx + term.action_dim].cpu()
+            terms.append((name, term_actions.tolist()))
+            idx += term.action_dim
+        return terms
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the action data.

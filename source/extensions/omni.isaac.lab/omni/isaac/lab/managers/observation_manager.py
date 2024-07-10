@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+import numpy as np
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
@@ -17,12 +18,13 @@ from omni.isaac.lab.utils import modifiers
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from .ui_tools import ManagerLivePlotMixin
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv
 
 
-class ObservationManager(ManagerBase):
+class ObservationManager(ManagerBase, ManagerLivePlotMixin):
     """Manager for computing observation signals for a given world.
 
     Observations are organized into groups based on their intended usage. This allows having different observation
@@ -87,6 +89,9 @@ class ObservationManager(ManagerBase):
             else:
                 self._group_obs_dim[group_name] = group_term_dims
 
+        # Stores the latest observations.
+        self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
+
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
         msg = f"<ObservationManager> contains {len(self._group_obs_term_names)} groups.\n"
@@ -116,6 +121,40 @@ class ObservationManager(ManagerBase):
             msg += "\n"
 
         return msg
+
+    def get_active_iterable_terms(self) -> Sequence[tuple[str, Sequence[float]]]:
+        """Returns the active terms as iterable sequence of tuples.
+        The first element of the tuple is the name of the term and the second element is the raw value(s) of the term.
+        Returns:
+            The active terms.
+        """
+
+        terms = []
+
+        if self._obs_buffer is None:
+            self.compute()
+        obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] = self._obs_buffer
+
+        for group_name, _ in self._group_obs_dim.items():
+
+            if not self.group_obs_concatenate[group_name]:
+                for name, term in obs_buffer[group_name].items():
+                    terms.append((group_name + "-" + name, term[self._viewer_env_idx].cpu().tolist()))
+                continue
+
+            idx = 0
+            # add info for each term
+            data = obs_buffer[group_name]
+            for name, shape in zip(
+                self._group_obs_term_names[group_name],
+                self._group_obs_term_dim[group_name],
+            ):
+                data_length = np.prod(shape)
+                term = data[self._viewer_env_idx, idx : idx + data_length]
+                terms.append((group_name + "-" + name, term.cpu().tolist()))
+                idx += data_length
+
+        return terms
 
     """
     Properties.
@@ -194,6 +233,9 @@ class ObservationManager(ManagerBase):
         for group_name in self._group_obs_term_names:
             obs_buffer[group_name] = self.compute_group(group_name)
         # otherwise return a dict with observations of all groups
+
+        # Cache the observations.
+        self._obs_buffer = obs_buffer
         return obs_buffer
 
     def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
