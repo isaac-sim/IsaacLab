@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2024, The IsaacLab Project Developers.
 # All rights reserved.
 #
@@ -72,9 +77,9 @@ enable_extension("omni.isaac.benchmark.services")
 from omni.isaac.benchmark.services import BaseIsaacBenchmark
 
 task = args_cli.task if args_cli.task is not None else "untitled_task"
-seed = args_cli.seed 
+seed = args_cli.seed
 num_envs = args_cli.num_envs
-max_iterations = args_cli.max_iterations 
+max_iterations = args_cli.max_iterations
 
 # Create the benchmark
 benchmark = BaseIsaacBenchmark(
