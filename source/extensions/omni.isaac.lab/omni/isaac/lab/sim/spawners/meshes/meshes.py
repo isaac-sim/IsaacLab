@@ -134,7 +134,7 @@ def spawn_mesh_cylinder(
         transform = None
     # create a trimesh cylinder
     cylinder = trimesh.creation.cylinder(radius=cfg.radius, height=cfg.height, transform=transform)
-    # spawn the deformable cylinder as a mesh
+    # spawn the cylinder as a mesh
     _spawn_mesh_geom_from_mesh(prim_path, cfg, cylinder, translation, orientation)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
