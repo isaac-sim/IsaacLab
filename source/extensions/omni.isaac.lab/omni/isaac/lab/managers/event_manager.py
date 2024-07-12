@@ -295,7 +295,7 @@ class RandomizationManager(EventManager):
         renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.
     """
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the randomization manager.
 
         Args:
