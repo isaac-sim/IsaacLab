@@ -53,7 +53,7 @@ def spawn_mesh_sphere(
     """
     # create a trimesh sphere
     sphere = trimesh.creation.uv_sphere(radius=cfg.radius)
-    # spawn the deformable sphere as a mesh
+    # spawn the sphere as a mesh
     _spawn_mesh_geom_from_mesh(prim_path, cfg, sphere, translation, orientation)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
