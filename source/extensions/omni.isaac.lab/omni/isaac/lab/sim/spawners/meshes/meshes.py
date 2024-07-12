@@ -89,7 +89,7 @@ def spawn_mesh_cuboid(
         ValueError: If a prim already exists at the given path.
     """  # create a trimesh box
     box = trimesh.creation.box(cfg.size)
-    # spawn the deformable cuboid as a mesh
+    # spawn the cuboid as a mesh
     _spawn_mesh_geom_from_mesh(prim_path, cfg, box, translation, orientation, None)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
