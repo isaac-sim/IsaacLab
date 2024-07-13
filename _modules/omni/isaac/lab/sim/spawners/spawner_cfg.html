@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -585,6 +585,28 @@ document.write(`
 
 <span class="sd">    This adds the PhysxContactReporter API to all the rigid bodies in the given prim path and its children.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DeformableObjectSpawnerCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.DeformableObjectSpawnerCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DeformableObjectSpawnerCfg</span><span class="p">(</span><span class="n">SpawnerCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for spawning a deformable asset.</span>
+
+<span class="sd">    Unlike rigid objects, deformable objects are affected by forces and can deform when subjected to</span>
+<span class="sd">    external forces. This class is used to configure the properties of the deformable object.</span>
+
+<span class="sd">    Deformable bodies don&#39;t have a separate collision mesh. The collision mesh is the same as the visual mesh.</span>
+<span class="sd">    The collision properties such as rest and collision offsets are specified in the :attr:`deformable_props`.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        By default, all properties are set to None. This means that no properties will be added or modified</span>
+<span class="sd">        to the prim outside of the properties available by default when spawning the prim.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mass_props</span><span class="p">:</span> <span class="n">schemas</span><span class="o">.</span><span class="n">MassPropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mass properties.&quot;&quot;&quot;</span>
+
+    <span class="n">deformable_props</span><span class="p">:</span> <span class="n">schemas</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Deformable body properties.&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -632,7 +654,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

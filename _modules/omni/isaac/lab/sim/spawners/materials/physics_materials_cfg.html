@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -505,7 +505,7 @@ document.write(`
 <span class="sd">    Physics material are PhysX schemas that can be applied to a USD material prim to define the</span>
 <span class="sd">    physical properties related to the material. For example, the friction coefficient, restitution</span>
 <span class="sd">    coefficient, etc. For more information on physics material, please refer to the</span>
-<span class="sd">    `PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/class_px_base_material.html&gt;`_.</span>
+<span class="sd">    `PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/class_px_base_material.html&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">MISSING</span>
@@ -520,7 +520,7 @@ document.write(`
 
 <span class="sd">    Note:</span>
 <span class="sd">        The default values are the `default values used by PhysX 5</span>
-<span class="sd">        &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials&gt;`_.</span>
+<span class="sd">        &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#rigid-body-materials&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_rigid_body_material</span>
@@ -544,7 +544,7 @@ document.write(`
 
 <span class="sd">        When two physics materials with different combine modes collide, the combine mode with the higher</span>
 <span class="sd">        priority will be used. The priority order is provided `here</span>
-<span class="sd">        &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode&gt;`_.</span>
+<span class="sd">        &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">restitution_combine_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;average&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;multiply&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;average&quot;</span>
@@ -554,7 +554,7 @@ document.write(`
 
 <span class="sd">        When two physics materials with different combine modes collide, the combine mode with the higher</span>
 <span class="sd">        priority will be used. The priority order is provided `here</span>
-<span class="sd">        &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode&gt;`_.</span>
+<span class="sd">        &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/_build/physx/latest/struct_px_combine_mode.html#pxcombinemode&gt;`__.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">compliant_contact_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -569,6 +569,50 @@ document.write(`
 
 <span class="sd">    Irrelevant if compliant contacts are disabled when :obj:`compliant_contact_stiffness` is set to zero and</span>
 <span class="sd">    rigid contacts are active.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DeformableBodyMaterialCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.materials.DeformableBodyMaterialCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DeformableBodyMaterialCfg</span><span class="p">(</span><span class="n">PhysicsMaterialCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Physics material parameters for deformable bodies.</span>
+
+<span class="sd">    See :meth:`spawn_deformable_body_material` for more information.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        The default values are the `default values used by PhysX 5</span>
+<span class="sd">        &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/deformable-bodies.html#deformable-body-material&gt;`__.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">func</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="n">physics_materials</span><span class="o">.</span><span class="n">spawn_deformable_body_material</span>
+
+    <span class="n">density</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The material density. Defaults to None, in which case the simulation decides the default density.&quot;&quot;&quot;</span>
+
+    <span class="n">dynamic_friction</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.25</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The dynamic friction. Defaults to 0.25.&quot;&quot;&quot;</span>
+
+    <span class="n">youngs_modulus</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">50000000.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The Young&#39;s modulus, which defines the body&#39;s stiffness. Defaults to 50000000.0.</span>
+
+<span class="sd">    The Young&#39;s modulus is a measure of the material&#39;s ability to deform under stress. It is measured in Pascals (Pa).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">poissons_ratio</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.45</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The Poisson&#39;s ratio which defines the body&#39;s volume preservation. Defaults to 0.45.</span>
+
+<span class="sd">    The Poisson&#39;s ratio is a measure of the material&#39;s ability to expand in the lateral direction when compressed</span>
+<span class="sd">    in the axial direction. It is a dimensionless number between 0 and 0.5. Using a value of 0.5 will make the</span>
+<span class="sd">    material incompressible.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">elasticity_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.005</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The elasticity damping for the deformable material. Defaults to 0.005.&quot;&quot;&quot;</span>
+
+    <span class="n">damping_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The damping scale for the deformable material. Defaults to 1.0.</span>
+
+<span class="sd">    A scale of 1 corresponds to default damping. A value of 0 will only apply damping to certain motions leading</span>
+<span class="sd">    to special effects that look similar to water filled soft bodies.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
@@ -617,7 +661,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -588,7 +588,7 @@ document.write(`
                 <span class="c1"># Apply collider properties to mesh</span>
                 <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="c1"># -- Collision approximation to mesh</span>
-                    <span class="c1"># TODO: https://github.com/isaac-orbit/orbit/issues/163 Move this to a new Schema</span>
+                    <span class="c1"># TODO: Move this to a new Schema: https://github.com/isaac-orbit/IsaacLab/issues/163</span>
                     <span class="n">mesh_collision_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">child_mesh_prim</span><span class="p">)</span>
                     <span class="n">mesh_collision_api</span><span class="o">.</span><span class="n">GetApproximationAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">collision_approximation</span><span class="p">)</span>
                     <span class="c1"># -- Collider properties such as offset, scale, etc.</span>
@@ -761,7 +761,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

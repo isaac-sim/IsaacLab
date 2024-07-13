@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.sim.converters" href="omni.isaac.lab.sim.converters.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -630,6 +630,32 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.modify_fixed_tendon_properties"><code class="docutils literal notranslate"><span class="pre">modify_fixed_tendon_properties()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deformable-body">Deformable Body</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.deformable_enabled</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.kinematic_enabled</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.self_collision</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.self_collision_filter_distance</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.settling_threshold</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.sleep_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.sleep_threshold</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.solver_position_iteration_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.vertex_velocity_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.simulation_hexahedral_resolution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_remeshing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_force_conforming</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.contact_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.rest_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.max_depenetration_velocity</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.define_deformable_body_properties"><code class="docutils literal notranslate"><span class="pre">define_deformable_body_properties()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties"><code class="docutils literal notranslate"><span class="pre">modify_deformable_body_properties()</span></code></a></li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -664,8 +690,8 @@ properties cannot be set.</p>
 </ul>
 <p>Locally, the schemas are defined in the following files:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">_isaac_sim/kit/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">_isaac_sim/kit/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/PhysxSchema/schema.usda</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_isaac_sim/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_isaac_sim/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/generatedSchema.usda</span></code></p></li>
 </ul>
 <p class="rubric">Classes</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
@@ -687,6 +713,9 @@ properties cannot be set.</p>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg" title="omni.isaac.lab.sim.schemas.FixedTendonPropertiesCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FixedTendonPropertiesCfg</span></code></a></p></td>
 <td><p>Properties to define fixed tendons of an articulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg</span></code></a></p></td>
+<td><p>Properties to apply to a deformable body.</p></td>
 </tr>
 </tbody>
 </table>
@@ -726,6 +755,12 @@ properties cannot be set.</p>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.modify_fixed_tendon_properties" title="omni.isaac.lab.sim.schemas.modify_fixed_tendon_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_fixed_tendon_properties</span></code></a>(prim_path, cfg)</p></td>
 <td><p>Modify PhysX parameters for a fixed tendon attachment prim.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.define_deformable_body_properties" title="omni.isaac.lab.sim.schemas.define_deformable_body_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_deformable_body_properties</span></code></a>(prim_path, cfg)</p></td>
+<td><p>Apply the deformable body schema on the input prim and set its properties.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties" title="omni.isaac.lab.sim.schemas.modify_deformable_body_properties"><code class="xref py py-obj docutils literal notranslate"><span class="pre">modify_deformable_body_properties</span></code></a>(prim_path, cfg)</p></td>
+<td><p>Modify PhysX parameters for a deformable body prim.</p></td>
 </tr>
 </tbody>
 </table>
@@ -850,7 +885,7 @@ current stage is used.</p></li>
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.modify_articulation_root_properties">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">modify_articulation_root_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.schemas.ArticulationRootPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.ArticulationRootPropertiesCfg"><span class="pre">schemas_cfg.ArticulationRootPropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/schemas/schemas.html#modify_articulation_root_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.schemas.modify_articulation_root_properties" title="Permalink to this definition">#</a></dt>
 <dd><p>Modify PhysX parameters for an articulation root prim.</p>
-<p>The <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Articulations.html">articulation root</a> marks the root of an articulation tree. For floating articulations, this should be on
+<p>The <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Articulations.html">articulation root</a> marks the root of an articulation tree. For floating articulations, this should be on
 the root body. For fixed articulations, this API can be on a direct or indirect parent of the root joint
 which is fixed to the world.</p>
 <p>The schema comprises of attributes that belong to the <a class="reference external" href="https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html">ArticulationRootAPI</a> and <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html">PhysxArticulationAPI</a>.
@@ -1074,7 +1109,7 @@ current stage is used.</p></li>
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.modify_rigid_body_properties">
 <span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">modify_rigid_body_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.schemas.RigidBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.RigidBodyPropertiesCfg"><span class="pre">schemas_cfg.RigidBodyPropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/schemas/schemas.html#modify_rigid_body_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.schemas.modify_rigid_body_properties" title="Permalink to this definition">#</a></dt>
 <dd><p>Modify PhysX parameters for a rigid body prim.</p>
-<p>A <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyOverview.html">rigid body</a> is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
+<p>A <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/RigidBodyOverview.html">rigid body</a> is a single body that can be simulated by PhysX. It can be either dynamic or kinematic.
 A dynamic body responds to forces and collisions. A <a class="reference external" href="https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies">kinematic body</a> can be moved by the user, but does not
 respond to forces. They are similar to having static bodies that can be moved around.</p>
 <p>The schema comprises of attributes that belong to the <a class="reference external" href="https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html">RigidBodyAPI</a> and <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html">PhysxRigidBodyAPI</a>.
@@ -1226,7 +1261,7 @@ current stage is used.</p></li>
 For more information on the properties, please refer to the official documentation.</p>
 <p>Tuning these parameters influence the contact behavior of the rigid body. For more information on
 tune them and their effect on the simulation, please refer to the
-<a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html">PhysX documentation</a>.</p>
+<a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html">PhysX documentation</a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This function is decorated with <code class="xref py py-func docutils literal notranslate"><span class="pre">apply_nested()</span></code> that sets the properties to all the prims
@@ -1521,6 +1556,304 @@ current stage is used.</p></li>
 </dd></dl>
 
 </section>
+<section id="deformable-body">
+<h2>Deformable Body<a class="headerlink" href="#deformable-body" title="Permalink to this heading">#</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">DeformableBodyPropertiesCfg</span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/schemas/schemas_cfg.html#DeformableBodyPropertiesCfg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="Permalink to this definition">#</a></dt>
+<dd><p>Properties to apply to a deformable body.</p>
+<p>A deformable body is a body that can deform under forces. The configuration allows users to specify
+the properties of the deformable body, such as the solver iteration counts, damping, and self-collision.</p>
+<p>An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh
+is used for collision detection and the simulation mesh is used for simulation. The collision mesh is usually
+a simplified version of the simulation mesh.</p>
+<p>Based on the above, the PhysX team provides APIs to either set the simulation and collision mesh directly
+(by specifying the points) or to simplify the collision mesh based on the simulation mesh. The simplification
+process involves remeshing the collision mesh and simplifying it based on the target triangle count.</p>
+<p>Since specifying the collision mesh points directly is not a common use case, we only expose the parameters
+to simplify the collision mesh based on the simulation mesh. If you want to provide the collision mesh points,
+please open an issue on the repository and we can add support for it.</p>
+<p>See <a class="reference internal" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties" title="omni.isaac.lab.sim.schemas.modify_deformable_body_properties"><code class="xref py py-meth docutils literal notranslate"><span class="pre">modify_deformable_body_properties()</span></code></a> for more information.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the values are <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>, they are not modified. This is useful when you want to set only a subset of
+the properties and leave the rest as-is.</p>
+</div>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled"><code class="xref py py-obj docutils literal notranslate"><span class="pre">deformable_enabled</span></code></a></p></td>
+<td><p>Enables deformable body.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled"><code class="xref py py-obj docutils literal notranslate"><span class="pre">kinematic_enabled</span></code></a></p></td>
+<td><p>Enables kinematic body.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision</span></code></a></p></td>
+<td><p>Whether to enable or disable self-collisions for the deformable body based on the rest position distances.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">self_collision_filter_distance</span></code></a></p></td>
+<td><p>Penetration value that needs to get exceeded before contacts for self collision are generated.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">settling_threshold</span></code></a></p></td>
+<td><p>Threshold vertex velocity (in m/s) under which sleep damping is applied in addition to velocity damping.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleep_damping</span></code></a></p></td>
+<td><p>Coefficient for the additional damping term if fertex velocity drops below setting threshold.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sleep_threshold</span></code></a></p></td>
+<td><p>The velocity threshold (in m/s) under which the vertex becomes a candidate for sleeping in the next step.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solver_position_iteration_count</span></code></a></p></td>
+<td><p>Number of the solver positional iterations per step.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertex_velocity_damping</span></code></a></p></td>
+<td><p>Coefficient for artificial damping on the vertex velocity.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">simulation_hexahedral_resolution</span></code></a></p></td>
+<td><p>The target resolution for the hexahedral mesh used for simulation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_simplification</span></code></a></p></td>
+<td><p>Whether or not to simplify the collision mesh before creating a soft body out of it.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_simplification_remeshing</span></code></a></p></td>
+<td><p>Whether or not the collision mesh should be remeshed before simplification.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_simplification_remeshing_resolution</span></code></a></p></td>
+<td><p>The resolution used for remeshing.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_simplification_target_triangle_count</span></code></a></p></td>
+<td><p>The target triangle count used for the simplification.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming"><code class="xref py py-obj docutils literal notranslate"><span class="pre">collision_simplification_force_conforming</span></code></a></p></td>
+<td><p>Whether or not the simplification should force the output mesh to conform to the input mesh.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">contact_offset</span></code></a></p></td>
+<td><p>Contact offset for the collision shape (in m).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rest_offset</span></code></a></p></td>
+<td><p>Rest offset for the collision shape (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_depenetration_velocity</span></code></a></p></td>
+<td><p>Maximum depenetration velocity permitted to be introduced by the solver (in m/s).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled">
+<span class="sig-name descname"><span class="pre">deformable_enabled</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables deformable body.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled">
+<span class="sig-name descname"><span class="pre">kinematic_enabled</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled" title="Permalink to this definition">#</a></dt>
+<dd><p>Enables kinematic body. Defaults to False, which means that the body is not kinematic.</p>
+<p>Similar to rigid bodies, this allows setting user-driven motion for the deformable body. For more information,
+please refer to the <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html#kinematic-soft-bodies">documentation</a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision">
+<span class="sig-name descname"><span class="pre">self_collision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether to enable or disable self-collisions for the deformable body based on the rest position distances.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance">
+<span class="sig-name descname"><span class="pre">self_collision_filter_distance</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance" title="Permalink to this definition">#</a></dt>
+<dd><p>Penetration value that needs to get exceeded before contacts for self collision are generated.</p>
+<p>This parameter must be greater than of equal to twice the <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset"><code class="xref py py-attr docutils literal notranslate"><span class="pre">rest_offset</span></code></a> value.</p>
+<p>This value has an effect only if <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision"><code class="xref py py-attr docutils literal notranslate"><span class="pre">self_collision</span></code></a> is enabled.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold">
+<span class="sig-name descname"><span class="pre">settling_threshold</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold" title="Permalink to this definition">#</a></dt>
+<dd><p>Threshold vertex velocity (in m/s) under which sleep damping is applied in addition to velocity damping.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping">
+<span class="sig-name descname"><span class="pre">sleep_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Coefficient for the additional damping term if fertex velocity drops below setting threshold.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold">
+<span class="sig-name descname"><span class="pre">sleep_threshold</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold" title="Permalink to this definition">#</a></dt>
+<dd><p>The velocity threshold (in m/s) under which the vertex becomes a candidate for sleeping in the next step.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count">
+<span class="sig-name descname"><span class="pre">solver_position_iteration_count</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count" title="Permalink to this definition">#</a></dt>
+<dd><p>Number of the solver positional iterations per step. Range is [1,255]</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping">
+<span class="sig-name descname"><span class="pre">vertex_velocity_damping</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping" title="Permalink to this definition">#</a></dt>
+<dd><p>Coefficient for artificial damping on the vertex velocity.</p>
+<p>This parameter can be used to approximate the effect of air drag on the deformable body.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution">
+<span class="sig-name descname"><span class="pre">simulation_hexahedral_resolution</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution" title="Permalink to this definition">#</a></dt>
+<dd><p>The target resolution for the hexahedral mesh used for simulation. Defaults to 10.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This value is ignored if the user provides the simulation mesh points directly. However, we assume that
+most users will not provide the simulation mesh points directly. If you want to provide the simulation mesh
+directly, please set this value to <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification">
+<span class="sig-name descname"><span class="pre">collision_simplification</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether or not to simplify the collision mesh before creating a soft body out of it. Defaults to True.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This flag is ignored if the user provides the simulation mesh points directly. However, we assume that
+most users will not provide the simulation mesh points directly. Hence, this flag is enabled by default.</p>
+<p>If you want to provide the simulation mesh points directly, please set this flag to False.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing">
+<span class="sig-name descname"><span class="pre">collision_simplification_remeshing</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether or not the collision mesh should be remeshed before simplification. Defaults to True.</p>
+<p>This parameter is ignored if <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="xref py py-attr docutils literal notranslate"><span class="pre">collision_simplification</span></code></a> is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution">
+<span class="sig-name descname"><span class="pre">collision_simplification_remeshing_resolution</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution" title="Permalink to this definition">#</a></dt>
+<dd><p>The resolution used for remeshing. Defaults to 0, which means that a heuristic is used to determine the
+resolution.</p>
+<p>This parameter is ignored if <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing"><code class="xref py py-attr docutils literal notranslate"><span class="pre">collision_simplification_remeshing</span></code></a> is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count">
+<span class="sig-name descname"><span class="pre">collision_simplification_target_triangle_count</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count" title="Permalink to this definition">#</a></dt>
+<dd><p>The target triangle count used for the simplification. Defaults to 0, which means that a heuristic based on
+the <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution"><code class="xref py py-attr docutils literal notranslate"><span class="pre">simulation_hexahedral_resolution</span></code></a> is used to determine the target count.</p>
+<p>This parameter is ignored if <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="xref py py-attr docutils literal notranslate"><span class="pre">collision_simplification</span></code></a> is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming">
+<span class="sig-name descname"><span class="pre">collision_simplification_force_conforming</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming" title="Permalink to this definition">#</a></dt>
+<dd><p>Whether or not the simplification should force the output mesh to conform to the input mesh. Defaults to True.</p>
+<p>The flag indicates that the tretrahedralizer used to generate the collision mesh should produce tetrahedra
+that conform to the triangle mesh. If False, the simplifier uses the output from the tretrahedralizer used.</p>
+<p>This parameter is ignored if <a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification" title="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="xref py py-attr docutils literal notranslate"><span class="pre">collision_simplification</span></code></a> is False.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset">
+<span class="sig-name descname"><span class="pre">contact_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Contact offset for the collision shape (in m).</p>
+<p>The collision detector generates contact points as soon as two shapes get closer than the sum of their
+contact offsets. This quantity should be non-negative which means that contact generation can potentially start
+before the shapes actually penetrate.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset">
+<span class="sig-name descname"><span class="pre">rest_offset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset" title="Permalink to this definition">#</a></dt>
+<dd><p>Rest offset for the collision shape (in m).</p>
+<p>The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
+vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
+offset, the shapes will be separated at rest by an air gap.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity">
+<span class="sig-name descname"><span class="pre">max_depenetration_velocity</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity" title="Permalink to this definition">#</a></dt>
+<dd><p>Maximum depenetration velocity permitted to be introduced by the solver (in m/s).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.define_deformable_body_properties">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">define_deformable_body_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.DeformableBodyPropertiesCfg"><span class="pre">schemas_cfg.DeformableBodyPropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/schemas/schemas.html#define_deformable_body_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.schemas.define_deformable_body_properties" title="Permalink to this definition">#</a></dt>
+<dd><p>Apply the deformable body schema on the input prim and set its properties.</p>
+<p>See <a class="reference internal" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties" title="omni.isaac.lab.sim.schemas.modify_deformable_body_properties"><code class="xref py py-func docutils literal notranslate"><span class="pre">modify_deformable_body_properties()</span></code></a> for more details on how the properties are set.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the input prim is not a mesh, this function will traverse the prim and find the first mesh
+under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable
+body schema can only be applied to a single mesh.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prim_path</strong> – The prim path where to apply the deformable body schema.</p></li>
+<li><p><strong>cfg</strong> – The configuration for the deformable body.</p></li>
+<li><p><strong>stage</strong> – The stage where to find the prim. Defaults to None, in which case the
+current stage is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the prim path is not valid.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – When the prim has no mesh or multiple meshes.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.schemas.modify_deformable_body_properties">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.sim.schemas.</span></span><span class="sig-name descname"><span class="pre">modify_deformable_body_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prim_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg" title="omni.isaac.lab.sim.schemas.schemas_cfg.DeformableBodyPropertiesCfg"><span class="pre">schemas_cfg.DeformableBodyPropertiesCfg</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Usd.Stage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/sim/schemas/schemas.html#modify_deformable_body_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties" title="Permalink to this definition">#</a></dt>
+<dd><p>Modify PhysX parameters for a deformable body prim.</p>
+<p>A <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html">deformable body</a> is a single body that can be simulated by PhysX. Unlike rigid bodies, deformable bodies
+support relative motion of the nodes in the mesh. Consequently, they can be used to simulate deformations
+under applied forces.</p>
+<p>PhysX soft body simulation employs Finite Element Analysis (FEA) to simulate the deformations of the mesh.
+It uses two tetrahedral meshes to represent the deformable body:</p>
+<ol class="arabic simple">
+<li><p><strong>Simulation mesh</strong>: This mesh is used for the simulation and is the one that is deformed by the solver.</p></li>
+<li><p><strong>Collision mesh</strong>: This mesh only needs to match the surface of the simulation mesh and is used for
+collision detection.</p></li>
+</ol>
+<p>For most applications, we assume that the above two meshes are computed from the “render mesh” of the deformable
+body. The render mesh is the mesh that is visible in the scene and is used for rendering purposes. It is composed
+of triangles and is the one that is used to compute the above meshes based on PhysX cookings.</p>
+<p>The schema comprises of attributes that belong to the <a class="reference external" href="https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html">PhysxDeformableBodyAPI</a>. schemas containing the PhysX
+parameters for the deformable body.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The deformable body schema is still under development by the Omniverse team. The current implementation
+works with the PhysX schemas shipped with Isaac Sim 4.0.0. It may change in future releases.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This function is decorated with <code class="xref py py-func docutils literal notranslate"><span class="pre">apply_nested()</span></code> that sets the properties to all the prims
+(that have the schema applied on them) under the input prim path.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prim_path</strong> – The prim path to the deformable body.</p></li>
+<li><p><strong>cfg</strong> – The configuration for the deformable body.</p></li>
+<li><p><strong>stage</strong> – The stage where to find the prim. Defaults to None, in which case the
+current stage is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if the properties were successfully set, False otherwise.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 </section>
 
 
@@ -1651,6 +1984,32 @@ current stage is used.</p></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.modify_fixed_tendon_properties"><code class="docutils literal notranslate"><span class="pre">modify_fixed_tendon_properties()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#deformable-body">Deformable Body</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.deformable_enabled"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.deformable_enabled</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.kinematic_enabled"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.kinematic_enabled</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.self_collision</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.self_collision_filter_distance"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.self_collision_filter_distance</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.settling_threshold"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.settling_threshold</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_damping"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.sleep_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.sleep_threshold"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.sleep_threshold</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.solver_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.solver_position_iteration_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.vertex_velocity_damping"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.vertex_velocity_damping</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.simulation_hexahedral_resolution"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.simulation_hexahedral_resolution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_remeshing</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_remeshing_resolution</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_target_triangle_count</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.collision_simplification_force_conforming"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.collision_simplification_force_conforming</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.contact_offset"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.contact_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.rest_offset"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.rest_offset</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg.max_depenetration_velocity"><code class="docutils literal notranslate"><span class="pre">DeformableBodyPropertiesCfg.max_depenetration_velocity</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.define_deformable_body_properties"><code class="docutils literal notranslate"><span class="pre">define_deformable_body_properties()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.schemas.modify_deformable_body_properties"><code class="docutils literal notranslate"><span class="pre">modify_deformable_body_properties()</span></code></a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 
@@ -1684,7 +2043,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

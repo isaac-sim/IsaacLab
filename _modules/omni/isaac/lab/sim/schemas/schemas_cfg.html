@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -507,16 +507,22 @@ document.write(`
 
     <span class="n">articulation_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable articulation.&quot;&quot;&quot;</span>
+
     <span class="n">enabled_self_collisions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable self-collisions.&quot;&quot;&quot;</span>
+
     <span class="n">solver_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Solver position iteration counts for the body.&quot;&quot;&quot;</span>
+
     <span class="n">solver_velocity_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Solver position iteration counts for the body.&quot;&quot;&quot;</span>
+
     <span class="n">sleep_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Mass-normalized kinetic energy threshold below which an actor may go to sleep.&quot;&quot;&quot;</span>
+
     <span class="n">stabilization_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization.&quot;&quot;&quot;</span>
+
     <span class="n">fix_root_link</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to fix the root link of the articulation.</span>
 
@@ -544,6 +550,7 @@ document.write(`
 
     <span class="n">rigid_body_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable the rigid body.&quot;&quot;&quot;</span>
+
     <span class="n">kinematic_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Determines whether the body is kinematic or not.</span>
 
@@ -552,30 +559,43 @@ document.write(`
 
 <span class="sd">    For more information on kinematic bodies, please refer to the `documentation &lt;https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies&gt;`_.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">disable_gravity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Disable gravity for the actor.&quot;&quot;&quot;</span>
+
     <span class="n">linear_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Linear damping for the body.&quot;&quot;&quot;</span>
+
     <span class="n">angular_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Angular damping for the body.&quot;&quot;&quot;</span>
+
     <span class="n">max_linear_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum linear velocity for rigid bodies (in m/s).&quot;&quot;&quot;</span>
+
     <span class="n">max_angular_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum angular velocity for rigid bodies (in deg/s).&quot;&quot;&quot;</span>
+
     <span class="n">max_depenetration_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum depenetration velocity permitted to be introduced by the solver (in m/s).&quot;&quot;&quot;</span>
+
     <span class="n">max_contact_impulse</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The limit on the impulse that may be applied at a contact.&quot;&quot;&quot;</span>
+
     <span class="n">enable_gyroscopic_forces</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables computation of gyroscopic forces on the rigid body.&quot;&quot;&quot;</span>
+
     <span class="n">retain_accelerations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Carries over forces/accelerations over sub-steps.&quot;&quot;&quot;</span>
+
     <span class="n">solver_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Solver position iteration counts for the body.&quot;&quot;&quot;</span>
+
     <span class="n">solver_velocity_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Solver position iteration counts for the body.&quot;&quot;&quot;</span>
+
     <span class="n">sleep_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Mass-normalized kinetic energy threshold below which an actor may go to sleep.&quot;&quot;&quot;</span>
+
     <span class="n">stabilization_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The mass-normalized kinetic energy threshold below which an actor may participate in stabilization.&quot;&quot;&quot;</span></div>
 
@@ -593,6 +613,7 @@ document.write(`
 
     <span class="n">collision_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable collisions.&quot;&quot;&quot;</span>
+
     <span class="n">contact_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Contact offset for the collision shape (in m).</span>
 
@@ -600,6 +621,7 @@ document.write(`
 <span class="sd">    contact offsets. This quantity should be non-negative which means that contact generation can potentially start</span>
 <span class="sd">    before the shapes actually penetrate.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">rest_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Rest offset for the collision shape (in m).</span>
 
@@ -607,12 +629,14 @@ document.write(`
 <span class="sd">    vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest</span>
 <span class="sd">    offset, the shapes will be separated at rest by an air gap.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">torsional_patch_radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Radius of the contact patch for applying torsional friction (in m).</span>
 
 <span class="sd">    It is used to approximate rotational friction introduced by the compression of contacting surfaces.</span>
 <span class="sd">    If the radius is zero, no torsional friction is applied.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">min_torsional_patch_radius</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimum radius of the contact patch for applying torsional friction (in m).&quot;&quot;&quot;</span></div>
 
@@ -634,6 +658,7 @@ document.write(`
 <span class="sd">    Note:</span>
 <span class="sd">        If non-zero, the mass is ignored and the density is used to compute the mass.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">density</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The density of the rigid body (in kg/m^3).</span>
 
@@ -674,20 +699,158 @@ document.write(`
 
     <span class="n">tendon_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable the tendon.&quot;&quot;&quot;</span>
+
     <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Spring stiffness term acting on the tendon&#39;s length.&quot;&quot;&quot;</span>
+
     <span class="n">damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;The damping term acting on both the tendon length and the tendon-length limits.&quot;&quot;&quot;</span>
+
     <span class="n">limit_stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Limit stiffness term acting on the tendon&#39;s length limits.&quot;&quot;&quot;</span>
+
     <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Length offset term for the tendon.</span>
 
 <span class="sd">    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application</span>
 <span class="sd">    to actuate the tendon by shortening or lengthening it.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">rest_length</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Spring rest length of the tendon.&quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DeformableBodyPropertiesCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.DeformableBodyPropertiesCfg">[docs]</a><span class="nd">@configclass</span>
+<span class="k">class</span> <span class="nc">DeformableBodyPropertiesCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Properties to apply to a deformable body.</span>
+
+<span class="sd">    A deformable body is a body that can deform under forces. The configuration allows users to specify</span>
+<span class="sd">    the properties of the deformable body, such as the solver iteration counts, damping, and self-collision.</span>
+
+<span class="sd">    An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh</span>
+<span class="sd">    is used for collision detection and the simulation mesh is used for simulation. The collision mesh is usually</span>
+<span class="sd">    a simplified version of the simulation mesh.</span>
+
+<span class="sd">    Based on the above, the PhysX team provides APIs to either set the simulation and collision mesh directly</span>
+<span class="sd">    (by specifying the points) or to simplify the collision mesh based on the simulation mesh. The simplification</span>
+<span class="sd">    process involves remeshing the collision mesh and simplifying it based on the target triangle count.</span>
+
+<span class="sd">    Since specifying the collision mesh points directly is not a common use case, we only expose the parameters</span>
+<span class="sd">    to simplify the collision mesh based on the simulation mesh. If you want to provide the collision mesh points,</span>
+<span class="sd">    please open an issue on the repository and we can add support for it.</span>
+
+<span class="sd">    See :meth:`modify_deformable_body_properties` for more information.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of</span>
+<span class="sd">        the properties and leave the rest as-is.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">deformable_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables deformable body.&quot;&quot;&quot;</span>
+
+    <span class="n">kinematic_enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Enables kinematic body. Defaults to False, which means that the body is not kinematic.</span>
+
+<span class="sd">    Similar to rigid bodies, this allows setting user-driven motion for the deformable body. For more information,</span>
+<span class="sd">    please refer to the `documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html#kinematic-soft-bodies&gt;`__.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">self_collision</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to enable or disable self-collisions for the deformable body based on the rest position distances.&quot;&quot;&quot;</span>
+
+    <span class="n">self_collision_filter_distance</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Penetration value that needs to get exceeded before contacts for self collision are generated.</span>
+
+<span class="sd">    This parameter must be greater than of equal to twice the :attr:`rest_offset` value.</span>
+
+<span class="sd">    This value has an effect only if :attr:`self_collision` is enabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">settling_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Threshold vertex velocity (in m/s) under which sleep damping is applied in addition to velocity damping.&quot;&quot;&quot;</span>
+
+    <span class="n">sleep_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coefficient for the additional damping term if fertex velocity drops below setting threshold.&quot;&quot;&quot;</span>
+
+    <span class="n">sleep_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The velocity threshold (in m/s) under which the vertex becomes a candidate for sleeping in the next step.&quot;&quot;&quot;</span>
+
+    <span class="n">solver_position_iteration_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Number of the solver positional iterations per step. Range is [1,255]&quot;&quot;&quot;</span>
+
+    <span class="n">vertex_velocity_damping</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coefficient for artificial damping on the vertex velocity.</span>
+
+<span class="sd">    This parameter can be used to approximate the effect of air drag on the deformable body.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">simulation_hexahedral_resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The target resolution for the hexahedral mesh used for simulation. Defaults to 10.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This value is ignored if the user provides the simulation mesh points directly. However, we assume that</span>
+<span class="sd">        most users will not provide the simulation mesh points directly. If you want to provide the simulation mesh</span>
+<span class="sd">        directly, please set this value to :obj:`None`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">collision_simplification</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not to simplify the collision mesh before creating a soft body out of it. Defaults to True.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This flag is ignored if the user provides the simulation mesh points directly. However, we assume that</span>
+<span class="sd">        most users will not provide the simulation mesh points directly. Hence, this flag is enabled by default.</span>
+
+<span class="sd">        If you want to provide the simulation mesh points directly, please set this flag to False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">collision_simplification_remeshing</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not the collision mesh should be remeshed before simplification. Defaults to True.</span>
+
+<span class="sd">    This parameter is ignored if :attr:`collision_simplification` is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">collision_simplification_remeshing_resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The resolution used for remeshing. Defaults to 0, which means that a heuristic is used to determine the</span>
+<span class="sd">    resolution.</span>
+
+<span class="sd">    This parameter is ignored if :attr:`collision_simplification_remeshing` is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">collision_simplification_target_triangle_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The target triangle count used for the simplification. Defaults to 0, which means that a heuristic based on</span>
+<span class="sd">    the :attr:`simulation_hexahedral_resolution` is used to determine the target count.</span>
+
+<span class="sd">    This parameter is ignored if :attr:`collision_simplification` is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">collision_simplification_force_conforming</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether or not the simplification should force the output mesh to conform to the input mesh. Defaults to True.</span>
+
+<span class="sd">    The flag indicates that the tretrahedralizer used to generate the collision mesh should produce tetrahedra</span>
+<span class="sd">    that conform to the triangle mesh. If False, the simplifier uses the output from the tretrahedralizer used.</span>
+
+<span class="sd">    This parameter is ignored if :attr:`collision_simplification` is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">contact_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Contact offset for the collision shape (in m).</span>
+
+<span class="sd">    The collision detector generates contact points as soon as two shapes get closer than the sum of their</span>
+<span class="sd">    contact offsets. This quantity should be non-negative which means that contact generation can potentially start</span>
+<span class="sd">    before the shapes actually penetrate.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rest_offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rest offset for the collision shape (in m).</span>
+
+<span class="sd">    The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two</span>
+<span class="sd">    vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest</span>
+<span class="sd">    offset, the shapes will be separated at rest by an air gap.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_depenetration_velocity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Maximum depenetration velocity permitted to be introduced by the solver (in m/s).&quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>
@@ -735,7 +898,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

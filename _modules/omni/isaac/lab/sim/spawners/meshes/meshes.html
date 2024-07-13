@@ -8,7 +8,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>omni.isaac.lab.sim.spawners.shapes.shapes &#8212; Isaac Lab documentation</title>
+    <title>omni.isaac.lab.sim.spawners.meshes.meshes &#8212; Isaac Lab documentation</title>
   
   
   
@@ -48,7 +48,7 @@
     <script src="../../../../../../../_static/copybutton.js"></script>
     <script src="../../../../../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../../../../../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sim/spawners/shapes/shapes';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/omni/isaac/lab/sim/spawners/meshes/meshes';</script>
     <link rel="icon" href="../../../../../../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../../../../../../genindex.html" />
     <link rel="search" title="Search" href="../../../../../../../search.html" />
@@ -405,7 +405,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sim/spawners/shapes/shapes.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2F_modules/omni/isaac/lab/sim/spawners/meshes/meshes.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -483,7 +483,7 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <h1>Source code for omni.isaac.lab.sim.spawners.shapes.shapes</h1><div class="highlight"><pre>
+  <h1>Source code for omni.isaac.lab.sim.spawners.meshes.meshes</h1><div class="highlight"><pre>
 <span></span><span class="c1"># Copyright (c) 2022-2024, The Isaac Lab Project Developers.</span>
 <span class="c1"># All rights reserved.</span>
 <span class="c1">#</span>
@@ -491,28 +491,31 @@ document.write(`
 
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">trimesh</span>
+<span class="kn">import</span> <span class="nn">trimesh.transformations</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.prims</span> <span class="k">as</span> <span class="nn">prim_utils</span>
-<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span>
+<span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim</span> <span class="kn">import</span> <span class="n">schemas</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.sim.utils</span> <span class="kn">import</span> <span class="n">bind_physics_material</span><span class="p">,</span> <span class="n">bind_visual_material</span><span class="p">,</span> <span class="n">clone</span>
 
+<span class="kn">from</span> <span class="nn">..materials</span> <span class="kn">import</span> <span class="n">DeformableBodyMaterialCfg</span><span class="p">,</span> <span class="n">RigidBodyMaterialCfg</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
-    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">shapes_cfg</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">meshes_cfg</span>
 
 
-<div class="viewcode-block" id="spawn_sphere"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.spawn_sphere">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_sphere</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_mesh_sphere"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_sphere">[docs]</a><span class="nd">@clone</span>
+<span class="k">def</span> <span class="nf">spawn_mesh_sphere</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">SphereCfg</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshSphereCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based sphere prim with the given attributes.</span>
-
-<span class="sd">    For more information, see `USDGeomSphere &lt;https://openusd.org/dev/api/class_usd_geom_sphere.html&gt;`_.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD-Mesh sphere prim with the given attributes.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -534,27 +537,22 @@ document.write(`
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># spawn sphere if it doesn&#39;t exist.</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Sphere&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="c1"># create a trimesh sphere</span>
+    <span class="n">sphere</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">creation</span><span class="o">.</span><span class="n">uv_sphere</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">)</span>
+    <span class="c1"># spawn the sphere as a mesh</span>
+    <span class="n">_spawn_mesh_geom_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">sphere</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="spawn_cuboid"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.spawn_cuboid">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_cuboid</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_mesh_cuboid"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_cuboid">[docs]</a><span class="nd">@clone</span>
+<span class="k">def</span> <span class="nf">spawn_mesh_cuboid</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">CuboidCfg</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based cuboid prim with the given attributes.</span>
-
-<span class="sd">    For more information, see `USDGeomCube &lt;https://openusd.org/dev/api/class_usd_geom_cube.html&gt;`_.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        Since USD only supports cubes, we set the size of the cube to the minimum of the given size and</span>
-<span class="sd">        scale the cube accordingly.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD-Mesh cuboid prim with the given attributes.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -574,28 +572,23 @@ document.write(`
 <span class="sd">        The created prim.</span>
 
 <span class="sd">    Raises:</span>
-<span class="sd">        If a prim already exists at the given path.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># resolve the scale</span>
-    <span class="n">size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
-    <span class="n">scale</span> <span class="o">=</span> <span class="p">[</span><span class="n">dim</span> <span class="o">/</span> <span class="n">size</span> <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">]</span>
-    <span class="c1"># spawn cuboid if it doesn&#39;t exist.</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;size&quot;</span><span class="p">:</span> <span class="n">size</span><span class="p">}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cube&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
+<span class="sd">        ValueError: If a prim already exists at the given path.</span>
+<span class="sd">    &quot;&quot;&quot;</span>  <span class="c1"># create a trimesh box</span>
+    <span class="n">box</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">creation</span><span class="o">.</span><span class="n">box</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="c1"># spawn the cuboid as a mesh</span>
+    <span class="n">_spawn_mesh_geom_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">box</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="spawn_cylinder"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.spawn_cylinder">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_cylinder</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_mesh_cylinder"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_cylinder">[docs]</a><span class="nd">@clone</span>
+<span class="k">def</span> <span class="nf">spawn_mesh_cylinder</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">CylinderCfg</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshCylinderCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based cylinder prim with the given attributes.</span>
-
-<span class="sd">    For more information, see `USDGeomCylinder &lt;https://openusd.org/dev/api/class_usd_geom_cylinder.html&gt;`_.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD-Mesh cylinder prim with the given attributes.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -617,23 +610,30 @@ document.write(`
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># spawn cylinder if it doesn&#39;t exist.</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cylinder&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="c1"># align axis from &quot;Z&quot; to input by rotating the cylinder</span>
+    <span class="n">axis</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;X&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;Y&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># create a trimesh cylinder</span>
+    <span class="n">cylinder</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">creation</span><span class="o">.</span><span class="n">cylinder</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
+    <span class="c1"># spawn the cylinder as a mesh</span>
+    <span class="n">_spawn_mesh_geom_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">cylinder</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="spawn_capsule"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.spawn_capsule">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_capsule</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_mesh_capsule"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_capsule">[docs]</a><span class="nd">@clone</span>
+<span class="k">def</span> <span class="nf">spawn_mesh_capsule</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">CapsuleCfg</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshCapsuleCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based capsule prim with the given attributes.</span>
-
-<span class="sd">    For more information, see `USDGeomCapsule &lt;https://openusd.org/dev/api/class_usd_geom_capsule.html&gt;`_.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD-Mesh capsule prim with the given attributes.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -655,23 +655,30 @@ document.write(`
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># align axis from &quot;Z&quot; to input by rotating the cylinder</span>
+    <span class="n">axis</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;X&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;Y&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># create a trimesh capsule</span>
+    <span class="n">capsule</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">creation</span><span class="o">.</span><span class="n">capsule</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
     <span class="c1"># spawn capsule if it doesn&#39;t exist.</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Capsule&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_mesh_geom_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">capsule</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="spawn_cone"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.shapes.spawn_cone">[docs]</a><span class="nd">@clone</span>
-<span class="k">def</span> <span class="nf">spawn_cone</span><span class="p">(</span>
+<div class="viewcode-block" id="spawn_mesh_cone"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.sim.spawners.html#omni.isaac.lab.sim.spawners.meshes.spawn_mesh_cone">[docs]</a><span class="nd">@clone</span>
+<span class="k">def</span> <span class="nf">spawn_mesh_cone</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">ConeCfg</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshConeCfg</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Prim</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based cone prim with the given attributes.</span>
-
-<span class="sd">    For more information, see `USDGeomCone &lt;https://openusd.org/dev/api/class_usd_geom_cone.html&gt;`_.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USD-Mesh cone prim with the given attributes.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`clone` that resolves prim path into list of paths</span>
@@ -693,9 +700,18 @@ document.write(`
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># align axis from &quot;Z&quot; to input by rotating the cylinder</span>
+    <span class="n">axis</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;X&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="s2">&quot;Y&quot;</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">transformations</span><span class="o">.</span><span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">transform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># create a trimesh cone</span>
+    <span class="n">cone</span> <span class="o">=</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">creation</span><span class="o">.</span><span class="n">cone</span><span class="p">(</span><span class="n">radius</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">transform</span><span class="p">)</span>
     <span class="c1"># spawn cone if it doesn&#39;t exist.</span>
-    <span class="n">attributes</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;radius&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">radius</span><span class="p">,</span> <span class="s2">&quot;height&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="s2">&quot;axis&quot;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">axis</span><span class="o">.</span><span class="n">upper</span><span class="p">()}</span>
-    <span class="n">_spawn_geom_from_prim_type</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="s2">&quot;Cone&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="n">_spawn_mesh_geom_from_mesh</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">cone</span><span class="p">,</span> <span class="n">translation</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
     <span class="c1"># return the prim</span>
     <span class="k">return</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">get_prim_at_path</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span></div>
 
@@ -705,34 +721,29 @@ document.write(`
 <span class="sd">&quot;&quot;&quot;</span>
 
 
-<span class="k">def</span> <span class="nf">_spawn_geom_from_prim_type</span><span class="p">(</span>
+<span class="k">def</span> <span class="nf">_spawn_mesh_geom_from_mesh</span><span class="p">(</span>
     <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">cfg</span><span class="p">:</span> <span class="n">shapes_cfg</span><span class="o">.</span><span class="n">ShapeCfg</span><span class="p">,</span>
-    <span class="n">prim_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">attributes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="n">cfg</span><span class="p">:</span> <span class="n">meshes_cfg</span><span class="o">.</span><span class="n">MeshCfg</span><span class="p">,</span>
+    <span class="n">mesh</span><span class="p">:</span> <span class="n">trimesh</span><span class="o">.</span><span class="n">Trimesh</span><span class="p">,</span>
     <span class="n">translation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">orientation</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">scale</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a USDGeom-based prim with the given attributes.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a `USDGeomMesh`_ prim from the given mesh.</span>
 
-<span class="sd">    To make the asset instanceable, we must follow a certain structure dictated by how USD scene-graph</span>
-<span class="sd">    instancing and physics work. The rigid body component must be added to each instance and not the</span>
-<span class="sd">    referenced asset (i.e. the prototype prim itself). This is because the rigid body component defines</span>
-<span class="sd">    properties that are specific to each instance and cannot be shared under the referenced asset. For</span>
-<span class="sd">    more information, please check the `documentation &lt;https://docs.omniverse.nvidia.com/extensions/latest/ext_physics/rigid-bodies.html#instancing-rigid-bodies&gt;`_.</span>
+<span class="sd">    This function is similar to :func:`shapes._spawn_geom_from_prim_type` but spawns the prim from a given mesh.</span>
+<span class="sd">    In case of the mesh, it is spawned as a USDGeomMesh prim with the given vertices and faces.</span>
 
-<span class="sd">    Due to the above, we follow the following structure:</span>
+<span class="sd">    There is a difference in how the properties are applied to the prim based on the type of object:</span>
 
-<span class="sd">    * ``{prim_path}`` - The root prim that is an Xform with the rigid body and mass APIs if configured.</span>
-<span class="sd">    * ``{prim_path}/geometry`` - The prim that contains the mesh and optionally the materials if configured.</span>
-<span class="sd">      If instancing is enabled, this prim will be an instanceable reference to the prototype prim.</span>
+<span class="sd">    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.</span>
+<span class="sd">    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.</span>
+<span class="sd">    - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        prim_path: The prim path to spawn the asset at.</span>
 <span class="sd">        cfg: The config containing the properties to apply.</span>
-<span class="sd">        prim_type: The type of prim to create.</span>
-<span class="sd">        attributes: The attributes to apply to the prim.</span>
+<span class="sd">        mesh: The mesh to spawn the prim from.</span>
 <span class="sd">        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case</span>
 <span class="sd">            this is set to the origin.</span>
 <span class="sd">        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,</span>
@@ -741,6 +752,12 @@ document.write(`
 
 <span class="sd">    Raises:</span>
 <span class="sd">        ValueError: If a prim already exists at the given path.</span>
+<span class="sd">        ValueError: If both deformable and rigid properties are used.</span>
+<span class="sd">        ValueError: If both deformable and collision properties are used.</span>
+<span class="sd">        ValueError: If the physics material is not of the correct type. Deformable properties require a deformable</span>
+<span class="sd">            physics material, and rigid properties require a rigid physics material.</span>
+
+<span class="sd">    .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># spawn geometry if it doesn&#39;t exist.</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">is_prim_path_valid</span><span class="p">(</span><span class="n">prim_path</span><span class="p">):</span>
@@ -748,15 +765,62 @@ document.write(`
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;A prim already exists at path: &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;.&quot;</span><span class="p">)</span>
 
+    <span class="c1"># check that invalid schema types are not used</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">deformable_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot use both deformable and rigid properties at the same time.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">deformable_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot use both deformable and collision properties at the same time.&quot;</span><span class="p">)</span>
+    <span class="c1"># check material types are correct</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">deformable_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span> <span class="n">DeformableBodyMaterialCfg</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Deformable properties require a deformable physics material.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span><span class="p">,</span> <span class="n">RigidBodyMaterialCfg</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Rigid properties require a rigid physics material.&quot;</span><span class="p">)</span>
+
     <span class="c1"># create all the paths we need for clarity</span>
     <span class="n">geom_prim_path</span> <span class="o">=</span> <span class="n">prim_path</span> <span class="o">+</span> <span class="s2">&quot;/geometry&quot;</span>
     <span class="n">mesh_prim_path</span> <span class="o">=</span> <span class="n">geom_prim_path</span> <span class="o">+</span> <span class="s2">&quot;/mesh&quot;</span>
 
-    <span class="c1"># create the geometry prim</span>
-    <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">prim_type</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="n">attributes</span><span class="p">)</span>
-    <span class="c1"># apply collision properties</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># create the mesh prim</span>
+    <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">prim_utils</span><span class="o">.</span><span class="n">create_prim</span><span class="p">(</span>
+        <span class="n">mesh_prim_path</span><span class="p">,</span>
+        <span class="n">prim_type</span><span class="o">=</span><span class="s2">&quot;Mesh&quot;</span><span class="p">,</span>
+        <span class="n">translation</span><span class="o">=</span><span class="n">translation</span><span class="p">,</span>
+        <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span>
+        <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">,</span>
+        <span class="n">attributes</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;points&quot;</span><span class="p">:</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span>
+            <span class="s2">&quot;faceVertexIndices&quot;</span><span class="p">:</span> <span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span>
+            <span class="s2">&quot;faceVertexCounts&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">faces</span><span class="p">)),</span>
+            <span class="s2">&quot;subdivisionScheme&quot;</span><span class="p">:</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+
+    <span class="c1"># note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.</span>
+    <span class="c1">#   this is different from rigid objects where we apply the properties to the parent prim.</span>
+    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">deformable_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># apply mass properties</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">)</span>
+        <span class="c1"># apply deformable body properties</span>
+        <span class="n">schemas</span><span class="o">.</span><span class="n">define_deformable_body_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">deformable_props</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># decide on type of collision approximation based on the mesh</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;MeshSphereCfg&quot;</span><span class="p">:</span>
+            <span class="n">collision_approximation</span> <span class="o">=</span> <span class="s2">&quot;boundingSphere&quot;</span>
+        <span class="k">elif</span> <span class="n">cfg</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;MeshCuboidCfg&quot;</span><span class="p">:</span>
+            <span class="n">collision_approximation</span> <span class="o">=</span> <span class="s2">&quot;boundingCube&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg</span>
+            <span class="n">collision_approximation</span> <span class="o">=</span> <span class="s2">&quot;convexHull&quot;</span>
+        <span class="c1"># apply collision approximation to mesh</span>
+        <span class="c1"># note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.</span>
+        <span class="n">mesh_collision_api</span> <span class="o">=</span> <span class="n">UsdPhysics</span><span class="o">.</span><span class="n">MeshCollisionAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">mesh_prim</span><span class="p">)</span>
+        <span class="n">mesh_collision_api</span><span class="o">.</span><span class="n">GetApproximationAttr</span><span class="p">()</span><span class="o">.</span><span class="n">Set</span><span class="p">(</span><span class="n">collision_approximation</span><span class="p">)</span>
+        <span class="c1"># apply collision properties</span>
         <span class="n">schemas</span><span class="o">.</span><span class="n">define_collision_properties</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">collision_props</span><span class="p">)</span>
+
     <span class="c1"># apply visual material</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
@@ -767,6 +831,7 @@ document.write(`
         <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">material_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">visual_material</span><span class="p">)</span>
         <span class="c1"># apply material</span>
         <span class="n">bind_visual_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
+
     <span class="c1"># apply physics material</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">physics_material_path</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">):</span>
@@ -778,12 +843,12 @@ document.write(`
         <span class="c1"># apply material</span>
         <span class="n">bind_physics_material</span><span class="p">(</span><span class="n">mesh_prim_path</span><span class="p">,</span> <span class="n">material_path</span><span class="p">)</span>
 
-    <span class="c1"># note: we apply rigid properties in the end to later make the instanceable prim</span>
-    <span class="c1"># apply mass properties</span>
-    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">)</span>
-    <span class="c1"># apply rigid body properties</span>
+    <span class="c1"># note: we apply the rigid properties to the parent prim in case of rigid objects.</span>
     <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># apply mass properties</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">schemas</span><span class="o">.</span><span class="n">define_mass_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">mass_props</span><span class="p">)</span>
+        <span class="c1"># apply rigid properties</span>
         <span class="n">schemas</span><span class="o">.</span><span class="n">define_rigid_body_properties</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">rigid_props</span><span class="p">)</span>
 </pre></div>
 

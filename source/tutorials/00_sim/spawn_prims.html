@@ -57,7 +57,7 @@
     <link rel="prev" title="Creating an empty scene" href="create_empty.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -655,39 +655,48 @@ Let’s take a look at the Python script:</p>
 </span><span class="hll"><span class="linenos"> 74</span>        <span class="s2">&quot;/World/Objects/ConeRigid&quot;</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
 </span><span class="hll"><span class="linenos"> 75</span>    <span class="p">)</span>
 </span><span class="hll"><span class="linenos"> 76</span>
-</span><span class="hll"><span class="linenos"> 77</span>    <span class="c1"># spawn a usd file of a table into the scene</span>
-</span><span class="hll"><span class="linenos"> 78</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd&quot;</span><span class="p">)</span>
-</span><span class="hll"><span class="linenos"> 79</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Table&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
-</span><span class="linenos"> 80</span>
-<span class="linenos"> 81</span>
-<span class="linenos"> 82</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
-<span class="linenos"> 83</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
-<span class="linenos"> 84</span>
-<span class="linenos"> 85</span>    <span class="c1"># Initialize the simulation context</span>
-<span class="linenos"> 86</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
-<span class="linenos"> 87</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
-<span class="linenos"> 88</span>    <span class="c1"># Set main camera</span>
-<span class="linenos"> 89</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+</span><span class="hll"><span class="linenos"> 77</span>    <span class="c1"># spawn a blue cuboid with deformable body</span>
+</span><span class="hll"><span class="linenos"> 78</span>    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
+</span><span class="hll"><span class="linenos"> 79</span>        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+</span><span class="hll"><span class="linenos"> 80</span>        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 81</span>        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+</span><span class="hll"><span class="linenos"> 82</span>        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
+</span><span class="hll"><span class="linenos"> 83</span>    <span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 84</span>    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/CuboidDeformable&quot;</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
+</span><span class="hll"><span class="linenos"> 85</span>
+</span><span class="hll"><span class="linenos"> 86</span>    <span class="c1"># spawn a usd file of a table into the scene</span>
+</span><span class="hll"><span class="linenos"> 87</span>    <span class="n">cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">UsdFileCfg</span><span class="p">(</span><span class="n">usd_path</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ISAAC_NUCLEUS_DIR</span><span class="si">}</span><span class="s2">/Props/Mounts/SeattleLabTable/table_instanceable.usd&quot;</span><span class="p">)</span>
+</span><span class="hll"><span class="linenos"> 88</span>    <span class="n">cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/Table&quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">))</span>
+</span><span class="linenos"> 89</span>
 <span class="linenos"> 90</span>
-<span class="hll"><span class="linenos"> 91</span>    <span class="c1"># Design scene by adding assets to it</span>
-</span><span class="hll"><span class="linenos"> 92</span>    <span class="n">design_scene</span><span class="p">()</span>
-</span><span class="linenos"> 93</span>
-<span class="linenos"> 94</span>    <span class="c1"># Play the simulator</span>
-<span class="linenos"> 95</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
-<span class="linenos"> 96</span>    <span class="c1"># Now we are ready!</span>
-<span class="linenos"> 97</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
-<span class="linenos"> 98</span>
-<span class="linenos"> 99</span>    <span class="c1"># Simulate physics</span>
-<span class="linenos">100</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
-<span class="linenos">101</span>        <span class="c1"># perform step</span>
-<span class="linenos">102</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-<span class="linenos">103</span>
-<span class="linenos">104</span>
-<span class="linenos">105</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-<span class="linenos">106</span>    <span class="c1"># run the main function</span>
-<span class="linenos">107</span>    <span class="n">main</span><span class="p">()</span>
-<span class="linenos">108</span>    <span class="c1"># close sim app</span>
-<span class="linenos">109</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="linenos"> 91</span><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+<span class="linenos"> 92</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Main function.&quot;&quot;&quot;</span>
+<span class="linenos"> 93</span>
+<span class="linenos"> 94</span>    <span class="c1"># Initialize the simulation context</span>
+<span class="linenos"> 95</span>    <span class="n">sim_cfg</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationCfg</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+<span class="linenos"> 96</span>    <span class="n">sim</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_cfg</span><span class="p">)</span>
+<span class="linenos"> 97</span>    <span class="c1"># Set main camera</span>
+<span class="linenos"> 98</span>    <span class="n">sim</span><span class="o">.</span><span class="n">set_camera_view</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="linenos"> 99</span>
+<span class="hll"><span class="linenos">100</span>    <span class="c1"># Design scene by adding assets to it</span>
+</span><span class="hll"><span class="linenos">101</span>    <span class="n">design_scene</span><span class="p">()</span>
+</span><span class="linenos">102</span>
+<span class="linenos">103</span>    <span class="c1"># Play the simulator</span>
+<span class="linenos">104</span>    <span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="linenos">105</span>    <span class="c1"># Now we are ready!</span>
+<span class="linenos">106</span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Setup complete...&quot;</span><span class="p">)</span>
+<span class="linenos">107</span>
+<span class="linenos">108</span>    <span class="c1"># Simulate physics</span>
+<span class="linenos">109</span>    <span class="k">while</span> <span class="n">simulation_app</span><span class="o">.</span><span class="n">is_running</span><span class="p">():</span>
+<span class="linenos">110</span>        <span class="c1"># perform step</span>
+<span class="linenos">111</span>        <span class="n">sim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+<span class="linenos">112</span>
+<span class="linenos">113</span>
+<span class="linenos">114</span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<span class="linenos">115</span>    <span class="c1"># run the main function</span>
+<span class="linenos">116</span>    <span class="n">main</span><span class="p">()</span>
+<span class="linenos">117</span>    <span class="c1"># close sim app</span>
+<span class="linenos">118</span>    <span class="n">simulation_app</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
 </div>
 </div>
@@ -797,6 +806,21 @@ default to the default values set by USD Physics.</p>
     <span class="n">cfg_cone_rigid</span><span class="o">.</span><span class="n">func</span><span class="p">(</span>
         <span class="s2">&quot;/World/Objects/ConeRigid&quot;</span><span class="p">,</span> <span class="n">cfg_cone_rigid</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">),</span> <span class="n">orientation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
     <span class="p">)</span>
+
+</pre></div>
+</div>
+<p>Lastly, we spawn a cuboid <code class="docutils literal notranslate"><span class="pre">CuboidDeformable</span></code> which contains deformable body physics properties. Unlike the
+rigid body simulation, a deformable body can have relative motion between its vertices. This is useful for simulating
+soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
+GPU simulation and require a mesh object to be spawned with the deformable body physics properties.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="c1"># spawn a blue cuboid with deformable body</span>
+    <span class="n">cfg_cuboid_deformable</span> <span class="o">=</span> <span class="n">sim_utils</span><span class="o">.</span><span class="n">MeshCuboidCfg</span><span class="p">(</span>
+        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+        <span class="n">deformable_props</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">(),</span>
+        <span class="n">visual_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PreviewSurfaceCfg</span><span class="p">(</span><span class="n">diffuse_color</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)),</span>
+        <span class="n">physics_material</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">DeformableBodyMaterialCfg</span><span class="p">(),</span>
+    <span class="p">)</span>
+    <span class="n">cfg_cuboid_deformable</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="s2">&quot;/World/Objects/CuboidDeformable&quot;</span><span class="p">,</span> <span class="n">cfg_cuboid_deformable</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
 
 </pre></div>
 </div>
@@ -920,7 +944,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -495,9 +495,15 @@ document.write(`
 <span class="kn">import</span> <span class="nn">carb</span>
 <span class="kn">import</span> <span class="nn">omni.isaac.core.utils.stage</span> <span class="k">as</span> <span class="nn">stage_utils</span>
 <span class="kn">import</span> <span class="nn">omni.physx.scripts.utils</span> <span class="k">as</span> <span class="nn">physx_utils</span>
+<span class="kn">from</span> <span class="nn">omni.physx.scripts</span> <span class="kn">import</span> <span class="n">deformableUtils</span> <span class="k">as</span> <span class="n">deformable_utils</span>
 <span class="kn">from</span> <span class="nn">pxr</span> <span class="kn">import</span> <span class="n">PhysxSchema</span><span class="p">,</span> <span class="n">Usd</span><span class="p">,</span> <span class="n">UsdPhysics</span>
 
-<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">apply_nested</span><span class="p">,</span> <span class="n">find_global_fixed_joint_prim</span><span class="p">,</span> <span class="n">safe_set_attribute_on_usd_schema</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">apply_nested</span><span class="p">,</span>
+    <span class="n">find_global_fixed_joint_prim</span><span class="p">,</span>
+    <span class="n">get_all_matching_child_prims</span><span class="p">,</span>
+    <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">schemas_cfg</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
@@ -564,7 +570,7 @@ document.write(`
 <span class="sd">        This function is decorated with :func:`apply_nested` that set the properties to all the prims</span>
 <span class="sd">        (that have the schema applied on them) under the input prim path.</span>
 
-<span class="sd">    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Articulations.html</span>
+<span class="sd">    .. _articulation root: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Articulations.html</span>
 <span class="sd">    .. _ArticulationRootAPI: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html</span>
 <span class="sd">    .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html</span>
 
@@ -714,7 +720,7 @@ document.write(`
 <span class="sd">        This function is decorated with :func:`apply_nested` that sets the properties to all the prims</span>
 <span class="sd">        (that have the schema applied on them) under the input prim path.</span>
 
-<span class="sd">    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyOverview.html</span>
+<span class="sd">    .. _rigid body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/RigidBodyOverview.html</span>
 <span class="sd">    .. _kinematic body: https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies</span>
 <span class="sd">    .. _RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html</span>
 <span class="sd">    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html</span>
@@ -803,7 +809,7 @@ document.write(`
 
 <span class="sd">    Tuning these parameters influence the contact behavior of the rigid body. For more information on</span>
 <span class="sd">    tune them and their effect on the simulation, please refer to the</span>
-<span class="sd">    `PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html&gt;`__.</span>
+<span class="sd">    `PhysX documentation &lt;https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html&gt;`__.</span>
 
 <span class="sd">    .. note::</span>
 <span class="sd">        This function is decorated with :func:`apply_nested` that sets the properties to all the prims</span>
@@ -1137,6 +1143,165 @@ document.write(`
             <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">physx_tendon_axis_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="c1"># success</span>
     <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Deformable body properties.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="define_deformable_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.define_deformable_body_properties">[docs]</a><span class="k">def</span> <span class="nf">define_deformable_body_properties</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the deformable body schema on the input prim and set its properties.</span>
+
+<span class="sd">    See :func:`modify_deformable_body_properties` for more details on how the properties are set.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        If the input prim is not a mesh, this function will traverse the prim and find the first mesh</span>
+<span class="sd">        under it. If no mesh or multiple meshes are found, an error is raised. This is because the deformable</span>
+<span class="sd">        body schema can only be applied to a single mesh.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path: The prim path where to apply the deformable body schema.</span>
+<span class="sd">        cfg: The configuration for the deformable body.</span>
+<span class="sd">        stage: The stage where to find the prim. Defaults to None, in which case the</span>
+<span class="sd">            current stage is used.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: When the prim path is not valid.</span>
+<span class="sd">        ValueError: When the prim has no mesh or multiple meshes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage</span>
+    <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
+    <span class="c1"># get USD prim</span>
+    <span class="n">prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+    <span class="c1"># check if prim path is valid</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prim path &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39; is not valid.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># traverse the prim and get the mesh</span>
+    <span class="n">matching_prims</span> <span class="o">=</span> <span class="n">get_all_matching_child_prims</span><span class="p">(</span><span class="n">prim_path</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">p</span><span class="p">:</span> <span class="n">p</span><span class="o">.</span><span class="n">GetTypeName</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;Mesh&quot;</span><span class="p">)</span>
+    <span class="c1"># check if the mesh is valid</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matching_prims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not find any mesh in &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;. Please check asset.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matching_prims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># get list of all meshes found</span>
+        <span class="n">mesh_paths</span> <span class="o">=</span> <span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">()</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">matching_prims</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Found multiple meshes in &#39;</span><span class="si">{</span><span class="n">prim_path</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="n">mesh_paths</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="s2">&quot; Deformable body schema can only be applied to one mesh.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># get deformable-body USD prim</span>
+    <span class="n">mesh_prim</span> <span class="o">=</span> <span class="n">matching_prims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="c1"># check if prim has deformable-body applied on it</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableBodyAPI</span><span class="p">(</span><span class="n">mesh_prim</span><span class="p">):</span>
+        <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableBodyAPI</span><span class="o">.</span><span class="n">Apply</span><span class="p">(</span><span class="n">mesh_prim</span><span class="p">)</span>
+    <span class="c1"># set deformable body properties</span>
+    <span class="n">modify_deformable_body_properties</span><span class="p">(</span><span class="n">mesh_prim</span><span class="o">.</span><span class="n">GetPrimPath</span><span class="p">(),</span> <span class="n">cfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="modify_deformable_body_properties"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.sim.schemas.html#omni.isaac.lab.sim.schemas.modify_deformable_body_properties">[docs]</a><span class="nd">@apply_nested</span>
+<span class="k">def</span> <span class="nf">modify_deformable_body_properties</span><span class="p">(</span>
+    <span class="n">prim_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">schemas_cfg</span><span class="o">.</span><span class="n">DeformableBodyPropertiesCfg</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="n">Usd</span><span class="o">.</span><span class="n">Stage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Modify PhysX parameters for a deformable body prim.</span>
+
+<span class="sd">    A `deformable body`_ is a single body that can be simulated by PhysX. Unlike rigid bodies, deformable bodies</span>
+<span class="sd">    support relative motion of the nodes in the mesh. Consequently, they can be used to simulate deformations</span>
+<span class="sd">    under applied forces.</span>
+
+<span class="sd">    PhysX soft body simulation employs Finite Element Analysis (FEA) to simulate the deformations of the mesh.</span>
+<span class="sd">    It uses two tetrahedral meshes to represent the deformable body:</span>
+
+<span class="sd">    1. **Simulation mesh**: This mesh is used for the simulation and is the one that is deformed by the solver.</span>
+<span class="sd">    2. **Collision mesh**: This mesh only needs to match the surface of the simulation mesh and is used for</span>
+<span class="sd">       collision detection.</span>
+
+<span class="sd">    For most applications, we assume that the above two meshes are computed from the &quot;render mesh&quot; of the deformable</span>
+<span class="sd">    body. The render mesh is the mesh that is visible in the scene and is used for rendering purposes. It is composed</span>
+<span class="sd">    of triangles and is the one that is used to compute the above meshes based on PhysX cookings.</span>
+
+<span class="sd">    The schema comprises of attributes that belong to the `PhysxDeformableBodyAPI`_. schemas containing the PhysX</span>
+<span class="sd">    parameters for the deformable body.</span>
+
+<span class="sd">    .. caution::</span>
+<span class="sd">        The deformable body schema is still under development by the Omniverse team. The current implementation</span>
+<span class="sd">        works with the PhysX schemas shipped with Isaac Sim 4.0.0. It may change in future releases.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is decorated with :func:`apply_nested` that sets the properties to all the prims</span>
+<span class="sd">        (that have the schema applied on them) under the input prim path.</span>
+
+<span class="sd">    .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html</span>
+<span class="sd">    .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        prim_path: The prim path to the deformable body.</span>
+<span class="sd">        cfg: The configuration for the deformable body.</span>
+<span class="sd">        stage: The stage where to find the prim. Defaults to None, in which case the</span>
+<span class="sd">            current stage is used.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        True if the properties were successfully set, False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># obtain stage</span>
+    <span class="k">if</span> <span class="n">stage</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">stage</span> <span class="o">=</span> <span class="n">stage_utils</span><span class="o">.</span><span class="n">get_current_stage</span><span class="p">()</span>
+
+    <span class="c1"># get deformable-body USD prim</span>
+    <span class="n">deformable_body_prim</span> <span class="o">=</span> <span class="n">stage</span><span class="o">.</span><span class="n">GetPrimAtPath</span><span class="p">(</span><span class="n">prim_path</span><span class="p">)</span>
+
+    <span class="c1"># check if the prim is valid and has the deformable-body API</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">deformable_body_prim</span><span class="o">.</span><span class="n">IsValid</span><span class="p">()</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableBodyAPI</span><span class="p">(</span><span class="n">deformable_body_prim</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># retrieve the physx deformable-body api</span>
+    <span class="n">physx_deformable_body_api</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableBodyAPI</span><span class="p">(</span><span class="n">deformable_body_prim</span><span class="p">)</span>
+    <span class="c1"># retrieve the physx deformable api</span>
+    <span class="n">physx_deformable_api</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxDeformableAPI</span><span class="p">(</span><span class="n">physx_deformable_body_api</span><span class="p">)</span>
+
+    <span class="c1"># convert to dict</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+    <span class="c1"># set into deformable body API</span>
+    <span class="n">attr_kwargs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">attr_name</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">attr_name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">attr_name</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="s2">&quot;kinematic_enabled&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;collision_simplification&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;collision_simplification_remeshing&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;collision_simplification_remeshing_resolution&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;collision_simplification_target_triangle_count&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;collision_simplification_force_conforming&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;simulation_hexahedral_resolution&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;solver_position_iteration_count&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;vertex_velocity_damping&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;sleep_damping&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;sleep_threshold&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;settling_threshold&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;self_collision&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;self_collision_filter_distance&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">}</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">deformable_utils</span><span class="o">.</span><span class="n">add_physx_deformable_body</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">prim_path</span><span class="o">=</span><span class="n">prim_path</span><span class="p">,</span> <span class="o">**</span><span class="n">attr_kwargs</span><span class="p">)</span>
+    <span class="c1"># check if the deformable body was successfully added</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">status</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="c1"># obtain the PhysX collision API (this is set when the deformable body is added)</span>
+    <span class="n">physx_collision_api</span> <span class="o">=</span> <span class="n">PhysxSchema</span><span class="o">.</span><span class="n">PhysxCollisionAPI</span><span class="p">(</span><span class="n">deformable_body_prim</span><span class="p">)</span>
+
+    <span class="c1"># set into PhysX API</span>
+    <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">cfg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">attr_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;rest_offset&quot;</span><span class="p">,</span> <span class="s2">&quot;collision_offset&quot;</span><span class="p">]:</span>
+            <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">physx_collision_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">safe_set_attribute_on_usd_schema</span><span class="p">(</span><span class="n">physx_deformable_api</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">camel_case</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># success</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
 </pre></div>
 
                 </article>
@@ -1184,7 +1349,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>

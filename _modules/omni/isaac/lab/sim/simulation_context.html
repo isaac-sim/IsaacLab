@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 12, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 13, 2024"/>
   </head>
   
   
@@ -619,7 +619,7 @@ document.write(`
             <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/disableContactProcessing&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
         <span class="c1"># enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them</span>
         <span class="c1"># reason: cylinders and cones aren&#39;t natively supported by PhysX so we need to use custom geometry flags</span>
-        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Geometry.html?highlight=capsule#geometry</span>
+        <span class="c1"># reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Geometry.html?highlight=capsule#geometry</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionConeCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="n">carb_settings_iface</span><span class="o">.</span><span class="n">set_bool</span><span class="p">(</span><span class="s2">&quot;/physics/collisionCylinderCustomGeometry&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
         <span class="c1"># note: we read this once since it is not expected to change during runtime</span>
@@ -1008,7 +1008,7 @@ document.write(`
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Physics scene API is None! Please create the scene first.&quot;</span><span class="p">)</span>
         <span class="c1"># set parameters not directly supported by the constructor</span>
         <span class="c1"># -- Continuous Collision Detection (CCD)</span>
-        <span class="c1"># ref: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection</span>
+        <span class="c1"># ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_physics_context</span><span class="o">.</span><span class="n">enable_ccd</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">enable_ccd</span><span class="p">)</span>
         <span class="c1"># -- GPU collision stack size</span>
         <span class="n">physx_scene_api</span><span class="o">.</span><span class="n">CreateGpuCollisionStackSizeAttr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">physx</span><span class="o">.</span><span class="n">gpu_collision_stack_size</span><span class="p">)</span>
@@ -1279,7 +1279,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 12, 2024.
+  Last updated on Jul 13, 2024.
   <br/>
 </p>
   </div>
