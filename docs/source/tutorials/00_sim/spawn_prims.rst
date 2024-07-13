@@ -22,7 +22,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 40-79, 91-92
+      :emphasize-lines: 40-88, 100-101
       :linenos:
 
 
@@ -134,8 +134,17 @@ default to the default values set by USD Physics.
 .. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # spawn a green cone with colliders and rigid body
-   :end-before: # spawn a usd file of a table into the scene
+   :end-before: # spawn a blue cuboid with deformable body
 
+Lastly, we spawn a cuboid ``CuboidDeformable`` which contains deformable body physics properties. Unlike the
+rigid body simulation, a deformable body can have relative motion between its vertices. This is useful for simulating
+soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
+GPU simulation and require a mesh object to be spawned with the deformable body physics properties.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/00_sim/spawn_prims.py
+   :language: python
+   :start-at: # spawn a blue cuboid with deformable body
+   :end-before: # spawn a usd file of a table into the scene
 
 Spawning from another file
 --------------------------
