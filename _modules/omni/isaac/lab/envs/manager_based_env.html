@@ -707,7 +707,13 @@ document.write(`
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Observation Manager:&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="p">)</span>
         <span class="c1"># -- event manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span> <span class="o">=</span> <span class="n">EventManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span></div>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Event Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="p">)</span>
+
+        <span class="c1"># perform events at the start of the simulation</span>
+        <span class="c1"># in-case a child implementation creates other managers, the randomization should happen</span>
+        <span class="c1"># when all the other managers are created</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span> <span class="o">==</span> <span class="n">ManagerBasedEnv</span> <span class="ow">and</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Operations - MDP.</span>

@@ -593,8 +593,10 @@ document.write(`
         <span class="c1"># -- command manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">command_manager</span><span class="p">:</span> <span class="n">CommandManager</span> <span class="o">=</span> <span class="n">CommandManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">commands</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Command Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">command_manager</span><span class="p">)</span>
+
         <span class="c1"># call the parent class to load the managers for observations and actions.</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">load_managers</span><span class="p">()</span>
+
         <span class="c1"># prepare the managers</span>
         <span class="c1"># -- termination manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">termination_manager</span> <span class="o">=</span> <span class="n">TerminationManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">terminations</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
@@ -605,8 +607,10 @@ document.write(`
         <span class="c1"># -- curriculum manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span> <span class="o">=</span> <span class="n">CurriculumManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">curriculum</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO] Curriculum Manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">curriculum_manager</span><span class="p">)</span>
+
         <span class="c1"># setup the action and observation spaces for Gym</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_configure_gym_env_spaces</span><span class="p">()</span>
+
         <span class="c1"># perform events at the start of the simulation</span>
         <span class="k">if</span> <span class="s2">&quot;startup&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">available_modes</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">event_manager</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;startup&quot;</span><span class="p">)</span></div>
