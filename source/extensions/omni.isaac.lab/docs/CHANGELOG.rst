@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.19.4 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the call to "startup" events when using the :class:`~omni.isaac.lab.envs.ManagerBasedEnv` class.
+  Earlier, the "startup" events were not being called when the environment was initialized. This issue
+  did not occur when using the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class since the "startup"
+  events were called in the constructor.
+
+
 0.19.3 (2024-07-13)
 ~~~~~~~~~~~~~~~~~~~
 
