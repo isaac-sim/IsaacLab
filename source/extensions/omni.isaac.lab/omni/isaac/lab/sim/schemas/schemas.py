@@ -741,6 +741,14 @@ def modify_deformable_body_properties(
     The schema comprises of attributes that belong to the `PhysxDeformableBodyAPI`_. schemas containing the PhysX
     parameters for the deformable body.
 
+    .. caution::
+        The deformable body schema is still under development by the Omniverse team. The current implementation
+        works with the PhysX schemas shipped with Isaac Sim 4.0.0. It may change in future releases.
+
+    .. note::
+        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
+        (that have the schema applied on them) under the input prim path.
+
     .. _deformable body: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/SoftBodies.html
     .. _PhysxDeformableBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_deformable_a_p_i.html
 
