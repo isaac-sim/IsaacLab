@@ -32,6 +32,9 @@ gym.register(
     entry_point="omni.isaac.lab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": joint_pos_env_cfg.FrankaCabinetEnvCfg_PLAY,
+        "rsl_rl_cfg_entry_point": agents.rsl_rl_cfg.CabinetPPORunnerCfg,
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
     disable_env_checker=True,
 )

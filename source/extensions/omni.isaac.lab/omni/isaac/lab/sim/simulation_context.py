@@ -133,7 +133,7 @@ class SimulationContext(_SimulationContext):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
         # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Geometry.html?highlight=capsule#geometry
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # note: we read this once since it is not expected to change during runtime
@@ -522,7 +522,7 @@ class SimulationContext(_SimulationContext):
             raise RuntimeError("Physics scene API is None! Please create the scene first.")
         # set parameters not directly supported by the constructor
         # -- Continuous Collision Detection (CCD)
-        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
+        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
         self._physics_context.enable_ccd(self.cfg.physx.enable_ccd)
         # -- GPU collision stack size
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)
