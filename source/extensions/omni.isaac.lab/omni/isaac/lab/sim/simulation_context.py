@@ -7,6 +7,7 @@ import builtins
 import enum
 import numpy as np
 import sys
+import torch
 import traceback
 import weakref
 from collections.abc import Iterator
@@ -132,7 +133,7 @@ class SimulationContext(_SimulationContext):
             carb_settings_iface.set_bool("/physics/disableContactProcessing", True)
         # enable custom geometry for cylinder and cone collision shapes to allow contact reporting for them
         # reason: cylinders and cones aren't natively supported by PhysX so we need to use custom geometry flags
-        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/Geometry.html?highlight=capsule#geometry
+        # reference: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/Geometry.html?highlight=capsule#geometry
         carb_settings_iface.set_bool("/physics/collisionConeCustomGeometry", False)
         carb_settings_iface.set_bool("/physics/collisionCylinderCustomGeometry", False)
         # note: we read this once since it is not expected to change during runtime
@@ -194,6 +195,12 @@ class SimulationContext(_SimulationContext):
         # read isaac sim version (this includes build tag, release tag etc.)
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
         self._isaacsim_version = get_version()
+
+        # create a tensor for gravity
+        # note: this line is needed to create a "tensor" in the device to avoid issues with torch 2.1 onwards.
+        #   the issue is with some heap memory corruption when torch tensor is created inside the asset class.
+        #   you can reproduce the issue by commenting out this line and running the test `test_articulation.py`.
+        self._gravity_tensor = torch.tensor(self.cfg.gravity, dtype=torch.float32, device=self.cfg.device)
 
         # add callback to deal the simulation app when simulation is stopped.
         # this is needed because physics views go invalid once we stop the simulation
@@ -515,7 +522,7 @@ class SimulationContext(_SimulationContext):
             raise RuntimeError("Physics scene API is None! Please create the scene first.")
         # set parameters not directly supported by the constructor
         # -- Continuous Collision Detection (CCD)
-        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
+        # ref: https://nvidia-omniverse.github.io/PhysX/physx/5.4.0/docs/AdvancedCollisionDetection.html?highlight=ccd#continuous-collision-detection
         self._physics_context.enable_ccd(self.cfg.physx.enable_ccd)
         # -- GPU collision stack size
         physx_scene_api.CreateGpuCollisionStackSizeAttr(self.cfg.physx.gpu_collision_stack_size)

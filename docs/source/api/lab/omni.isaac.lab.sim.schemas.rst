@@ -13,6 +13,7 @@
     MassPropertiesCfg
     JointDrivePropertiesCfg
     FixedTendonPropertiesCfg
+    DeformableBodyPropertiesCfg
 
   .. rubric:: Functions
 
@@ -29,6 +30,8 @@
     modify_mass_properties
     modify_joint_drive_properties
     modify_fixed_tendon_properties
+    define_deformable_body_properties
+    modify_deformable_body_properties
 
 Articulation Root
 -----------------
@@ -88,3 +91,13 @@ Fixed Tendon
     :exclude-members: __init__
 
 .. autofunction:: modify_fixed_tendon_properties
+
+Deformable Body
+---------------
+
+.. autoclass:: DeformableBodyPropertiesCfg
+    :members:
+    :exclude-members: __init__
+
+.. autofunction:: define_deformable_body_properties
+.. autofunction:: modify_deformable_body_properties

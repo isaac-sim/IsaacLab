@@ -22,7 +22,6 @@ import unittest
 import omni.isaac.lab_assets as lab_assets  # noqa: F401
 
 from omni.isaac.lab.assets import AssetBase, AssetBaseCfg
-from omni.isaac.lab.sensors import SensorBase, SensorBaseCfg
 from omni.isaac.lab.sim import build_simulation_context
 
 
@@ -32,12 +31,12 @@ class TestValidEntitiesConfigs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # load all registered entities configurations from the module
-        cls.registered_entities: dict[str, AssetBaseCfg | SensorBaseCfg] = {}
+        cls.registered_entities: dict[str, AssetBaseCfg] = {}
         # inspect all classes from the module
         for obj_name in dir(lab_assets):
             obj = getattr(lab_assets, obj_name)
             # store all registered entities configurations
-            if isinstance(obj, (AssetBaseCfg, SensorBaseCfg)):
+            if isinstance(obj, AssetBaseCfg):
                 cls.registered_entities[obj_name] = obj
         # print all existing entities names
         print(">>> All registered entities:", list(cls.registered_entities.keys()))
@@ -58,13 +57,13 @@ class TestValidEntitiesConfigs(unittest.TestCase):
                         # name the prim path
                         entity_cfg.prim_path = "/World/asset"
                         # create the asset / sensors
-                        entity: AssetBase | SensorBase = entity_cfg.class_type(entity_cfg)  # type: ignore
+                        entity: AssetBase = entity_cfg.class_type(entity_cfg)  # type: ignore
 
                         # play the sim
                         sim.reset()
 
                         # check asset is initialized successfully
-                        self.assertTrue(entity._is_initialized)
+                        self.assertTrue(entity.is_initialized)
 
 
 if __name__ == "__main__":

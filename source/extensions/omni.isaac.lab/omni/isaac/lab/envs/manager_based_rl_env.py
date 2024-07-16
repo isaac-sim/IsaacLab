@@ -107,8 +107,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
+
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
+
         # prepare the managers
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
@@ -119,8 +121,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
+
         # perform events at the start of the simulation
         if "startup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="startup")

@@ -223,6 +223,12 @@ class ManagerBasedEnv:
         self.event_manager = EventManager(self.cfg.events, self)
         print("[INFO] Event Manager: ", self.event_manager)
 
+        # perform events at the start of the simulation
+        # in-case a child implementation creates other managers, the randomization should happen
+        # when all the other managers are created
+        if self.__class__ == ManagerBasedEnv and "startup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="startup")
+
     """
     Operations - MDP.
     """

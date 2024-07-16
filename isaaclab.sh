@@ -22,34 +22,60 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# extract isaac sim path
+extract_isaacsim_path() {
+    # Use the sym-link path to Isaac Sim directory
+    local isaac_path=${ISAACLAB_PATH}/_isaac_sim
+    # If above path is not available, try to find the path using python
+    if [ ! -d "${isaac_path}" ]; then
+        # Use the python executable to get the path
+        local python_exe=$(extract_python_exe)
+        # Retrieve the path importing isaac sim and getting the environment path
+        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
+            local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
+        fi
+    fi
+    # check if there is a path available
+    if [ ! -d "${isaac_path}" ]; then
+        # throw an error if no path is found
+        echo -e "[ERROR] Unable to find the Isaac Sim directory: '${isaac_path}'" >&2
+        echo -e "\tThis could be due to the following reasons:" >&2
+        echo -e "\t1. Conda environment is not activated." >&2
+        echo -e "\t2. Isaac Sim pip package 'isaacsim-rl' is not installed." >&2
+        echo -e "\t3. Isaac Sim directory is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim" >&2
+        # exit the script
+        exit 1
+    fi
+    # return the result
+    echo ${isaac_path}
+}
+
 # extract the python from isaacsim
 extract_python_exe() {
-    # Check if IsaacSim directory manually specified
-    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
-    if [ ! -z ${ISAACSIM_PATH} ];
-    then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
-    else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
-    fi
     # check if using conda
     if ! [[ -z "${CONDA_PREFIX}" ]]; then
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     else
-        if pip show isaacsim-rl > /dev/null 2>&1; then
-            # use current python executable
-            python_exe=$(which python)
-        else
-            # use python from kit
-            local python_exe=${build_path}/python.sh
+        # use kit python
+        local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
+
+    if [ ! -f "${python_exe}" ]; then
+            # note: we need to check system python for cases such as docker
+            # inside docker, if user installed into system python, we need to use that
+            # otherwise, use the python from the kit
+            if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
+                local python_exe=$(which python)
+            fi
         fi
     fi
     # check if there is a python path available
     if [ ! -f "${python_exe}" ]; then
-        echo "[ERROR] No python executable found at path: ${build_path}" >&2
+        echo -e "[ERROR] Unable to find any Python executable at path: '${python_exe}'" >&2
+        echo -e "\tThis could be due to the following reasons:" >&2
+        echo -e "\t1. Conda environment is not activated." >&2
+        echo -e "\t2. Isaac Sim pip package 'isaacsim-rl' is not installed." >&2
+        echo -e "\t3. Python executable is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim/python.sh" >&2
         exit 1
     fi
     # return the result
@@ -58,21 +84,13 @@ extract_python_exe() {
 
 # extract the simulator exe from isaacsim
 extract_isaacsim_exe() {
-    # Check if IsaacSim directory manually specified
-    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
-    if [ ! -z ${ISAACSIM_PATH} ];
-    then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
-    else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
-    fi
+    # obtain the isaac sim path
+    local isaac_path=$(extract_isaacsim_path)
     # python executable to use
-    local isaacsim_exe=${build_path}/isaac-sim.sh
+    local isaacsim_exe=${isaac_path}/isaac-sim.sh
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
-        echo "[ERROR] No isaac-sim executable found at path: ${build_path}" >&2
+        echo "[ERROR] No Isaac Sim executable found at path: ${isaacsim_exe}" >&2
         exit 1
     fi
     # return the result
@@ -100,16 +118,7 @@ setup_conda_env() {
         echo "[ERROR] Conda could not be found. Please install conda and try again."
         exit 1
     fi
-    # Check if IsaacSim directory manually specified
-    # Note: for manually build isaacsim, this: _build/linux-x86_64/release
-    if [ ! -z ${ISAACSIM_PATH} ];
-    then
-        # Use local build
-        build_path=${ISAACSIM_PATH}
-    else
-        # Use TeamCity build
-        build_path=${ISAACLAB_PATH}/_isaac_sim
-    fi
+
     # check if the environment exists
     if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
@@ -117,6 +126,7 @@ setup_conda_env() {
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
         conda create -y --name ${env_name} python=3.10
     fi
+
     # cache current paths for later
     cache_pythonpath=$PYTHONPATH
     cache_ld_library_path=$LD_LIBRARY_PATH
@@ -129,12 +139,9 @@ setup_conda_env() {
     # setup directories to load Isaac Sim variables
     mkdir -p ${CONDA_PREFIX}/etc/conda/activate.d
     mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
+
     # add variables to environment during activation
-    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
     printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for Isaac Sim' \
-        'source '${isaacsim_setup_conda_env_script}'' \
-        '' \
         '# for Isaac Lab' \
         'export ISAACLAB_PATH='${ISAACLAB_PATH}'' \
         'alias isaaclab='${ISAACLAB_PATH}'/isaaclab.sh' \
@@ -142,28 +149,52 @@ setup_conda_env() {
         '# show icon if not runninng headless' \
         'export RESOURCE_NAME="IsaacSim"' \
         '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+
+    # check if we have _isaac_sim directory -> if so that means binaries were installed.
+    # we need to setup conda variables to load the binaries
+    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
+
+    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
+        # add variables to environment during activation
+        printf '%s\n' \
+            '# for Isaac Sim' \
+            'source '${isaacsim_setup_conda_env_script}'' \
+            '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    fi
+
     # reactivate the environment to load the variables
     # needed because deactivate complains about Isaac Lab alias since it otherwise doesn't exist
     conda activate ${env_name}
+
     # remove variables from environment during deactivation
     printf '%s\n' '#!/usr/bin/env bash' '' \
         '# for Isaac Lab' \
         'unalias isaaclab &>/dev/null' \
         'unset ISAACLAB_PATH' \
         '' \
-        '# for Isaac Sim' \
-        'unset CARB_APP_PATH' \
-        'unset EXP_PATH' \
-        'unset ISAAC_PATH' \
-        'unset RESOURCE_NAME' \
-        '' \
         '# restore paths' \
         'export PYTHONPATH='${cache_pythonpath}'' \
         'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
+        '' \
+        '# for Isaac Sim' \
+        'unset RESOURCE_NAME' \
         '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+
+    # check if we have _isaac_sim directory -> if so that means binaries were installed.
+    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
+        # add variables to environment during activation
+        printf '%s\n' \
+            '# for Isaac Sim' \
+            'unset CARB_APP_PATH' \
+            'unset EXP_PATH' \
+            'unset ISAAC_PATH' \
+            '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    fi
+
     # install some extra dependencies
     echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
     conda install -c conda-forge -y importlib_metadata &> /dev/null
+
     # deactivate the environment
     conda deactivate
     # add information to the user about alias
@@ -187,7 +218,7 @@ update_vscode_settings() {
     if [ -f "${setup_vscode_script}" ]; then
         ${python_exe} "${setup_vscode_script}"
     else
-        echo "[WARNING] setup_vscode.py not found. Aborting vscode settings setup."
+        echo "[WARNING] Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup."
     fi
 }
 
@@ -234,12 +265,6 @@ while [[ $# -gt 0 ]]; do
             export -f install_isaaclab_extension
             # source directory
             find -L "${ISAACLAB_PATH}/source/extensions" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
-            # unset local variables
-            unset install_isaaclab_extension
-            # setup vscode settings
-            if ! ${python_exe} -m pip show isaacsim-rl &>/dev/null; then
-                update_vscode_settings
-            fi
             # install the python packages for supported reinforcement learning frameworks
             echo "[INFO] Installing extra requirements such as learning frameworks..."
             # check if specified which rl-framework to install
@@ -257,6 +282,20 @@ while [[ $# -gt 0 ]]; do
             fi
             # install the rl-frameworks specified
             ${python_exe} -m pip install -e ${ISAACLAB_PATH}/source/extensions/omni.isaac.lab_tasks["${framework_name}"]
+
+            # check if we are inside a docker container or are building a docker image
+            # in that case don't setup VSCode since it asks for EULA agreement which triggers user interaction
+            if [ -f /.dockerenv ]; then
+                echo "[INFO] Running inside a docker container. Skipping VSCode settings setup."
+                echo "[INFO] To setup VSCode settings, run 'isaaclab -v'."
+            else
+                # update the vscode settings
+                update_vscode_settings
+            fi
+
+            # unset local variables
+            unset extract_python_exe
+            unset install_isaaclab_extension
             shift # past argument
             ;;
         -c|--conda)
@@ -283,7 +322,7 @@ while [[ $# -gt 0 ]]; do
             fi
             # run the formatter over the repository
             # check if pre-commit is installed
-            if ! command -v pre-commit &>/dev/null; then
+            if [ ! command -v pre-commit &>/dev/null ]; then
                 echo "[INFO] Installing pre-commit..."
                 pip install pre-commit
             fi
