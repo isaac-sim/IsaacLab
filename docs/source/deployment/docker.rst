@@ -258,6 +258,29 @@ versions installed on your machine. To fix this, you can try the following:
 
 * Install the latest version of docker based on the instructions in the setup section.
 
+Open .container.yaml: permission denied
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If the ``IsaacLab`` repository is not cloned in the home directory,
+you may encounter the following error while building the container:
+
+.. code:: text
+
+    [INFO] Building the docker image and starting the container isaac-lab-base in the background...
+    Error: open /mnt/projects/IsaacLab/docker/.container.yaml: permission denied
+
+This may be caused by the strict `Snap confinement`_ of the ``yq`` snap package used in the scripts.
+To fix this, you can either clone the repository in the home directory or allow ``yq`` to access the
+``IsaacLab`` directory by running the following command:
+
+.. code:: bash
+
+    snap connections yq
+    sudo snap connect yq:removable-media
+
+Then try stopping and re-building the container again.
+
+
 WebRTC Streaming
 ~~~~~~~~~~~~~~~~
 
@@ -281,6 +304,7 @@ in docker-compose.yaml.
 .. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
 .. _`Isaac Sim container`: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/isaac-sim
 .. _`NGC API key`: https://docs.nvidia.com/ngc/gpu-cloud/ngc-user-guide/index.html#generating-api-key
+.. _`Snap confinement`: https://snapcraft.io/docs/snap-confinement
 .. _`several streaming clients`: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/manual_livestream_clients.html
 .. _`known issue`: https://forums.developer.nvidia.com/t/unable-to-use-webrtc-when-i-run-runheadless-webrtc-sh-in-remote-headless-container/222916
 .. _`profile`: https://docs.docker.com/compose/compose-file/15-profiles/
