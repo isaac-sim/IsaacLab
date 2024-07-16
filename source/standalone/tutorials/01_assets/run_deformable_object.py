@@ -40,10 +40,8 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
-
 from omni.isaac.lab.assets import DeformableObject, DeformableObjectCfg
 from omni.isaac.lab.sim import SimulationContext
-from omni.isaac.lab_assets import ISAACLAB_ASSETS_DATA_DIR
 
 
 def design_scene():
@@ -64,10 +62,11 @@ def design_scene():
     # Deformable Object
     cfg = DeformableObjectCfg(
         prim_path="/World/Origin.*/Cube",
-        spawn = sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Props/DeformableCube/deformable_cube.usd",
-            scale=(0.2, 0.2, 0.2),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(),
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(),
     )

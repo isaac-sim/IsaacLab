@@ -6,7 +6,7 @@
 from omni.isaac.lab.assets import DeformableObjectCfg
 from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import configclass
 
 from omni.isaac.lab_assets import ISAACLAB_ASSETS_DATA_DIR
@@ -35,9 +35,23 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
         self.scene.object = DeformableObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             init_state=DeformableObjectCfg.InitialStateCfg(pos=[0.5, 0, 0.05], rot=[1, 0, 0, 0]),
-            spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_ASSETS_DATA_DIR}/Props/DeformableCube/deformable_cube.usd",
-                scale=(0.06, 0.06, 0.06),
+            spawn=sim_utils.MeshCuboidCfg(
+                size=(0.06, 0.06, 0.06),
+                deformable_props=sim_utils.DeformableBodyPropertiesCfg(
+                    self_collision_filter_distance=0.005,
+                    settling_threshold=0.1,
+                    sleep_damping=1.0,
+                    sleep_threshold=0.05,
+                    solver_position_iteration_count=20,
+                    vertex_velocity_damping=0.5,
+                    simulation_hexahedral_resolution=4,
+                    rest_offset=0.0001,
+                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+                physics_material=sim_utils.DeformableBodyMaterialCfg(
+                    dynamic_friction=0.95,
+                    youngs_modulus=500000,
+                ),
             ),
         )
 
