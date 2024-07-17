@@ -52,15 +52,15 @@ extract_isaacsim_path() {
 
 # extract the python from isaacsim
 extract_python_exe() {
-    # default to python in the kit
-    local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
-    # if default python is not available, check if conda is activated
+    # check if using conda
+    if ! [[ -z "${CONDA_PREFIX}" ]]; then
+        # use conda python
+        local python_exe=${CONDA_PREFIX}/bin/python
+    else
+        # use kit python
+        local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
+
     if [ ! -f "${python_exe}" ]; then
-        # check if using conda
-        if ! [[ -z "${CONDA_PREFIX}" ]]; then
-            # use conda python
-            local python_exe=${CONDA_PREFIX}/bin/python
-        else
             # note: we need to check system python for cases such as docker
             # inside docker, if user installed into system python, we need to use that
             # otherwise, use the python from the kit
@@ -153,9 +153,10 @@ setup_conda_env() {
     # check if we have _isaac_sim directory -> if so that means binaries were installed.
     # we need to setup conda variables to load the binaries
     local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
+
     if [ -f "${isaacsim_setup_conda_env_script}" ]; then
         # add variables to environment during activation
-        printf '' \
+        printf '%s\n' \
             '# for Isaac Sim' \
             'source '${isaacsim_setup_conda_env_script}'' \
             '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
@@ -182,7 +183,7 @@ setup_conda_env() {
     # check if we have _isaac_sim directory -> if so that means binaries were installed.
     if [ -f "${isaacsim_setup_conda_env_script}" ]; then
         # add variables to environment during activation
-        printf '' \
+        printf '%s\n' \
             '# for Isaac Sim' \
             'unset CARB_APP_PATH' \
             'unset EXP_PATH' \

@@ -112,13 +112,13 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                 if "isaac_lab_settings" in ext_toml and "ros_ws" in ext_toml["isaac_lab_settings"]:
                     # resolve the path to the ROS workspace
                     ws_path = ext_toml["isaac_lab_settings"]["ros_ws"]
-                    if not os.path.abspath(ws_path):
+                    if not os.path.isabs(ws_path):
                         ws_path = os.path.join(path, ws_path)
                     # check if the workspace exists
                     if not os.path.exists(f"{ws_path}/src"):
                         raise FileNotFoundError(
                             "During the installation of 'rosdep' dependencies, unable to find a"
-                            f" valid ROS workspace at: {path}/{ws_path}."
+                            f" valid ROS workspace at: {ws_path}."
                         )
                     # install rosdep if not already installed
                     if not os.path.exists("/etc/ros/rosdep/sources.list.d/20-default.list"):

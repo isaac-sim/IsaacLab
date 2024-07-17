@@ -30,11 +30,15 @@ from datetime import datetime
 from pathlib import Path
 from prettytable import PrettyTable
 
-# Tests to skip
+# Local imports
+from per_test_timeouts import PER_TEST_TIMEOUTS
 from tests_to_skip import TESTS_TO_SKIP
 
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
+
+DEFAULT_TIMEOUT = 120
+"""The default timeout for each test in seconds."""
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--discover_only", action="store_true", help="Only discover and print tests, don't run them.")
     parser.add_argument("--quiet", action="store_true", help="Don't print to console, only log to file.")
-    parser.add_argument("--timeout", type=int, default=1200, help="Timeout for each test in seconds.")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="Timeout for each test in seconds.")
     # parse arguments
     args = parser.parse_args()
     return args
@@ -75,7 +79,8 @@ def test_all(
     test_dir: str,
     tests_to_skip: list[str],
     log_path: str,
-    timeout: float = 1200.0,
+    timeout: float = DEFAULT_TIMEOUT,
+    per_test_timeouts: dict[str, float] = {},
     discover_only: bool = False,
     quiet: bool = False,
 ) -> bool:
@@ -85,7 +90,9 @@ def test_all(
         test_dir: Path to the directory containing the tests.
         tests_to_skip: List of tests to skip.
         log_path: Path to the log file to store the results in.
-        timeout: Timeout for each test in seconds. Defaults to 600 seconds (10 minutes).
+        timeout: Timeout for each test in seconds. Defaults to DEFAULT_TIMEOUT.
+        per_test_timeouts: A dictionary of tests and their timeouts in seconds. Any tests not listed here will use the
+            timeout specified by `timeout`. Defaults to an empty dictionary.
         discover_only: If True, only discover and print the tests without running them. Defaults to False.
         quiet: If False, print the output of the tests to the terminal console (in addition to the log file).
             Defaults to False.
@@ -134,11 +141,20 @@ def test_all(
     test_paths.sort()
     skipped_test_paths.sort()
 
+    # Initialize all tests to have the same timeout
+    test_timeouts = {test_path: timeout for test_path in all_test_paths}
+
+    # Overwrite timeouts for specific tests
+    for test_path_with_timeout, test_timeout in per_test_timeouts.items():
+        for test_path in all_test_paths:
+            if test_path_with_timeout in test_path:
+                test_timeouts[test_path] = test_timeout
+
     # Print tests to be run
     logging.info("\n" + "=" * 60 + "\n")
     logging.info(f"The following {len(all_test_paths)} tests were found:")
     for i, test_path in enumerate(all_test_paths):
-        logging.info(f"{i + 1:02d}: {test_path}")
+        logging.info(f"{i + 1:02d}: {test_path}, timeout: {test_timeouts[test_path]}")
     logging.info("\n" + "=" * 60 + "\n")
 
     logging.info(f"The following {len(skipped_test_paths)} tests are marked to be skipped:")
@@ -160,7 +176,7 @@ def test_all(
         logging.info(f"[INFO] Running '{test_path}'\n")
         try:
             completed_process = subprocess.run(
-                [sys.executable, test_path], check=True, capture_output=True, timeout=timeout
+                [sys.executable, test_path], check=True, capture_output=True, timeout=test_timeouts[test_path]
             )
         except subprocess.TimeoutExpired as e:
             logging.error(f"Timeout occurred: {e}")
@@ -177,8 +193,8 @@ def test_all(
         except Exception as e:
             logging.error(f"Unexpected exception {e}. Please report this issue on the repository.")
             result = "FAILED"
-            stdout = e.stdout
-            stderr = e.stderr
+            stdout = str(e)
+            stderr = str(e)
         else:
             # Should only get here if the process ran successfully, e.g. no exceptions were raised
             # but we still check the returncode just in case
@@ -189,8 +205,21 @@ def test_all(
         after = time.time()
         time_elapsed = after - before
         # Decode stdout and stderr and write to file and print to console if desired
-        stdout_str = stdout.decode("utf-8") if stdout is not None else ""
-        stderr_str = stderr.decode("utf-8") if stderr is not None else ""
+        if stdout is not None:
+            if isinstance(stdout, str):
+                stdout_str = stdout
+            else:
+                stdout_str = stdout.decode("utf-8")
+        else:
+            stdout = ""
+        if stderr is not None:
+            if isinstance(stderr, str):
+                stderr_str = stderr
+            else:
+                stderr_str = stderr.decode("utf-8")
+        else:
+            stderr = ""
+
         # Write to log file
         logging.info(stdout_str)
         logging.info(stderr_str)
@@ -264,12 +293,14 @@ if __name__ == "__main__":
     # add tests to skip to the list of tests to skip
     tests_to_skip = TESTS_TO_SKIP
     tests_to_skip += args.skip_tests
+
     # run all tests
     test_success = test_all(
         test_dir=args.test_dir,
         tests_to_skip=tests_to_skip,
         log_path=args.log_path,
         timeout=args.timeout,
+        per_test_timeouts=PER_TEST_TIMEOUTS,
         discover_only=args.discover_only,
         quiet=args.quiet,
     )

@@ -1,13 +1,38 @@
 Changelog
 ---------
 
+0.19.4 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the call to "startup" events when using the :class:`~omni.isaac.lab.envs.ManagerBasedEnv` class.
+  Earlier, the "startup" events were not being called when the environment was initialized. This issue
+  did not occur when using the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class since the "startup"
+  events were called in the constructor.
+
+
+0.19.3 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added schemas for setting and modifying deformable body properties on a USD prim.
+* Added API to spawn a deformable body material in the simulation.
+* Added APIs to spawn rigid and deformable meshes of primitive shapes (cone, cylinder, sphere, box, capsule)
+  in the simulation. This is possible through the :mod:`omni.isaac.lab.sim.spawners.meshes` module.
+
+
 0.19.2 (2024-07-05)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics` to determine whether environment is homogeneous or heterogeneous.
+* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics`
+  to determine whether environment is homogeneous or heterogeneous.
 
 
 0.19.1 (2024-07-05)
