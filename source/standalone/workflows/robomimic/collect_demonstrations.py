@@ -13,7 +13,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Collect demonstrations for Isaac Lab environments.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--device", type=str, default="keyboard", help="Device for interacting with environment")
@@ -66,7 +65,7 @@ def main():
         args_cli.task == "Isaac-Lift-Cube-Franka-IK-Rel-v0"
     ), "Only 'Isaac-Lift-Cube-Franka-IK-Rel-v0' is supported currently."
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
 
     # modify configuration such that the environment runs indefinitely
     # until goal is reached

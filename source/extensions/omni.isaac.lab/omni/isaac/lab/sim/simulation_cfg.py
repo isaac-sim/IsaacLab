@@ -33,13 +33,6 @@ class PhysxCfg:
 
     """
 
-    use_gpu: bool = True
-    """Enable/disable GPU accelerated dynamics simulation. Default is True.
-
-    This enables GPU-accelerated implementations for broad-phase collision checks, contact generation,
-    shape and body management, and constrained solver.
-    """
-
     solver_type: Literal[0, 1] = 1
     """The type of solver to use.Default is 1 (TGS).
 
@@ -217,12 +210,6 @@ class SimulationCfg:
     .. note::
 
         It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.
-    """
-
-    use_gpu_pipeline: bool = True
-    """Enable/disable GPU pipeline. Default is True.
-
-    If set to False, the physics data will be read as CPU buffers.
     """
 
     device: str = "cuda:0"

@@ -93,8 +93,6 @@ class ManagerBasedEnv:
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
-        print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
-        print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (

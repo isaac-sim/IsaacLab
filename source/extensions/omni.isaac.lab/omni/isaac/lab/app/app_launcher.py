@@ -162,7 +162,7 @@ class AppLauncher:
           headless mode. This flag must be set to True if the environments contains any camera sensors.
           The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
           If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
-        * ``device_id`` (int): If specified, simulation will run on the specified GPU device.
+        * ``device`` (str): The device to run the simulation on.
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
@@ -232,10 +232,10 @@ class AppLauncher:
             help="Enable camera sensors and relevant extension dependencies.",
         )
         arg_group.add_argument(
-            "--device_id",
-            type=int,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1],
-            help="GPU device ID used for running simulation.",
+            "--device",
+            type=str,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
+            help="The device to run the simulation on.",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -267,7 +267,7 @@ class AppLauncher:
         "headless": ([bool], False),
         "livestream": ([int], -1),
         "enable_cameras": ([bool], False),
-        "device_id": ([int], 0),
+        "device": ([str], "cuda:0"),
         "experience": ([str], ""),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -454,7 +454,16 @@ class AppLauncher:
             launcher_args["hide_ui"] = True
 
         # --simulation GPU device logic --
-        self.device_id = launcher_args.pop("device_id", AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1])
+        self.device_id = 0
+        device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
+        if "cuda" not in device and "cpu" not in device:
+            raise ValueError(
+                f"Invalid value for input keyword argument `device`: {device}."
+                " Expected: a string with the format 'cuda', 'cuda:<device_id>', or 'cpu'."
+            )
+        if "cuda:" in device:
+            self.device_id = int(device.split(":")[-1])
+
         if "distributed" in launcher_args:
             distributed_train = launcher_args["distributed"]
             # local rank (GPU id) in a current multi-gpu mode
