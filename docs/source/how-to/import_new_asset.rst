@@ -169,7 +169,7 @@ of gravity.
 
 
 .. _instanceable: https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html
-.. _documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_gym_tutorials/tutorial_gym_instanceable_assets.html
+.. _documentation: https://docs.omniverse.nvidia.com/isaacsim/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
 .. _MJCF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_mjcf.html
 .. _URDF importer: https://docs.omniverse.nvidia.com/isaacsim/latest/advanced_tutorials/tutorial_advanced_import_urdf.html
 .. _anymal.urdf: https://github.com/isaac-orbit/anymal_d_simple_description/blob/master/urdf/anymal.urdf

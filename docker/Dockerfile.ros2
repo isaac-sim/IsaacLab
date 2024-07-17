@@ -22,6 +22,9 @@ RUN --mount=type=cache,target=/var/cache/apt \
     ros-humble-rmw-fastrtps-cpp \
     # This includes various dev tools including colcon
     ros-dev-tools && \
+    # Install rosdeps for extensions that declare a ros_ws in
+    # their extension.toml
+    ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py rosdep ${ISAACLAB_PATH}/source/extensions && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/* && \
     # Add sourcing of setup.bash to .bashrc

@@ -8,7 +8,7 @@
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
-                "command": "export CARB_APP_PATH=${workspaceFolder}/_isaac_sim/kit && export ISAAC_PATH=${workspaceFolder}/_isaac_sim && export EXP_PATH=${workspaceFolder}/_isaac_sim/apps && source ${workspaceFolder}/_isaac_sim/setup_python_env.sh && printenv >${workspaceFolder}/.vscode/.python.env && ${workspaceFolder}/_isaac_sim/python.sh ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+                "command": "${workspaceFolder}/isaaclab.sh -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
             }
         },
         {

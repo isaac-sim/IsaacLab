@@ -19,7 +19,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
-    from omni.isaac.lab.envs import ManagerBasedRLEnv
+    from omni.isaac.lab.envs import ManagerBasedEnv
 
 
 class EventManager(ManagerBase):
@@ -53,10 +53,10 @@ class EventManager(ManagerBase):
 
     """
 
-    _env: ManagerBasedRLEnv
+    _env: ManagerBasedEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the event manager.
 
         Args:
@@ -180,7 +180,7 @@ class EventManager(ManagerBase):
                         " to be passed to the event manager."
                     )
                 self._reset_mode_time_until_next_reset[index] -= dt
-                if env_ids is not None and len(env_ids) > 0 and term_cfg.min_frequency > 0:
+                if env_ids is not None and len(env_ids) > 0:
                     time_left = self._reset_mode_time_until_next_reset[index]
                     env_ids = env_ids[time_left[env_ids] <= 0.0]
                     if len(env_ids) > 0:
@@ -317,7 +317,7 @@ class RandomizationManager(EventManager):
         renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.
     """
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: object, env: ManagerBasedEnv):
         """Initialize the randomization manager.
 
         Args:

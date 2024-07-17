@@ -29,6 +29,7 @@ class EventCfg:
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
+        min_frequency=36.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "static_friction_range": (0.7, 1.3),
@@ -39,6 +40,7 @@ class EventCfg:
     )
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
+        min_frequency=36.0,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -50,6 +52,7 @@ class EventCfg:
     )
     robot_joint_limits = EventTerm(
         func=mdp.randomize_joint_parameters,
+        min_frequency=36.0,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -61,6 +64,7 @@ class EventCfg:
     )
     robot_tendon_properties = EventTerm(
         func=mdp.randomize_fixed_tendon_parameters,
+        min_frequency=36.0,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
@@ -74,6 +78,7 @@ class EventCfg:
     # -- object
     object_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
+        min_frequency=36.0,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
@@ -85,6 +90,7 @@ class EventCfg:
     )
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
+        min_frequency=36.0,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
@@ -110,9 +116,19 @@ class EventCfg:
 
 @configclass
 class ShadowHandEnvCfg(DirectRLEnvCfg):
+    # env
+    decimation = 2
+    episode_length_s = 10.0
+    num_actions = 20
+    num_observations = 157  # (full)
+    num_states = 0
+    asymmetric_obs = False
+    obs_type = "full"
+
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
@@ -190,14 +206,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True)
-    # env
-    decimation = 2
-    episode_length_s = 10.0
-    num_actions = 20
-    num_observations = 157  # (full)
-    num_states = 0
-    asymmetric_obs = False
-    obs_type = "full"
+
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
@@ -220,9 +229,18 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
 
 @configclass
 class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
+    # env
+    decimation = 3
+    episode_length_s = 8.0
+    num_actions = 20
+    num_observations = 42
+    num_states = 187
+    asymmetric_obs = True
+    obs_type = "openai"
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 60,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
@@ -233,14 +251,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
             gpu_max_rigid_patch_count=2**23,
         ),
     )
-    # env
-    decimation = 3
-    episode_length_s = 8.0
-    num_actions = 20
-    num_observations = 42
-    num_states = 187
-    asymmetric_obs = True
-    obs_type = "openai"
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
@@ -261,7 +271,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     force_torque_obs_scale = 10.0
     # domain randomization config
     events: EventCfg = EventCfg()
-    min_randomization_freq_s = 10.0
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
     action_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
         noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.05, operation="add"),

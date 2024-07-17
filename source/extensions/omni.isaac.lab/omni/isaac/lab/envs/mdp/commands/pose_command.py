@@ -148,6 +148,10 @@ class UniformPoseCommand(CommandTerm):
                 self.body_pose_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # check if robot is initialized
+        # note: this is needed in-case the robot is de-initialized. we can't access the data
+        if not self.robot.is_initialized:
+            return
         # update the markers
         # -- goal pose
         self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])

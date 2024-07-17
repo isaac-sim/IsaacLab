@@ -111,6 +111,31 @@ class TestSpawningMaterials(unittest.TestCase):
         self.assertEqual(prim.GetAttribute("physxMaterial:restitutionCombineMode").Get(), cfg.restitution_combine_mode)
         self.assertEqual(prim.GetAttribute("physxMaterial:frictionCombineMode").Get(), cfg.friction_combine_mode)
 
+    def test_spawn_deformable_body_material(self):
+        """Test spawning a deformable body material."""
+        # spawn deformable body material
+        cfg = sim_utils.materials.DeformableBodyMaterialCfg(
+            density=1.0,
+            dynamic_friction=0.25,
+            youngs_modulus=50000000.0,
+            poissons_ratio=0.5,
+            elasticity_damping=0.005,
+            damping_scale=1.0,
+        )
+        prim = cfg.func("/Looks/DeformableBodyMaterial", cfg)
+        # Check validity
+        self.assertTrue(prim.IsValid())
+        self.assertTrue(prim_utils.is_prim_path_valid("/Looks/DeformableBodyMaterial"))
+        # Check properties
+        self.assertEqual(prim.GetAttribute("physxDeformableBodyMaterial:density").Get(), cfg.density)
+        self.assertEqual(prim.GetAttribute("physxDeformableBodyMaterial:dynamicFriction").Get(), cfg.dynamic_friction)
+        self.assertEqual(prim.GetAttribute("physxDeformableBodyMaterial:youngsModulus").Get(), cfg.youngs_modulus)
+        self.assertEqual(prim.GetAttribute("physxDeformableBodyMaterial:poissonsRatio").Get(), cfg.poissons_ratio)
+        self.assertAlmostEqual(
+            prim.GetAttribute("physxDeformableBodyMaterial:elasticityDamping").Get(), cfg.elasticity_damping
+        )
+        self.assertEqual(prim.GetAttribute("physxDeformableBodyMaterial:dampingScale").Get(), cfg.damping_scale)
+
     def test_apply_rigid_body_material_on_visual_material(self):
         """Test applying a rigid body material on a visual material."""
         # Spawn mdl material

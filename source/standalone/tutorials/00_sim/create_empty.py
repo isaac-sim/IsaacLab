@@ -38,7 +38,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim_cfg = SimulationCfg(dt=0.01, substeps=1)
+    sim_cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

@@ -27,8 +27,8 @@ The schemas are defined in the following links:
 
 Locally, the schemas are defined in the following files:
 
-* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda``
-* ``_isaac_sim/kit/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/PhysxSchema/schema.usda``
+* ``_isaac_sim/extsPhysics/omni.usd.schema.physics/plugins/UsdPhysics/resources/UsdPhysics/schema.usda``
+* ``_isaac_sim/extsPhysics/omni.usd.schema.physx/plugins/PhysxSchema/resources/generatedSchema.usda``
 
 """
 
@@ -36,10 +36,12 @@ from .schemas import (
     activate_contact_sensors,
     define_articulation_root_properties,
     define_collision_properties,
+    define_deformable_body_properties,
     define_mass_properties,
     define_rigid_body_properties,
     modify_articulation_root_properties,
     modify_collision_properties,
+    modify_deformable_body_properties,
     modify_fixed_tendon_properties,
     modify_joint_drive_properties,
     modify_mass_properties,
@@ -48,6 +50,7 @@ from .schemas import (
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
+    DeformableBodyPropertiesCfg,
     FixedTendonPropertiesCfg,
     JointDrivePropertiesCfg,
     MassPropertiesCfg,

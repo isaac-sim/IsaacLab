@@ -168,7 +168,7 @@ class SimulationCfg:
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
-    substeps: int = 1
+    render_interval: int = 1
     """The number of physics simulation steps per rendering step. Default is 1."""
 
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81)

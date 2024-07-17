@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import torch
 from typing import TYPE_CHECKING
 
@@ -127,4 +128,50 @@ def bpearl_pattern(cfg: patterns_cfg.BpearlPatternCfg, device: str) -> tuple[tor
 
     ray_directions = -torch.stack([x, y, z], dim=1)
     ray_starts = torch.zeros_like(ray_directions)
+    return ray_starts, ray_directions
+
+
+def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Lidar sensor pattern for ray casting.
+
+    Args:
+        cfg: The configuration instance for the pattern.
+        device: The device to create the pattern on.
+
+    Returns:
+        The starting positions and directions of the rays.
+    """
+    # Vertical angles
+    vertical_angles = torch.linspace(cfg.vertical_fov_range[0], cfg.vertical_fov_range[1], cfg.channels)
+
+    # If the horizontal field of view is 360 degrees, exclude the last point to avoid overlap
+    if abs(abs(cfg.horizontal_fov_range[0] - cfg.horizontal_fov_range[1]) - 360.0) < 1e-6:
+        up_to = -1
+    else:
+        up_to = None
+
+    # Horizontal angles
+    num_horizontal_angles = math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res)
+    horizontal_angles = torch.linspace(cfg.horizontal_fov_range[0], cfg.horizontal_fov_range[1], num_horizontal_angles)[
+        :up_to
+    ]
+
+    # Convert degrees to radians
+    vertical_angles_rad = torch.deg2rad(vertical_angles)
+    horizontal_angles_rad = torch.deg2rad(horizontal_angles)
+
+    # Meshgrid to create a 2D array of angles
+    v_angles, h_angles = torch.meshgrid(vertical_angles_rad, horizontal_angles_rad, indexing="ij")
+
+    # Spherical to Cartesian conversion (assuming Z is up)
+    x = torch.cos(v_angles) * torch.cos(h_angles)
+    y = torch.cos(v_angles) * torch.sin(h_angles)
+    z = torch.sin(v_angles)
+
+    # Ray directions
+    ray_directions = torch.stack([x, y, z], dim=-1).reshape(-1, 3).to(device)
+
+    # Ray starts: Assuming all rays originate from (0,0,0)
+    ray_starts = torch.zeros_like(ray_directions).to(device)
+
     return ray_starts, ray_directions
