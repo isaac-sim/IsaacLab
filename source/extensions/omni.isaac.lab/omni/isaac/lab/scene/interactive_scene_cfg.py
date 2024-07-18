@@ -85,4 +85,15 @@ class InteractiveSceneCfg:
     """
 
     replicate_physics: bool = True
-    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True."""
+    """Enable/disable replication of physics schemas when using the Cloner APIs. Default is True.
+
+    If True, the simulation will have the same asset instances (USD prims) in all the cloned environments.
+    Internally, this ensures optimization in setting up the scene and parsing it via the physics stage parser.
+
+    If False, the simulation allows having separate asset instances (USD prims) in each environment.
+    This flexibility comes at a cost of slowdowns in setting up and parsing the scene.
+
+    .. note::
+        Optimized parsing of certain prim types (such as deformable objects) is not currently supported
+        by the physics engine. In these cases, this flag needs to be set to False.
+    """

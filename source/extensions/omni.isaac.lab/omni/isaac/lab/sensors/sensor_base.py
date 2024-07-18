@@ -93,6 +93,14 @@ class SensorBase(ABC):
     """
 
     @property
+    def is_initialized(self) -> bool:
+        """Whether the sensor is initialized.
+
+        Returns True if the sensor is initialized, False otherwise.
+        """
+        return self._is_initialized
+
+    @property
     def num_instances(self) -> int:
         """Number of instances of the sensor.
 

@@ -122,6 +122,10 @@ class PreTrainedPolicyAction(ActionTerm):
                 self.base_vel_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        # check if robot is initialized
+        # note: this is needed in-case the robot is de-initialized. we can't access the data
+        if not self.robot.is_initialized:
+            return
         # get marker location
         # -- base state
         base_pos_w = self.robot.data.root_pos_w.clone()

@@ -1,4 +1,4 @@
-.. _tutorial-create-rl-env:
+.. _tutorial-create-manager-rl-env:
 
 
 Creating a Manager-Based RL Environment
@@ -6,7 +6,7 @@ Creating a Manager-Based RL Environment
 
 .. currentmodule:: omni.isaac.lab
 
-Having learnt how to create a base environment in :ref:`tutorial-create-base-env`, we will now look at how to create a manager-based
+Having learnt how to create a base environment in :ref:`tutorial-create-manager-base-env`, we will now look at how to create a manager-based
 task environment for reinforcement learning.
 
 The base environment is designed as an sense-act environment where the agent can send commands to the environment
@@ -56,7 +56,7 @@ The script for running the environment ``run_cartpole_rl_env.py`` is present in 
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-We already went through parts of the above in the :ref:`tutorial-create-base-env` tutorial to learn
+We already went through parts of the above in the :ref:`tutorial-create-manager-base-env` tutorial to learn
 about how to specify the scene, observations, actions and events. Thus, in this tutorial, we
 will focus only on the RL components of the environment.
 
@@ -144,7 +144,7 @@ Tying it all together
 ---------------------
 
 With all the above components defined, we can now create the :class:`ManagerBasedRLEnvCfg` configuration for the
-cartpole environment. This is similar to the :class:`ManagerBasedEnvCfg` defined in :ref:`tutorial-create-base-env`,
+cartpole environment. This is similar to the :class:`ManagerBasedEnvCfg` defined in :ref:`tutorial-create-manager-base-env`,
 only with the added RL components explained in the above sections.
 
 .. literalinclude:: ../../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py
