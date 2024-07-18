@@ -4,7 +4,7 @@ Building your Own Project
 Traditionally, building new projects that utilize Isaac Lab's features required creating your own
 extensions within the Isaac Lab repository. However, this approach can obscure project visibility and
 complicate updates from one version of Isaac Lab to another. To circumvent these challenges, we now
-provide a pre-configured and customizable `extension template <https://github.com/isaac-sim/IsaacLab.ext_template>`_
+provide a pre-configured and customizable `extension template <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_
 for creating projects in an isolated environment.
 
 This template serves three distinct use cases:
@@ -22,4 +22,4 @@ This template serves three distinct use cases:
   features and improvements in Isaac Lab.
 
 
-To get started, please follow the instructions in the `extension template repository <https://github.com/isaac-sim/IsaacLab.ext_template>`_.
+To get started, please follow the instructions in the `extension template repository <https://github.com/isaac-sim/IsaacLabExtensionTemplate>`_.

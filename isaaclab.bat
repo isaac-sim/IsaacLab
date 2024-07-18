@@ -12,40 +12,57 @@ goto main
 
 rem Helper functions
 
+rem extract Isaac Sim directory
+:extract_isaacsim_path
+rem check if conda environment is activated and isaacsim package is installed
+if not "%CONDA_PREFIX%"=="" (
+    rem use conda python
+    set python_exe=%CONDA_PREFIX%\python
+    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
+    if errorlevel 1 (
+        rem Use the sym-link path to Isaac Sim directory
+        set isaac_path=%ISAACLAB_PATH%\_isaac_sim
+    ) else (
+        rem retrieve the isaacsim path from the installed package
+        set "isaac_path="
+        for /f "delims=" %%i in ('!python_exe! -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"') do (
+            if not defined isaac_path (
+                set "isaac_path=%%i"
+            )
+        )
+    )
+) else (
+    rem Use the sym-link path to Isaac Sim directory
+    set isaac_path=%ISAACLAB_PATH%\_isaac_sim
+)
+rem Check if the directory exists
+if not exist "%isaac_path%" (
+    echo [ERROR] Unable to find the Isaac Sim directory: %isaac_path%
+    echo %tab%This could be due to the following reasons:
+    echo %tab%1. Conda environment with Isaac Sim pip package is not activated.
+    echo %tab%2. Isaac Sim directory is not available at the default path: %ISAACLAB_PATH%\_isaac_sim
+    exit /b 1
+)
+goto :eof
+
 rem extract the python from isaacsim
 :extract_python_exe
-rem Check if IsaacSim directory manually specified
-rem Note: for manually build isaacsim, this: _build/linux-x86_64/release
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set build_path=%ISAACSIM_PATH%
-) else (
-    rem Use TeamCity build
-    set build_path=%ISAACLAB_PATH%\_isaac_sim
-)
 rem check if using conda
 if not "%CONDA_PREFIX%"=="" (
     rem use conda python
     set python_exe=%CONDA_PREFIX%\python
 ) else (
-    rem check if isaacsim is installed
-    pip show isaacsim-rl > nul 2>&1
-    if errorlevel 1 (
-        rem use python from kit if Isaac Sim not installed from pip
-        set python_exe=%build_path%\python.bat
-    ) else (
-        rem use current python if Isaac Sim is installed from pip
-        set "python_exe="
-        for /f "delims=" %%i in ('where python') do (
-            if not defined python_exe (
-                set "python_exe=%%i"
-            )
-        )
-    )
+    rem obtain isaacsim path
+    call :extract_isaacsim_path
+    rem use python from kit if Isaac Sim not installed from pip
+    set python_exe=!isaac_path!\python.bat
 )
 rem check if there is a python path available
 if "%python_exe%"=="" (
-    echo [ERROR] No python executable found at path: %build_path%
+    echo [ERROR] Unable to find any Python executable at path: %isaac_path%
+    echo %tab%This could be due to the following reasons:
+    echo %tab%1. Conda environment is not activated.
+    echo %tab%2. Python executable is not available at the default path: %ISAACLAB_PATH%\_isaac_sim\python.bat
     exit /b 1
 )
 goto :eof
@@ -53,20 +70,20 @@ goto :eof
 
 rem extract the simulator exe from isaacsim
 :extract_isaacsim_exe
-rem Check if IsaacSim directory manually specified
-rem Note: for manually build isaacsim, this: _build\linux-x86_64\release
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set build_path=%ISAACSIM_PATH%
+call :extract_python_exe
+call !python_exe! -m pip show isaacsim-rl > nul 2>&1
+if errorlevel 1 (
+    rem obtain isaacsim path
+    call :extract_isaacsim_path
+    rem python executable to use
+    set isaacsim_exe=!isaac_path!\isaac-sim.bat
 ) else (
-    rem Use TeamCity build
-    set build_path=%ISAACLAB_PATH%\_isaac_sim
+    rem if isaac sim installed from pip
+    set isaacsim_exe=isaacsim
 )
-rem python executable to use
-set isaacsim_exe=%build_path%\isaac-sim.bat
 rem check if there is a python path available
 if not exist "%isaacsim_exe%" (
-    echo [ERROR] No isaac-sim executable found at path: %build_path%
+    echo [ERROR] No isaac-sim executable found at path: !isaac_path!
     exit /b 1
 )
 goto :eof
@@ -95,15 +112,6 @@ if errorlevel 1 (
     echo [ERROR] Conda could not be found. Please install conda and try again.
     exit /b 1
 )
-rem check if Isaac Sim directory manually specified
-rem Note: for manually build Isaac Sim, this: _build\windows-x86_64\release
-if not "%ISAACSIM_PATH%"=="" (
-    rem Use local build
-    set "build_path=%ISAACSIM_PATH%"
-) else (
-    rem Use TeamCity build
-    set "build_path=%ISAACLAB_PATH%\_isaac_sim"
-)
 rem check if the environment exists
 call conda env list | findstr /c:"%env_name%" >nul
 if %errorlevel% equ 0 (
@@ -124,27 +132,34 @@ call conda activate %env_name%
 rem setup directories to load isaac-sim variables
 mkdir "%CONDA_PREFIX%\etc\conda\activate.d" 2>nul
 mkdir "%CONDA_PREFIX%\etc\conda\deactivate.d" 2>nul
+
+rem obtain isaacsim path
+call :extract_isaacsim_path
+
 rem add variables to environment during activation
 (
     echo @echo off
-    rem for isaac-sim
-    echo set CARB_APP_PATH=%build_path%\kit
-    echo set EXP_PATH=%build_path%\apps
-    echo set ISAAC_PATH=%build_path%
-    echo set PYTHONPATH=%PYTHONPATH%;%build_path%\site
+    echo rem for isaac-sim
     echo set "RESOURCE_NAME=IsaacSim"
+    echo set CARB_APP_PATH=!isaac_path!\kit
+    echo set EXP_PATH=!isaac_path!\apps
+    echo set ISAAC_PATH=!isaac_path!
+    echo set PYTHONPATH=%PYTHONPATH%;!isaac_path!\site
+    echo.
+    echo rem for isaac-lab
     echo doskey isaaclab=isaaclab.bat $*
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat"
 (
-    echo $env:CARB_APP_PATH="%build_path%\kit"
-    echo $env:EXP_PATH="%build_path%\apps"
-    echo $env:ISAAC_PATH="%build_path%"
-    echo $env:PYTHONPATH="%PYTHONPATH%;%build_path%\site"
+    echo $env:CARB_APP_PATH="!isaac_path!\kit"
+    echo $env:EXP_PATH="!isaac_path!\apps"
+    echo $env:ISAAC_PATH="!isaac_path!"
+    echo $env:PYTHONPATH="%PYTHONPATH%;!isaac_path!\site"
     echo $env:RESOURCE_NAME="IsaacSim"
 ) > "%CONDA_PREFIX%\etc\conda\activate.d\env_vars.ps1"
 
 rem reactivate the environment to load the variables
 call conda activate %env_name%
+
 rem remove variables from environment during deactivation
 (
     echo @echo off
@@ -153,6 +168,8 @@ rem remove variables from environment during deactivation
     echo set "EXP_PATH="
     echo set "ISAAC_PATH="
     echo set "RESOURCE_NAME="
+    echo.
+    echo rem for isaac-lab
     echo doskey isaaclab =
     echo.
     echo rem restore paths
@@ -160,9 +177,6 @@ rem remove variables from environment during deactivation
     echo set "LD_LIBRARY_PATH=%cache_ld_library_path%"
 ) > "%CONDA_PREFIX%\etc\conda\deactivate.d\unsetenv_vars.bat"
 (
-    echo $env:CARB_APP_PATH=""
-    echo $env:EXP_PATH=""
-    echo $env:ISAAC_PATH=""
     echo $env:RESOURCE_NAME=""
     echo $env:PYTHONPATH="%cache_pythonpath%"
     echo $env:LD_LIBRARY_PATH="%cache_pythonpath%"
@@ -171,6 +185,7 @@ rem remove variables from environment during deactivation
 rem install some extra dependencies
 echo [INFO] Installing extra dependencies (this might take a few minutes)...
 call conda install -c conda-forge -y importlib_metadata >nul 2>&1
+
 rem deactivate the environment
 call conda deactivate
 rem add information to the user about alias
@@ -179,8 +194,8 @@ echo [INFO] Created conda environment named '%env_name%'.
 echo.
 echo       1. To activate the environment, run:                conda activate %env_name%
 echo       2. To install Isaac Lab extensions, run:            isaaclab -i
-echo       4. To perform formatting, run:                      isaaclab -f
-echo       5. To deactivate the environment, run:              conda deactivate
+echo       3. To perform formatting, run:                      isaaclab -f
+echo       4. To deactivate the environment, run:              conda deactivate
 echo.
 goto :eof
 
@@ -189,7 +204,7 @@ rem Update the vscode settings from template and Isaac Sim settings
 :update_vscode_settings
 echo [INFO] Setting up vscode settings...
 rem Retrieve the python executable
-call :extract_python_exe python_exe
+call :extract_python_exe
 rem Path to setup_vscode.py
 set "setup_vscode_script=%ISAACLAB_PATH%\.vscode\tools\setup_vscode.py"
 rem Check if the file exists before attempting to run it
@@ -244,12 +259,6 @@ if "%arg%"=="-i" (
         set ext_folder="%%d"
         call :install_isaaclab_extension
     )
-    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
-    rem if not installing from pip, set up VScode
-    if errorlevel 1 (
-        rem setup vscode settings
-        call :update_vscode_settings
-    )
     rem install the python packages for supported reinforcement learning frameworks
     echo [INFO] Installing extra requirements such as learning frameworks...
     if "%~2"=="" (
@@ -265,7 +274,7 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
     shift
 ) else if "%arg%"=="--install" (
     rem install the python packages in omni.isaac.rl/source directory
@@ -275,12 +284,6 @@ if "%arg%"=="-i" (
         set ext_folder="%%d"
         call :install_isaaclab_extension
     )
-    call !python_exe! -m pip show isaacsim-rl > nul 2>&1
-    rem if not installing from pip, set up VScode
-    if errorlevel 1 (
-        rem setup vscode settings
-        call :update_vscode_settings
-    )
     rem install the python packages for supported reinforcement learning frameworks
     echo [INFO] Installing extra requirements such as learning frameworks...
     if "%~2"=="" (
@@ -296,7 +299,10 @@ if "%arg%"=="-i" (
         shift
     )
     rem install the rl-frameworks specified
-    !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    call !python_exe! -m pip install -e %ISAACLAB_PATH%\source\extensions\omni.isaac.lab_tasks[!framework_name!]
+    rem update the vscode settings
+    rem once we have a docker container, we need to disable vscode settings
+    call :update_vscode_settings
     shift
 ) else if "%arg%"=="-c" (
     rem use default name if not provided
@@ -413,7 +419,7 @@ if "%arg%"=="-i" (
 ) else if "%arg%"=="-s" (
     rem run the simulator exe provided by isaacsim
     call :extract_isaacsim_exe
-    echo [INFO] Running isaac-sim from: %isaacsim_exe%
+    echo [INFO] Running isaac-sim from: !isaacsim_exe!
     set "allArgs="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one
@@ -428,7 +434,7 @@ if "%arg%"=="-i" (
 ) else if "%arg%"=="--sim" (
     rem run the simulator exe provided by Isaac Sim
     call :extract_isaacsim_exe
-    echo [INFO] Running isaac-sim from: %isaacsim_exe%
+    echo [INFO] Running isaac-sim from: !isaacsim_exe!
     set "allArgs="
     for %%a in (%*) do (
         REM Append each argument to the variable, skip the first one

@@ -107,7 +107,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     unitree_go2 = Articulation(UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot"))
 
     # Origin 7 with Boston Dynamics Spot
-    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[5])
+    prim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
     # -- Robot
     spot = Articulation(SPOT_CFG.replace(prim_path="/World/Origin7/Robot"))
 
@@ -171,7 +171,7 @@ def main():
     """Main function."""
 
     # Initialize the simulation context
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, substeps=1))
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01))
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # design scene

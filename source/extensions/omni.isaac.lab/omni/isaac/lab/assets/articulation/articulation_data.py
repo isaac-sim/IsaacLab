@@ -14,27 +14,48 @@ from ..rigid_object import RigidObjectData
 
 
 class ArticulationData(RigidObjectData):
-    """Data container for an articulation."""
+    """Data container for an articulation.
 
-    def __init__(self, root_physx_view: physx.ArticulationView, device):
-        super().__init__(root_physx_view, device)
-        self._root_physx_view: physx.ArticulationView = root_physx_view
+    This class extends the :class:`RigidObjectData` class to provide additional data for
+    an articulation mainly related to the joints and tendons.
+    """
 
+    _root_physx_view: physx.ArticulationView
+    """The root articulation view of the object.
+
+    Note:
+        Internally, this is stored as a weak reference to avoid circular references between the asset class
+        and the data container. This is important to avoid memory leaks.
+    """
+
+    def __init__(self, root_physx_view: physx.ArticulationView, device: str):
+        # Initialize the parent class
+        super().__init__(root_physx_view, device)  # type: ignore
+
+        # Initialize history for finite differencing
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
         # Initialize the lazy buffers.
-        self._body_state_w: TimestampedBuffer = TimestampedBuffer()
-        self._joint_pos: TimestampedBuffer = TimestampedBuffer()
-        self._joint_acc: TimestampedBuffer = TimestampedBuffer()
-        self._joint_vel: TimestampedBuffer = TimestampedBuffer()
+        self._body_state_w = TimestampedBuffer()
+        self._joint_pos = TimestampedBuffer()
+        self._joint_acc = TimestampedBuffer()
+        self._joint_vel = TimestampedBuffer()
 
     def update(self, dt: float):
-        self._time_stamp += dt
-        # Trigger an update of the joint acceleration buffer at a higher frequency since we do finite differencing.
+        self._sim_timestamp += dt
+        # Trigger an update of the joint acceleration buffer at a higher frequency
+        # since we do finite differencing.
         self.joint_acc
+
+    ##
+    # Names.
+    ##
 
     joint_names: list[str] = None
     """Joint names in the order parsed by the simulation view."""
+
+    fixed_tendon_names: list[str] = None
+    """Fixed tendon names in the order parsed by the simulation view."""
 
     ##
     # Defaults.
@@ -191,32 +212,37 @@ class ArticulationData(RigidObjectData):
     @property
     def root_state_w(self):
         """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
-        if self._root_state_w.update_timestamp < self._time_stamp:
+        if self._root_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
             pose[:, 3:7] = math_utils.convert_quat(pose[:, 3:7], to="wxyz")
             velocity = self._root_physx_view.get_root_velocities()
+            # set the buffer data and timestamp
             self._root_state_w.data = torch.cat((pose, velocity), dim=-1)
-            self._root_state_w.update_timestamp = self._time_stamp
+            self._root_state_w.timestamp = self._sim_timestamp
         return self._root_state_w.data
 
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13)."""
-        if self._body_state_w.update_timestamp < self._time_stamp:
+        if self._body_state_w.timestamp < self._sim_timestamp:
+            # read data from simulation
             poses = self._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             velocities = self._root_physx_view.get_link_velocities()
+            # set the buffer data and timestamp
             self._body_state_w.data = torch.cat((poses, velocities), dim=-1)
-            self._body_state_w.update_timestamp = self._time_stamp
+            self._body_state_w.timestamp = self._sim_timestamp
         return self._body_state_w.data
 
     @property
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6)."""
-        if self._body_acc_w.update_timestamp < self._time_stamp:
+        if self._body_acc_w.timestamp < self._sim_timestamp:
+            # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
-            self._body_acc_w.update_timestamp = self._time_stamp
+            self._body_acc_w.timestamp = self._sim_timestamp
         return self._body_acc_w.data
 
     @property
@@ -232,26 +258,30 @@ class ArticulationData(RigidObjectData):
     @property
     def joint_pos(self):
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_pos.update_timestamp < self._time_stamp:
+        if self._joint_pos.timestamp < self._sim_timestamp:
+            # read data from simulation and set the buffer data and timestamp
             self._joint_pos.data = self._root_physx_view.get_dof_positions()
-            self._joint_pos.update_timestamp = self._time_stamp
+            self._joint_pos.timestamp = self._sim_timestamp
         return self._joint_pos.data
 
     @property
     def joint_vel(self):
         """Joint velocities of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_vel.update_timestamp < self._time_stamp:
+        if self._joint_vel.timestamp < self._sim_timestamp:
+            # read data from simulation and set the buffer data and timestamp
             self._joint_vel.data = self._root_physx_view.get_dof_velocities()
-            self._joint_vel.update_timestamp = self._time_stamp
+            self._joint_vel.timestamp = self._sim_timestamp
         return self._joint_vel.data
 
     @property
     def joint_acc(self):
         """Joint acceleration of all joints. Shape is (num_instances, num_joints)."""
-        if self._joint_acc.update_timestamp < self._time_stamp:
+        if self._joint_acc.timestamp < self._sim_timestamp:
+            # note: we use finite differencing to compute acceleration
             self._joint_acc.data = (self.joint_vel - self._previous_joint_vel) / (
-                self._time_stamp - self._joint_acc.update_timestamp
+                self._sim_timestamp - self._joint_acc.timestamp
             )
+            self._joint_acc.timestamp = self._sim_timestamp
+            # update the previous joint velocity
             self._previous_joint_vel[:] = self.joint_vel
-            self._joint_acc.update_timestamp = self._time_stamp
         return self._joint_acc.data

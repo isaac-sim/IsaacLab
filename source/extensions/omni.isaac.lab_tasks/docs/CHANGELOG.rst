@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+0.7.10 (2024-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Extended skrl wrapper to support training/evaluation using JAX
+
+
+0.7.9 (2024-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the action space check in the Stable-Baselines3 wrapper. Earlier, the wrapper checked
+  the action space via :meth:`gymnasium.spaces.Box.is_bounded` method, which returned a bool
+  value instead of a string.
+
+
+0.7.8 (2024-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the skrl RL library integration to the latest release (>= 1.2.0)
+
+
+0.7.7 (2024-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the tasks to use the renamed attribute :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+
+
 0.7.6 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~
 
@@ -37,7 +75,7 @@ Added
 Changed
 ^^^^^^^
 
-* Set default device for RSL RL and SB3 configs to "cuda:0".
+* Made default device for RSL RL and SB3 configs to "cuda:0".
 
 0.7.3 (2024-05-21)
 ~~~~~~~~~~~~~~~~~~
@@ -45,7 +83,7 @@ Changed
 Added
 ^^^^^
 
-* Introduce ``--max_iterations`` argument to training scripts for specifying number of training iterations.
+* Introduced ``--max_iterations`` argument to training scripts for specifying number of training iterations.
 
 0.7.2 (2024-05-13)
 ~~~~~~~~~~~~~~~~~~
@@ -53,7 +91,8 @@ Added
 Added
 ^^^^^
 
-* Add Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
+* Added Shadow Hand environments: ``Isaac-Shadow-Hand-Direct-v0``, ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0``,
+  and ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0``.
 
 
 0.7.1 (2024-05-09)
@@ -71,7 +110,9 @@ Added
 Changed
 ^^^^^^^
 
-* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`, and :class:`omni.isaac.lab.envs.DirectRLEnv`.
+* Renamed all references of ``BaseEnv``, ``RLTaskEnv``, and ``OIGEEnv`` to
+  :class:`omni.isaac.lab.envs.ManagerBasedEnv`, :class:`omni.isaac.lab.envs.ManagerBasedRLEnv`,
+  and :class:`omni.isaac.lab.envs.DirectRLEnv` respectively.
 * Split environments into ``manager_based`` and ``direct`` folders.
 
 Added

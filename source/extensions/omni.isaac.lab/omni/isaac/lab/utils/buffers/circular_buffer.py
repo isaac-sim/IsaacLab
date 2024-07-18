@@ -3,83 +3,49 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from __future__ import annotations
-
 import torch
 from collections.abc import Sequence
 
 
-class BatchedCircularBuffer:
-    """Circular buffer for storing a history of batched tensor data."""
+class CircularBuffer:
+    """Circular buffer for storing a history of batched tensor data.
+
+    This class implements a circular buffer for storing a history of batched tensor data. The buffer is
+    initialized with a maximum length and a batch size. The data is stored in a circular fashion, and the
+    data can be retrieved in a LIFO (Last-In-First-Out) fashion. The buffer is designed to be used in
+    multi-environment settings, where each environment has its own data.
+
+    The shape of the appended data is expected to be (batch_size, ...), where the first dimension is the
+    batch dimension. Correspondingly, the shape of the ring buffer is (max_len, batch_size, ...).
+    """
 
     def __init__(self, max_len: int, batch_size: int, device: str):
         """Initialize the circular buffer.
 
         Args:
-            max_len: The maximum length of the circular buffer. The minimum value is one.
+            max_len: The maximum length of the circular buffer. The minimum allowed value is 1.
             batch_size: The batch dimension of the data.
-            device: Device used for processing.
+            device: The device used for processing.
+
+        Raises:
+            ValueError: If the buffer size is less than one.
         """
         if max_len < 1:
             raise ValueError(f"The buffer size should be greater than zero. However, it is set to {max_len}!")
-        self._max_len = max_len
+        # set the parameters
         self._batch_size = batch_size
         self._device = device
         self._ALL_INDICES = torch.arange(batch_size, device=device)
+
+        # max length tensor for comparisons
+        self._max_len = torch.full((batch_size,), max_len, dtype=torch.int, device=device)
         # number of data pushes passed since the last call to :meth:`reset`
         self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
         # the pointer to the current head of the circular buffer (-1 means not initialized)
         self._pointer: int = -1
-        # the circular buffer for data storage
-        self._buffer: torch.Tensor | None = None  # the data buffer
-
-    def reset(self, batch_ids: Sequence[int] | None = None):
-        """Reset the circular buffer.
-
-        Args:
-            batch_ids: Elements to reset in the batch dimension.
-        """
-        # resolve all indices
-        if batch_ids is None:
-            batch_ids = self._ALL_INDICES
-        self._num_pushes[batch_ids] = 0
-
-    def append(self, data: torch.Tensor):
-        """Append the data to the circular buffer.
-
-        Args:
-            data: The data to be appended, where `len(data) == self.batch_size`.
-        """
-        if data.shape[0] != self.batch_size:
-            raise ValueError(f"The input data has {data.shape[0]} environments while expecting {self.batch_size}")
-        # at the fist call, initialize the buffer
-        if self._buffer is None:
-            self._pointer = -1
-            self._buffer = torch.empty((self.max_len, *data.shape), dtype=data.dtype, device=self._device)
-        # move the head to the next slot
-        self._pointer = (self._pointer + 1) % self.max_len
-        # add the new data to the last layer
-        self._buffer[self._pointer] = data
-        # increment number of number of pushes
-        self._num_pushes += 1
-
-    def __getitem__(self, key: torch.Tensor) -> torch.Tensor:
-        """Get the data from the circular buffer in LIFO fashion.
-
-        Args:
-            key: The index of the data to be retrieved. It can be a single integer or a tensor of integers.
-        """
-        if len(key) != self.batch_size:
-            raise ValueError(f"The key has length {key.shape[0]} while expecting {self.batch_size}")
-        if torch.any(self._num_pushes == 0) or self._buffer is None:
-            raise ValueError("Attempting to get data on an empty circular buffer.")
-        # admissible lag
-        valid_keys = torch.minimum(key, self._num_pushes - 1)
-        # the index in the circular buffer (pointer points to the last+1 index)
-        index_in_buffer = torch.remainder(self._pointer - valid_keys, self.max_len)
-        # return output
-        return self._buffer[index_in_buffer, self._ALL_INDICES, :]
+        # the actual buffer for data storage
+        # note: this is initialized on the first call to :meth:`append`
+        self._buffer: torch.Tensor = None  # type: ignore
 
     """
     Properties.
@@ -87,15 +53,97 @@ class BatchedCircularBuffer:
 
     @property
     def batch_size(self) -> int:
-        """The batch size in the ring buffer."""
+        """The batch size of the ring buffer."""
         return self._batch_size
 
     @property
     def device(self) -> str:
-        """Device used for processing."""
+        """The device used for processing."""
         return self._device
 
     @property
-    def max_len(self) -> int:
+    def max_length(self) -> int:
         """The maximum length of the ring buffer."""
-        return self._max_len
+        return int(self._max_len[0].item())
+
+    @property
+    def current_length(self) -> torch.Tensor:
+        """The current length of the buffer. Shape is (batch_size,).
+
+        Since the buffer is circular, the current length is the minimum of the number of pushes
+        and the maximum length.
+        """
+        return torch.minimum(self._num_pushes, self._max_len)
+
+    """
+    Operations.
+    """
+
+    def reset(self, batch_ids: Sequence[int] | None = None):
+        """Reset the circular buffer at the specified batch indices.
+
+        Args:
+            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
+        """
+        # resolve all indices
+        if batch_ids is None:
+            batch_ids = slice(None)
+        # reset the number of pushes for the specified batch indices
+        # note: we don't need to reset the buffer since it will be overwritten. The pointer handles this.
+        self._num_pushes[batch_ids] = 0
+
+    def append(self, data: torch.Tensor):
+        """Append the data to the circular buffer.
+
+        Args:
+            data: The data to append to the circular buffer. The first dimension should be the batch dimension.
+                Shape is (batch_size, ...).
+
+        Raises:
+            ValueError: If the input data has a different batch size than the buffer.
+        """
+        # check the batch size
+        if data.shape[0] != self.batch_size:
+            raise ValueError(f"The input data has {data.shape[0]} environments while expecting {self.batch_size}")
+
+        # at the fist call, initialize the buffer
+        if self._buffer is None:
+            self._pointer = -1
+            self._buffer = torch.empty((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
+        # move the head to the next slot
+        self._pointer = (self._pointer + 1) % self.max_length
+        # add the new data to the last layer
+        self._buffer[self._pointer] = data.to(self._device)
+        # increment number of number of pushes
+        self._num_pushes += 1
+
+    def __getitem__(self, key: torch.Tensor) -> torch.Tensor:
+        """Retrieve the data from the circular buffer in last-in-first-out (LIFO) fashion.
+
+        If the requested index is larger than the number of pushes since the last call to :meth:`reset`,
+        the oldest stored data is returned.
+
+        Args:
+            key: The index to retrieve from the circular buffer. The index should be less than the number of pushes
+                since the last call to :meth:`reset`. Shape is (batch_size,).
+
+        Returns:
+            The data from the circular buffer. Shape is (batch_size, ...).
+
+        Raises:
+            ValueError: If the input key has a different batch size than the buffer.
+            RuntimeError: If the buffer is empty.
+        """
+        # check the batch size
+        if len(key) != self.batch_size:
+            raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
+        # check if the buffer is empty
+        if torch.any(self._num_pushes == 0) or self._buffer is None:
+            raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
+
+        # admissible lag
+        valid_keys = torch.minimum(key, self._num_pushes - 1)
+        # the index in the circular buffer (pointer points to the last+1 index)
+        index_in_buffer = torch.remainder(self._pointer - valid_keys, self.max_length)
+        # return output
+        return self._buffer[index_in_buffer, self._ALL_INDICES]
