@@ -99,7 +99,6 @@ def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slice
                     )
                 if isinstance(obj_mem, tuple):
                     value = tuple(value)
-                # set value
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
@@ -112,6 +111,7 @@ def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slice
                     f"[Config]: Incorrect type under namespace: {key_ns}."
                     f" Expected: {type(obj_mem)}, Received: {type(value)}."
                 )
+            # set value
             if isinstance(obj, dict):
                 obj[key] = value
             else:
