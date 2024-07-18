@@ -40,9 +40,9 @@ import gymnasium as gym
 import math
 import os
 from datetime import datetime
+
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -56,6 +56,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesV
 
 # register the task to hydra
 env_cfg, _ = register_task_to_hydra(args_cli.task, "rl_games_cfg_entry_point")
+
 
 @hydra.main(config_path=None, config_name=args_cli.task, version_base="1.3")
 def main(hydra_env_cfg: DictConfig):
