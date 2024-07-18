@@ -153,14 +153,17 @@ def parse_env_cfg(
 
 
 def register_task_to_hydra(task_name: str, agent_cfg_entry_point: str) -> dict | ManagerBasedRLEnvCfg:
-    """Register environment configuration to Hydra configuration store.
+    """Register the task configuration to the Hydra configuration store.
 
-    This function resolves the configuration file for environment based on its name.
-    It then registers the configuration to Hydra configuration store.
+    This function resolves the configuration file for the environment and agent based on the task's name.
+    It then registers the configurations to the Hydra configuration store.
 
     Args:
-        task_name (str): The name of the environment.
+        task_name (str): The name of the task.
         agent_cfg_entry_point (str): The entry point key to resolve the configuration file.
+
+    Returns:
+        The parsed environment and agent configurations.
     """
     # load the configurations
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
