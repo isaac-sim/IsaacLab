@@ -49,7 +49,7 @@ from omni.isaac.lab_assets import CARTPOLE_CFG  # isort:skip
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
+    cfg = sim_utils.GroundPlaneCfg(size=(100, 20))
     cfg.func("/World/defaultGroundPlane", cfg)
     # Lights
     cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
@@ -82,6 +82,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
+    print("torch version: ", torch.__version__)
     # Simulation loop
     while simulation_app.is_running():
         # Reset

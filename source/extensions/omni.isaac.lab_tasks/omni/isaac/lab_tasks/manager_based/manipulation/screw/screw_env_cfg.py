@@ -6,7 +6,7 @@
 from dataclasses import MISSING
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg
+from omni.isaac.lab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.managers import ActionTermCfg as ActionTerm
 from omni.isaac.lab.managers import CurriculumTermCfg as CurrTerm
@@ -17,6 +17,7 @@ from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
 from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -47,8 +48,27 @@ class ScrewSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
     )
 
-    # robots
+    # robots: will be populated by agent env cfg
     robot: ArticulationCfg = MISSING
+    # end-effector sensor: will be populated by agent env cfg
+    ee_frame: FrameTransformerCfg = MISSING
+
+    # objects
+    nut: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Nut",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_nut_m8_tight/factory_nut_m8_tight.usd",
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.0065)),
+    )
+
+    bolt: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Bolt",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Factory/factory_bolt_m8_tight/factory_bolt_m8_tight.usd",
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.63, 0.0, 0.0)),
+    )
 
     # lights
     light = AssetBaseCfg(
@@ -115,6 +135,11 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
+
+    reset_default = EventTerm(
+        func=mdp.reset_scene_to_default,
+        mode="reset",
+    )
 
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
