@@ -27,7 +27,7 @@ INSTALL_REQUIRES = [
     # See issue https://github.com/tensorflow/tensorboard/issues/6808 for details.
     "protobuf>=3.20.2, < 5.0.0",
     # configuration management
-    "hydra-core"
+    "hydra-core",
     # data collection
     "h5py",
     # basic logger
