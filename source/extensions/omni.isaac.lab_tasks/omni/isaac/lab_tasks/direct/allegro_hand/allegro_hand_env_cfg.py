@@ -6,19 +6,15 @@
 
 from omni.isaac.lab_assets.allegro import ALLEGRO_HAND_CFG
 
-import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg, RigidObjectCfg
 from omni.isaac.lab.envs import DirectRLEnvCfg
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.markers import VisualizationMarkersCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
 from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 
 @configclass

@@ -55,7 +55,6 @@ Added
 ^^^^^
 
 * Added option to save images for Cartpole Camera environment.
->>>>>>> 7937a186c1f98a8171d98aad8cac7f1b778cfdd8
 
 
 0.7.5 (2024-05-31)
