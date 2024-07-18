@@ -24,10 +24,11 @@ class PhysxCfg:
     documentation`_.
 
     PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
-    through the flag `use_gpu`. Unlike CPU PhysX, the GPU simulation feature is not able to dynamically
-    grow all the buffers. Therefore, it is necessary to provide a reasonable estimate of the buffer sizes
-    for GPU features. If insufficient buffer sizes are provided, the simulation will fail with errors and
-    lead to adverse behaviors. The buffer sizes can be adjusted through the `gpu_*` parameters.
+    by setting the :attr:`~SimulationCfg.device` to `cpu` in :class:`SimulationCfg`. Unlike CPU PhysX, the GPU
+    simulation feature is not able to dynamically grow all the buffers. Therefore, it is necessary to provide
+    a reasonable estimate of the buffer sizes for GPU features. If insufficient buffer sizes are provided, the
+    simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
+    `gpu_*` parameters.
 
     .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html
 
@@ -158,6 +159,9 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
+    device: str = "cuda:0"
+    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
+
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
@@ -211,9 +215,6 @@ class SimulationCfg:
 
         It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.
     """
-
-    device: str = "cuda:0"
-    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
 
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""

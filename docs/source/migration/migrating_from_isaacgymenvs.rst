@@ -78,15 +78,16 @@ setting the GPU buffer dimensions.
 |                                                              |                                                                   |
 |  # IsaacGymEnvs                                              | # IsaacLab                                                        |
 |  sim:                                                        | sim: SimulationCfg = SimulationCfg(                               |
+|                                                              |    device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>"   |
 |    dt: 0.0166 # 1/60 s                                       |    dt=1 / 120,                                                    |
 |    substeps: 2                                               |    # decimation will be set in the task config                    |
 |    up_axis: "z"                                              |    # up axis will always be Z in isaac sim                        |
-|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    use_gpu_pipeline=True,                                         |
+|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
 |    gravity: [0.0, 0.0, -9.81]                                |    gravity=(0.0, 0.0, -9.81),                                     |
 |    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
 |      num_threads: ${....num_threads}                         |        # num_threads is no longer needed                          |
 |      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
-|      use_gpu: ${contains:"cuda",${....sim_device}}           |        use_gpu=True,                                              |
+|      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |
 |      num_position_iterations: 4                              |        max_position_iteration_count=4,                            |
 |      num_velocity_iterations: 0                              |        max_velocity_iteration_count=0,                            |
 |      contact_offset: 0.02                                    |        # moved to actor config                                    |
