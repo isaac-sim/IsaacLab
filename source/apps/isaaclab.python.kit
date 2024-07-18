@@ -182,6 +182,9 @@ rtx.newDenoiser.enabled = true
 # Enable Iray and pxr by setting this to "rtx,iray,pxr"
 renderer.enabled = "rtx"
 
+# Avoids unnecessary GPU context initialization
+renderer.multiGpu.maxGpuCount=1
+
 ### async rendering settings
 omni.replicator.asyncRendering = false
 app.asyncRendering = false
