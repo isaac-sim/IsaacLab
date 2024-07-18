@@ -120,32 +120,6 @@ def parse_env_cfg(
     # check if a task name is provided
     if task_name is None:
         raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
-    # load the default configuration
-    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    # update the main configuration
-    cfg = update_env_cfg(cfg, use_gpu=use_gpu, num_envs=num_envs, use_fabric=use_fabric)
-    return cfg
-
-
-def update_env_cfg(
-    env_cfg: dict | ManagerBasedRLEnvCfg,
-    use_gpu: bool | None = None,
-    num_envs: int | None = None,
-    use_fabric: bool | None = None,
-) -> dict | ManagerBasedRLEnvCfg:
-    """Update environment configuration based on input arguments.
-
-    Args:
-        env_cfg: The environment configuration to update.
-        use_gpu: Whether to use GPU/CPU pipeline. Defaults to None, in which case it is left unchanged.
-        num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
-        use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
-            This slows down the simulation but allows seeing the changes in the USD through the USD stage.
-            Defaults to None, in which case it is left unchanged.
-
-    Returns:
-        The parsed configuration object. This is either a dictionary or a class object.
-    """
     # create a dictionary to update from
     args_cfg = {"sim": {"physx": dict()}, "scene": dict()}
     # resolve pipeline to use (based on input)
@@ -167,14 +141,18 @@ def update_env_cfg(
     if num_envs is not None:
         args_cfg["scene"]["num_envs"] = num_envs
 
-    if isinstance(env_cfg, dict):
-        env_cfg = update_dict(env_cfg, args_cfg)
+    # load the default configuration
+    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    # update the main configuration
+    if isinstance(cfg, dict):
+        cfg = update_dict(cfg, args_cfg)
     else:
-        update_class_from_dict(env_cfg, args_cfg)
-    return env_cfg
+        update_class_from_dict(cfg, args_cfg)
+
+    return cfg
 
 
-def register_cfg_to_hydra(task_name: str):
+def register_task_to_hydra(task_name: str, agent_cfg_entry_point: str) -> dict | ManagerBasedRLEnvCfg:
     """Register environment configuration to Hydra configuration store.
 
     This function resolves the configuration file for environment based on its name.
@@ -182,11 +160,21 @@ def register_cfg_to_hydra(task_name: str):
 
     Args:
         task_name (str): The name of the environment.
+        agent_cfg_entry_point (str): The entry point key to resolve the configuration file.
     """
-    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    cs = ConfigStore.instance()
-    dict_cfg = cfg.to_dict(replace_slices_with_strings=True)
-    cs.store(name=task_name, node=dict_cfg)
+    # load the configurations
+    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
+    # convert the configs to dictionary
+    env_cfg_dict = env_cfg.to_dict(replace_slices_with_strings=True)
+    if isinstance(agent_cfg, dict):
+        agent_cfg_dict = agent_cfg
+    else:
+        agent_cfg_dict = agent_cfg.to_dict(replace_slices_with_strings=True)
+    cfg_dict = {"env": env_cfg_dict, "agent": agent_cfg_dict}
+    # store the configuration to Hydra
+    ConfigStore.instance().store(name=task_name, node=cfg_dict)
+    return env_cfg, agent_cfg
 
 
 def get_checkpoint_path(

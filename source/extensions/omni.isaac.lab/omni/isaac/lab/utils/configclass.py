@@ -138,7 +138,9 @@ def _update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slic
         ValueError: When dictionary has a value that does not match default config type.
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
-    return update_class_from_dict(obj, data, replace_strings_with_slices, _ns="")
+    update_class_from_dict(obj, data, replace_strings_with_slices, _ns="")
+    # since variables are updated, we need to call post init again
+    obj.__post_init__()
 
 
 def _replace_class_with_kwargs(obj: object, **kwargs) -> object:

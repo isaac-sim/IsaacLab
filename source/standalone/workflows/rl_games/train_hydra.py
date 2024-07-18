@@ -1,0 +1,145 @@
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Script to train RL agent with RL-Games."""
+
+"""Launch Isaac Sim Simulator first."""
+
+import argparse
+import sys
+
+from omni.isaac.lab.app import AppLauncher
+
+# add argparse arguments
+parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument(
+    "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+)
+
+# append AppLauncher cli args
+AppLauncher.add_app_launcher_args(parser)
+# parse the arguments
+args_cli, hydra_args = parser.parse_known_args()
+# clear out sys.argv
+sys.argv = [sys.argv[0]] + hydra_args
+sys.argc = len(sys.argv)
+
+# launch omniverse app
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
+
+"""Rest everything follows."""
+
+import gymnasium as gym
+import math
+import os
+from datetime import datetime
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
+from rl_games.common import env_configurations, vecenv
+from rl_games.common.algo_observer import IsaacAlgoObserver
+from rl_games.torch_runner import Runner
+
+from omni.isaac.lab.utils.dict import print_dict
+from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
+
+import omni.isaac.lab_tasks  # noqa: F401
+from omni.isaac.lab_tasks.utils import register_task_to_hydra
+from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+
+# register the task to hydra
+env_cfg, _ = register_task_to_hydra(args_cli.task, "rl_games_cfg_entry_point")
+
+@hydra.main(config_path=None, config_name=args_cli.task, version_base="1.3")
+def main(hydra_env_cfg: DictConfig):
+    """Train with RL-Games agent."""
+
+    # convert to a native dictionary
+    hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
+    # update the configs with the hydra command line arguments
+    env_cfg.from_dict(hydra_env_cfg["env"], replace_strings_with_slices=True)
+    agent_cfg = hydra_env_cfg["agent"]
+
+    # specify directory for logging experiments
+    log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
+    log_root_path = os.path.abspath(log_root_path)
+    print(f"[INFO] Logging experiment in directory: {log_root_path}")
+    # specify directory for logging runs
+    log_dir = agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    # set directory into agent config
+    # logging directory path: <train_dir>/<full_experiment_name>
+    agent_cfg["params"]["config"]["train_dir"] = log_root_path
+    agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
+
+    # multi-gpu training config
+    if args_cli.distributed:
+        agent_cfg["params"]["seed"] += app_launcher.global_rank
+        agent_cfg["params"]["config"]["device"] = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["config"]["device_name"] = f"cuda:{app_launcher.local_rank}"
+        agent_cfg["params"]["config"]["multi_gpu"] = True
+        # update env config device
+        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
+
+    # dump the configuration into log-directory
+    dump_yaml(os.path.join(log_root_path, log_dir, "params", "env.yaml"), env_cfg)
+    dump_yaml(os.path.join(log_root_path, log_dir, "params", "agent.yaml"), agent_cfg)
+    dump_pickle(os.path.join(log_root_path, log_dir, "params", "env.pkl"), env_cfg)
+    dump_pickle(os.path.join(log_root_path, log_dir, "params", "agent.pkl"), agent_cfg)
+
+    # read configurations about the agent-training
+    rl_device = agent_cfg["params"]["config"]["device"]
+    clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
+    clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+
+    # create isaac environment
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    # wrap for video recording
+    if args_cli.video:
+        video_kwargs = {
+            "video_folder": os.path.join(log_root_path, log_dir, "videos"),
+            "step_trigger": lambda step: step % args_cli.video_interval == 0,
+            "video_length": args_cli.video_length,
+            "disable_logger": True,
+        }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    # wrap around environment for rl-games
+    env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+
+    # register the environment to rl-games registry
+    # note: in agents configuration: environment name must be "rlgpu"
+    vecenv.register(
+        "IsaacRlgWrapper", lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs)
+    )
+    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
+
+    # set number of actors into agent config
+    agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+    # create runner from rl-games
+    runner = Runner(IsaacAlgoObserver())
+    runner.load(agent_cfg)
+
+    # set seed of the env
+    env.seed(agent_cfg["params"]["seed"])
+    # reset the agent and env
+    runner.reset()
+    # train the agent
+    runner.run({"train": True, "play": False, "sigma": None})
+
+    # close the simulator
+    env.close()
+
+
+if __name__ == "__main__":
+    # run the main function
+    main()
+    # close sim app
+    simulation_app.close()
