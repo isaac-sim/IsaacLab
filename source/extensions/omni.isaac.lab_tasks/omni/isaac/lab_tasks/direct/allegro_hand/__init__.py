@@ -10,7 +10,7 @@ Allegro Inhand Manipulation environment.
 import gymnasium as gym
 
 from . import agents
-from .allegro_hand_env_cfg import AllegroHandEnvCfg, AllegroHandOpenAIEnvCfg
+from .allegro_hand_env_cfg import AllegroHandEnvCfg
 
 ##
 # Register Gym environments.

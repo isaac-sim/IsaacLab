@@ -19,9 +19,18 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
+    # env
+    decimation = 4
+    episode_length_s = 10.0
+    num_actions = 16
+    num_observations = 124  # (full)
+    num_states = 0
+    asymmetric_obs = False
+    obs_type = "full"
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
@@ -74,8 +83,9 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
             mass_props=sim_utils.MassPropertiesCfg(density=400.0),
+            scale=(1.2, 1.2, 1.2),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.19, 0.56), rot=(1.0, 0.0, 0.0, 0.0)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.17, 0.56), rot=(1.0, 0.0, 0.0, 0.0)),
     )
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
@@ -83,20 +93,12 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         markers={
             "goal": sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
+                scale=(1.2, 1.2, 1.2),
             )
         },
     )
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True)
-    # env
-    decimation = 4
-    episode_length_s = 10.0
-    num_actions = 16
-    num_observations = 124  # (full)
-    num_states = 0
-    asymmetric_obs = False
-    obs_type = "full"
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset
