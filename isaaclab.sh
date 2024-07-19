@@ -158,7 +158,9 @@ setup_conda_env() {
         # add variables to environment during activation
         printf '%s\n' \
             '# for Isaac Sim' \
-            'source '${isaacsim_setup_conda_env_script}'' \
+            'cd '${ISAACLAB_PATH}'/_isaac_sim' \
+            'source setup_conda_env.sh' \
+            'cd $OLDPWD' \
             '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
     fi
 
