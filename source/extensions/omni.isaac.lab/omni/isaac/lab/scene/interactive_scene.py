@@ -156,9 +156,6 @@ class InteractiveScene:
         # note: we do it once here because it reads the VERSION file from disk and is not expected to change.
         self._isaac_sim_version = int(get_version()[0][0])
 
-        # flag for getting default nodal states for deformable objects
-        self.deformable_nodal_init_state = False
-
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
 
@@ -337,9 +334,6 @@ class InteractiveScene:
             articulation.reset(env_ids)
         for deformable_object in self._deformable_objects.values():
             deformable_object.reset(env_ids)
-            if not self.deformable_nodal_init_state:
-                deformable_object.get_default_nodal_state_w()
-                self.deformable_nodal_init_state = True
         for rigid_object in self._rigid_objects.values():
             rigid_object.reset(env_ids)
         # -- sensors

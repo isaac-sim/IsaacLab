@@ -108,9 +108,6 @@ class DeformableObject(AssetBase):
     def write_data_to_sim(self):
         pass
 
-    def get_default_nodal_state_w(self):
-        self._data.default_nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :] = self.root_physx_view.get_sim_nodal_positions()
-
     def update(self):
         self._data.nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :] = self.root_physx_view.get_sim_nodal_positions()
         self._data.nodal_state_w[:, self.max_simulation_mesh_vertices_per_body:, :] = self.root_physx_view.get_sim_nodal_velocities()
@@ -203,22 +200,21 @@ class DeformableObject(AssetBase):
         # -- object views
         self._root_physx_view = self._physics_sim_view.create_soft_body_view(mesh_path_expr.replace(".*", "*"))
 
-
-        
-        
         # log information about the deformable body
         carb.log_info(f"Deformable body initialized at: {self.cfg.prim_path}")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
         # create buffers
         self._create_buffers()
+        # process configuration
+        self._process_cfg()
 
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
         # asset data
-        # -- root states
+        # -- nodal states
         self._data.nodal_state_w = torch.zeros(self.num_instances, 2 * self.max_simulation_mesh_vertices_per_body, 3, dtype=torch.float, device=self.device)
         self._data.default_nodal_state_w = torch.zeros_like(self._data.nodal_state_w)
         # -- element-wise data
@@ -228,3 +224,9 @@ class DeformableObject(AssetBase):
         self._data.collision_element_deformation_gradients = torch.zeros(self.num_instances, self.max_collision_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
         self._data.sim_element_stresses = torch.zeros(self.num_instances, self.max_simulation_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
         self._data.collision_element_stresses = torch.zeros(self.num_instances, self.max_collision_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
+
+    def _process_cfg(self):
+        """Post processing of configuration parameters."""
+        # default state
+        # -- nodal state
+        self._data.default_nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :] = self.root_physx_view.get_sim_nodal_positions()
