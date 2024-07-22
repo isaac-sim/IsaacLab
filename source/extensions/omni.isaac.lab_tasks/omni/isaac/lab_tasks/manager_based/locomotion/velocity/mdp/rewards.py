@@ -3,6 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Common functions that can be used to define rewards for the learning environment.
+
+The functions can be passed to the :class:`omni.isaac.lab.managers.RewardTermCfg` object to
+specify the reward function and its parameters.
+"""
+
 from __future__ import annotations
 
 import torch
