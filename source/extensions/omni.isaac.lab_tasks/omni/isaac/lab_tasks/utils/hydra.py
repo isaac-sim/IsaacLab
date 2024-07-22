@@ -7,17 +7,20 @@
 
 
 from functools import wraps
-from omegaconf import OmegaConf
+
 import hydra
 from hydra.core.config_store import ConfigStore
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from omni.isaac.lab.envs import ManagerBasedRLEnvCfg, DirectRLEnvCfg
-from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
+from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils import replace_slices_with_strings, replace_strings_with_slices
 
+from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-def register_task_to_hydra(task_name: str, agent_cfg_entry_point: str) -> dict | ManagerBasedRLEnvCfg | DirectRLEnvCfg:
+
+def register_task_to_hydra(
+    task_name: str, agent_cfg_entry_point: str
+) -> tuple(ManagerBasedRLEnvCfg | DirectRLEnvCfg, dict):
     """Register the task configuration to the Hydra configuration store.
 
     This function resolves the configuration file for the environment and agent based on the task's name.
@@ -44,7 +47,7 @@ def register_task_to_hydra(task_name: str, agent_cfg_entry_point: str) -> dict |
     cfg_dict = replace_slices_with_strings(cfg_dict)
     # store the configuration to Hydra
     ConfigStore.instance().store(name=task_name, node=cfg_dict)
-    return env_cfg, agent_cfg  
+    return env_cfg, agent_cfg
 
 
 def hydra_task_config(task_name, entry_point):
@@ -69,9 +72,10 @@ def hydra_task_config(task_name, entry_point):
                     agent_cfg.from_dict(hydra_env_cfg["agent"])
                 # call the original function
                 func(env_cfg, agent_cfg, *args, **kwargs)
-            
+
             # call the new Hydra main function
             hydra_main()
-        
+
         return wrapper
+
     return decorator
