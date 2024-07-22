@@ -13,8 +13,6 @@ import os
 import re
 import yaml
 
-from hydra.core.config_store import ConfigStore
-
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils import update_class_from_dict, update_dict
 
@@ -150,34 +148,6 @@ def parse_env_cfg(
         update_class_from_dict(cfg, args_cfg)
 
     return cfg
-
-
-def register_task_to_hydra(task_name: str, agent_cfg_entry_point: str) -> dict | ManagerBasedRLEnvCfg:
-    """Register the task configuration to the Hydra configuration store.
-
-    This function resolves the configuration file for the environment and agent based on the task's name.
-    It then registers the configurations to the Hydra configuration store.
-
-    Args:
-        task_name (str): The name of the task.
-        agent_cfg_entry_point (str): The entry point key to resolve the configuration file.
-
-    Returns:
-        The parsed environment and agent configurations.
-    """
-    # load the configurations
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    agent_cfg = load_cfg_from_registry(task_name, agent_cfg_entry_point)
-    # convert the configs to dictionary
-    env_cfg_dict = env_cfg.to_dict(replace_slices_with_strings=True)
-    if isinstance(agent_cfg, dict):
-        agent_cfg_dict = agent_cfg
-    else:
-        agent_cfg_dict = agent_cfg.to_dict(replace_slices_with_strings=True)
-    cfg_dict = {"env": env_cfg_dict, "agent": agent_cfg_dict}
-    # store the configuration to Hydra
-    ConfigStore.instance().store(name=task_name, node=cfg_dict)
-    return env_cfg, agent_cfg
 
 
 def get_checkpoint_path(

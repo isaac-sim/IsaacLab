@@ -37,15 +37,14 @@ import os
 import torch
 from datetime import datetime
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import get_checkpoint_path, register_task_to_hydra
+from omni.isaac.lab_tasks.utils import hydra_task_config
+from omni.isaac.lab_tasks.utils import get_checkpoint_path
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlVecEnvWrapper
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -53,19 +52,10 @@ torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
-# register the task to hydra
-env_cfg, agent_cfg = register_task_to_hydra(args_cli.task, "rsl_rl_cfg_entry_point")
 
-
-@hydra.main(config_path=None, config_name=args_cli.task, version_base="1.3")
-def main(hydra_env_cfg: DictConfig):
+@hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
+def main(env_cfg, agent_cfg):
     """Train with RSL-RL agent."""
-    # convert to a native dictionary
-    hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
-    # update the configs with the hydra command line arguments
-    env_cfg.from_dict(hydra_env_cfg["env"], replace_strings_with_slices=True)
-    agent_cfg.from_dict(hydra_env_cfg["agent"], replace_strings_with_slices=True)
-
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)

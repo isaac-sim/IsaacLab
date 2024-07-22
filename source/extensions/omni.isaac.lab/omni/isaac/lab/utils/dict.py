@@ -8,6 +8,7 @@
 import collections.abc
 import hashlib
 import json
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -19,7 +20,7 @@ Dictionary <-> Class operations.
 """
 
 
-def class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dict[str, Any]:
+def class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Note:
@@ -27,8 +28,6 @@ def class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dic
 
     Args:
         obj: An instance of a class to convert.
-        replace_slices_with_strings: If True, replaces slice objects with their string representations.
-            Defaults to False.
 
     Raises:
         ValueError: When input argument is not an object.
@@ -44,6 +43,7 @@ def class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dic
         obj_dict = obj
     else:
         obj_dict = obj.__dict__
+
     # convert to dictionary
     data = dict()
     for key, value in obj_dict.items():
@@ -53,17 +53,15 @@ def class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dic
         # check if attribute is callable -- function
         if callable(value):
             data[key] = callable_to_string(value)
-        elif replace_slices_with_strings and isinstance(value, slice):
-            data[key] = str(value)
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):
-            data[key] = class_to_dict(value, replace_slices_with_strings)
+            data[key] = class_to_dict(value)
         else:
             data[key] = value
     return data
 
 
-def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slices: bool = True, _ns: str = "") -> None:
+def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -71,7 +69,6 @@ def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slice
     Args:
         obj: An instance of a class to update.
         data: Input dictionary to update from.
-        replace_strings_with_slices: If True, replaces string representations of slices with slice objects.
         _ns: Namespace of the current object. This is useful for nested configuration
             classes or dictionaries. Defaults to "".
 
@@ -88,7 +85,7 @@ def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slice
             obj_mem = obj[key] if isinstance(obj, dict) else getattr(obj, key)
             if isinstance(value, Mapping):
                 # recursively call if it is a dictionary
-                update_class_from_dict(obj_mem, value, replace_strings_with_slices, _ns=key_ns)
+                update_class_from_dict(obj_mem, value, _ns=key_ns)
                 continue
             if isinstance(value, Iterable) and not isinstance(value, str):
                 # check length of value to be safe
@@ -102,8 +99,6 @@ def update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slice
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
-            elif replace_strings_with_slices and value == str(slice(None)):
-                value = slice(None)
             elif isinstance(value, type(obj_mem)):
                 pass
             else:
@@ -241,6 +236,38 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
     return orig_dict
 
 
+def replace_slices_with_strings(data: dict) -> dict:
+    """Replace slice objects with their string representations in a dictionary.
+    
+    Args:
+        data: The dictionary to process.
+
+    Returns:
+        The dictionary with slice objects replaced by their string representations.
+    """
+    if isinstance(data, dict):
+        return {k: replace_slices_with_strings(v) for k, v in data.items()}
+    elif isinstance(data, slice):
+        return f"slice({data.start}:{data.stop}:{data.step})"
+    else:
+        return data
+
+def replace_strings_with_slices(data: dict) -> dict:
+    """Replace string representations of slices with slice objects in a dictionary.
+    
+    Args:
+        data: The dictionary to process.
+
+    Returns:
+        The dictionary with string representations of slices replaced by slice objects.
+    """
+    if isinstance(data, dict):
+        return {k: replace_strings_with_slices(v) for k, v in data.items()}
+    elif isinstance(data, str) and data.startswith("slice("):
+        return string_to_slice(data)
+    else:
+        return data
+
 def print_dict(val, nesting: int = -4, start: bool = True):
     """Outputs a nested dictionary."""
     if isinstance(val, dict):
@@ -257,3 +284,34 @@ def print_dict(val, nesting: int = -4, start: bool = True):
             print(callable_to_string(val))
         else:
             print(val)
+
+
+"""
+Helper functions.
+"""
+
+
+def string_to_slice(s):
+    """Convert a string representation of a slice to a slice object.
+
+    Args:
+        s: The string representation of the slice.
+
+    Returns:
+        The slice object.
+    """
+    # extract the content inside the slice()
+    match = re.match(r'slice\((.*):(.*):(.*)\)', s)
+    if not match:
+        raise ValueError(f"Invalid slice string format: {s}")
+
+    # extract start, stop, and step values
+    start_str, stop_str, step_str = match.groups()
+    
+    # convert 'None' to None and other strings to integers
+    start = None if start_str == 'None' else int(start_str)
+    stop = None if stop_str == 'None' else int(stop_str)
+    step = None if step_str == 'None' else int(step_str)
+
+    # create and return the slice object
+    return slice(start, stop, step)

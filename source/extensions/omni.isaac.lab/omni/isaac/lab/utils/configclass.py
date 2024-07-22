@@ -110,20 +110,19 @@ These are redefined here to add new docstrings.
 """
 
 
-def _class_to_dict(obj: object, replace_slices_with_strings: bool = False) -> dict[str, Any]:
+def _class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Args:
         obj: The object to convert.
-        replace_slices_with_strings: If True, replaces slices with their string representation. Defaults to False.
 
     Returns:
         Converted dictionary mapping.
     """
-    return class_to_dict(obj, replace_slices_with_strings)
+    return class_to_dict(obj)
 
 
-def _update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slices: bool = False) -> None:
+def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
@@ -131,14 +130,13 @@ def _update_class_from_dict(obj, data: dict[str, Any], replace_strings_with_slic
     Args:
         obj: The object to update.
         data: Input (nested) dictionary to update from.
-        replace_strings_with_slices: If True, replaces string representations of slices with slices. Defaults to False.
 
     Raises:
         TypeError: When input is not a dictionary.
         ValueError: When dictionary has a value that does not match default config type.
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
-    update_class_from_dict(obj, data, replace_strings_with_slices, _ns="")
+    update_class_from_dict(obj, data, _ns="")
     # since variables are updated, we need to call post init again
     obj.__post_init__()
 

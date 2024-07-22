@@ -6,4 +6,5 @@
 """Sub-package with utilities, data collectors and environment wrappers."""
 
 from .importer import import_packages
-from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg, register_task_to_hydra
+from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from .hydra import hydra_task_config

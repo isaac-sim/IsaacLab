@@ -41,8 +41,6 @@ import math
 import os
 from datetime import datetime
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -51,23 +49,13 @@ from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils import register_task_to_hydra
+from omni.isaac.lab_tasks.utils import hydra_task_config
 from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
-# register the task to hydra
-env_cfg, _ = register_task_to_hydra(args_cli.task, "rl_games_cfg_entry_point")
 
-
-@hydra.main(config_path=None, config_name=args_cli.task, version_base="1.3")
-def main(hydra_env_cfg: DictConfig):
+@hydra_task_config(args_cli.task, "rl_games_cfg_entry_point")
+def main(env_cfg, agent_cfg):
     """Train with RL-Games agent."""
-
-    # convert to a native dictionary
-    hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
-    # update the configs with the hydra command line arguments
-    env_cfg.from_dict(hydra_env_cfg["env"], replace_strings_with_slices=True)
-    agent_cfg = hydra_env_cfg["agent"]
-
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
     log_root_path = os.path.abspath(log_root_path)
