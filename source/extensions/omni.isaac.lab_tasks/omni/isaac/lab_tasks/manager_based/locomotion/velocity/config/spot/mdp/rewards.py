@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that can be used for Spot's locomotion task.
+"""This sub-module contains the reward functions that can be used for Spot's locomotion task.
 
 The functions can be passed to the :class:`omni.isaac.lab.managers.RewardTermCfg` object to
 specify the reward function and its parameters.
