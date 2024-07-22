@@ -78,12 +78,12 @@ class ScrewNutSmWaitTime:
     """Additional wait times (in s) for states for before switching."""
 
     REST = wp.constant(0.2)
-    APPROACH_ABOVE_NUT = wp.constant(0.5)
-    APPROACH_NUT = wp.constant(0.6)
-    GRASP_NUT = wp.constant(0.3)
-    APPROACH_ABOVE_BOLT = wp.constant(1.0)
-    APPROACH_BOLT = wp.constant(0.6)
-    SCREW_NUT = wp.constant(2.0)
+    APPROACH_ABOVE_NUT = wp.constant(2.5)
+    APPROACH_NUT = wp.constant(1.6)
+    GRASP_NUT = wp.constant(1.3)
+    APPROACH_ABOVE_BOLT = wp.constant(2.0)
+    APPROACH_BOLT = wp.constant(2.6)
+    SCREW_NUT = wp.constant(3.0)
     RELEASE_NUT = wp.constant(0.3)
 
 
@@ -100,7 +100,7 @@ def infer_state_machine(
     above_nut_offset: wp.array(dtype=wp.transform),
     grasp_nut_offset: wp.array(dtype=wp.transform),
     above_bolt_offset: wp.array(dtype=wp.transform),
-    on_bolt_offset: wp.array(dtype=wp.transform),s
+    on_bolt_offset: wp.array(dtype=wp.transform),
 ):
     # retrieve thread id
     tid = wp.tid()
@@ -210,11 +210,11 @@ class ScrewNutSm:
         # constant offsets for the state machine
         # -- approach above nut
         self.above_nut_offset = torch.zeros((self.num_envs, 7), device=self.device)
-        self.above_nut_offset[:, 2] = 0.08 + bolt_height
+        # self.above_nut_offset[:, 2] = 0.08 + nut_height
         self.above_nut_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
         # -- approach nut
         self.grasp_nut_offset = torch.zeros_like(self.above_nut_offset)
-        self.grasp_nut_offset[:, 2] = 0.12 + nut_height
+        # self.grasp_nut_offset[:, 2] = 0.12 + nut_height
         self.grasp_nut_offset[:, -1] = 1.0  # warp expects quaternion as (x, y, z, w)
         # -- approach above bolt
         self.above_bolt_offset = torch.zeros_like(self.above_nut_offset)
@@ -319,16 +319,20 @@ def main():
             tcp_rest_position = ee_frame_sensor.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
             tcp_rest_orientation = ee_frame_sensor.data.target_quat_w[..., 0, :].clone()
             # -- nut frame
-            nut_pose: RigidObjectData = env.unwrapped.scene["nut"].data.root_pose_w.clone()
+            nut_pose: RigidObjectData = env.unwrapped.scene["nut"].data.root_state_w[:, :7].clone()
             nut_pose[:, :3] -= env.unwrapped.scene.env_origins
             # -- bolt frame
-            bolt_pose: RigidObjectData = env.unwrapped.scene["bolt"].data.root_pose_w.clone()
+            bolt_pose: RigidObjectData = env.unwrapped.scene["bolt"].data.root_state_w[:, :7].clone()
             bolt_pose[:, :3] -= env.unwrapped.scene.env_origins
 
             # advance state machine
             actions = screw_sm.compute(
                 torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1), nut_pose, bolt_pose
             )
+            actions[:, 3] = 0.0
+            actions[:, 4] = 1.0
+            actions[:, 5] = 0.0
+            actions[:, 6] = 0.0
 
             # reset state machine
             if dones.any():
