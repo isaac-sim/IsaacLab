@@ -7,6 +7,7 @@
 
 
 import functools
+from collections.abc import Callable
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -50,7 +51,7 @@ def register_task_to_hydra(
     return env_cfg, agent_cfg
 
 
-def hydra_task_config(task_name, entry_point):
+def hydra_task_config(task_name, entry_point) -> Callable:
     """Decorator to handle the Hydra configuration for a task.
 
     This decorator registers the task to Hydra and updates the environment and agent configurations from Hydra parsed
@@ -75,7 +76,7 @@ def hydra_task_config(task_name, entry_point):
             def hydra_main(hydra_env_cfg: DictConfig, env_cfg=env_cfg, agent_cfg=agent_cfg):
                 # convert to a native dictionary
                 hydra_env_cfg = OmegaConf.to_container(hydra_env_cfg, resolve=True)
-                # replace string with slices
+                # replace string with slices because OmegaConf does not support slices
                 hydra_env_cfg = replace_strings_with_slices(hydra_env_cfg)
                 # update the configs with the Hydra command line arguments
                 env_cfg.from_dict(hydra_env_cfg["env"])
