@@ -3,7 +3,7 @@ Hydra Configuration System
 
 .. currentmodule:: omni.isaac.lab
 
-Isaac Lab supports the `Hydra <https://hydra.cc/docs/intro/>`_ system to modify the task's 
+Isaac Lab supports the `Hydra <https://hydra.cc/docs/intro/>`_ system to modify the task's
 configuration using command line arguments. This can be useful to automate experiments and hyperparameter tuning.
 The parameters can be modified by using the following syntax:
 
@@ -43,8 +43,8 @@ The above command will run the training script with the task ``Isaac-Cartpole-v0
 
     Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
     perform intermediate computations based on other parameters. These computations will not be updated when the parameters
-    are modified. 
-    
+    are modified.
+
     For example, for the configuration of the Cartpole camera depth environment:
 
     .. literalinclude:: ../../../source/extensions/omni.isaac.lab_tasks/omni/isaac/lab_tasks/direct/cartpole/cartpole_camera_env.py
