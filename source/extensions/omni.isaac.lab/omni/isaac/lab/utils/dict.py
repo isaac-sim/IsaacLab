@@ -248,7 +248,7 @@ def replace_slices_with_strings(data: dict) -> dict:
     if isinstance(data, dict):
         return {k: replace_slices_with_strings(v) for k, v in data.items()}
     elif isinstance(data, slice):
-        return f"slice({data.start}:{data.stop}:{data.step})"
+        return f"slice({data.start},{data.stop},{data.step})"
     else:
         return data
 
@@ -303,7 +303,7 @@ def string_to_slice(s):
         The slice object.
     """
     # extract the content inside the slice()
-    match = re.match(r"slice\((.*):(.*):(.*)\)", s)
+    match = re.match(r"slice\((.*),(.*),(.*)\)", s)
     if not match:
         raise ValueError(f"Invalid slice string format: {s}")
 

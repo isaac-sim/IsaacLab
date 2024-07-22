@@ -137,8 +137,6 @@ def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
     update_class_from_dict(obj, data, _ns="")
-    # since variables are updated, we need to call post init again
-    obj.__post_init__()
 
 
 def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
