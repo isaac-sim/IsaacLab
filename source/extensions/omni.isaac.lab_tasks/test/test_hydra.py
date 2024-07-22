@@ -6,11 +6,11 @@
 """Launch Isaac Sim Simulator first."""
 
 import sys
+
 from omni.isaac.lab.app import AppLauncher, run_tests
 
-
 # launch the simulator
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 
@@ -19,9 +19,7 @@ simulation_app = app_launcher.app
 
 import unittest
 
-
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
 
 
@@ -30,18 +28,21 @@ class TestHydra(unittest.TestCase):
 
     def test_hydra(self):
         """Test the hydra configuration system."""
-        sys.argv = [sys.argv[0], 
-                    "env.decimation=42", # test simple env modification
-                    "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'", # test slice setting
-                    "env.scene.robot.init_state.joint_vel={.*: 4.0}", # test regex setting
-                    "agent.max_iterations=3", # test simple agent modification
-                    ]
-        
+
+        # set hardcoded command line arguments
+        sys.argv = [
+            sys.argv[0],
+            "env.decimation=42",  # test simple env modification
+            "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
+            "env.scene.robot.init_state.joint_vel={.*: 4.0}",  # test regex setting
+            "agent.max_iterations=3",  # test simple agent modification
+        ]
+
         @hydra_task_config("Isaac-Velocity-Flat-H1-v0", "rsl_rl_cfg_entry_point")
         def main(env_cfg, agent_cfg, self):
             # env
             self.assertEqual(env_cfg.decimation, 42)
-            self.assertEqual(env_cfg.events.physics_material.params["asset_cfg"].joint_ids , slice(0 ,1, 2))
+            self.assertEqual(env_cfg.events.physics_material.params["asset_cfg"].joint_ids, slice(0, 1, 2))
             self.assertEqual(env_cfg.scene.robot.init_state.joint_vel, {".*": 4.0})
             # agent
             self.assertEqual(agent_cfg.max_iterations, 3)
