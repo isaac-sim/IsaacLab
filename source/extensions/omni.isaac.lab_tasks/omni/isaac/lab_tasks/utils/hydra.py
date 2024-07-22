@@ -6,7 +6,7 @@
 """Sub-module with utilities for the hydra configuration system."""
 
 
-from functools import wraps
+import functools
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -20,7 +20,7 @@ from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 def register_task_to_hydra(
     task_name: str, agent_cfg_entry_point: str
-) -> tuple(ManagerBasedRLEnvCfg | DirectRLEnvCfg, dict):
+) -> tuple[ManagerBasedRLEnvCfg | DirectRLEnvCfg, dict]:
     """Register the task configuration to the Hydra configuration store.
 
     This function resolves the configuration file for the environment and agent based on the task's name.
@@ -51,8 +51,21 @@ def register_task_to_hydra(
 
 
 def hydra_task_config(task_name, entry_point):
+    """Decorator to handle the Hydra configuration for a task.
+
+    This decorator registers the task to Hydra and updates the environment and agent configurations from Hydra parsed
+    command line arguments.
+
+    Args:
+        task_name (str): The name of the task.
+        entry_point (str): The entry point key to resolve the configuration file.
+
+    Returns:
+        The decorated function with the envrionment's and agent's configurations updated from command line arguments.
+    """
+
     def decorator(func):
-        @wraps(func)
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # register the task to Hydra
             env_cfg, agent_cfg = register_task_to_hydra(task_name, entry_point)
