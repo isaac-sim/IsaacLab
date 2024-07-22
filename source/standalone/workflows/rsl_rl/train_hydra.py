@@ -24,7 +24,6 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
 # clear out sys.argv
 sys.argv = [sys.argv[0]] + hydra_args
-sys.argc = len(sys.argv)
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)

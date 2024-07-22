@@ -29,7 +29,7 @@ def register_task_to_hydra(
 
     Args:
         task_name (str): The name of the task.
-        agent_cfg_entry_point (str): The entry point key to resolve the configuration file.
+        agent_cfg_entry_point (str): The entry point key to resolve the agent's configuration file.
 
     Returns:
         The parsed environment and agent configurations.
@@ -51,7 +51,7 @@ def register_task_to_hydra(
     return env_cfg, agent_cfg
 
 
-def hydra_task_config(task_name, entry_point) -> Callable:
+def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     """Decorator to handle the Hydra configuration for a task.
 
     This decorator registers the task to Hydra and updates the environment and agent configurations from Hydra parsed
@@ -59,7 +59,7 @@ def hydra_task_config(task_name, entry_point) -> Callable:
 
     Args:
         task_name (str): The name of the task.
-        entry_point (str): The entry point key to resolve the configuration file.
+        agent_cfg_entry_point (str): The entry point key to resolve the agent's configuration file.
 
     Returns:
         The decorated function with the envrionment's and agent's configurations updated from command line arguments.
@@ -69,7 +69,7 @@ def hydra_task_config(task_name, entry_point) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # register the task to Hydra
-            env_cfg, agent_cfg = register_task_to_hydra(task_name, entry_point)
+            env_cfg, agent_cfg = register_task_to_hydra(task_name, agent_cfg_entry_point)
 
             # define thr new Hydra main function
             @hydra.main(config_path=None, config_name=task_name, version_base="1.3")
