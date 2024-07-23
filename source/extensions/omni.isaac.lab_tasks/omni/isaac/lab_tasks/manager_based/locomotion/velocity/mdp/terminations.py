@@ -24,13 +24,13 @@ if TYPE_CHECKING:
 def terrain_out_of_bounds(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), distance_buffer: float = 3.0
 ) -> torch.Tensor:
-    """Terminate when agents move too close to the edge of the terrain.
+    """Terminate when the actor move too close to the edge of the terrain.
 
-    If the agent moves too close to the edge of the terrain, the termination is activated. The distance
+    If the actor moves too close to the edge of the terrain, the termination is activated. The distance
     to the edge of the terrain is calculated based on the size of the terrain and the distance buffer.
     """
     if env.scene.cfg.terrain.terrain_type == "plane":
-        return False  # we have infinite terrain
+        return False  # we have infinite terrain because it is a plane
     elif env.scene.cfg.terrain.terrain_type == "generator":
         # obtain the size of the sub-terrains
         terrain_gen_cfg = env.scene.terrain.cfg.terrain_generator
