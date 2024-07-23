@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab_tasks.utils.data_collector" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 17, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 23, 2024"/>
   </head>
   
   
@@ -1529,7 +1529,7 @@ The <code class="docutils literal notranslate"><span class="pre">progress_buf</s
 
     <span class="n">time_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_buf</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_length</span> <span class="o">-</span> <span class="mi">1</span>
     <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_cart_pos</span><span class="p">),</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cart_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">max_cart_pos</span><span class="p">,</span>
         <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">out_of_bounds</span> <span class="o">=</span> <span class="n">out_of_bounds</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">any</span><span class="p">(</span>
         <span class="n">torch</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_pos</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pole_dof_idx</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
@@ -1839,7 +1839,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 17, 2024.
+  Last updated on Jul 23, 2024.
   <br/>
 </p>
   </div>
