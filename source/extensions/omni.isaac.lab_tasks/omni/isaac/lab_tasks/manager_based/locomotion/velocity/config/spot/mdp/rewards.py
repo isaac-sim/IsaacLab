@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 # Task Rewards
 ##
 
+
 def air_time_reward(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg,
@@ -190,6 +191,7 @@ def foot_clearance_reward(
 ##
 # Regularization Penalties
 ##
+
 
 def action_smoothness_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Penalize large instantaneous changes in the network action output"""
