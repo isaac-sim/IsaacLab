@@ -1494,7 +1494,7 @@ document.write(`
         <span class="k">if</span> <span class="n">total_act_joints</span> <span class="o">!=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="p">):</span>
             <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span>
                 <span class="s2">&quot;Not all actuators are configured! Total number of actuated joints not equal to number of&quot;</span>
-                <span class="sa">f</span><span class="s2">&quot; joints available: </span><span class="si">{</span><span class="n">total_act_joints</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; joints available: </span><span class="si">{</span><span class="n">total_act_joints</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="bp">self</span><span class="o">.</span><span class="n">num_fixed_tendons</span><span class="si">}</span><span class="s2">.&quot;</span>
             <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_process_fixed_tendons</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
