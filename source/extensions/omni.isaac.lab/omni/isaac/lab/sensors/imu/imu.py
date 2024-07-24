@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class IMU(SensorBase):
     """The inertia measurement unit sensor.
 
-    The sensor can be attached to any RigidObject in the scene. The sensor provides the linear acceleration and angular
+    The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides the linear acceleration and angular
     velocity of the object in the body frame. The sensor also provides the orientation of the object in the world frame.
     """
 

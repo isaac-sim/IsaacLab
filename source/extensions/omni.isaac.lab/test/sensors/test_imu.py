@@ -51,7 +51,7 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    # sensors - frame transformer (filled inside unit test)
+    # sensors - imu (filled inside unit test)
     imu: IMUCfg = IMUCfg(
         prim_path="{ENV_REGEX_NS}/ball",
     )
@@ -125,7 +125,7 @@ class TestIMU(unittest.TestCase):
             # read data from sim
             self.scene.update(self.sim.get_physics_dt())
 
-            # skip first steo where initial velocity is zero
+            # skip first step where initial velocity is zero
             if idx < 1:
                 continue
 

@@ -15,7 +15,7 @@ from .imu import IMU
 
 @configclass
 class IMUCfg(SensorBaseCfg):
-    """Configuration for a camera sensor."""
+    """Configuration for an inertial measurement unit (IMU) sensor."""
 
     class_type: type = IMU
 

@@ -23,6 +23,7 @@ parser.add_argument(
     "--terrain_type",
     type=str,
     default="generator",
+    choices=["generator", "usd", "plane"],
     help="Type of terrain to import. Can be 'generator' or 'usd' or 'plane'.",
 )
 args_cli = parser.parse_args()

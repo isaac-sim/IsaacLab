@@ -1335,9 +1335,9 @@ def convert_orientation_convention(
     - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
     Args:
-        orientation: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention
-        origin: Convention to convert to. Defaults to "ros".
-        target: Convention to convert from. Defaults to "opengl".
+        orientation: Quaternion of form `(w, x, y, z)` with shape (..., 4) in source convention.
+        origin: Convention to convert from. Defaults to "opengl".
+        target: Convention to convert to. Defaults to "ros".
 
     Returns:
         Quaternion of form `(w, x, y, z)` with shape (..., 4) in target convention
@@ -1398,7 +1398,7 @@ def create_rotation_matrix_from_view(
     The output is a rotation matrix representing the transformation
     from world coordinates -> view coordinates.
 
-        The inputs camera_position and targets can each be a
+        The inputs eyes and targets can each be a
         - 3 element tuple/list
         - torch tensor of shape (1, 3)
         - torch tensor of shape (N, 3)
@@ -1407,6 +1407,7 @@ def create_rotation_matrix_from_view(
         eyes: position of the camera in world coordinates
         targets: position of the object in world coordinates
         up_axis: The up axis of the camera. Defaults to "Z".
+        device: The device to create torch tensors on. Defaults to "cpu".
 
     The vectors are broadcast against each other so they all have shape (N, 3).
 
@@ -1421,7 +1422,7 @@ def create_rotation_matrix_from_view(
     elif up_axis == "Z":
         up_axis_vec = torch.tensor((0, 0, 1), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
     else:
-        raise ValueError(f"Invalid up axis: {up_axis}")
+        raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
 
     # get rotation matrix in opengl format (-Z forward, +Y up)
     z_axis = -torch.nn.functional.normalize(targets - eyes, eps=1e-5)

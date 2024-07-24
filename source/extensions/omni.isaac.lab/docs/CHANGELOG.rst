@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-* Added IMU sensor implementation that directly accessess the physx view :class:`omni.isaac.lab.sensors.IMU`. The
+* Added IMU sensor implementation that directly accesses the physx view :class:`omni.isaac.lab.sensors.IMU`. The
   sensor comes with a configuration class :class:`omni.isaac.lab.sensors.IMUCfg` and data class
   :class:`omni.isaac.lab.sensors.IMUData`.
 
