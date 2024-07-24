@@ -133,13 +133,14 @@ class IMU(SensorBase):
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         # store the poses
-        self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos)
-        self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat)
+        self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos_b)
+        self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b)
 
         # obtain the velocities of the sensors
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
+        # if an offset is present, the linear velocity has to be transformed taking the angular velocity into account
+        lin_vel_w = lin_vel_w + torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)        
         # store the velocities
-        # note: we clone here because the obtained tensors are read-only
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
         self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
             self._data.quat_w[env_ids],
@@ -158,8 +159,8 @@ class IMU(SensorBase):
         # internal buffers
         self._last_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
         # store sensor offset transformation
-        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
-        self._offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
+        self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
