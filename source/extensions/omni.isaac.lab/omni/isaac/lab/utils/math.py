@@ -1404,8 +1404,8 @@ def create_rotation_matrix_from_view(
         - torch tensor of shape (N, 3)
 
     Args:
-        eyes: position of the camera in world coordinates
-        targets: position of the object in world coordinates
+        eyes: Position of the camera in world coordinates.
+        targets: Position of the object in world coordinates.
         up_axis: The up axis of the camera. Defaults to "Z".
         device: The device to create torch tensors on. Defaults to "cpu".
 
