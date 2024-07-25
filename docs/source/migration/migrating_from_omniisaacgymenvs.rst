@@ -706,7 +706,7 @@ reset the ``episode_length_buf`` buffer.
 |   resets = torch.where(                                          |                                                                          |
 |     torch.abs(self.pole_pos) > math.pi / 2, 1, resets)           |     time_out = self.episode_length_buf >= self.max_episode_length - 1    |
 |   resets = torch.where(                                          |     out_of_bounds = torch.any(torch.abs(                                 |
-|     self.progress_buf >= self._max_episode_length, 1, resets)    |         self.joint_pos[:, self._pole_dof_idx] > self.cfg.max_cart_pos),  |
+|     self.progress_buf >= self._max_episode_length, 1, resets)    |         self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos,  |
 |   self.reset_buf[:] = resets                                     |         dim=1)                                                           |
 |                                                                  |     out_of_bounds = out_of_bounds | torch.any(                           |
 |                                                                  |         torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2,  |

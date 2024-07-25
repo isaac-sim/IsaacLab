@@ -782,7 +782,7 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |     velocities = 0.5 * (torch.rand((len(env_ids), self.num_dof),      |                                                                           |
 |         device=self.device) - 0.5)                                    |     time_out = self.episode_length_buf >= self.max_episode_length - 1     |
 |                                                                       |     out_of_bounds = torch.any(torch.abs(                                  |
-|     self.dof_pos[env_ids, :] = positions[:]                           |         self.joint_pos[:, self._pole_dof_idx] > self.cfg.max_cart_pos),   |
+|     self.dof_pos[env_ids, :] = positions[:]                           |         self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos,   |
 |     self.dof_vel[env_ids, :] = velocities[:]                          |         dim=1)                                                            |
 |                                                                       |     out_of_bounds = out_of_bounds | torch.any(                            |
 |     env_ids_int32 = env_ids.to(dtype=torch.int32)                     |         torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2,   |
