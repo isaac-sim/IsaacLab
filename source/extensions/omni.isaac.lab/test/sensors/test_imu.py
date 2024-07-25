@@ -17,7 +17,6 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.stage as stage_utils
-import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -26,11 +25,17 @@ from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sensors.imu import IMUCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
+from omni.isaac.sensor import IMUSensor
+import numpy as np
 
 ##
 # Pre-defined configs
 ##
 from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+
+
+POS_OFFSET = (-0.25565, 0.00255, 0.07672)
+ROT_OFFSET = (0.0, 0.0, 1.0, 0.0)
 
 
 @configclass
@@ -60,17 +65,6 @@ class MySceneCfg(InteractiveSceneCfg):
     # articulations - robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
 
-    # extra rigid object as link to the imu sensor on the robot
-    imu_link = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/robot/imu",
-        # init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.25565, 0.00255, 0.07672), rot=(0.0, 0.0, 1.0, 0.0)),
-        spawn=sim_utils.CylinderCfg(
-            radius=0.01,
-            height=0.5,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        ),
-    )
-
     # sensors - imu (filled inside unit test)
     imu_ball: IMUCfg = IMUCfg(
         prim_path="{ENV_REGEX_NS}/ball",
@@ -78,13 +72,15 @@ class MySceneCfg(InteractiveSceneCfg):
     imu_robot: IMUCfg = IMUCfg(
         prim_path="{ENV_REGEX_NS}/robot/base",
         offset=IMUCfg.OffsetCfg(
-            pos=(-0.25565, 0.00255, 0.07672),
-            rot=(0.0, 0.0, 1.0, 0.0),
+            pos=POS_OFFSET,
+            rot=ROT_OFFSET,
         ),
     )
-    imu_robot_linked: IMUCfg = IMUCfg(
-        prim_path="{ENV_REGEX_NS}/robot/imu",
-    )
+
+    def __post_init__(self):
+        """Post initialization."""
+        # change position of the robot
+        self.robot.init_state.pos = (0.0, 2.0, 0.5)
 
 
 class TestIMU(unittest.TestCase):
@@ -95,10 +91,22 @@ class TestIMU(unittest.TestCase):
         # Create a new stage
         stage_utils.create_new_stage()
         # Load kit helper
-        self.sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005))
+        self.sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.005, use_fabric=False))
         # construct scene
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
         self.scene = InteractiveScene(scene_cfg)
+        # create the isaac sim IMU sensor with same translation as our IMU sensor
+        self.imu_sensor = IMUSensor(
+            prim_path='/World/envs/env_0/robot/base/imu',
+            name="imu",
+            dt=self.sim.get_physics_dt(),
+            translation=np.array(POS_OFFSET),
+            orientation=np.array(ROT_OFFSET),
+            linear_acceleration_filter_size=1,
+            angular_velocity_filter_size=1,
+            orientation_filter_size=1,
+        )
+        self.imu_sensor.initialize()
         # Play the simulator
         self.sim.reset()
 
@@ -143,7 +151,7 @@ class TestIMU(unittest.TestCase):
         for idx in range(10):
             # set acceleration
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
-                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
                 * (idx + 1)
@@ -164,7 +172,7 @@ class TestIMU(unittest.TestCase):
                 self.scene.sensors["imu_ball"].data.lin_acc_b,
                 math_utils.quat_rotate_inverse(
                     self.scene.rigid_objects["balls"].data.root_quat_w,
-                    torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                         self.scene.num_envs, 1
                     )
                     / self.sim.get_physics_dt(),
@@ -186,7 +194,7 @@ class TestIMU(unittest.TestCase):
         for idx in range(10):
             # set acceleration
             self.scene.articulations["robot"].write_root_velocity_to_sim(
-                torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
                     self.scene.num_envs, 1
                 )
                 * (idx + 1)
@@ -198,22 +206,32 @@ class TestIMU(unittest.TestCase):
             # read data from sim
             self.scene.update(self.sim.get_physics_dt())
 
+            # get the imu readings from the Isaac Sim sensor
+            isaac_sim_imu_data = self.imu_sensor.get_current_frame(read_gravity=True)
+
             # skip first step where initial velocity is zero
             if idx < 1:
                 continue
 
             # check the imu data
             torch.testing.assert_close(
-                self.scene.sensors["imu_robot"].data.lin_acc_b,
-                self.scene.sensors["imu_robot_linked"].data.lin_acc_b,
+                self.scene.sensors["imu_robot"].data.lin_acc_b[0],
+                isaac_sim_imu_data["lin_acc"],
                 rtol=1e-4,
                 atol=1e-4,
             )
 
             # check the angular velocity
             torch.testing.assert_close(
-                self.scene.sensors["imu_robot"].data.ang_vel_b,
-                self.scene.sensors["imu_robot_linked"].data.ang_vel_b,
+                self.scene.sensors["imu_robot"].data.ang_vel_b[0],
+                isaac_sim_imu_data["ang_vel"],
+                rtol=1e-4,
+                atol=1e-4,
+            )
+            # check the orientation
+            torch.testing.assert_close(
+                self.scene.sensors["imu_robot"].data.quat_w[0],
+                isaac_sim_imu_data["orientation"],
                 rtol=1e-4,
                 atol=1e-4,
             )
