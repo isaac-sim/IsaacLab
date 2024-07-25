@@ -155,14 +155,24 @@ class AppLauncher:
         * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
           as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
           ``HEADLESS`` environment variable.
-        * ``livestream`` (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values
+        * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
+          Valid options are:
+
+          - ``0``: Disabled
+          - ``1``: Native
+          - ``2``: WebRTC
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
           The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
           If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
         * ``device`` (str): The device to run the simulation on.
+          Valid options are:
+
+          - ``"cpu"``: Use CPU.
+          - ``"cuda"``: Use GPU with device ID ``0``.
+          - ``"cuda:N"`` Use GPU, where N is the device ID.
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
@@ -235,7 +245,7 @@ class AppLauncher:
             "--device",
             type=str,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
-            help="The device to run the simulation on.",
+            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv

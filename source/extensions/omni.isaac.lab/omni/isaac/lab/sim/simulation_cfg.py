@@ -160,7 +160,14 @@ class SimulationCfg:
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
     device: str = "cuda:0"
-    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
+    """The device to run the simulation on. Default is ``"cuda:0"``.
+
+    Valid options are:
+
+    - ``"cpu"``: Use CPU.
+    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~omni.isaac.lab.app.AppLauncher`'s config.
+    - ``"cuda:N"`` Use GPU, where N is the device ID.
+    """
 
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
