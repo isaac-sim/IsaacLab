@@ -153,7 +153,7 @@ class ObservationManager(ManagerBase):
         Raises:
             ValueError: If input ``group_name`` is not a valid group handled by the manager.
         """
-        # check ig group name is valid
+        # check if group name is valid
         if group_name not in self._group_obs_term_names:
             raise ValueError(
                 f"Unable to find the group '{group_name}' in the observation manager."

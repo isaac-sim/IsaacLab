@@ -24,6 +24,7 @@ from .manager_term_cfg import (
     ObservationGroupCfg,
     ObservationTermCfg,
     RandomizationTermCfg,
+    RewardGroupCfg,
     RewardTermCfg,
     TerminationTermCfg,
 )
