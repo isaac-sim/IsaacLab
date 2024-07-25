@@ -101,7 +101,6 @@ class IMU(SensorBase):
         be able to access the data from the sensor. It also initializes the internal buffers to store the data.
 
         Raises:
-            RuntimeError: If the number of imu prims in the view does not match the number of environments.
             RuntimeError: If the imu prim is not a RigidBodyPrim
         """
         # Initialize parent class
@@ -139,7 +138,7 @@ class IMU(SensorBase):
         # obtain the velocities of the sensors
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
         # if an offset is present, the linear velocity has to be transformed taking the angular velocity into account
-        lin_vel_w = lin_vel_w + torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)        
+        lin_vel_w = lin_vel_w + torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)
         # store the velocities
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
         self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
@@ -178,7 +177,6 @@ class IMU(SensorBase):
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
         # note: this invalidity happens because of isaac sim view callbacks
-        # TODO: check if necessary
         if self._view is None:
             return
         # get marker location

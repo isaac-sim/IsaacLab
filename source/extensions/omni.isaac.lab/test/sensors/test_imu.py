@@ -13,10 +13,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 import unittest
 
 import omni.isaac.core.utils.stage as stage_utils
+from omni.isaac.sensor import IMUSensor
 
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
@@ -25,8 +27,6 @@ from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sensors.imu import IMUCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
-from omni.isaac.sensor import IMUSensor
-import numpy as np
 
 ##
 # Pre-defined configs
@@ -97,7 +97,7 @@ class TestIMU(unittest.TestCase):
         self.scene = InteractiveScene(scene_cfg)
         # create the isaac sim IMU sensor with same translation as our IMU sensor
         self.imu_sensor = IMUSensor(
-            prim_path='/World/envs/env_0/robot/base/imu',
+            prim_path="/World/envs/env_0/robot/base/imu",
             name="imu",
             dt=self.sim.get_physics_dt(),
             translation=np.array(POS_OFFSET),
