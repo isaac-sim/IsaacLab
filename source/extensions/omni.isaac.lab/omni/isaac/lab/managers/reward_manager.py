@@ -168,7 +168,7 @@ class RewardManager(ManagerBase):
         # return logged information
         return extras
 
-    def compute(self, dt: float) -> dict[str, torch.Tensor]:
+    def compute(self, dt: float) -> dict[str, torch.Tensor] | torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
         This function calls each reward term managed by the class and adds them to compute the net
@@ -178,7 +178,7 @@ class RewardManager(ManagerBase):
             dt: The time-step interval of the environment.
 
         Returns:
-            The net reward signal of shape (num_envs,).
+            A dictionary containing the net reward signal of shape (num_envs,) for each group.
         """
         # iterate over all the reward terms
         for group_name in self._group_term_names.keys():
