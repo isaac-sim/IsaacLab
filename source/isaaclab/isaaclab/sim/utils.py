@@ -534,6 +534,21 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
         all_prims += child_prim.GetChildren()
 
 
+def resolve_world_scale(prim: Usd.Prim) -> tuple[float, float, float]:
+    """Resolve the world scale of a prim.
+
+    Args:
+        prim: The USD prim to resolve the world scale for.
+
+    Returns:
+        The world scale of the prim in the x, y, and z directions.
+    """
+
+    xform = UsdGeom.Xformable(prim)
+    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
+
+
 """
 USD Stage traversal.
 """

@@ -23,9 +23,11 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import convert_quat, quat_apply, quat_apply_yaw
-from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
+from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_mesh_from_geom_shape, create_trimesh_from_geom_mesh
+from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from ..sensor_base import SensorBase
+from ..utils import compute_world_poses
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -40,16 +42,35 @@ class RayCaster(SensorBase):
     a set of meshes with a given ray pattern.
 
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
-    converted to warp meshes and stored in the `warp_meshes` list. The ray-caster then ray-casts against
+    converted to warp meshes and stored in the :attr:`warp_meshes` list. The ray-caster then ray-casts against
     these warp meshes using the ray pattern provided in the configuration.
-
-    .. note::
-        Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
-        is a work in progress.
     """
 
     cfg: RayCasterCfg
     """The configuration parameters."""
+
+    meshes: ClassVar[dict[str, list[list[wp.Mesh]]]] = {}
+    """The warp meshes available for raycasting. Stored as a dictionary.
+
+    For each target_prim_cfg in the ray_caster_cfg.mesh_prim_paths, the dictionary stores the warp meshes
+    for each environment instance. The list has shape (num_envs, num_meshes_per_env).
+    Note that wp.Mesh are references to the warp mesh objects, so they are not duplicated for each environment if
+    not necessary.
+
+    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects.
+
+    .. note::
+           We store a global dictionary of all warp meshes to prevent re-loading the mesh for different ray-cast sensor instances.
+    """
+
+    mesh_views: ClassVar[dict[str, object]] = {}
+    """The views of the meshes available for raycasting.
+
+    The keys correspond to the prim path for the meshes, and values are the corresponding views of the prims.
+
+    .. note::
+           We store a global dictionary of all views to prevent re-loading for different ray-cast sensor instances.
+    """
 
     def __init__(self, cfg: RayCasterCfg):
         """Initializes the ray-caster object.
@@ -71,16 +92,28 @@ class RayCaster(SensorBase):
         super().__init__(cfg)
         # Create empty variables for storing output data
         self._data = RayCasterData()
-        # the warp meshes used for raycasting.
-        self.meshes: dict[str, wp.Mesh] = {}
+        self._raycast_targets_cfg: list[RayCasterCfg.RaycastTargetCfg] = []
+
+        self._num_meshes_per_env: dict[str, int] = {}
+        """Keeps track of the number of meshes per env for each ray_cast target.
+           Since we allow regex indexing (e.g. env_*/object_*) they can differ
+        """
+
+        for target in self.cfg.mesh_prim_paths:
+            # Legacy support for string targets. Treat them as global targets.
+            if isinstance(target, str):
+                self._raycast_targets_cfg.append(cfg.RaycastTargetCfg(target_prim_expr=target, is_global=True))
+            else:
+                self._raycast_targets_cfg.append(target)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
+
         return (
             f"Ray-caster @ '{self.cfg.prim_path}': \n"
             f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
-            f"\tnumber of meshes     : {len(self.meshes)}\n"
+            f"\tnumber of meshes     : {self._num_envs} x {sum(self._num_meshes_per_env.values())} \n"
             f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
             f"\ttotal number of rays : {self.num_rays * self._view.count}"
@@ -137,6 +170,7 @@ class RayCaster(SensorBase):
         # otherwise we need to use the xform view class which is slower
         found_supported_prim_class = False
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
+
         if prim is None:
             raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
         # create view based on the type of prim
@@ -160,54 +194,124 @@ class RayCaster(SensorBase):
         self._initialize_rays_impl()
 
     def _initialize_warp_meshes(self):
-        # check number of mesh prims provided
-        if len(self.cfg.mesh_prim_paths) != 1:
-            raise NotImplementedError(
-                f"RayCaster currently only supports one mesh prim. Received: {len(self.cfg.mesh_prim_paths)}"
-            )
+        for target_cfg in self._raycast_targets_cfg:
+            # target prim path to ray cast against
+            mesh_prim_path = target_cfg.target_prim_expr
+            # check if mesh already casted into warp mesh and get the number of meshes per env
+            if mesh_prim_path in RayCaster.meshes:
+                self._num_meshes_per_env[mesh_prim_path] = len(RayCaster.meshes[mesh_prim_path]) // self._num_envs
+                continue
+            paths = sim_utils.find_matching_prim_paths(mesh_prim_path)
+            if len(paths) == 0:
+                raise RuntimeError(f"Failed to find a prim at path expression: {mesh_prim_path}")
 
-        # read prims to ray-cast
-        for mesh_prim_path in self.cfg.mesh_prim_paths:
-            # check if the prim is a plane - handle PhysX plane as a special case
-            # if a plane exists then we need to create an infinite mesh that is a plane
-            mesh_prim = sim_utils.get_first_matching_child_prim(
-                mesh_prim_path, lambda prim: prim.GetTypeName() == "Plane"
-            )
-            # if we did not find a plane then we need to read the mesh
-            if mesh_prim is None:
-                # obtain the mesh prim
+            loaded_vertices: list[np.ndarray | None] = []
+            wp_meshes = []
+            for path in paths:
+                # check if the prim is a primitive object - handle these as special types
                 mesh_prim = sim_utils.get_first_matching_child_prim(
-                    mesh_prim_path, lambda prim: prim.GetTypeName() == "Mesh"
+                    path, lambda prim: prim.GetTypeName() in PRIMITIVE_MESH_TYPES
                 )
-                # check if valid
-                if mesh_prim is None or not mesh_prim.IsValid():
-                    raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
-                # cast into UsdGeomMesh
-                mesh_prim = UsdGeom.Mesh(mesh_prim)
-                # read the vertices and faces
-                points = np.asarray(mesh_prim.GetPointsAttr().Get())
-                transform_matrix = np.array(omni.usd.get_world_transform_matrix(mesh_prim)).T
-                points = np.matmul(points, transform_matrix[:3, :3].T)
-                points += transform_matrix[:3, 3]
-                indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-                wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
-                # print info
-                omni.log.info(
-                    f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
-                )
+
+                # if we did not find a primitive mesh, we need to read the mesh
+                if mesh_prim is None:
+
+                    # obtain the mesh prim
+                    mesh_prim = sim_utils.get_first_matching_child_prim(path, lambda prim: prim.GetTypeName() == "Mesh")
+
+                    # check if valid
+                    if mesh_prim is None or not mesh_prim.IsValid():
+                        raise RuntimeError(f"Invalid mesh prim path: {paths}")
+
+                    points, faces = create_trimesh_from_geom_mesh(mesh_prim)
+                    points *= np.array(sim_utils.resolve_world_scale(mesh_prim))
+                    registered_idx = _registered_points_idx(points, loaded_vertices)
+                    if registered_idx != -1:
+                        print("Found a duplicate mesh, only reference the mesh.")
+                        # Found a duplicate mesh, only reference the mesh.
+                        loaded_vertices.append(None)
+                        wp_mesh = wp_meshes[registered_idx]
+                    else:
+                        loaded_vertices.append(points)
+                        wp_mesh = convert_to_warp_mesh(points, faces, device=self.device)
+                    # print info
+                    carb.log_info(
+                        f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(faces)} faces."
+                    )
+                else:
+                    # create mesh from primitive shape
+                    mesh = create_mesh_from_geom_shape(mesh_prim)
+                    mesh.vertices *= np.array(sim_utils.resolve_world_scale(mesh_prim))
+
+                    registered_idx = _registered_points_idx(mesh.vertices, loaded_vertices)
+                    if registered_idx != -1:
+                        # Found a duplicate mesh, only reference the mesh.
+                        loaded_vertices.append(None)
+                        wp_mesh = wp_meshes[registered_idx]
+                    else:
+                        loaded_vertices.append(mesh.vertices)
+                        wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
+                    # print info
+                    carb.log_info(f"Created {mesh_prim.GetTypeName()} mesh prim: {mesh_prim.GetPath()}.")
+                wp_meshes.append(wp_mesh)
+
+            if target_cfg.is_global:
+                # reference the mesh for each environment to ray cast against
+                RayCaster.meshes[mesh_prim_path] = [wp_meshes] * self._num_envs
+                self._num_meshes_per_env[mesh_prim_path] = 1
             else:
-                mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
-                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
-                # print info
-                omni.log.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
-            # add the warp mesh to the list
-            self.meshes[mesh_prim_path] = wp_mesh
+                # split up the meshes for each environment. Little bit ugly, since
+                # the current order is interleaved (env1_obj1, env1_obj2, env2_obj1, env2_obj2, ...)
+                RayCaster.meshes[mesh_prim_path] = []
+                mesh_idx = 0
+                n_meshes_per_env = len(wp_meshes) // self._num_envs
+                self._num_meshes_per_env[mesh_prim_path] = n_meshes_per_env
+                for _ in range(self._num_envs):
+                    RayCaster.meshes[mesh_prim_path].append(wp_meshes[mesh_idx : mesh_idx + n_meshes_per_env])
+                    mesh_idx += n_meshes_per_env
+
+            if self.cfg.track_mesh_transforms:
+                # create view based on the type of prim
+                mesh_prim_api = sim_utils.find_first_matching_prim(mesh_prim_path)
+                if mesh_prim_api.HasAPI(UsdPhysics.ArticulationRootAPI):
+                    RayCaster.mesh_views[mesh_prim_path] = self._physics_sim_view.create_articulation_view(
+                        mesh_prim_path.replace(".*", "*")
+                    )
+                    carb.log_info(f"Created articulation view for mesh prim at path: {mesh_prim_path}")
+                elif mesh_prim_api.HasAPI(UsdPhysics.RigidBodyAPI):
+                    RayCaster.mesh_views[mesh_prim_path] = self._physics_sim_view.create_rigid_body_view(
+                        mesh_prim_path.replace(".*", "*")
+                    )
+                    carb.log_info(f"Created rigid body view for mesh prim at path: {mesh_prim_path}")
+                else:
+                    RayCaster.mesh_views[mesh_prim_path] = XFormPrimView(mesh_prim_path, reset_xform_properties=False)
+                    carb.log_warn(f"The prim at path {mesh_prim_path} is not a physics prim! Using XFormPrimView.")
 
         # throw an error if no meshes are found
-        if all([mesh_prim_path not in self.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all([target_cfg.target_prim_expr not in RayCaster.meshes for target_cfg in self._raycast_targets_cfg]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
+        if self.cfg.track_mesh_transforms:
+            total_n_meshes_per_env = sum(self._num_meshes_per_env.values())
+            self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
+            self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
+
+        # flatten the list of meshes that are included in mesh_prim_paths of the specific ray caster
+        self._meshes = []
+        for env_idx in range(self._num_envs):
+            meshes_in_env = []
+            for target_cfg in self._raycast_targets_cfg:
+                meshes_in_env.extend(RayCaster.meshes[target_cfg.target_prim_expr][env_idx])
+            self._meshes.append(meshes_in_env)
+
+        if self.cfg.track_mesh_transforms:
+            self._mesh_views = [
+                RayCaster.mesh_views[target_cfg.target_prim_expr] for target_cfg in self._raycast_targets_cfg
+            ]
+
+        # save a warp array with mesh ids that is passed to the raycast function
+        self._mesh_ids_wp = wp.array2d([[m.id for m in b] for b in self._meshes], dtype=wp.uint64, device=self.device)
 
     def _initialize_rays_impl(self):
         # compute ray stars and directions
@@ -225,23 +329,14 @@ class RayCaster(SensorBase):
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # fill the data buffer
-        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
-        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
+        self._data.pos_w = torch.zeros(self._view.count, 3, device=self.device)
+        self._data.quat_w = torch.zeros(self._view.count, 4, device=self.device)
+        self._data.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self.device)
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
         # obtain the poses of the sensors
-        if isinstance(self._view, XFormPrim):
-            pos_w, quat_w = self._view.get_world_poses(env_ids)
-        elif isinstance(self._view, physx.ArticulationView):
-            pos_w, quat_w = self._view.get_root_transforms()[env_ids].split([3, 4], dim=-1)
-            quat_w = convert_quat(quat_w, to="wxyz")
-        elif isinstance(self._view, physx.RigidBodyView):
-            pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-            quat_w = convert_quat(quat_w, to="wxyz")
-        else:
-            raise RuntimeError(f"Unsupported view type: {type(self._view)}")
+        pos_w, quat_w = compute_world_poses(self._view, env_ids)
         # note: we clone here because we are read-only operations
         pos_w = pos_w.clone()
         quat_w = quat_w.clone()
@@ -288,16 +383,33 @@ class RayCaster(SensorBase):
             ray_starts_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
             ray_starts_w += pos_w.unsqueeze(1)
             ray_directions_w = quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
-        else:
-            raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
 
-        # ray cast and store the hits
-        # TODO: Make this work for multiple meshes?
-        self._data.ray_hits_w[env_ids] = raycast_mesh(
+        if self.cfg.track_mesh_transforms:
+            # Update the mesh positions and rotations
+            mesh_idx = 0
+            for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
+                # update position of the target meshes
+                pos_w, ori_w = compute_world_poses(view, None)
+                pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
+                ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
+
+                count = view.count
+                if not target_cfg.is_global:
+                    count = count // self._num_envs
+                    pos_w = pos_w.view(self._num_envs, count, 3)
+                    ori_w = ori_w.view(self._num_envs, count, 4)
+
+                self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
+                self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
+                mesh_idx += count
+
+        self._data.ray_hits_w[env_ids] = raycast_dynamic_meshes(
             ray_starts_w,
             ray_directions_w,
+            mesh_ids_wp=self._mesh_ids_wp,  # list with shape num_envs x num_meshes_per_env
             max_dist=self.cfg.max_distance,
-            mesh=self.meshes[self.cfg.mesh_prim_paths[0]],
+            mesh_positions_w=self._mesh_positions_w[env_ids] if self.cfg.track_mesh_transforms else None,
+            mesh_orientations_w=self._mesh_orientations_w[env_ids] if self.cfg.track_mesh_transforms else None,
         )[0]
 
         # apply vertical drift to ray starting position in ray caster frame
@@ -332,3 +444,26 @@ class RayCaster(SensorBase):
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
         self._view = None
+
+
+"""
+Helper functions
+"""
+
+
+def _registered_points_idx(points: np.ndarray, registered_points: list[np.ndarray | None]) -> int:
+    """Check if the points are already registered in the list of registered points.
+
+    Args:
+        points: The points to check.
+        registered_points: The list of registered points.
+
+    Returns:
+        The index of the registered points if found, otherwise -1.
+    """
+    for idx, reg_points in enumerate(registered_points):
+        if reg_points is None:
+            continue
+        if reg_points.shape == points.shape and (reg_points == points).all():
+            return idx
+    return -1
