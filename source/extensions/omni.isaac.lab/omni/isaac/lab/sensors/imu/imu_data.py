@@ -10,8 +10,8 @@ from dataclasses import dataclass
 
 
 @dataclass
-class IMUData:
-    """Data container for the IMU sensor."""
+class ImuData:
+    """Data container for the Imu sensor."""
 
     pos_w: torch.Tensor = None
     """Position of the sensor origin in world frame.

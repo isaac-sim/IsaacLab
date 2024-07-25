@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-IMU Sensor
+Imu Sensor
 """
 
-from .imu import IMU
-from .imu_cfg import IMUCfg
-from .imu_data import IMUData
+from .imu import Imu
+from .imu_cfg import ImuCfg
+from .imu_data import ImuData

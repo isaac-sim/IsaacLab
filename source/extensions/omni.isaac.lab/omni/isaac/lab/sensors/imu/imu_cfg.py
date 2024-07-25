@@ -10,14 +10,14 @@ from omni.isaac.lab.markers.config import RED_ARROW_X_MARKER_CFG
 from omni.isaac.lab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
-from .imu import IMU
+from .imu import Imu
 
 
 @configclass
-class IMUCfg(SensorBaseCfg):
-    """Configuration for an inertial measurement unit (IMU) sensor."""
+class ImuCfg(SensorBaseCfg):
+    """Configuration for an inertial measurement unit (Imu) sensor."""
 
-    class_type: type = IMU
+    class_type: type = Imu
 
     @configclass
     class OffsetCfg:

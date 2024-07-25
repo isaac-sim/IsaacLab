@@ -31,8 +31,8 @@
     RayCasterCfg
     RayCasterCamera
     RayCasterCameraCfg
-    IMU
-    IMUCfg
+    Imu
+    ImuCfg
 
 Sensor Base
 -----------
@@ -156,12 +156,12 @@ Ray-Cast Camera
 Inertia Measurement Unit
 ------------------------
 
-.. autoclass:: IMU
+.. autoclass:: Imu
     :members:
     :inherited-members:
     :show-inheritance:
 
-.. autoclass:: IMUCfg
+.. autoclass:: ImuCfg
     :members:
     :inherited-members:
     :show-inheritance:

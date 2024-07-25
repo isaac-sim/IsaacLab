@@ -16,7 +16,7 @@ import argparse
 from omni.isaac.kit import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="IMU Test Script")
+parser = argparse.ArgumentParser(description="Imu Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
@@ -48,7 +48,7 @@ from pxr import PhysxSchema
 import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
-from omni.isaac.lab.sensors.imu import IMU, IMUCfg
+from omni.isaac.lab.sensors.imu import Imu, ImuCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -134,15 +134,15 @@ def main():
     balls = design_scene(sim=sim, num_envs=num_envs)
 
     # Create a ray-caster sensor
-    imu_cfg = IMUCfg(
+    imu_cfg = ImuCfg(
         prim_path="/World/envs/env_.*/ball",
         debug_vis=not args_cli.headless,
     )
     # increase scale of the arrows for better visualization
     imu_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
-    imu = IMU(cfg=imu_cfg)
+    imu = Imu(cfg=imu_cfg)
 
-    # Play simulator and init the IMU
+    # Play simulator and init the Imu
     sim.reset()
 
     # Print the sensor information
@@ -177,7 +177,7 @@ def main():
         # Step simulation
         sim.step()
         # Update the imu sensor
-        with Timer(f"IMU sensor update with {num_envs}"):
+        with Timer(f"Imu sensor update with {num_envs}"):
             imu.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1

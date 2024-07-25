@@ -18,24 +18,24 @@ import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.markers import VisualizationMarkers
 
 from ..sensor_base import SensorBase
-from .imu_data import IMUData
+from .imu_data import ImuData
 
 if TYPE_CHECKING:
-    from .imu_cfg import IMUCfg
+    from .imu_cfg import ImuCfg
 
 
-class IMU(SensorBase):
+class Imu(SensorBase):
     """The inertia measurement unit sensor.
 
     The sensor can be attached to any :class:`RigidObject` or :class:`Articulation` in the scene. The sensor provides the linear acceleration and angular
     velocity of the object in the body frame. The sensor also provides the orientation of the object in the world frame.
     """
 
-    cfg: IMUCfg
+    cfg: ImuCfg
     """The configuration parameters."""
 
-    def __init__(self, cfg: IMUCfg):
-        """Initializes the IMU sensor.
+    def __init__(self, cfg: ImuCfg):
+        """Initializes the Imu sensor.
 
         Args:
             cfg: The configuration parameters.
@@ -43,12 +43,12 @@ class IMU(SensorBase):
         # initialize base class
         super().__init__(cfg)
         # Create empty variables for storing output data
-        self._data = IMUData()
+        self._data = ImuData()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
-            f"IMU sensor @ '{self.cfg.prim_path}': \n"
+            f"Imu sensor @ '{self.cfg.prim_path}': \n"
             f"\tview type         : {self._view.__class__}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
             f"\tnumber of sensors : {self._view.count}\n"
@@ -59,7 +59,7 @@ class IMU(SensorBase):
     """
 
     @property
-    def data(self) -> IMUData:
+    def data(self) -> ImuData:
         # update sensors if needed
         self._update_outdated_buffers()
         # return the data

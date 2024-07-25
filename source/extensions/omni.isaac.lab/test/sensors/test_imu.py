@@ -24,7 +24,7 @@ import omni.isaac.lab.sim as sim_utils
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import RigidObjectCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
-from omni.isaac.lab.sensors.imu import IMUCfg
+from omni.isaac.lab.sensors.imu import ImuCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 
@@ -66,12 +66,12 @@ class MySceneCfg(InteractiveSceneCfg):
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
 
     # sensors - imu (filled inside unit test)
-    imu_ball: IMUCfg = IMUCfg(
+    imu_ball: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/ball",
     )
-    imu_robot: IMUCfg = IMUCfg(
+    imu_robot: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/robot/base",
-        offset=IMUCfg.OffsetCfg(
+        offset=ImuCfg.OffsetCfg(
             pos=POS_OFFSET,
             rot=ROT_OFFSET,
         ),
@@ -83,8 +83,8 @@ class MySceneCfg(InteractiveSceneCfg):
         self.robot.init_state.pos = (0.0, 2.0, 0.5)
 
 
-class TestIMU(unittest.TestCase):
-    """Test for IMU sensor."""
+class TestImu(unittest.TestCase):
+    """Test for Imu sensor."""
 
     def setUp(self):
         """Create a blank new stage for each test."""
@@ -95,7 +95,7 @@ class TestIMU(unittest.TestCase):
         # construct scene
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
         self.scene = InteractiveScene(scene_cfg)
-        # create the isaac sim IMU sensor with same translation as our IMU sensor
+        # create the isaac sim Imu sensor with same translation as our Imu sensor
         self.imu_sensor = IMUSensor(
             prim_path="/World/envs/env_0/robot/base/imu",
             name="imu",
@@ -121,7 +121,7 @@ class TestIMU(unittest.TestCase):
     """
 
     def test_constant_velocity(self):
-        """Test the IMU sensor with a constant velocity."""
+        """Test the Imu sensor with a constant velocity."""
         for _ in range(2):
             # set velocity
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
@@ -147,7 +147,7 @@ class TestIMU(unittest.TestCase):
         )
 
     def test_constant_acceleration(self):
-        """Test the IMU sensor with a constant acceleration."""
+        """Test the Imu sensor with a constant acceleration."""
         for idx in range(10):
             # set acceleration
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
