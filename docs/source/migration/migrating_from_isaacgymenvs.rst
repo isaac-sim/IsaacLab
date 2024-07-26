@@ -11,6 +11,11 @@ As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the f
 the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
 Release and Isaac Sim.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
+
 
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
@@ -920,3 +925,4 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _Isaac Gym Preview Release: https://developer.nvidia.com/isaac-gym
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases

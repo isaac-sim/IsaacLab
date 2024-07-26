@@ -41,6 +41,7 @@ Guidelines for modifications:
 * Chenyu Yang
 * Jia Lin Yuan
 * Jingzhou Liu
+* Johnson Sun
 * Kourosh Darvish
 * Lorenz Wellhausen
 * Muhong Guo
@@ -54,7 +55,6 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Zhengyu Zhang
 * Ziqi Fan
-* Johnson Sun
 
 ## Acknowledgements
 
