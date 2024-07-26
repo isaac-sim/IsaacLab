@@ -12,10 +12,11 @@ Added
 Removed
 ^^^^^^^
 
-* The :meth:`mdp.add_body_mass` method in the events. Please use the :meth:`mdp.randomize_rigid_body_mass` instead.
-* The classes :class:`omni.isaac.lab.managers.RandomizationManager` and
-  :class:`omni.isaac.lab.managers.RandomizationTermCfg`. Please use the :class:`omni.isaac.lab.managers.EventManager`
-  and :class:`omni.isaac.lab.managers.EventTermCfg` classes instead.
+* The :meth:`mdp.add_body_mass` method in the events. Please use the
+  :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
+* The classes :class:`RandomizationManager` and
+  :class:`managers.RandomizationTermCfg` are replaced with :class:`omni.isaac.lab.managers.EventManager`
+  and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
 * The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
 
   * :attr:`target_rot_source` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
