@@ -508,18 +508,20 @@ document.write(`
 
 <span class="sd">    .. math::</span>
 
-<span class="sd">        \Delta \mathbf{q} = \mathbf{J}^{\dagger} \Delta \mathbf{x}</span>
-<span class="sd">        \mathbf{q}_{\text{desired}} = \mathbf{q}_{\text{current}} + \Delta \mathbf{q}</span>
+<span class="sd">        \Delta \mathbf{q} &amp;= \mathbf{J}^{\dagger} \Delta \mathbf{x} \\</span>
+<span class="sd">        \mathbf{q}_{\text{desired}} &amp;= \mathbf{q}_{\text{current}} + \Delta \mathbf{q}</span>
 
 <span class="sd">    where :math:`\mathbf{J}^{\dagger}` is the pseudo-inverse of the Jacobian matrix :math:`\mathbf{J}`,</span>
 <span class="sd">    :math:`\Delta \mathbf{x}` is the desired change in pose, and :math:`\mathbf{q}_{\text{current}}`</span>
 <span class="sd">    is the current joint positions.</span>
 
 <span class="sd">    To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:</span>
-<span class="sd">        - &quot;pinv&quot;: Moore-Penrose pseudo-inverse</span>
-<span class="sd">        - &quot;svd&quot;: Adaptive singular-value decomposition (SVD)</span>
-<span class="sd">        - &quot;trans&quot;: Transpose of matrix</span>
-<span class="sd">        - &quot;dls&quot;: Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)</span>
+
+<span class="sd">    - &quot;pinv&quot;: Moore-Penrose pseudo-inverse</span>
+<span class="sd">    - &quot;svd&quot;: Adaptive singular-value decomposition (SVD)</span>
+<span class="sd">    - &quot;trans&quot;: Transpose of matrix</span>
+<span class="sd">    - &quot;dls&quot;: Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)</span>
+
 
 <span class="sd">    .. caution::</span>
 <span class="sd">        The controller does not assume anything about the frames of the current and desired end-effector pose,</span>
@@ -527,8 +529,12 @@ document.write(`
 <span class="sd">        in the correct format.</span>
 
 <span class="sd">    Reference:</span>
-<span class="sd">        [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf</span>
-<span class="sd">        [2] https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf</span>
+
+<span class="sd">    1. `Robot Dynamics Lecture Notes &lt;https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf&gt;`_</span>
+<span class="sd">       by Marco Hutter (ETH Zurich)</span>
+<span class="sd">    2. `Introduction to Inverse Kinematics &lt;https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf&gt;`_</span>
+<span class="sd">       by Samuel R. Buss (University of California, San Diego)</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="DifferentialIKController.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.controllers.html#omni.isaac.lab.controllers.DifferentialIKController.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">DifferentialIKControllerCfg</span><span class="p">,</span> <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>

@@ -501,7 +501,6 @@ document.write(`
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">import</span> <span class="nn">carb</span>
@@ -607,32 +606,6 @@ document.write(`
 
     <span class="c1"># apply to simulation</span>
     <span class="n">asset</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_material_properties</span><span class="p">(</span><span class="n">materials</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="add_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.add_body_mass">[docs]</a><span class="k">def</span> <span class="nf">add_body_mass</span><span class="p">(</span>
-    <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">,</span>
-    <span class="n">env_ids</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">mass_distribution_params</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
-    <span class="n">asset_cfg</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">,</span>
-<span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Randomize the mass of the bodies by adding a random value sampled from the given range.</span>
-
-<span class="sd">    .. tip::</span>
-<span class="sd">        This function uses CPU tensors to assign the body masses. It is recommended to use this function</span>
-<span class="sd">        only during the initialization of the environment.</span>
-
-<span class="sd">    .. deprecated:: v0.4</span>
-<span class="sd">        This function is deprecated. Please use :func:`randomize_rigid_body_mass` with ``operation=&quot;add&quot;`` instead.</span>
-
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Event term &#39;add_body_mass&#39; is deprecated. Please use &#39;randomize_rigid_body_mass&#39; with operation=&#39;add&#39;.&quot;</span>
-    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-    <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-
-    <span class="c1"># call the new function</span>
-    <span class="n">randomize_rigid_body_mass</span><span class="p">(</span>
-        <span class="n">env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">asset_cfg</span><span class="p">,</span> <span class="n">mass_distribution_params</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="s2">&quot;add&quot;</span><span class="p">,</span> <span class="n">distribution</span><span class="o">=</span><span class="s2">&quot;uniform&quot;</span>
-    <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="randomize_rigid_body_mass"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.events.randomize_rigid_body_mass">[docs]</a><span class="k">def</span> <span class="nf">randomize_rigid_body_mass</span><span class="p">(</span>

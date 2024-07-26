@@ -12,6 +12,10 @@ We have updated OmniIsaacGymEnvs to Isaac Sim version 4.0.0 to support the migra
 to Isaac Lab. Moving forward, OmniIsaacGymEnvs will be deprecated and future development
 will continue in Isaac Lab.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
 
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
@@ -992,3 +996,4 @@ To launch inferencing in Isaac Lab, use the command:
 
 
 .. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases

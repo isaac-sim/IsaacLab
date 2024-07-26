@@ -490,7 +490,6 @@ document.write(`
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
 
 
@@ -540,37 +539,7 @@ document.write(`
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Orientation of the source frame after offset (in world frame) quaternion (w, x, y, z).</span>
 
 <span class="sd">    Shape is (N, 4), where N is the number of environments.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">target_rot_source</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Alias for :attr:`target_quat_source`.</span>
-
-<span class="sd">        .. deprecated:: v0.2.1</span>
-<span class="sd">            Use :attr:`target_quat_source` instead. Will be removed in v0.3.0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;&#39;target_rot_source&#39; is deprecated, use &#39;target_quat_source&#39; instead.&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_quat_source</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">target_rot_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Alias for :attr:`target_quat_w`.</span>
-
-<span class="sd">        .. deprecated:: v0.2.1</span>
-<span class="sd">            Use :attr:`target_quat_w` instead. Will be removed in v0.3.0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;&#39;target_rot_w&#39; is deprecated, use &#39;target_quat_w&#39; instead.&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_quat_w</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">source_rot_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Alias for :attr:`source_quat_w`.</span>
-
-<span class="sd">        .. deprecated:: v0.2.1</span>
-<span class="sd">            Use :attr:`source_quat_w` instead. Will be removed in v0.3.0.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;&#39;source_rot_w&#39; is deprecated, use &#39;source_quat_w&#39; instead.&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_quat_w</span></div>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 </pre></div>
 
                 </article>

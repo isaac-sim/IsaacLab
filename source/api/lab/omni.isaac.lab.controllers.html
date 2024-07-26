@@ -607,31 +607,31 @@ commands to be sent to the robot.</p>
 <p>This controller is based on the concept of differential inverse kinematics [1, 2] which is a method for computing
 the change in joint positions that yields the desired change in pose.</p>
 <div class="math notranslate nohighlight">
-\[\Delta \mathbf{q} = \mathbf{J}^{\dagger} \Delta \mathbf{x}
-\mathbf{q}_{\text{desired}} = \mathbf{q}_{\text{current}} + \Delta \mathbf{q}\]</div>
+\[\begin{split}\Delta \mathbf{q} &amp;= \mathbf{J}^{\dagger} \Delta \mathbf{x} \\
+\mathbf{q}_{\text{desired}} &amp;= \mathbf{q}_{\text{current}} + \Delta \mathbf{q}\end{split}\]</div>
 <p>where <span class="math notranslate nohighlight">\(\mathbf{J}^{\dagger}\)</span> is the pseudo-inverse of the Jacobian matrix <span class="math notranslate nohighlight">\(\mathbf{J}\)</span>,
 <span class="math notranslate nohighlight">\(\Delta \mathbf{x}\)</span> is the desired change in pose, and <span class="math notranslate nohighlight">\(\mathbf{q}_{\text{current}}\)</span>
 is the current joint positions.</p>
-<dl class="simple">
-<dt>To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:</dt><dd><ul class="simple">
+<p>To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:</p>
+<ul class="simple">
 <li><p>“pinv”: Moore-Penrose pseudo-inverse</p></li>
 <li><p>“svd”: Adaptive singular-value decomposition (SVD)</p></li>
 <li><p>“trans”: Transpose of matrix</p></li>
 <li><p>“dls”: Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)</p></li>
 </ul>
-</dd>
-</dl>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>The controller does not assume anything about the frames of the current and desired end-effector pose,
 or the joint-space velocities. It is up to the user to ensure that these quantities are given
 in the correct format.</p>
 </div>
-<dl class="simple">
-<dt>Reference:</dt><dd><p>[1] <a class="reference external" href="https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf">https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf</a>
-[2] <a class="reference external" href="https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf">https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf</a></p>
-</dd>
-</dl>
+<p>Reference:</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf">Robot Dynamics Lecture Notes</a>
+by Marco Hutter (ETH Zurich)</p></li>
+<li><p><a class="reference external" href="https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf">Introduction to Inverse Kinematics</a>
+by Samuel R. Buss (University of California, San Diego)</p></li>
+</ol>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>

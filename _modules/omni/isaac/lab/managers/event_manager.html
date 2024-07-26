@@ -494,7 +494,6 @@ document.write(`
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">prettytable</span> <span class="kn">import</span> <span class="n">PrettyTable</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
@@ -771,44 +770,6 @@ document.write(`
                     <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
                     <span class="n">time_left</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_left</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_left</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="RandomizationManager"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RandomizationManager">[docs]</a><span class="k">class</span> <span class="nc">RandomizationManager</span><span class="p">(</span><span class="n">EventManager</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Manager for applying event specific operations to different elements in the scene.</span>
-
-<span class="sd">    .. deprecated:: v0.4.0</span>
-<span class="sd">        As the RandomizationManager also handles events such as resetting the environment, the class has been</span>
-<span class="sd">        renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-<div class="viewcode-block" id="RandomizationManager.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RandomizationManager.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ManagerBasedEnv</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the randomization manager.</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            cfg: A configuration object or dictionary (``dict[str, EventTermCfg]``).</span>
-<span class="sd">            env: An environment object.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dep_msg</span> <span class="o">=</span> <span class="s2">&quot;The class &#39;RandomizationManager&#39; will be removed in v0.4.0. Please use &#39;EventManager&#39; instead.&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">)</span>
-
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="RandomizationManager.randomize"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RandomizationManager.randomize">[docs]</a>    <span class="k">def</span> <span class="nf">randomize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Randomize the environment.</span>
-
-<span class="sd">        .. deprecated:: v0.4.0</span>
-<span class="sd">            This method will be removed in v0.4.0. Please use the method :meth:`EventManager.apply`</span>
-<span class="sd">            instead.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dep_msg</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="s2">&quot;The class &#39;RandomizationManager&#39; including its method &#39;randomize&#39; will be removed in v0.4.0. Please use &quot;</span>
-            <span class="s2">&quot;the class &#39;EventManager&#39; with the method &#39;apply&#39; instead.&quot;</span>
-        <span class="p">)</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
-        <span class="n">carb</span><span class="o">.</span><span class="n">log_error</span><span class="p">(</span><span class="n">dep_msg</span><span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span></div></div>
 </pre></div>
 
                 </article>

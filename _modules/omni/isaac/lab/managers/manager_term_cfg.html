@@ -494,7 +494,6 @@ document.write(`
 <span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">MISSING</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
@@ -695,25 +694,6 @@ document.write(`
 <span class="sd">    Note:</span>
 <span class="sd">        This is only used if the mode is ``&quot;interval&quot;``.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
-
-
-<div class="viewcode-block" id="RandomizationTermCfg"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.managers.html#omni.isaac.lab.managers.RandomizationTermCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">RandomizationTermCfg</span><span class="p">(</span><span class="n">EventTermCfg</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for a randomization term.</span>
-
-<span class="sd">    .. deprecated:: v0.3.0</span>
-
-<span class="sd">        This class is deprecated and will be removed in v0.4.0. Please use :class:`EventTermCfg` instead.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="c1"># Deprecation warning.</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-            <span class="s2">&quot;The RandomizationTermCfg has been renamed to EventTermCfg and will be removed in v0.4.0. Please use&quot;</span>
-            <span class="s2">&quot; EventTermCfg instead.&quot;</span><span class="p">,</span>
-            <span class="ne">DeprecationWarning</span><span class="p">,</span>
-        <span class="p">)</span></div>
 
 
 <span class="c1">##</span>

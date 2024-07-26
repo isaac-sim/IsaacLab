@@ -491,7 +491,6 @@ document.write(`
 
 <span class="kn">import</span> <span class="nn">builtins</span>
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">import</span> <span class="nn">warnings</span>
 <span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
 
@@ -687,17 +686,6 @@ document.write(`
 <span class="sd">            :meth:`SimulationContext.reset_async` and it isn&#39;t possible to call async functions in the constructor.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># check the configs</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">randomization</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s2">&quot;The &#39;randomization&#39; attribute is deprecated and will be removed in a future release. &quot;</span>
-                <span class="s2">&quot;Please use the &#39;events&#39; attribute to configure the randomization settings.&quot;</span>
-            <span class="p">)</span>
-            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">DeprecationWarning</span><span class="p">)</span>
-            <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
-            <span class="c1"># set the randomization as events (for backward compatibility)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">events</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">randomization</span>
-
         <span class="c1"># prepare the managers</span>
         <span class="c1"># -- action manager</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span> <span class="o">=</span> <span class="n">ActionManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">actions</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>

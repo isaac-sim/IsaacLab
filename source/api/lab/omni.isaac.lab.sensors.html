@@ -734,9 +734,6 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_pos_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_quat_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_source"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_rot_source</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_rot_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_rot_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_rot_w</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerCfg"><code class="docutils literal notranslate"><span class="pre">FrameTransformerCfg</span></code></a><ul class="nav section-nav flex-column">
@@ -2921,15 +2918,6 @@ does not support debug visualization.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_quat_w</span></code></a></p></td>
 <td><p>Orientation of the source frame after offset (in world frame) quaternion (w, x, y, z).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_source" title="omni.isaac.lab.sensors.FrameTransformerData.target_rot_source"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_rot_source</span></code></a></p></td>
-<td><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_source" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_source"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_source</span></code></a>.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_w" title="omni.isaac.lab.sensors.FrameTransformerData.target_rot_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">target_rot_w</span></code></a></p></td>
-<td><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_w</span></code></a>.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.source_rot_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_rot_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_rot_w</span></code></a></p></td>
-<td><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">source_quat_w</span></code></a>.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -2982,33 +2970,6 @@ the case of regex matching, the order may be different.</p>
 <span class="sig-name descname"><span class="pre">source_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Orientation of the source frame after offset (in world frame) quaternion (w, x, y, z).</p>
 <p>Shape is (N, 4), where N is the number of environments.</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformerData.target_rot_source">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">target_rot_source</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_source" title="Permalink to this definition">#</a></dt>
-<dd><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_source" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_source"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_source</span></code></a>.</p>
-<div class="deprecated">
-<p><span class="versionmodified deprecated">Deprecated since version v0.2.1: </span>Use <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_source" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_source"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_source</span></code></a> instead. Will be removed in v0.3.0.</p>
-</div>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformerData.target_rot_w">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">target_rot_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_w</span></code></a>.</p>
-<div class="deprecated">
-<p><span class="versionmodified deprecated">Deprecated since version v0.2.1: </span>Use <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">target_quat_w</span></code></a> instead. Will be removed in v0.3.0.</p>
-</div>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="omni.isaac.lab.sensors.FrameTransformerData.source_rot_w">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">source_rot_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.sensors.FrameTransformerData.source_rot_w" title="Permalink to this definition">#</a></dt>
-<dd><p>Alias for <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">source_quat_w</span></code></a>.</p>
-<div class="deprecated">
-<p><span class="versionmodified deprecated">Deprecated since version v0.2.1: </span>Use <a class="reference internal" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w" title="omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">source_quat_w</span></code></a> instead. Will be removed in v0.3.0.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -4195,9 +4156,6 @@ static meshes and dynamic meshes.</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_quat_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_quat_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_pos_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_pos_w</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_quat_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_quat_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_source"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_rot_source</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.target_rot_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.target_rot_w</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerData.source_rot_w"><code class="docutils literal notranslate"><span class="pre">FrameTransformerData.source_rot_w</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sensors.FrameTransformerCfg"><code class="docutils literal notranslate"><span class="pre">FrameTransformerCfg</span></code></a><ul class="nav section-nav flex-column">
