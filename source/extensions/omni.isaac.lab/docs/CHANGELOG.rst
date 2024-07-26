@@ -12,16 +12,15 @@ Added
 Removed
 ^^^^^^^
 
-* The :meth:`mdp.add_body_mass` method in the events. Please use the
+* The ``mdp.add_body_mass`` method in the events. Please use the
   :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
-* The classes :class:`RandomizationManager` and
-  :class:`managers.RandomizationTermCfg` are replaced with :class:`omni.isaac.lab.managers.EventManager`
-  and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg`` are replaced with
+  :class:`omni.isaac.lab.managers.EventManager` and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
 * The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
 
-  * :attr:`target_rot_source` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
-  * :attr:`target_rot_w` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
-  * :attr:`source_rot_w` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+  * ``target_rot_source`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * ``target_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * ``source_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
 
 * The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
   Isaac Sim 2023.1.1 completely.
