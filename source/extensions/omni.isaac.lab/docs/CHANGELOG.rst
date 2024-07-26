@@ -16,12 +16,13 @@ Removed
 * The classes :class:`omni.isaac.lab.managers.RandomizationManager` and
   :class:`omni.isaac.lab.managers.RandomizationTermCfg`. Please use the :class:`omni.isaac.lab.managers.EventManager`
   and :class:`omni.isaac.lab.managers.EventTermCfg` classes instead.
-* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`: :attr:`target_rot_source`,
-  :attr:`target_rot_w`, and :attr:`source_rot_w`. Please use
-  :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_rot_source`,
-  :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_rot_w`, and
-  :attr:`~omni.isaac.lab.sensors.FrameTransformerData,source_rot_w` instead.
-* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed with dropping the support for
+* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
+
+  * :attr:`target_rot_source` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * :attr:`target_rot_w` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * :attr:`source_rot_w` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+
+* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
   Isaac Sim 2023.1.1 completely.
 
 
