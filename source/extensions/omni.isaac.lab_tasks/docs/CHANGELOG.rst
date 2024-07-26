@@ -4,7 +4,7 @@ Changelog
 0.8.0 (2024-07-26)
 ~~~~~~~~~~~~~~~~~~
 
-Changed
+Removed
 ^^^^^^^
 
 * Renamed the action term names inside the manager-based lift-manipulation task. Earlier, they were called
