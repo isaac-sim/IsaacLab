@@ -137,6 +137,17 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
     ./docker/container.sh stop
 
 
+X11 forwarding
+~~~~~~~~~~~~~~
+
+The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
+on the host machine.
+
+The first time a container is started with ``./docker/container.sh start``, the script prompts
+the user whether to activate X11 forwarding. This will create a file ``docker/.container.yaml`` to store the user's choice.
+Subsequently, X11 forwarding can be toggled by changing ``__ISAACLAB_X11_FORWARDING_ENABLED`` to 0 or 1 in ``docker/.container.yaml``.
+
+
 Python Interpreter
 ~~~~~~~~~~~~~~~~~~
 

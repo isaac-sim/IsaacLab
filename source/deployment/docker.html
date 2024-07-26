@@ -57,7 +57,7 @@
     <link rel="prev" title="Container Deployment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 23, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 26, 2024"/>
   </head>
   
   
@@ -554,6 +554,7 @@ document.write(`
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#directory-organization">Directory Organization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-container">Running the Container</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#x11-forwarding">X11 forwarding</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#python-interpreter">Python Interpreter</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-the-mounted-volumes">Understanding the mounted volumes</a></li>
 </ul>
@@ -704,6 +705,14 @@ directories to the <code class="docutils literal notranslate"><span class="pre">
 <span class="o">./</span><span class="n">docker</span><span class="o">/</span><span class="n">container</span><span class="o">.</span><span class="n">sh</span> <span class="n">stop</span>
 </pre></div>
 </div>
+<section id="x11-forwarding">
+<h3>X11 forwarding<a class="headerlink" href="#x11-forwarding" title="Permalink to this heading">#</a></h3>
+<p>The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
+on the host machine.</p>
+<p>The first time a container is started with <code class="docutils literal notranslate"><span class="pre">./docker/container.sh</span> <span class="pre">start</span></code>, the script prompts
+the user whether to activate X11 forwarding. This will create a file <code class="docutils literal notranslate"><span class="pre">docker/.container.yaml</span></code> to store the user’s choice.
+Subsequently, X11 forwarding can be toggled by changing <code class="docutils literal notranslate"><span class="pre">__ISAACLAB_X11_FORWARDING_ENABLED</span></code> to 0 or 1 in <code class="docutils literal notranslate"><span class="pre">docker/.container.yaml</span></code>.</p>
+</section>
 <section id="python-interpreter">
 <h3>Python Interpreter<a class="headerlink" href="#python-interpreter" title="Permalink to this heading">#</a></h3>
 <p>The container uses the Python interpreter provided by Isaac Sim. This interpreter is located at
@@ -872,6 +881,7 @@ in docker-compose.yaml.</p>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#directory-organization">Directory Organization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#running-the-container">Running the Container</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#x11-forwarding">X11 forwarding</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#python-interpreter">Python Interpreter</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-the-mounted-volumes">Understanding the mounted volumes</a></li>
 </ul>
@@ -918,7 +928,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 23, 2024.
+  Last updated on Jul 26, 2024.
   <br/>
 </p>
   </div>
