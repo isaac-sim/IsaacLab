@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.20.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support for the Isaac Sim 4.1.0 release.
+
+Removed
+^^^^^^^
+
+* The method :meth:`add_body_mass` in the events.
+* The class :class:`omni.isaac.lab.managers.RandomizationManager`.
+* The class :class:`omni.isaac.lab.managers.RandomizationTermCfg`.
+* The properties :attr:`~omni.isaac.lab.sensors.FrameTransformer.target_rot_source`,
+  :attr:`~omni.isaac.lab.sensors.FrameTransformer.target_rot_w`, and
+  :attr:`~omni.isaac.lab.sensors.FrameTransformer.source_rot_w` in the class :class:`~omni.isaac.lab.sensors.FrameTransformer`.
+* The kit experience file ``isaaclab.backwards.compatible.kit``
+
+
 0.19.4 (2024-07-13)
 ~~~~~~~~~~~~~~~~~~~
 
