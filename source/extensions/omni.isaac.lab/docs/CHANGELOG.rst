@@ -106,7 +106,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData`class.
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData` class.
   Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
   gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
   and used to compute the projection of the gravity vector on the object.
