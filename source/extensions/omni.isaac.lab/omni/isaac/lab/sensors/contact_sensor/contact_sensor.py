@@ -335,11 +335,13 @@ class ContactSensor(SensorBase):
             force_matrix_w = self.contact_physx_view.get_contact_force_matrix(dt=self._sim_physics_dt)
             force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
             self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
+
         # obtain the pose of the sensor origin
         if self.cfg.track_pose:
             pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
             pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
             self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
+
         # obtain the air time
         if self.cfg.track_air_time:
             # -- time elapsed since last update
