@@ -39,7 +39,21 @@ class ContactSensor(SensorBase):
     in the asset.
 
     The sensor can be configured to report the contact forces on a set of bodies with a given
-    filter pattern. Please check the documentation on `RigidContactView`_ for more details.
+    filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful
+    when you want to report the contact forces between the sensor bodies and a specific set of
+    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
+    Please check the documentation on `RigidContactView`_ for more details.
+
+    The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
+    sensor body in an environment can be filtered against multiple bodies in that environment. If you need to
+    filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor
+    body.
+
+    As an example, suppose you want to report the contact forces for all the feet of a robot against an object
+    exclusively. In that case, setting the :attr:`ContactSensorCfg.prim_path` and
+    :attr:`ContactSensorCfg.filter_prim_paths_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``
+    respectively will not work. Instead, you need to create a separate sensor for each foot and filter
+    it against the object.
 
     .. _PhysX ContactReporter: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_contact_report_a_p_i.html
     .. _RigidContactView: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.RigidContactView
