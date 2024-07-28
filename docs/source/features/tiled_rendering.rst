@@ -9,7 +9,7 @@ Tiled Rendering
 
 .. note::
 
-    This feature is only available from Isaac Sim version 4.0.0.
+    This feature is only available from Isaac Sim version 4.0.0 onwards.
 
     Tiled rendering requires heavy memory resources. We recommend running at most 256 cameras in the scene.
 
