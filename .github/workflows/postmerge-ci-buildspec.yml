@@ -8,5 +8,5 @@ phases:
       - docker build -t $IMAGE_NAME:latest-1.1 --build-arg ISAACSIM_VERSION_ARG=4.1.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base .
       - echo "Pushing the docker image"
       - docker push $IMAGE_NAME:latest-1.1
-      - docker tag $IMAGE_NAME:latest-1.1 $IMAGE_NAME:latest-1.0-b$CODEBUILD_BUILD_NUMBER
+      - docker tag $IMAGE_NAME:latest-1.1 $IMAGE_NAME:latest-1.1-b$CODEBUILD_BUILD_NUMBER
       - docker push $IMAGE_NAME:latest-1.1-b$CODEBUILD_BUILD_NUMBER
