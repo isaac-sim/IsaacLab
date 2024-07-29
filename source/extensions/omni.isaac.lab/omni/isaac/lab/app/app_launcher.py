@@ -564,8 +564,8 @@ class AppLauncher:
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
-                enable_extension("omni.kit.livestream.core-3.2.0")
+                enable_extension("omni.kit.streamsdk.plugins-4.5.1")
+                enable_extension("omni.kit.livestream.core-4.3.6")
                 enable_extension("omni.kit.livestream.native-4.1.0")
             elif self._livestream == 2:
                 # Enable WebRTC Livestream extension
