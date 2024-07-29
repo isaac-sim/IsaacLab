@@ -79,6 +79,23 @@ class TestDictUtilities(unittest.TestCase):
         # check that functions are the same
         self.assertEqual(func(2), func_2(2))
 
+    def test_dict_to_md5(self):
+        """Test MD5 hash generation for dictionary."""
+        # create a complex nested dictionary
+        test_dict = {
+            "a": 1,
+            "b": 2,
+            "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
+            "i": 7,
+            "j": dict_utils.callable_to_string(lambda x: x**2),  # noqa: E731
+            "k": dict_utils.callable_to_string(dict_utils.class_to_dict),
+        }
+        # generate the MD5 hash
+        md5_hash_1 = dict_utils.dict_to_md5_hash(test_dict)
+        md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
+        # check that the hash is correct
+        self.assertEqual(md5_hash_1, md5_hash_2)
+
 
 if __name__ == "__main__":
     run_tests()
