@@ -114,9 +114,8 @@ class TerrainGenerator:
                 sub_cfg.slope_threshold = self.cfg.slope_threshold
 
         # set the seed for reproducibility
-        if self.cfg.seed is not None:
-            torch.manual_seed(self.cfg.seed)
-            np.random.seed(self.cfg.seed)
+        self.np_rng = np.random.Generator(np.random.PCG64(seed=self.cfg.seed))
+
         # create a list of all sub-terrains
         self.terrain_meshes = list()
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
@@ -138,7 +137,7 @@ class TerrainGenerator:
         if self.cfg.color_scheme == "height":
             self.terrain_mesh = color_meshes_by_height(self.terrain_mesh)
         elif self.cfg.color_scheme == "random":
-            self.terrain_mesh.visual.vertex_colors = np.random.choice(
+            self.terrain_mesh.visual.vertex_colors = self.np_rng.choice(
                 range(256), size=(len(self.terrain_mesh.vertices), 4)
             )
         elif self.cfg.color_scheme == "none":
@@ -175,9 +174,9 @@ class TerrainGenerator:
             # coordinate index of the sub-terrain
             (sub_row, sub_col) = np.unravel_index(index, (self.cfg.num_rows, self.cfg.num_cols))
             # randomly sample terrain index
-            sub_index = np.random.choice(len(proportions), p=proportions)
+            sub_index = self.np_rng.choice(len(proportions), p=proportions)
             # randomly sample difficulty parameter
-            difficulty = np.random.uniform(*self.cfg.difficulty_range)
+            difficulty = self.np_rng.uniform(*self.cfg.difficulty_range)
             # generate terrain
             mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_index])
             # add to sub-terrains
@@ -209,7 +208,7 @@ class TerrainGenerator:
                 #  the row index is 2 and the number of rows is 10, the nominal difficulty is 0.2.
                 #  We add a small random value to the difficulty to make it between 0.2 and 0.3.
                 lower, upper = self.cfg.difficulty_range
-                difficulty = (sub_row + np.random.uniform()) / self.cfg.num_rows
+                difficulty = (sub_row + self.np_rng.uniform()) / self.cfg.num_rows
                 difficulty = lower + (upper - lower) * difficulty
                 # generate terrain
                 mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_indices[sub_col]])
