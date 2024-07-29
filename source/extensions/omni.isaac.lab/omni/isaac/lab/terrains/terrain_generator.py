@@ -22,7 +22,7 @@ from .utils import color_meshes_by_height, find_flat_patches
 
 
 class TerrainGenerator:
-    """Terrain generator to handle different terrain generation functions.
+    r"""Terrain generator to handle different terrain generation functions.
 
     The terrains are represented as meshes. These are obtained either from height fields or by using the
     `trimesh <https://trimsh.org/trimesh.html>`__ library. The height field representation is more
@@ -39,8 +39,20 @@ class TerrainGenerator:
     which contains the common parameters for all terrains.
 
     If a curriculum is used, the terrains are generated based on their difficulty parameter.
-    The difficulty is varied linearly over the number of rows (i.e. along x). If a curriculum
-    is not used, the terrains are generated randomly.
+    The difficulty is varied linearly over the number of rows (i.e. along x) with a small random value
+    added to the difficulty to ensure that the columns with the same sub-terrain type are not exactly
+    the same. The difficulty parameter for a sub-terrain at a given row is calculated as:
+
+    .. math::
+
+        \text{difficulty} = \frac{\text{row\_id} + \mathcal{U}(0, \alpha)}{\text{num\_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
+
+    where :math:`\alpha` is the maximum random value added to the difficulty, and :math:`(\text{lower}, \text{upper})`
+    is the range of the difficulty parameter. These are specified using the :attr:`TerrainGeneratorCfg.difficulty_scale`
+    and :attr:`TerrainGeneratorCfg.difficulty_range` parameters respectively.
+
+    If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter
+    is randomly sampled from the specified range, given by the :attr:`TerrainGeneratorCfg.difficulty_range` parameter.
 
     If the :obj:`cfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
     on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
@@ -185,6 +197,11 @@ class TerrainGenerator:
         for sub_col in range(self.cfg.num_cols):
             for sub_row in range(self.cfg.num_rows):
                 # vary the difficulty parameter linearly over the number of rows
+                # note: based on the proportion, multiple columns can have the same sub-terrain type.
+                #  Thus to increase the diversity along the rows, we add a small random value to the difficulty.
+                #  This ensures that the terrains are not exactly the same. For example, if the
+                #  the row index is 2 and the number of rows is 10, the nominal difficulty is 0.2.
+                #  We add a small random value to the difficulty to make it between 0.2 and 0.3.
                 lower, upper = self.cfg.difficulty_range
                 difficulty = (sub_row + np.random.uniform()) / self.cfg.num_rows
                 difficulty = lower + (upper - lower) * difficulty
