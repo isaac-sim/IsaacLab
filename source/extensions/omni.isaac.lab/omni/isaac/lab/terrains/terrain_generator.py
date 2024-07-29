@@ -45,11 +45,11 @@ class TerrainGenerator:
 
     .. math::
 
-        \text{difficulty} = \frac{\text{row\_id} + \mathcal{U}(0, \alpha)}{\text{num\_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
+        \text{difficulty} = \frac{\text{row\_id} + \eta}{\text{num\_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
 
-    where :math:`\alpha` is the maximum random value added to the difficulty, and :math:`(\text{lower}, \text{upper})`
-    is the range of the difficulty parameter. These are specified using the :attr:`TerrainGeneratorCfg.difficulty_scale`
-    and :attr:`TerrainGeneratorCfg.difficulty_range` parameters respectively.
+    where :math:`\eta\sim\mathcal{U}(0, 1)` is a random value added to the difficulty, and
+    :math:`(\text{lower}, \text{upper})` is the range of the difficulty parameter, specified using the
+    :attr:`TerrainGeneratorCfg.difficulty_range` parameter.
 
     If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter
     is randomly sampled from the specified range, given by the :attr:`TerrainGeneratorCfg.difficulty_range` parameter.
@@ -63,6 +63,12 @@ class TerrainGenerator:
     sub-terrain configurations. This means that if the same sub-terrain configuration is used
     multiple times, the terrain is only generated once and then reused. This is useful when
     generating complex sub-terrains that take a long time to generate.
+
+    .. attention::
+
+        The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`
+        parameter. If the seed is not set, the terrain generation is not reproducible.
+
     """
 
     terrain_mesh: trimesh.Trimesh
