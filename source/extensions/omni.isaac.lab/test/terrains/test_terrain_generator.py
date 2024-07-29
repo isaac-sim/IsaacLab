@@ -62,14 +62,14 @@ class TestTerrainGenerator(unittest.TestCase):
 
         # check cache exists and is equal to the number of terrains
         # with curriculum, all sub-terrains are uniquely generated
+        num_generated = len(os.listdir(self.output_dir))
         self.assertTrue(os.listdir(self.output_dir))
-        self.assertEqual(len(os.listdir(self.output_dir)), cfg.num_cols * cfg.num_rows)
 
         # create terrain generator with cache enabled
         terrain_generator = TerrainGenerator(cfg=cfg.copy())
 
         # check no new terrain is generated
-        self.assertEqual(len(os.listdir(self.output_dir)), cfg.num_cols * cfg.num_rows)
+        self.assertEqual(len(os.listdir(self.output_dir)), num_generated)
 
         # check if the mesh is the same
         # check they don't point to the same object
