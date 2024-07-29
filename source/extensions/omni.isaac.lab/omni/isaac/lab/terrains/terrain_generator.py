@@ -304,14 +304,14 @@ class TerrainGenerator:
         sub_terrain_hash = dict_to_md5_hash(cfg.to_dict())
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
-        sub_terrain_stl_filename = os.path.join(sub_terrain_cache_dir, "mesh.stl")
+        sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.obj")
         sub_terrain_csv_filename = os.path.join(sub_terrain_cache_dir, "origin.csv")
         sub_terrain_meta_filename = os.path.join(sub_terrain_cache_dir, "cfg.yaml")
 
         # check if hash exists - if true, load the mesh and origin and return
-        if self.cfg.use_cache and os.path.exists(sub_terrain_stl_filename):
+        if self.cfg.use_cache and os.path.exists(sub_terrain_obj_filename):
             # load existing mesh
-            mesh = trimesh.load_mesh(sub_terrain_stl_filename)
+            mesh = trimesh.load_mesh(sub_terrain_obj_filename, process=False)
             origin = np.loadtxt(sub_terrain_csv_filename, delimiter=",")
             # return the generated mesh
             return mesh, origin
@@ -331,7 +331,7 @@ class TerrainGenerator:
             # create the cache directory
             os.makedirs(sub_terrain_cache_dir, exist_ok=True)
             # save the data
-            mesh.export(sub_terrain_stl_filename)
+            mesh.export(sub_terrain_obj_filename)
             np.savetxt(sub_terrain_csv_filename, origin, delimiter=",", header="x,y,z")
             dump_yaml(sub_terrain_meta_filename, cfg)
         # return the generated mesh
