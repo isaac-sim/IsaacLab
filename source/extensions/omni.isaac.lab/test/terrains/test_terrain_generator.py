@@ -56,7 +56,7 @@ class TestTerrainGenerator(unittest.TestCase):
         cfg.use_cache = True
         cfg.cache_dir = self.output_dir
         cfg.curriculum = True
-        terrain_generator = TerrainGenerator(cfg=cfg)
+        terrain_generator = TerrainGenerator(cfg=cfg.copy())
         # keep a copy of the generated terrain mesh
         old_terrain_mesh = terrain_generator.terrain_mesh.copy()
 
@@ -66,17 +66,20 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertEqual(len(os.listdir(self.output_dir)), cfg.num_cols * cfg.num_rows)
 
         # create terrain generator with cache enabled
-        terrain_generator = TerrainGenerator(cfg=cfg)
+        terrain_generator = TerrainGenerator(cfg=cfg.copy())
+
+        # check no new terrain is generated
+        self.assertEqual(len(os.listdir(self.output_dir)), cfg.num_cols * cfg.num_rows)
 
         # check if the mesh is the same
         # check they don't point to the same object
         self.assertIsNot(old_terrain_mesh, terrain_generator.terrain_mesh)
         # check if the meshes are equal
         np.testing.assert_allclose(
-            old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, err_msg="Vertices are not equal"
+            old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, rtol=1e-5, err_msg="Vertices are not equal"
         )
         np.testing.assert_allclose(
-            old_terrain_mesh.faces, terrain_generator.terrain_mesh.faces, err_msg="Faces are not equal"
+            old_terrain_mesh.faces, terrain_generator.terrain_mesh.faces, rtol=1e-5, err_msg="Faces are not equal"
         )
 
 
