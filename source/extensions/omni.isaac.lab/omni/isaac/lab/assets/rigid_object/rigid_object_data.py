@@ -16,7 +16,7 @@ class RigidObjectData:
     """Data container for a rigid object.
 
     This class contains the data for a rigid object in the simulation. The data includes the state of
-    the root rigid body and the state of all the bodies in the object.The data is stored in the simulation
+    the root rigid body and the state of all the bodies in the object. The data is stored in the simulation
     world frame unless otherwise specified.
 
     For a rigid body, there are two frames of reference that are used:
