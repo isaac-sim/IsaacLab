@@ -16,6 +16,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import unittest
+import random
 
 import omni.isaac.lab.utils.dict as dict_utils
 
@@ -77,6 +78,7 @@ class TestDictUtilities(unittest.TestCase):
         # convert string to function
         func_2 = dict_utils.string_to_callable(test_string)
         # check that functions are the same
+        self.assertEqual(test_string, "lambda x: x**2")
         self.assertEqual(func(2), func_2(2))
 
     def test_dict_to_md5(self):
@@ -86,15 +88,16 @@ class TestDictUtilities(unittest.TestCase):
             "a": 1,
             "b": 2,
             "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
-            "i": 7,
-            "j": dict_utils.callable_to_string(lambda x: x**2),  # noqa: E731
+            "i": random.random(),
             "k": dict_utils.callable_to_string(dict_utils.class_to_dict),
         }
         # generate the MD5 hash
         md5_hash_1 = dict_utils.dict_to_md5_hash(test_dict)
-        md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
-        # check that the hash is correct
-        self.assertEqual(md5_hash_1, md5_hash_2)
+
+        # check that the hash is correct even after multiple calls
+        for _ in range(200):
+            md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
+            self.assertEqual(md5_hash_1, md5_hash_2)
 
 
 if __name__ == "__main__":
