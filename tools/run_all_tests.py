@@ -132,7 +132,19 @@ def test_all(
 
     # Filter tests by extension
     if extension is not None:
-        all_test_paths = [test_path for test_path in all_test_paths if extension in test_path]
+        all_tests_in_selected_extension = []
+
+        for test_path in all_test_paths:
+            # Extract extension name from test path
+            extension_name = test_path[test_path.find("extensions") :].split("/")[1]
+
+            # Skip tests that are not in the selected extension
+            if extension_name != extension:
+                continue
+
+            all_tests_in_selected_extension.append(test_path)
+
+        all_test_paths = all_tests_in_selected_extension
 
     # Remove tests to skip from the list of tests to run
     if len(tests_to_skip) != 0:
