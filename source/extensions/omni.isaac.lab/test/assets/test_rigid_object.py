@@ -665,12 +665,12 @@ class TestRigidObject(unittest.TestCase):
                                 # update object
                                 cube_object.update(sim.cfg.dt)
 
-                            # Expected gravity value is the acceleration of the body
-                            gravity = torch.zeros(num_cubes, 1, 6, device=device)
-                            if gravity_enabled:
-                                gravity[:, :, 2] = -9.81
-                            # Check the body accelerations are correct
-                            torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
+                                # Expected gravity value is the acceleration of the body
+                                gravity = torch.zeros(num_cubes, 1, 6, device=device)
+                                if gravity_enabled:
+                                    gravity[:, :, 2] = -9.81
+                                # Check the body accelerations are correct
+                                torch.testing.assert_close(cube_object.data.body_acc_w, gravity)
 
 
 if __name__ == "__main__":
