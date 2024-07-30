@@ -209,11 +209,11 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
-    min_frequency: float = 0.0
-    """The minimum time in seconds between when term is applied.
+    min_step_count_between_reset: float = 0.0
+    """The minimum number of environment steps between when term is applied.
 
     When mode is "reset", the term will not be applied on the next reset unless
-    the time since the last application of the term has exceeded this.
+    the number of steps since the last application of the term has exceeded this.
 
     Note:
         This is only used if the mode is ``"reset"``.

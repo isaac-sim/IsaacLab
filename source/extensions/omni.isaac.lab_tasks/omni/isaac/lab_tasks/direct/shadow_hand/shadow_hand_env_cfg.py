@@ -29,7 +29,7 @@ class EventCfg:
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "static_friction_range": (0.7, 1.3),
@@ -40,7 +40,7 @@ class EventCfg:
     )
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -52,7 +52,7 @@ class EventCfg:
     )
     robot_joint_limits = EventTerm(
         func=mdp.randomize_joint_parameters,
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -64,7 +64,7 @@ class EventCfg:
     )
     robot_tendon_properties = EventTerm(
         func=mdp.randomize_fixed_tendon_parameters,
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
@@ -78,7 +78,7 @@ class EventCfg:
     # -- object
     object_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
@@ -90,7 +90,7 @@ class EventCfg:
     )
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
-        min_frequency=36.0,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
