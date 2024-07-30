@@ -40,7 +40,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         ),
     )
     # robot
-    robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace()
+    robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     actuated_joint_names = [
         "index_joint_0",
