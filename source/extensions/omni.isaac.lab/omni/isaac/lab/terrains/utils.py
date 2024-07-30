@@ -141,7 +141,7 @@ def find_flat_patches(
     y_range: tuple[float, float],
     z_range: tuple[float, float],
     max_height_diff: float,
-):
+) -> torch.Tensor:
     """Finds flat patches of given radius in the input mesh.
 
     The function finds flat patches of given radius based on the search space defined by the input ranges.
