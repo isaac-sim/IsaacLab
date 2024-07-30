@@ -1008,7 +1008,7 @@ class Articulation(RigidObject):
         if total_act_joints != (self.num_joints - self.num_fixed_tendons):
             carb.log_warn(
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
-                f" joints available: {total_act_joints} != {self.num_joints}."
+                f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
 
     def _process_fixed_tendons(self):

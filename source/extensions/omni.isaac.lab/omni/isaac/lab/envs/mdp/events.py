@@ -15,7 +15,6 @@ the event introduced by the function.
 from __future__ import annotations
 
 import torch
-import warnings
 from typing import TYPE_CHECKING, Literal
 
 import carb
@@ -121,32 +120,6 @@ def randomize_rigid_body_material(
 
     # apply to simulation
     asset.root_physx_view.set_material_properties(materials, env_ids)
-
-
-def add_body_mass(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    mass_distribution_params: tuple[float, float],
-    asset_cfg: SceneEntityCfg,
-):
-    """Randomize the mass of the bodies by adding a random value sampled from the given range.
-
-    .. tip::
-        This function uses CPU tensors to assign the body masses. It is recommended to use this function
-        only during the initialization of the environment.
-
-    .. deprecated:: v0.4
-        This function is deprecated. Please use :func:`randomize_rigid_body_mass` with ``operation="add"`` instead.
-
-    """
-    msg = "Event term 'add_body_mass' is deprecated. Please use 'randomize_rigid_body_mass' with operation='add'."
-    warnings.warn(msg, DeprecationWarning)
-    carb.log_warn(msg)
-
-    # call the new function
-    randomize_rigid_body_mass(
-        env, env_ids, asset_cfg, mass_distribution_params, operation="add", distribution="uniform"
-    )
 
 
 def randomize_rigid_body_mass(

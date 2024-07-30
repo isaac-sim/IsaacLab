@@ -224,9 +224,9 @@ x11_check() {
     else
         echo "[INFO] X11 Forwarding is configured as $__ISAACLAB_X11_FORWARDING_ENABLED in .container.yaml"
         if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
-            echo "[INFO] To disable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=0 in .container.yaml"
+            echo "[INFO] To disable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 0\` in .container.yaml"
         else
-            echo "[INFO] To enable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=1 in .container.yaml"
+            echo "[INFO] To enable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 1\` in .container.yaml"
         fi
     fi
 
