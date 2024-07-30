@@ -28,9 +28,6 @@ class TestTerrainGenerator(unittest.TestCase):
         # Create directory to dump results
         test_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_dir = os.path.join(test_dir, "output", "generator")
-        # Clean up the directory
-        if os.path.exists(self.output_dir):
-            shutil.rmtree(self.output_dir)
 
     def test_generation(self):
         """Generates assorted terrains and tests that the resulting mesh has the expected size."""
@@ -61,6 +58,9 @@ class TestTerrainGenerator(unittest.TestCase):
         # try out with and without curriculum
         for curriculum in [True, False]:
             with self.subTest(curriculum=curriculum):
+                # clear output directory
+                if os.path.exists(self.output_dir):
+                    shutil.rmtree(self.output_dir)
                 # create terrain generator with cache enabled
                 cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
                 cfg.use_cache = True
