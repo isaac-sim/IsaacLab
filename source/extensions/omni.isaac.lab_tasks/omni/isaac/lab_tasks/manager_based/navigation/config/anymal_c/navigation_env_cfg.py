@@ -6,9 +6,9 @@
 import math
 
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
+from omni.isaac.lab.managers import EventTermCfg as EventTerm
 from omni.isaac.lab.managers import ObservationGroupCfg as ObsGroup
 from omni.isaac.lab.managers import ObservationTermCfg as ObsTerm
-from omni.isaac.lab.managers import RandomizationTermCfg as RandTerm
 from omni.isaac.lab.managers import RewardTermCfg as RewTerm
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.managers import TerminationTermCfg as DoneTerm
@@ -25,7 +25,7 @@ LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
 class EventCfg:
     """Configuration for events."""
 
-    reset_base = RandTerm(
+    reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={

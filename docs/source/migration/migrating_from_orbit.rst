@@ -8,6 +8,12 @@ From Orbit
 Since `Orbit`_ was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
 The following sections describe the changes that need to be made to your code to migrate from Orbit to Isaac Lab.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
+
+
 Renaming of the launch script
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -129,3 +135,4 @@ should now be:
 
 
 .. _Orbit: https://isaac-orbit.github.io/
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases
