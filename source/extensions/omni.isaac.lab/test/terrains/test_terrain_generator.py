@@ -24,7 +24,7 @@ from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 class TestTerrainGenerator(unittest.TestCase):
     """Test the procedural terrain generator."""
 
-    def setUp(self) -> None:
+    def setUp(self):
         # Create directory to dump results
         test_dir = os.path.dirname(os.path.abspath(__file__))
         self.output_dir = os.path.join(test_dir, "output", "generator")
@@ -32,7 +32,7 @@ class TestTerrainGenerator(unittest.TestCase):
         if os.path.exists(self.output_dir):
             shutil.rmtree(self.output_dir)
 
-    def test_generation(self) -> None:
+    def test_generation(self):
         """Generates assorted terrains and tests that the resulting mesh has the expected size."""
         # create terrain generator
         cfg = ROUGH_TERRAINS_CFG.copy()
@@ -49,7 +49,7 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertAlmostEqual(actualSize[0], expectedSizeX)
         self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
-    def test_generation_with_curriculum_and_cache(self) -> None:
+    def test_generation_with_curriculum_and_cache(self):
         """Generate the terrain with curriculum and check that caching works."""
         # create terrain generator with cache enabled
         cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
@@ -70,14 +70,48 @@ class TestTerrainGenerator(unittest.TestCase):
         terrain_generator = TerrainGenerator(cfg=cfg.copy())
 
         # check no new terrain is generated
-        # print what is not common
-        new_hash_ids = set(os.listdir(self.output_dir))
-        print(new_hash_ids - all_hash_ids)
         self.assertEqual(len(os.listdir(self.output_dir)), len(all_hash_ids))
 
         # check if the mesh is the same
         # check they don't point to the same object
         self.assertIsNot(old_terrain_mesh, terrain_generator.terrain_mesh)
+
+        # check if the meshes are equal
+        np.testing.assert_allclose(
+            old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, rtol=1e-5, err_msg="Vertices are not equal"
+        )
+        np.testing.assert_allclose(
+            old_terrain_mesh.faces, terrain_generator.terrain_mesh.faces, rtol=1e-5, err_msg="Faces are not equal"
+        )
+
+    def test_generation_with_random_and_cache(self):
+        """Generate the terrain with random and check that caching works."""
+        # create terrain generator with cache enabled
+        cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
+        cfg.use_cache = True
+        cfg.seed = 0
+        cfg.cache_dir = self.output_dir
+        cfg.curriculum = False
+        terrain_generator = TerrainGenerator(cfg=cfg.copy())
+        # keep a copy of the generated terrain mesh
+        old_terrain_mesh = terrain_generator.terrain_mesh.copy()
+
+        # check cache exists and is equal to the number of terrains
+        # with curriculum, all sub-terrains are uniquely generated
+        all_hash_ids = set(os.listdir(self.output_dir))
+        self.assertTrue(os.listdir(self.output_dir))
+
+        # create terrain generator with cache enabled
+        terrain_generator = TerrainGenerator(cfg=cfg.copy())
+
+        # check no new terrain is generated
+        # print what is not common
+        self.assertEqual(len(os.listdir(self.output_dir)), len(all_hash_ids))
+
+        # check if the mesh is the same
+        # check they don't point to the same object
+        self.assertIsNot(old_terrain_mesh, terrain_generator.terrain_mesh)
+
         # check if the meshes are equal
         np.testing.assert_allclose(
             old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, rtol=1e-5, err_msg="Vertices are not equal"
