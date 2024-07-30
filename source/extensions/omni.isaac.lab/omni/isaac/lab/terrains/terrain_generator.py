@@ -101,8 +101,7 @@ class TerrainGenerator:
         # store inputs
         self.cfg = cfg
         self.device = device
-        # -- valid patches
-        self.flat_patches = {}
+
         # set common values to all sub-terrains config
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
@@ -113,11 +112,20 @@ class TerrainGenerator:
                 sub_cfg.vertical_scale = self.cfg.vertical_scale
                 sub_cfg.slope_threshold = self.cfg.slope_threshold
 
+        # throw a warning if the cache is enabled but the seed is not set
+        if self.cfg.use_cache and self.cfg.seed is None:
+            carb.log_warn(
+                "Cache is enabled but the seed is not set. The terrain generation will not be reproducible."
+                " Please set the seed in the terrain generator configuration to make the generation reproducible."
+            )
+
         # set the seed for reproducibility
         # note: we create a new random number generator to avoid affecting the global state
         #  in the other places where random numbers are used.
         self.np_rng = np.random.default_rng(self.cfg.seed)
 
+        # buffer for storing valid patches
+        self.flat_patches = {}
         # create a list of all sub-terrains
         self.terrain_meshes = list()
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
