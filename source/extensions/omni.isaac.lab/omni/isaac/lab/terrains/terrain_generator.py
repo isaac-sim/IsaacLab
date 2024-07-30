@@ -159,6 +159,21 @@ class TerrainGenerator:
         for name, value in self.flat_patches.items():
             self.flat_patches[name] = value + terrain_origins_torch
 
+    def __str__(self):
+        """Return a string representation of the terrain generator."""
+        msg = "Terrain Generator:"
+        msg += f"\n\tSeed: {self.cfg.seed}"
+        msg += f"\n\tNumber of rows: {self.cfg.num_rows}"
+        msg += f"\n\tNumber of columns: {self.cfg.num_cols}"
+        msg += f"\n\tSub-terrain size: {self.cfg.size}"
+        msg += f"\n\tCurriculum: {self.cfg.curriculum}"
+        msg += f"\n\tColor scheme: {self.cfg.color_scheme}"
+        msg += f"\n\tUse cache: {self.cfg.use_cache}"
+        if self.cfg.use_cache:
+            msg += f"\n\tCache directory: {self.cfg.cache_dir}"
+
+        return msg
+
     """
     Terrain generator functions.
     """

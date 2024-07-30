@@ -38,6 +38,9 @@ class TestTerrainGenerator(unittest.TestCase):
         cfg = ROUGH_TERRAINS_CFG.copy()
         terrain_generator = TerrainGenerator(cfg=cfg)
 
+        # print terrain generator info
+        print(terrain_generator)
+
         # get size from mesh bounds
         bounds = terrain_generator.terrain_mesh.bounds
         actualSize = abs(bounds[1] - bounds[0])
