@@ -77,6 +77,12 @@ class TestTerrainGenerator(unittest.TestCase):
                 hash_ids_1 = set(os.listdir(cfg.cache_dir))
                 self.assertTrue(os.listdir(cfg.cache_dir))
 
+                # set a random seed to disturb the process
+                # this is to ensure that the seed inside the terrain generator makes deterministic results
+                np.random.seed(12456)
+                torch.manual_seed(12456)
+                torch.cuda.manual_seed_all(12456)
+
                 # create terrain generator with cache enabled
                 terrain_generator = TerrainGenerator(cfg=cfg)
                 # keep a copy of the generated terrain mesh
