@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the caching of terrains when using the :class:`omni.isaac.lab.terrains.TerrainGenerator` class.
+  Earlier, the random sampling of the difficulty levels led to different hash values for the same terrain
+  configuration. This caused the terrains to be re-generated even when the same configuration was used.
+  Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
+  sampled in the same order between different runs.
+
+
 0.20.0 (2024-07-26)
 ~~~~~~~~~~~~~~~~~~~
 
