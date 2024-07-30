@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.devices" href="omni.isaac.lab.devices.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jul 26, 2024"/>
+    <meta name="docbuild:last-update" content="Jul 30, 2024"/>
   </head>
   
   
@@ -177,7 +177,7 @@
           
           
           
-          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.0-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
+          <a href="https://developer.nvidia.com/isaac-sim" title="Isaac Sim" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacSim-4.1-silver.svg" class="icon-link-image" alt="Isaac Sim"/></a>
         </li>
         <li class="nav-item">
           
@@ -570,7 +570,6 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.observations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.events</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.randomization</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -610,7 +609,6 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.observations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.events</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.randomization"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.randomization</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.terminations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.commands</span></code></a></li>
@@ -978,9 +976,6 @@ Based on these parameters, the environment time-step is computed as the product 
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="xref py py-obj docutils literal notranslate"><span class="pre">events</span></code></a></p></td>
 <td><p>Event settings.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">randomization</span></code></a></p></td>
-<td><p>Randomization settings.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -1045,16 +1040,6 @@ This means that the control action is updated every 10 simulation steps.</p>
 <span class="sig-name descname"><span class="pre">events</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events" title="Permalink to this definition">#</a></dt>
 <dd><p>Event settings. Defaults to the basic configuration that resets the scene to its default state.</p>
 <p>Please refer to the <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventManager" title="omni.isaac.lab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.EventManager</span></code></a> class for more details.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization">
-<span class="sig-name descname"><span class="pre">randomization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization" title="Permalink to this definition">#</a></dt>
-<dd><p>Randomization settings. Default is None.</p>
-<div class="deprecated">
-<p><span class="versionmodified deprecated">Deprecated since version 0.3.0: </span>This attribute is deprecated and will be removed in v0.4.0. Please use the <a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="xref py py-attr docutils literal notranslate"><span class="pre">events</span></code></a>
-attribute to configure the randomization settings.</p>
-</div>
 </dd></dl>
 
 </dd></dl>
@@ -1508,16 +1493,6 @@ This means that the control action is updated every 10 simulation steps.</p>
 <span class="sig-name descname"><span class="pre">events</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events" title="Permalink to this definition">#</a></dt>
 <dd><p>Event settings. Defaults to the basic configuration that resets the scene to its default state.</p>
 <p>Please refer to the <a class="reference internal" href="omni.isaac.lab.managers.html#omni.isaac.lab.managers.EventManager" title="omni.isaac.lab.managers.EventManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.managers.EventManager</span></code></a> class for more details.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.randomization">
-<span class="sig-name descname"><span class="pre">randomization</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.12)"><span class="pre">object</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.randomization" title="Permalink to this definition">#</a></dt>
-<dd><p>Randomization settings. Default is None.</p>
-<div class="deprecated">
-<p><span class="versionmodified deprecated">Deprecated since version 0.3.0: </span>This attribute is deprecated and will be removed in v0.4.0. Please use the <a class="reference internal" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events" title="omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events"><code class="xref py py-attr docutils literal notranslate"><span class="pre">events</span></code></a>
-attribute to configure the randomization settings.</p>
-</div>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2179,7 +2154,6 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.observations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.events</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedEnvCfg.randomization"><code class="docutils literal notranslate"><span class="pre">ManagerBasedEnvCfg.randomization</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -2219,7 +2193,6 @@ Default is (1280, 720).</p>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.observations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.observations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.actions"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.actions</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.events"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.events</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.randomization"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.randomization</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.terminations"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.terminations</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.envs.ManagerBasedRLEnvCfg.commands"><code class="docutils literal notranslate"><span class="pre">ManagerBasedRLEnvCfg.commands</span></code></a></li>
@@ -2313,7 +2286,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 26, 2024.
+  Last updated on Jul 30, 2024.
   <br/>
 </p>
   </div>
