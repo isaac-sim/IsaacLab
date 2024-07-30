@@ -52,76 +52,47 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertAlmostEqual(actualSize[0], expectedSizeX)
         self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
-    def test_generation_with_curriculum_and_cache(self):
+    def test_generation_cache(self):
         """Generate the terrain with curriculum and check that caching works."""
-        # create terrain generator with cache enabled
-        cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
-        cfg.use_cache = True
-        cfg.seed = 0
-        cfg.cache_dir = self.output_dir
-        cfg.curriculum = True
-        terrain_generator = TerrainGenerator(cfg=cfg.copy())
-        # keep a copy of the generated terrain mesh
-        old_terrain_mesh = terrain_generator.terrain_mesh.copy()
+        # try out with and without curriculum
+        for curriculum in [True, False]:
+            with self.subTest(curriculum=curriculum):
+                # create terrain generator with cache enabled
+                cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
+                cfg.use_cache = True
+                cfg.seed = 0
+                cfg.cache_dir = self.output_dir
+                cfg.curriculum = curriculum
+                terrain_generator = TerrainGenerator(cfg=cfg)
+                # keep a copy of the generated terrain mesh
+                terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
 
-        # check cache exists and is equal to the number of terrains
-        # with curriculum, all sub-terrains are uniquely generated
-        all_hash_ids = set(os.listdir(self.output_dir))
-        self.assertTrue(os.listdir(self.output_dir))
+                # check cache exists and is equal to the number of terrains
+                # with curriculum, all sub-terrains are uniquely generated
+                hash_ids_1 = set(os.listdir(cfg.cache_dir))
+                self.assertTrue(os.listdir(cfg.cache_dir))
 
-        # create terrain generator with cache enabled
-        terrain_generator = TerrainGenerator(cfg=cfg.copy())
+                # create terrain generator with cache enabled
+                terrain_generator = TerrainGenerator(cfg=cfg)
+                # keep a copy of the generated terrain mesh
+                terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
 
-        # check no new terrain is generated
-        self.assertEqual(len(os.listdir(self.output_dir)), len(all_hash_ids))
+                # check no new terrain is generated
+                hash_ids_2 = set(os.listdir(cfg.cache_dir))
+                self.assertEqual(len(hash_ids_1), len(hash_ids_2))
+                self.assertSetEqual(hash_ids_1, hash_ids_2)
 
-        # check if the mesh is the same
-        # check they don't point to the same object
-        self.assertIsNot(old_terrain_mesh, terrain_generator.terrain_mesh)
+                # check if the mesh is the same
+                # check they don't point to the same object
+                self.assertIsNot(terrain_mesh_1, terrain_mesh_2)
 
-        # check if the meshes are equal
-        np.testing.assert_allclose(
-            old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, rtol=1e-5, err_msg="Vertices are not equal"
-        )
-        np.testing.assert_allclose(
-            old_terrain_mesh.faces, terrain_generator.terrain_mesh.faces, rtol=1e-5, err_msg="Faces are not equal"
-        )
-
-    def test_generation_with_random_and_cache(self):
-        """Generate the terrain with random and check that caching works."""
-        # create terrain generator with cache enabled
-        cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG.copy()
-        cfg.use_cache = True
-        cfg.seed = 0
-        cfg.cache_dir = self.output_dir
-        cfg.curriculum = False
-        terrain_generator = TerrainGenerator(cfg=cfg.copy())
-        # keep a copy of the generated terrain mesh
-        old_terrain_mesh = terrain_generator.terrain_mesh.copy()
-
-        # check cache exists and is equal to the number of terrains
-        # with curriculum, all sub-terrains are uniquely generated
-        all_hash_ids = set(os.listdir(self.output_dir))
-        self.assertTrue(os.listdir(self.output_dir))
-
-        # create terrain generator with cache enabled
-        terrain_generator = TerrainGenerator(cfg=cfg.copy())
-
-        # check no new terrain is generated
-        # print what is not common
-        self.assertEqual(len(os.listdir(self.output_dir)), len(all_hash_ids))
-
-        # check if the mesh is the same
-        # check they don't point to the same object
-        self.assertIsNot(old_terrain_mesh, terrain_generator.terrain_mesh)
-
-        # check if the meshes are equal
-        np.testing.assert_allclose(
-            old_terrain_mesh.vertices, terrain_generator.terrain_mesh.vertices, rtol=1e-5, err_msg="Vertices are not equal"
-        )
-        np.testing.assert_allclose(
-            old_terrain_mesh.faces, terrain_generator.terrain_mesh.faces, rtol=1e-5, err_msg="Faces are not equal"
-        )
+                # check if the meshes are equal
+                np.testing.assert_allclose(
+                    terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
+                )
+                np.testing.assert_allclose(
+                    terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
+                )
 
 
 if __name__ == "__main__":

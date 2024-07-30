@@ -329,6 +329,8 @@ class TerrainGenerator:
         Returns:
             The sub-terrain mesh and origin.
         """
+        # copy the configuration
+        cfg = cfg.copy()
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)
         cfg.seed = self.cfg.seed
