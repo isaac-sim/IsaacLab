@@ -18,6 +18,16 @@ class ArticulationData(RigidObjectData):
 
     This class extends the :class:`RigidObjectData` class to provide additional data for
     an articulation mainly related to the joints and tendons.
+
+    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
+    of reference that are used:
+
+    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+      with the rigid body schema.
+    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
+    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
+    can be interpreted as the link frame.
     """
 
     _root_physx_view: physx.ArticulationView
