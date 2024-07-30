@@ -15,9 +15,10 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import os
 import shutil
+import torch
 import unittest
 
-from omni.isaac.lab.terrains import TerrainGenerator, TerrainGeneratorCfg
+from omni.isaac.lab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 
 
@@ -97,6 +98,28 @@ class TestTerrainGenerator(unittest.TestCase):
                 np.testing.assert_allclose(
                     terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal"
                 )
+
+    def test_terrain_flat_patches(self):
+        """Test the flat patches generation."""
+        # create terrain generator
+        cfg = ROUGH_TERRAINS_CFG.copy()
+        # add flat patch configuration
+        for _, sub_terrain_cfg in cfg.sub_terrains.items():
+            sub_terrain_cfg.flat_patch_sampling = {
+                "root_spawn": FlatPatchSamplingCfg(num_patches=8, patch_radius=0.5, max_height_diff=0.05),
+                "target_spawn": FlatPatchSamplingCfg(num_patches=5, patch_radius=0.35, max_height_diff=0.05),
+            }
+        # generate terrain
+        terrain_generator = TerrainGenerator(cfg=cfg)
+
+        # check if flat patches are generated
+        self.assertTrue(terrain_generator.flat_patches)
+        # check the size of the flat patches
+        self.assertTupleEqual(terrain_generator.flat_patches["root_spawn"].shape, (cfg.num_rows, cfg.num_cols, 8, 3))
+        self.assertTupleEqual(terrain_generator.flat_patches["target_spawn"].shape, (cfg.num_rows, cfg.num_cols, 5, 3))
+        # check that no flat patches are zero
+        for _, flat_patches in terrain_generator.flat_patches.items():
+            self.assertFalse(torch.allclose(flat_patches, torch.zeros_like(flat_patches)))
 
 
 if __name__ == "__main__":
