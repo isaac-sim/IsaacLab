@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -307,41 +306,3 @@ class EventManager(ManagerBase):
             elif term_cfg.mode == "reset":
                 time_left = torch.zeros(self.num_envs, device=self.device)
                 self._reset_mode_time_until_next_reset.append(time_left)
-
-
-class RandomizationManager(EventManager):
-    """Manager for applying event specific operations to different elements in the scene.
-
-    .. deprecated:: v0.4.0
-        As the RandomizationManager also handles events such as resetting the environment, the class has been
-        renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.
-    """
-
-    def __init__(self, cfg: object, env: ManagerBasedEnv):
-        """Initialize the randomization manager.
-
-        Args:
-            cfg: A configuration object or dictionary (``dict[str, EventTermCfg]``).
-            env: An environment object.
-        """
-        dep_msg = "The class 'RandomizationManager' will be removed in v0.4.0. Please use 'EventManager' instead."
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-
-        super().__init__(cfg, env)
-
-    def randomize(self, mode: str, env_ids: Sequence[int] | None = None, dt: float | None = None):
-        """Randomize the environment.
-
-        .. deprecated:: v0.4.0
-            This method will be removed in v0.4.0. Please use the method :meth:`EventManager.apply`
-            instead.
-        """
-        dep_msg = (
-            "The class 'RandomizationManager' including its method 'randomize' will be removed in v0.4.0. Please use "
-            "the class 'EventManager' with the method 'apply' instead."
-        )
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-
-        self.apply(mode, env_ids, dt)

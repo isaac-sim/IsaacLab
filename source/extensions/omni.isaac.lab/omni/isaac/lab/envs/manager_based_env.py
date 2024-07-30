@@ -5,7 +5,6 @@
 
 import builtins
 import torch
-import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -201,17 +200,6 @@ class ManagerBasedEnv:
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
-        # check the configs
-        if self.cfg.randomization is not None:
-            msg = (
-                "The 'randomization' attribute is deprecated and will be removed in a future release. "
-                "Please use the 'events' attribute to configure the randomization settings."
-            )
-            warnings.warn(msg, category=DeprecationWarning)
-            carb.log_warn(msg)
-            # set the randomization as events (for backward compatibility)
-            self.cfg.events = self.cfg.randomization
-
         # prepare the managers
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)

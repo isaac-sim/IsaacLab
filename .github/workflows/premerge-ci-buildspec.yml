@@ -40,7 +40,7 @@ phases:
         '
       - ssh ubuntu@$EC2_INSTANCE_IP "docker login -u \\\$oauthtoken -p $NGC_TOKEN nvcr.io"
       - ssh ubuntu@$EC2_INSTANCE_IP "cd IsaacLab;
-          docker build -t isaac-lab-dev --build-arg ISAACSIM_VERSION_ARG=4.0.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base . ;
+          docker build -t isaac-lab-dev --build-arg ISAACSIM_VERSION_ARG=4.1.0 --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab --build-arg DOCKER_USER_HOME_ARG=/root -f docker/Dockerfile.base . ;
           docker run --rm --entrypoint bash --gpus all --network=host --name isaac-lab-test isaac-lab-dev ./isaaclab.sh -t &&
           exit $?"
   post_build:
