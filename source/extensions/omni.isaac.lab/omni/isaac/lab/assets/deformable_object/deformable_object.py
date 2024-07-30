@@ -10,10 +10,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
+import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
 
 import omni.isaac.lab.sim as sim_utils
-import omni.isaac.core.utils.prims as prim_utils
 
 from ..asset_base import AssetBase
 from .deformable_object_data import DeformableObjectData
@@ -35,8 +35,6 @@ class DeformableObject(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        # container for data access
-        self._data = DeformableObjectData()
 
     """
     Properties
@@ -45,7 +43,7 @@ class DeformableObject(AssetBase):
     @property
     def data(self) -> DeformableObjectData:
         return self._data
-    
+
     @property
     def num_instances(self) -> int:
         return self.root_physx_view.count
@@ -108,16 +106,8 @@ class DeformableObject(AssetBase):
     def write_data_to_sim(self):
         pass
 
-    def update(self):
-        self._data.nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :] = self.root_physx_view.get_sim_nodal_positions()
-        self._data.nodal_state_w[:, self.max_simulation_mesh_vertices_per_body:, :] = self.root_physx_view.get_sim_nodal_velocities()
-
-        self._data.sim_element_rotations = self.root_physx_view.get_sim_element_rotations().reshape(self.num_instances, -1, 4)
-        self._data.collision_element_rotations = self.root_physx_view.get_element_rotations().reshape(self.num_instances, -1, 4)
-        self._data.sim_element_deformation_gradients = self.root_physx_view.get_sim_element_deformation_gradients().reshape(self.num_instances, -1, 3, 3)
-        self._data.collision_element_deformation_gradients = self.root_physx_view.get_element_deformation_gradients().reshape(self.num_instances, -1, 3, 3)
-        self._data.sim_element_stresses = self.root_physx_view.get_sim_element_stresses().reshape(self.num_instances, -1, 3, 3)
-        self._data.collision_element_stresses = self.root_physx_view.get_element_stresses().reshape(self.num_instances, -1, 3, 3)
+    def update(self, dt: float):
+        self._data.update(dt)
 
     """
     Operations - Write to simulation.
@@ -204,6 +194,10 @@ class DeformableObject(AssetBase):
         carb.log_info(f"Deformable body initialized at: {self.cfg.prim_path}")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
+
+        # container for data access
+        self._data = DeformableObjectData(self.root_physx_view, self.device)
+
         # create buffers
         self._create_buffers()
         # process configuration
@@ -213,20 +207,23 @@ class DeformableObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
-        # asset data
-        # -- nodal states
-        self._data.nodal_state_w = torch.zeros(self.num_instances, 2 * self.max_simulation_mesh_vertices_per_body, 3, dtype=torch.float, device=self.device)
-        self._data.default_nodal_state_w = torch.zeros_like(self._data.nodal_state_w)
-        # -- element-wise data
-        self._data.sim_element_rotations = torch.zeros(self.num_instances, self.max_simulation_mesh_elements_per_body, 4, dtype=torch.float, device=self.device)
-        self._data.collision_element_rotations = torch.zeros(self.num_instances, self.max_collision_mesh_elements_per_body, 4, dtype=torch.float, device=self.device)
-        self._data.sim_element_deformation_gradients = torch.zeros(self.num_instances, self.max_simulation_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
-        self._data.collision_element_deformation_gradients = torch.zeros(self.num_instances, self.max_collision_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
-        self._data.sim_element_stresses = torch.zeros(self.num_instances, self.max_simulation_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
-        self._data.collision_element_stresses = torch.zeros(self.num_instances, self.max_collision_mesh_elements_per_body, 3, 3, dtype=torch.float, device=self.device)
 
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
         # -- nodal state
-        self._data.default_nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :] = self.root_physx_view.get_sim_nodal_positions()
+        nodal_positions = self.root_physx_view.get_sim_nodal_positions()
+        nodal_velocities = torch.zeros_like(nodal_positions)
+        self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=1)
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None

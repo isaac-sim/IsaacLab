@@ -9,11 +9,8 @@ from omni.isaac.lab.managers import SceneEntityCfg
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.utils import configclass
 
-from omni.isaac.lab_assets import ISAACLAB_ASSETS_DATA_DIR
-
-from omni.isaac.lab_tasks.manager_based.manipulation.lift.config.franka import joint_pos_env_cfg
-
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
+from omni.isaac.lab_tasks.manager_based.manipulation.lift.config.franka import joint_pos_env_cfg
 
 ##
 # Pre-defined configs
@@ -47,7 +44,7 @@ class FrankaDeformableCubeLiftEnvCfg(joint_pos_env_cfg.FrankaCubeLiftEnvCfg):
                     simulation_hexahedral_resolution=4,
                     rest_offset=0.0001,
                 ),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
                 physics_material=sim_utils.DeformableBodyMaterialCfg(
                     dynamic_friction=0.95,
                     youngs_modulus=500000,

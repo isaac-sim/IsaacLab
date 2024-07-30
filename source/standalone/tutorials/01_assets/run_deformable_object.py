@@ -84,15 +84,18 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
     deformable_object = entities["deformable_object"]
     # Define simulation stepping
+    sim_dt = sim.get_physics_dt()
+    sim_time = 0.0
     count = 0
     # Update buffers
-    deformable_object.update()
+    deformable_object.update(sim_dt)
     initial_nodal_pos = deformable_object.data.nodal_pos_w.clone()
     # Simulate physics
     while simulation_app.is_running():
         # reset
         if count % 250 == 0:
             # reset counters
+            sim_time = 0.0
             count = 0
             # reset root state
             root_state = deformable_object.data.default_nodal_state_w.clone()
@@ -107,9 +110,10 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
         # perform step
         sim.step()
         # update sim-time
+        sim_time += sim_dt
         count += 1
         # update buffers
-        deformable_object.update()
+        deformable_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
             print(f"Root position (in world): {deformable_object.data.root_pos_w[:, :3]}")

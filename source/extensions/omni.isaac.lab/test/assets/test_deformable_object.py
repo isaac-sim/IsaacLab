@@ -109,7 +109,7 @@ class TestDeformableObject(unittest.TestCase):
                         # perform rendering
                         sim.step()
                         # update object
-                        cube_object.update()
+                        cube_object.update(sim.cfg.dt)
 
     def test_initialization_on_device_cpu(self):
         """Test that initialization fails with deformable body API on the CPU."""
@@ -156,7 +156,7 @@ class TestDeformableObject(unittest.TestCase):
                         # perform rendering
                         sim.step()
                         # update object
-                        cube_object.update()
+                        cube_object.update(sim.cfg.dt)
                         # check that the object is kinematic
                         default_nodal_state_w = cube_object.data.default_nodal_state_w.clone()
                         torch.testing.assert_close(cube_object.data.nodal_state_w, default_nodal_state_w)
@@ -237,7 +237,7 @@ class TestDeformableObject(unittest.TestCase):
                                     value = getattr(cube_object.data, key)
                                     torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
 
-                                cube_object.update()
+                                cube_object.update(sim.cfg.dt)
 
 
 if __name__ == "__main__":

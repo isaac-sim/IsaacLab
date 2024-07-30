@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from omni.isaac.lab.assets import RigidObjectCfg
-from omni.isaac.lab.managers import EventTermCfg as EventTerm
-from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
@@ -80,16 +78,6 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                     ),
                 ),
             ],
-        )
-
-        self.events.reset_object_position = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
-        },
         )
 
 

@@ -374,7 +374,7 @@ class InteractiveScene:
         for articulation in self._articulations.values():
             articulation.update(dt)
         for deformable_object in self._deformable_objects.values():
-            deformable_object.update()
+            deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
             rigid_object.update(dt)
         # -- sensors
