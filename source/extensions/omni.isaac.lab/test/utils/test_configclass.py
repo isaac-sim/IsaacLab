@@ -24,7 +24,7 @@ from functools import wraps
 from typing import ClassVar
 
 from omni.isaac.lab.utils.configclass import configclass
-from omni.isaac.lab.utils.dict import class_to_dict, update_class_from_dict, dict_to_md5_hash
+from omni.isaac.lab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from omni.isaac.lab.utils.io import dump_yaml, load_yaml
 
 """

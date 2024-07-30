@@ -15,8 +15,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import unittest
 import random
+import unittest
 
 import omni.isaac.lab.utils.dict as dict_utils
 

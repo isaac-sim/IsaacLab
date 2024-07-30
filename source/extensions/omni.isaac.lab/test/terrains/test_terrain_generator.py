@@ -12,10 +12,10 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import unittest
+import numpy as np
 import os
 import shutil
-import numpy as np
+import unittest
 
 from omni.isaac.lab.terrains import TerrainGenerator, TerrainGeneratorCfg
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -53,7 +53,11 @@ class TestTerrainGenerator(unittest.TestCase):
         self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
     def test_generation_cache(self):
-        """Generate the terrain with curriculum and check that caching works."""
+        """Generate the terrain and check that caching works.
+
+        When caching is enabled, the terrain should be generated only once and the same terrain should be returned
+        when the terrain generator is created again.
+        """
         # try out with and without curriculum
         for curriculum in [True, False]:
             with self.subTest(curriculum=curriculum):

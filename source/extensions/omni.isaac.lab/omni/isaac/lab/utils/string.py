@@ -98,7 +98,7 @@ def callable_to_string(value: Callable) -> str:
     if value.__name__ == "<lambda>":
         # we resolve the lambda expression by checking the source code and extracting the line with lambda expression
         # we also remove any comments from the line
-        lambda_line = inspect.getsourcelines(value)[0][0].strip().split('lambda')[1].strip().split(',')[0]
+        lambda_line = inspect.getsourcelines(value)[0][0].strip().split("lambda")[1].strip().split(",")[0]
         lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
         return f"lambda {lambda_line}"
     else:
