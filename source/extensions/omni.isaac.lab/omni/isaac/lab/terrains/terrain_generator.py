@@ -174,7 +174,9 @@ class TerrainGenerator:
         msg += f"\n\tNumber of rows: {self.cfg.num_rows}"
         msg += f"\n\tNumber of columns: {self.cfg.num_cols}"
         msg += f"\n\tSub-terrain size: {self.cfg.size}"
+        msg += f"\n\tSub-terrain types: {list(self.cfg.sub_terrains.keys())}"
         msg += f"\n\tCurriculum: {self.cfg.curriculum}"
+        msg += f"\n\tDifficulty range: {self.cfg.difficulty_range}"
         msg += f"\n\tColor scheme: {self.cfg.color_scheme}"
         msg += f"\n\tUse cache: {self.cfg.use_cache}"
         if self.cfg.use_cache:
