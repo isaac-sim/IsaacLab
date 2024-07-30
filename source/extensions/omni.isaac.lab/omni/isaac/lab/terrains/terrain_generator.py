@@ -114,7 +114,9 @@ class TerrainGenerator:
                 sub_cfg.slope_threshold = self.cfg.slope_threshold
 
         # set the seed for reproducibility
-        self.np_rng = np.random.Generator(np.random.PCG64(seed=self.cfg.seed))
+        # note: we create a new random number generator to avoid affecting the global state
+        #  in the other places where random numbers are used.
+        self.np_rng = np.random.default_rng(self.cfg.seed)
 
         # create a list of all sub-terrains
         self.terrain_meshes = list()
