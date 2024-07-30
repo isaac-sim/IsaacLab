@@ -45,21 +45,25 @@ class TerrainGenerator:
 
     .. math::
 
-        \text{difficulty} = \frac{\text{row\_id} + \eta}{\text{num\_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
+        \text{difficulty} = \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
 
-    where :math:`\eta\sim\mathcal{U}(0, 1)` is a random value added to the difficulty, and
+    where :math:`\eta\sim\mathcal{U}(0, 1)` is a random perturbation to the difficulty, and
     :math:`(\text{lower}, \text{upper})` is the range of the difficulty parameter, specified using the
-    :attr:`TerrainGeneratorCfg.difficulty_range` parameter.
+    :attr:`~TerrainGeneratorCfg.difficulty_range` parameter.
 
     If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter
-    is randomly sampled from the specified range, given by the :attr:`TerrainGeneratorCfg.difficulty_range` parameter.
+    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range` parameter:
 
-    If the :obj:`cfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
+    .. math::
+
+        \text{difficulty} \sim \mathcal{U}(\text{lower}, \text{upper})
+
+    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
     on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
     in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the
     value is a tensor containing the flat patches for each sub-terrain.
 
-    If the flag :obj:`cfg.use_cache` is set to True, the terrains are cached based on their
+    If the flag :attr:`~TerrainGeneratorCfg.use_cache` is set to True, the terrains are cached based on their
     sub-terrain configurations. This means that if the same sub-terrain configuration is used
     multiple times, the terrain is only generated once and then reused. This is useful when
     generating complex sub-terrains that take a long time to generate.
