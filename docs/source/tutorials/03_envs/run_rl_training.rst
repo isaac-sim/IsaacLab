@@ -99,7 +99,7 @@ agent's behavior during training.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --enable_cameras --video
+  ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --num_envs 64 --headless --video
 
 The videos are saved to the ``logs/sb3/Isaac-Cartpole-v0/<run-dir>/videos`` directory. You can open these videos
 using any video player.

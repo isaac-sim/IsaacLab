@@ -77,6 +77,6 @@ Example usage:
 
 .. code-block:: shell
 
-    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --enable_cameras --video --video_length 100 --video_interval 500
+    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
 
 Recorded videos will be saved in the same directory as the training checkpoints, under ``IsaacLab/logs/<rl_workflow>/<task>/<run>/videos``.

@@ -187,7 +187,7 @@ from the environments into the respective libraries function argument and return
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
       # run script for recording video of a trained agent (requires installing `ffmpeg`)
-      ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --enable_cameras --video --video_length 200
+      ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
@@ -205,7 +205,7 @@ from the environments into the respective libraries function argument and return
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --enable_cameras --video --video_length 200
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
       .. tab-item:: JAX
 
@@ -220,7 +220,7 @@ from the environments into the respective libraries function argument and return
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --enable_cameras --video --video_length 200
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
@@ -234,7 +234,7 @@ from the environments into the respective libraries function argument and return
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
       # run script for recording video of a trained agent (requires installing `ffmpeg`)
-      ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --headless --enable_cameras --video --video_length 200
+      ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --headless --video --video_length 200
 
 -  Training an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka-v0``:
@@ -248,7 +248,7 @@ from the environments into the respective libraries function argument and return
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
       # run script for recording video of a trained agent (requires installing `ffmpeg`)
-      ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --headless --enable_cameras --video --video_length 200
+      ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
