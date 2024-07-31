@@ -64,7 +64,7 @@ Recording during training
 
 Isaac Lab supports recording video clips during training using the `gymnasium.wrappers.RecordVideo <https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/>`_ class.
 
-This feature can be enabled by using the following command line arguments with the training script:
+This feature can be enabled by installing ``ffmpeg`` and using the following command line arguments with the training script:
 
 * ``--video`` - enables video recording during training
 * ``--video_length`` - length of each recorded video (in steps)
