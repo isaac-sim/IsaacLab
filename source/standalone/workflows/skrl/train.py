@@ -45,7 +45,7 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
+# always enable cameras to record video
 if args_cli.video:
     args_cli.enable_cameras = True
 
