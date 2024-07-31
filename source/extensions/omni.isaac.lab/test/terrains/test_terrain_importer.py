@@ -17,6 +17,7 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
@@ -241,6 +242,9 @@ class TestTerrainImporter(unittest.TestCase):
             )
         else:
             # -- Ball geometry
+            omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate(
+                "omni.kit.primitive.mesh", True
+            )
             cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
             prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
             # -- Ball physics
