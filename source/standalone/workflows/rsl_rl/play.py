@@ -119,6 +119,7 @@ def main():
             obs, _, _, _ = env.step(actions)
         if args_cli.video:
             timestep += 1
+            # Exit the play loop after recording one video
             if timestep == args_cli.video_length:
                 break
 
