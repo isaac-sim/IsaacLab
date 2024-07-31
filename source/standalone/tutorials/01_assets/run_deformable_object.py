@@ -55,7 +55,7 @@ def design_scene():
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a robot in it
-    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
+    origins = [[0.25, 0.25, 1.0], [-0.25, 0.25, 1.0], [0.25, -0.25, 1.0], [-0.25, -0.25, 1.0]]
     for i, origin in enumerate(origins):
         prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
 
@@ -89,7 +89,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     count = 0
     # Update buffers
     deformable_object.update(sim_dt)
-    initial_nodal_pos = deformable_object.data.nodal_pos_w.clone()
+    # Initial nodal positions for the deformable bodies
+    target_values = deformable_object.data.nodal_pos_w.clone()
+    # Nodal position targets of the deformable bodies
+    targets = torch.ones((target_values.shape[0], target_values.shape[1], 4), device=deformable_object.device)
+    targets[..., :3] = target_values
+    # Set the kinematic targets for a deformable body
+    targets[0, :, -1] = torch.zeros(targets.shape[1], device=deformable_object.device)
+    deformable_object.write_simulation_mesh_kinematic_targets(targets)
     # Simulate physics
     while simulation_app.is_running():
         # reset
@@ -99,8 +106,6 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             count = 0
             # reset root state
             root_state = deformable_object.data.default_nodal_state_w.clone()
-            # update position
-            root_state[:, :root_state.size(1) // 2, :] = initial_nodal_pos + torch.tensor([0.0, 0.0, 2.0], device=deformable_object.device)
             # write root state to simulation
             deformable_object.write_root_state_to_sim(root_state)
             # reset buffers
@@ -125,7 +130,7 @@ def main():
     sim_cfg = sim_utils.SimulationCfg()
     sim = SimulationContext(sim_cfg)
     # Set main camera
-    sim.set_camera_view(eye=[1.5, 0.0, 1.0], target=[0.0, 0.0, 0.0])
+    sim.set_camera_view(eye=[3.0, 0.0, 1.0], target=[0.0, 0.0, 0.5])
     # Design scene
     scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)

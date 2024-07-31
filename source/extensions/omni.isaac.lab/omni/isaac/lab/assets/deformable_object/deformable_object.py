@@ -166,6 +166,24 @@ class DeformableObject(AssetBase):
         # set into simulation
         self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_state_w[:, self.max_simulation_mesh_vertices_per_body:, :], indices=physx_env_ids)
 
+    def write_simulation_mesh_kinematic_targets(self, positions: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
+
+        The positions comprises of the kinematic targets tensor, with shape (len(env_ids), max_simulation_mesh_vertices_per_body, 4),
+        the first three components are the position targets and the last value (0 or 1) indicate whether the node is kinematically driven or not.
+
+        Args:
+            positions: kinematic targets. Shape is ``(len(env_ids), max_simulation_mesh_vertices_per_body, 4)``.
+            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # set into simulation
+        self.root_physx_view.set_sim_kinematic_targets(positions, indices=physx_env_ids)
+
     """
     Internal helper.
     """
