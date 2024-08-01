@@ -58,7 +58,7 @@ class ObservationManager(ManagerBase):
             env: The environment instance.
 
         Raises:
-            ValueError: If the shapes of the observation terms in a group are not compatible for concatenation
+            RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
                 and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
         super().__init__(cfg, env)
@@ -73,7 +73,7 @@ class ObservationManager(ManagerBase):
                     term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
                     self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
                 except RuntimeError:
-                    raise ValueError(
+                    raise RuntimeError(
                         f"Unable to concatenate observation terms in group '{group_name}'."
                         f" The shapes of the terms are: {group_term_dims}."
                         " Please ensure that the shapes are compatible for concatenation."
