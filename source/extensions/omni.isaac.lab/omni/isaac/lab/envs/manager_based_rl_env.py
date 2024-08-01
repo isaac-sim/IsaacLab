@@ -289,7 +289,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # extract quantities about the group
             has_concatenated_obs = self.observation_manager.group_obs_concatenate[group_name]
             group_dim = self.observation_manager.group_obs_dim[group_name]
-            group_term_dim = self.observation_manager.group_obs_term_dim[group_name]
             # check if group is concatenated or not
             # if not concatenated, then we need to add each term separately as a dictionary
             if has_concatenated_obs:
@@ -297,7 +296,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             else:
                 self.single_observation_space[group_name] = gym.spaces.Dict({
                     term_name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=term_dim)
-                    for term_name, term_dim in zip(group_term_names, group_term_dim)
+                    for term_name, term_dim in zip(group_term_names, group_dim)
                 })
         # action space (unbounded since we don't impose any limits)
         action_dim = sum(self.action_manager.action_term_dim)
