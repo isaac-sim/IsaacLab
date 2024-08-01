@@ -93,13 +93,18 @@ def normalize(x: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
 
 @torch.jit.script
 def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
-    """Wraps input angles (in radians) to the range [-pi, pi].
+    r"""Wraps input angles (in radians) to the range :math:`[-\pi, \pi]`.
+
+    This function wraps angles in radians to the range :math:`[-\pi, \pi]`, such that
+    :math:`\pi` maps to :math:`\pi`, and :math:`-\pi` maps to :math:`-\pi`. In general,
+    odd positive multiples of :math:`\pi` are mapped to :math:`\pi`, and odd negative
+    multiples of :math:`\pi` are mapped to :math:`-\pi`.
 
     Args:
         angles: Input angles of any shape.
 
     Returns:
-        Angles in the range [-pi, pi].
+        Angles in the range :math:`[-\pi, \pi]`.
     """
     angles = angles.clone()
     angles %= 2 * torch.pi
