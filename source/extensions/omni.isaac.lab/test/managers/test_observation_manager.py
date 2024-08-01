@@ -43,6 +43,10 @@ def grilled_chicken_with_yoghurt_and_bbq(env, hot: bool, bland: float, bbq: bool
     return hot * bland * bbq * torch.ones(env.num_envs, 3, device=env.device)
 
 
+def grilled_chicken_image(env, bland: float):
+    return bland * torch.ones(env.num_envs, 128, 128, device=env.device)
+
+
 class complex_function_class(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg
@@ -201,8 +205,17 @@ class TestObservationManager(unittest.TestCase):
                 term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
                 term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
 
+            @configclass
+            class SampleMixedGroupCfg(ObservationGroupCfg):
+                """Test config class for policy observation group with a mix of vector and matrix terms."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=grilled_chicken, scale=2.0)
+                term_2 = ObservationTermCfg(func=grilled_chicken_image, scale=1.5, params={"bland": 0.5})
+
             policy: ObservationGroupCfg = SampleGroupCfg()
             critic: ObservationGroupCfg = SampleGroupCfg(term_2=None)
+            mixed: ObservationGroupCfg = SampleMixedGroupCfg()
 
         # create observation manager
         cfg = MyObservationManagerCfg()
@@ -210,6 +223,14 @@ class TestObservationManager(unittest.TestCase):
 
         self.assertEqual(len(self.obs_man.active_terms["policy"]), 2)
         self.assertEqual(len(self.obs_man.active_terms["critic"]), 1)
+        self.assertEqual(len(self.obs_man.active_terms["mixed"]), 2)
+
+        # create a new obs manager but where mixed group has invalid config
+        cfg = MyObservationManagerCfg()
+        cfg.mixed.concatenate_terms = True
+
+        with self.assertRaises(ValueError):
+            ObservationManager(cfg, self.env)
 
     def test_compute(self):
         """Test the observation computation."""
