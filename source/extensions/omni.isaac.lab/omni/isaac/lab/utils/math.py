@@ -100,6 +100,9 @@ def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
     odd positive multiples of :math:`\pi` are mapped to :math:`\pi`, and odd negative
     multiples of :math:`\pi` are mapped to :math:`-\pi`.
 
+    The function behaves similar to MATLAB's `wrapToPi <https://www.mathworks.com/help/map/ref/wraptopi.html>`_
+    function.
+
     Args:
         angles: Input angles of any shape.
 
