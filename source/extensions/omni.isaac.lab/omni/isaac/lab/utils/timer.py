@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from contextlib import ContextDecorator
-from typing import Any
+from typing import Any, ClassVar
 
 
 class TimerError(Exception):
@@ -60,10 +60,12 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    timing_info = dict()
-    """ Used to log timing instances for retrieval from outside
-        of the Timer class. Times will be logged if a non-empty
-        name is provided on stop.
+    timing_info: ClassVar[dict[str, float]] = dict()
+    """Dictionary for storing the elapsed time per timer instances globally.
+
+    This dictionary logs the timer information. The keys are the names given to the timer class
+    at its initialization. If no :attr:`name` is passed to the constructor, no time
+    is recorded in the dictionary.
     """
 
     def __init__(self, msg: str | None = None, name: str | None = None):

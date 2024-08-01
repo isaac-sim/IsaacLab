@@ -465,6 +465,7 @@ class AppLauncher:
                 self.device_id = self.local_rank
                 launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
+            # this ensures processes do not take up all available threads and fight for resources
             num_cpu_cores = os.cpu_count()
             num_threads_per_process = num_cpu_cores // int(os.getenv("WORLD_SIZE", 1))
             # set environment variables to limit CPU threads
