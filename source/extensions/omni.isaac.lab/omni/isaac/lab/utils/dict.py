@@ -8,12 +8,11 @@
 import collections.abc
 import hashlib
 import json
-import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
-from .string import callable_to_string, string_to_callable
+from .string import callable_to_string, string_to_callable, string_to_slice
 
 """
 Dictionary <-> Class operations.
@@ -286,34 +285,3 @@ def print_dict(val, nesting: int = -4, start: bool = True):
             print(callable_to_string(val))
         else:
             print(val)
-
-
-"""
-Helper functions.
-"""
-
-
-def string_to_slice(s):
-    """Convert a string representation of a slice to a slice object.
-
-    Args:
-        s: The string representation of the slice.
-
-    Returns:
-        The slice object.
-    """
-    # extract the content inside the slice()
-    match = re.match(r"slice\((.*),(.*),(.*)\)", s)
-    if not match:
-        raise ValueError(f"Invalid slice string format: {s}")
-
-    # extract start, stop, and step values
-    start_str, stop_str, step_str = match.groups()
-
-    # convert 'None' to None and other strings to integers
-    start = None if start_str == "None" else int(start_str)
-    stop = None if stop_str == "None" else int(stop_str)
-    step = None if step_str == "None" else int(step_str)
-
-    # create and return the slice object
-    return slice(start, stop, step)
