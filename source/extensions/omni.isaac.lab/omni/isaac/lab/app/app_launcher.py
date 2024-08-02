@@ -161,8 +161,9 @@ class AppLauncher:
           Valid options are:
 
           - ``0``: Disabled
-          - ``1``: Native
-          - ``2``: WebRTC
+          - ``1``: `Native <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/native.html>`_
+          - ``2``: `WebRTC <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/webrtc.html>`_
+
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
           The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
