@@ -13,6 +13,8 @@ Changed
 ^^^^^^^
 
 * Renamed ``Isaac-Shadow-Hand-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0``.
 
 
 0.8.1 (2024-08-02)
