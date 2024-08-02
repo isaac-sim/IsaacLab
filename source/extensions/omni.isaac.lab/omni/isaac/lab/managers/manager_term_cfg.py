@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
@@ -210,24 +209,16 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
+    min_step_count_between_reset: int = 0
+    """The minimum number of environment steps between when term is applied.
 
-@configclass
-class RandomizationTermCfg(EventTermCfg):
-    """Configuration for a randomization term.
+    When mode is "reset", the term will not be applied on the next reset unless
+    the number of steps since the last application of the term has exceeded this.
+    This is useful to avoid calling this term too often and improve performance.
 
-    .. deprecated:: v0.3.0
-
-        This class is deprecated and will be removed in v0.4.0. Please use :class:`EventTermCfg` instead.
+    Note:
+        This is only used if the mode is ``"reset"``.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Deprecation warning.
-        warnings.warn(
-            "The RandomizationTermCfg has been renamed to EventTermCfg and will be removed in v0.4.0. Please use"
-            " EventTermCfg instead.",
-            DeprecationWarning,
-        )
 
 
 ##

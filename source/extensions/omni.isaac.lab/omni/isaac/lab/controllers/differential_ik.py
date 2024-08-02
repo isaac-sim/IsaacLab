@@ -22,18 +22,20 @@ class DifferentialIKController:
 
     .. math::
 
-        \Delta \mathbf{q} = \mathbf{J}^{\dagger} \Delta \mathbf{x}
-        \mathbf{q}_{\text{desired}} = \mathbf{q}_{\text{current}} + \Delta \mathbf{q}
+        \Delta \mathbf{q} &= \mathbf{J}^{\dagger} \Delta \mathbf{x} \\
+        \mathbf{q}_{\text{desired}} &= \mathbf{q}_{\text{current}} + \Delta \mathbf{q}
 
     where :math:`\mathbf{J}^{\dagger}` is the pseudo-inverse of the Jacobian matrix :math:`\mathbf{J}`,
     :math:`\Delta \mathbf{x}` is the desired change in pose, and :math:`\mathbf{q}_{\text{current}}`
     is the current joint positions.
 
     To deal with singularity in Jacobian, the following methods are supported for computing inverse of the Jacobian:
-        - "pinv": Moore-Penrose pseudo-inverse
-        - "svd": Adaptive singular-value decomposition (SVD)
-        - "trans": Transpose of matrix
-        - "dls": Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)
+
+    - "pinv": Moore-Penrose pseudo-inverse
+    - "svd": Adaptive singular-value decomposition (SVD)
+    - "trans": Transpose of matrix
+    - "dls": Damped version of Moore-Penrose pseudo-inverse (also called Levenberg-Marquardt)
+
 
     .. caution::
         The controller does not assume anything about the frames of the current and desired end-effector pose,
@@ -41,8 +43,12 @@ class DifferentialIKController:
         in the correct format.
 
     Reference:
-        [1] https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
-        [2] https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf
+
+    1. `Robot Dynamics Lecture Notes <https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf>`_
+       by Marco Hutter (ETH Zurich)
+    2. `Introduction to Inverse Kinematics <https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf>`_
+       by Samuel R. Buss (University of California, San Diego)
+
     """
 
     def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str):

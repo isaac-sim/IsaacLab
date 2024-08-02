@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
@@ -120,7 +119,13 @@ class EventManager(ManagerBase):
         # nothing to log here
         return {}
 
-    def apply(self, mode: str, env_ids: Sequence[int] | None = None, dt: float | None = None):
+    def apply(
+        self,
+        mode: str,
+        env_ids: Sequence[int] | None = None,
+        dt: float | None = None,
+        global_env_step_count: int | None = None,
+    ):
         """Calls each event term in the specified mode.
 
         Note:
@@ -132,6 +137,8 @@ class EventManager(ManagerBase):
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments.
             dt: The time step of the environment. This is only used for the "interval" mode.
+                Defaults to None to simplify the call for other modes.
+            global_env_step_count: The environment step count of the task. This is only used for the "reset" mode.
                 Defaults to None to simplify the call for other modes.
 
         Raises:
@@ -172,6 +179,23 @@ class EventManager(ManagerBase):
                     if len(env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
                         time_left[env_ids] = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
+            # check for minimum frequency for reset
+            elif mode == "reset":
+                if global_env_step_count is None:
+                    raise ValueError(
+                        f"Event mode '{mode}' requires the step count of the environment"
+                        " to be passed to the event manager."
+                    )
+
+                if env_ids is not None and len(env_ids) > 0:
+                    last_reset_step = self._reset_mode_last_reset_step_count[index]
+                    steps_since_last_reset = global_env_step_count - last_reset_step
+                    env_ids = env_ids[steps_since_last_reset[env_ids] >= term_cfg.min_step_count_between_reset]
+                    if len(env_ids) > 0:
+                        last_reset_step[env_ids] = global_env_step_count
+                    else:
+                        # no need to call func to sample
+                        continue
             # call the event term
             term_cfg.func(self._env, env_ids, **term_cfg.params)
 
@@ -235,6 +259,8 @@ class EventManager(ManagerBase):
         self._interval_mode_time_left: list[torch.Tensor] = list()
         # global timer for "interval" mode for global properties
         self._interval_mode_time_global: list[torch.Tensor] = list()
+        # buffer to store the step count when reset was last performed for each environment for "reset" mode
+        self._reset_mode_last_reset_step_count: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -252,6 +278,13 @@ class EventManager(ManagerBase):
                     f"Configuration for the term '{term_name}' is not of type EventTermCfg."
                     f" Received: '{type(term_cfg)}'."
                 )
+
+            if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
+                carb.log_warn(
+                    f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
+                    " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
+                )
+
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
             # check if mode is a new mode
@@ -286,40 +319,6 @@ class EventManager(ManagerBase):
                     time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_mode_time_left.append(time_left)
 
-
-class RandomizationManager(EventManager):
-    """Manager for applying event specific operations to different elements in the scene.
-
-    .. deprecated:: v0.4.0
-        As the RandomizationManager also handles events such as resetting the environment, the class has been
-        renamed to EventManager  as it is more general purpose. The RandomizationManager will be removed in v0.4.0.
-    """
-
-    def __init__(self, cfg: object, env: ManagerBasedEnv):
-        """Initialize the randomization manager.
-
-        Args:
-            cfg: A configuration object or dictionary (``dict[str, EventTermCfg]``).
-            env: An environment object.
-        """
-        dep_msg = "The class 'RandomizationManager' will be removed in v0.4.0. Please use 'EventManager' instead."
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-
-        super().__init__(cfg, env)
-
-    def randomize(self, mode: str, env_ids: Sequence[int] | None = None, dt: float | None = None):
-        """Randomize the environment.
-
-        .. deprecated:: v0.4.0
-            This method will be removed in v0.4.0. Please use the method :meth:`EventManager.apply`
-            instead.
-        """
-        dep_msg = (
-            "The class 'RandomizationManager' including its method 'randomize' will be removed in v0.4.0. Please use "
-            "the class 'EventManager' with the method 'apply' instead."
-        )
-        warnings.warn(dep_msg, DeprecationWarning)
-        carb.log_error(dep_msg)
-
-        self.apply(mode, env_ids, dt)
+            elif term_cfg.mode == "reset":
+                step_count = torch.zeros(self.num_envs, device=self.device, dtype=torch.int32)
+                self._reset_mode_last_reset_step_count.append(step_count)

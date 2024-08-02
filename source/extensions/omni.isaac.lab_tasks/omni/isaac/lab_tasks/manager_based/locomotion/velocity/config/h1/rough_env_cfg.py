@@ -22,6 +22,8 @@ from omni.isaac.lab_assets import H1_MINIMAL_CFG  # isort: skip
 
 @configclass
 class H1Rewards(RewardsCfg):
+    """Reward terms for the MDP."""
+
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     lin_vel_z_l2 = None
     track_lin_vel_xy_exp = RewTerm(

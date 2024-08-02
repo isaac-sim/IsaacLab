@@ -24,14 +24,14 @@ import omni.isaac.lab.utils.math as math_utils
 import omni.isaac.lab.utils.string as string_utils
 from omni.isaac.lab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 
-from ..rigid_object import RigidObject
+from ..asset_base import AssetBase
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
 
-class Articulation(RigidObject):
+class Articulation(AssetBase):
     """An articulation asset class.
 
     An articulation is a collection of rigid bodies connected by joints. The joints can be either
@@ -47,11 +47,6 @@ class Articulation(RigidObject):
     the reduced coordinate formulation. On playing the simulation, the physics engine parses the
     articulation root prim and creates the corresponding articulation in the physics engine. The
     articulation root prim can be specified using the :attr:`AssetBaseCfg.prim_path` attribute.
-
-    The articulation class is a subclass of the :class:`RigidObject` class. Therefore, it inherits
-    all the functionality of the rigid object class. In case of an articulation, the :attr:`root_physx_view`
-    attribute corresponds to the articulation root view and can be used to access the articulation
-    related data.
 
     The articulation class also provides the functionality to augment the simulation of an articulated
     system with custom actuator models. These models can either be explicit or implicit, as detailed in
@@ -112,6 +107,10 @@ class Articulation(RigidObject):
         return self._data
 
     @property
+    def num_instances(self) -> int:
+        return self.root_physx_view.count
+
+    @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
         return self.root_physx_view.shared_metatype.fixed_base
@@ -160,22 +159,35 @@ class Articulation(RigidObject):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        super().reset(env_ids)
         # use ellipses object to skip initial indices.
         if env_ids is None:
             env_ids = slice(None)
         # reset actuators
         for actuator in self.actuators.values():
             actuator.reset(env_ids)
+        # reset external wrench
+        self._external_force_b[env_ids] = 0.0
+        self._external_torque_b[env_ids] = 0.0
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
 
         If any explicit actuators are present, then the actuator models are used to compute the
         joint commands. Otherwise, the joint commands are directly set into the simulation.
+
+        Note:
+            We write external wrench to the simulation here since this function is called before the simulation step.
+            This ensures that the external wrench is applied at every simulation step.
         """
-        # apply external forces and torques
-        super().write_data_to_sim()
+        # write external wrench
+        if self.has_external_wrench:
+            self.root_physx_view.apply_forces_and_torques_at_position(
+                force_data=self._external_force_b.view(-1, 3),
+                torque_data=self._external_torque_b.view(-1, 3),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
 
         # apply actuator models
         self._apply_actuator_model()
@@ -185,6 +197,28 @@ class Articulation(RigidObject):
         if self._has_implicit_actuators:
             self.root_physx_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
             self.root_physx_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+
+    def update(self, dt: float):
+        self._data.update(dt)
+
+    """
+    Operations - Finders.
+    """
+
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+        """Find bodies in the articulation based on the name keys.
+
+        Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more
+        information on the name matching.
+
+        Args:
+            name_keys: A regular expression or a list of regular expressions to match the body names.
+            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+
+        Returns:
+            A tuple of lists containing the body indices and names.
+        """
+        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -236,7 +270,29 @@ class Articulation(RigidObject):
     Operations - Writers.
     """
 
+    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root state over selected environment indices into the simulation.
+
+        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear
+        and angular velocity. All the quantities are in the simulation frame.
+
+        Args:
+            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # set into simulation
+        self.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
+        self.write_root_velocity_to_sim(root_state[:, 7:], env_ids=env_ids)
+
     def write_root_pose_to_sim(self, root_pose: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -252,6 +308,12 @@ class Articulation(RigidObject):
         self.root_physx_view.set_root_transforms(root_poses_xyzw, indices=physx_env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the root velocity over selected environment indices into the simulation.
+
+        Args:
+            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), 6).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         # resolve all indices
         physx_env_ids = env_ids
         if env_ids is None:
@@ -477,8 +539,69 @@ class Articulation(RigidObject):
         self.root_physx_view.set_dof_limits(self._data.joint_limits.cpu(), indices=physx_env_ids.cpu())
 
     """
-    Operations - State.
+    Operations - Setters.
     """
+
+    def set_external_force_and_torque(
+        self,
+        forces: torch.Tensor,
+        torques: torch.Tensor,
+        body_ids: Sequence[int] | slice | None = None,
+        env_ids: Sequence[int] | None = None,
+    ):
+        """Set external force and torque to apply on the asset's bodies in their local frame.
+
+        For many applications, we want to keep the applied external force on rigid bodies constant over a period of
+        time (for instance, during the policy control). This function allows us to store the external force and torque
+        into buffers which are then applied to the simulation at every step.
+
+        .. caution::
+            If the function is called with empty forces and torques, then this function disables the application
+            of external wrench to the simulation.
+
+            .. code-block:: python
+
+                # example of disabling external wrench
+                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))
+
+        .. note::
+            This function does not apply the external wrench to the simulation. It only fills the buffers with
+            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function
+            right before the simulation step.
+
+        Args:
+            forces: External forces in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            torques: External torques in bodies' local frame. Shape is (len(env_ids), len(body_ids), 3).
+            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).
+            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).
+        """
+        if forces.any() or torques.any():
+            self.has_external_wrench = True
+            # resolve all indices
+            # -- env_ids
+            if env_ids is None:
+                env_ids = self._ALL_INDICES
+            elif not isinstance(env_ids, torch.Tensor):
+                env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+            # -- body_ids
+            if body_ids is None:
+                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+            elif isinstance(body_ids, slice):
+                body_ids = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)[body_ids]
+            elif not isinstance(body_ids, torch.Tensor):
+                body_ids = torch.tensor(body_ids, dtype=torch.long, device=self.device)
+
+            # note: we need to do this complicated indexing since torch doesn't support multi-indexing
+            # create global body indices from env_ids and env_body_ids
+            # (env_id * total_bodies_per_env) + body_id
+            indices = body_ids.repeat(len(env_ids), 1) + env_ids.unsqueeze(1) * self.num_bodies
+            indices = indices.view(-1)
+            # set into internal buffers
+            # note: these are applied in the write_to_sim function
+            self._external_force_b.flatten(0, 1)[indices] = forces.flatten(0, 1)
+            self._external_torque_b.flatten(0, 1)[indices] = torques.flatten(0, 1)
+        else:
+            self.has_external_wrench = False
 
     def set_joint_position_target(
         self, target: torch.Tensor, joint_ids: Sequence[int] | slice | None = None, env_ids: Sequence[int] | None = None
@@ -812,12 +935,21 @@ class Articulation(RigidObject):
         self._log_articulation_joint_info()
 
     def _create_buffers(self):
-        # allocate buffers
-        super()._create_buffers()
+        # constants
+        self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
+
+        # external forces and torques
+        self.has_external_wrench = False
+        self._external_force_b = torch.zeros((self.num_instances, self.num_bodies, 3), device=self.device)
+        self._external_torque_b = torch.zeros_like(self._external_force_b)
 
         # asset data
         # -- properties
         self._data.joint_names = self.joint_names
+        self._data.body_names = self.body_names
+
+        # -- bodies
+        self._data.default_mass = self.root_physx_view.get_masses().clone()
 
         # -- default joint state
         self._data.default_joint_pos = torch.zeros(self.num_instances, self.num_joints, device=self.device)
@@ -906,7 +1038,16 @@ class Articulation(RigidObject):
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
-        super()._process_cfg()
+        # -- root state
+        # note: we cast to tuple to avoid torch/numpy type mismatch.
+        default_root_state = (
+            tuple(self.cfg.init_state.pos)
+            + tuple(self.cfg.init_state.rot)
+            + tuple(self.cfg.init_state.lin_vel)
+            + tuple(self.cfg.init_state.ang_vel)
+        )
+        default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
+        self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
         # -- joint state
         # joint pos
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
@@ -922,6 +1063,18 @@ class Articulation(RigidObject):
         # -- joint limits
         self._data.default_joint_limits = self.root_physx_view.get_dof_limits().to(device=self.device).clone()
         self._data.joint_limits = self._data.default_joint_limits.clone()
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        # call parent
+        super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
+        self._physics_sim_view = None
+        self._root_physx_view = None
 
     """
     Internal helpers -- Actuators.
@@ -1008,7 +1161,7 @@ class Articulation(RigidObject):
         if total_act_joints != (self.num_joints - self.num_fixed_tendons):
             carb.log_warn(
                 "Not all actuators are configured! Total number of actuated joints not equal to number of"
-                f" joints available: {total_act_joints} != {self.num_joints}."
+                f" joints available: {total_act_joints} != {self.num_joints - self.num_fixed_tendons}."
             )
 
     def _process_fixed_tendons(self):
