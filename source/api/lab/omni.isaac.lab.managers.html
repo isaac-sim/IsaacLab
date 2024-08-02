@@ -677,6 +677,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.mode"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.mode</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.interval_range_s"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.interval_range_s</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.is_global_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.min_step_count_between_reset</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1989,7 +1990,7 @@ directly handled by the manager itself. The other modes are handled by the envir
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventManager.reset" title="omni.isaac.lab.managers.EventManager.reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">reset</span></code></a>([env_ids])</p></td>
 <td><p>Resets the manager and returns logging information for the current time-step.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventManager.apply" title="omni.isaac.lab.managers.EventManager.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(mode[, env_ids, dt])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventManager.apply" title="omni.isaac.lab.managers.EventManager.apply"><code class="xref py py-obj docutils literal notranslate"><span class="pre">apply</span></code></a>(mode[, env_ids, dt, global_env_step_count])</p></td>
 <td><p>Calls each event term in the specified mode.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventManager.set_term_cfg" title="omni.isaac.lab.managers.EventManager.set_term_cfg"><code class="xref py py-obj docutils literal notranslate"><span class="pre">set_term_cfg</span></code></a>(term_name, cfg)</p></td>
@@ -2066,7 +2067,7 @@ Defaults None, which logs data for all environments.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.EventManager.apply">
-<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/managers/event_manager.html#EventManager.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.managers.EventManager.apply" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_env_step_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/managers/event_manager.html#EventManager.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.managers.EventManager.apply" title="Permalink to this definition">#</a></dt>
 <dd><p>Calls each event term in the specified mode.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -2080,6 +2081,8 @@ should be applied.</p>
 <li><p><strong>env_ids</strong> – The indices of the environments to apply the event to.
 Defaults to None, in which case the event is applied to all environments.</p></li>
 <li><p><strong>dt</strong> – The time step of the environment. This is only used for the “interval” mode.
+Defaults to None to simplify the call for other modes.</p></li>
+<li><p><strong>global_env_step_count</strong> – The environment step count of the task. This is only used for the “reset” mode.
 Defaults to None to simplify the call for other modes.</p></li>
 </ul>
 </dd>
@@ -2179,6 +2182,9 @@ information on the name matching.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time" title="omni.isaac.lab.managers.EventTermCfg.is_global_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_global_time</span></code></a></p></td>
 <td><p>Whether randomization should be tracked on a per-environment basis.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset" title="omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_step_count_between_reset</span></code></a></p></td>
+<td><p>The minimum number of environment steps between when term is applied.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -2235,6 +2241,19 @@ tracking the time per-environment.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This is only used if the mode is <code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset">
+<span class="sig-name descname"><span class="pre">min_step_count_between_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset" title="Permalink to this definition">#</a></dt>
+<dd><p>The minimum number of environment steps between when term is applied.</p>
+<p>When mode is “reset”, the term will not be applied on the next reset unless
+the number of steps since the last application of the term has exceeded this.
+This is useful to avoid calling this term too often and improve performance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is only used if the mode is <code class="docutils literal notranslate"><span class="pre">&quot;reset&quot;</span></code>.</p>
 </div>
 </dd></dl>
 
@@ -3337,6 +3356,7 @@ in the <a class="reference internal" href="#omni.isaac.lab.managers.SceneEntityC
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.mode"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.mode</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.interval_range_s"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.interval_range_s</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.is_global_time</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset"><code class="docutils literal notranslate"><span class="pre">EventTermCfg.min_step_count_between_reset</span></code></a></li>
 </ul>
 </li>
 </ul>

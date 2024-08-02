@@ -693,6 +693,17 @@ document.write(`
 
 <span class="sd">    Note:</span>
 <span class="sd">        This is only used if the mode is ``&quot;interval&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">min_step_count_between_reset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The minimum number of environment steps between when term is applied.</span>
+
+<span class="sd">    When mode is &quot;reset&quot;, the term will not be applied on the next reset unless</span>
+<span class="sd">    the number of steps since the last application of the term has exceeded this.</span>
+<span class="sd">    This is useful to avoid calling this term too often and improve performance.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        This is only used if the mode is ``&quot;reset&quot;``.</span>
 <span class="sd">    &quot;&quot;&quot;</span></div>
 
 
