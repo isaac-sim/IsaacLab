@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.20.5 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.terrain.TerrainGeneratorCfg.border_height` to set the height of the border
+  around the terrain.
+
+
 0.20.4 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
