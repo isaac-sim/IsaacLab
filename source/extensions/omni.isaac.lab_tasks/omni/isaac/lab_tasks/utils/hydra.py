@@ -58,8 +58,8 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     command line arguments.
 
     Args:
-        task_name (str): The name of the task.
-        agent_cfg_entry_point (str): The entry point key to resolve the agent's configuration file.
+        task_name: The name of the task.
+        agent_cfg_entry_point: The entry point key to resolve the agent's configuration file.
 
     Returns:
         The decorated function with the envrionment's and agent's configurations updated from command line arguments.
