@@ -44,7 +44,7 @@ def grilled_chicken_with_yoghurt_and_bbq(env, hot: bool, bland: float, bbq: bool
 
 
 def grilled_chicken_image(env, bland: float, channel: int = 1):
-    return bland * torch.ones(env.num_envs, 128, 128, channel, device=env.device)
+    return bland * torch.ones(env.num_envs, 128, 256, channel, device=env.device)
 
 
 class complex_function_class(ManagerTermBase):
@@ -287,7 +287,7 @@ class TestObservationManager(unittest.TestCase):
         # check the observation shape
         self.assertEqual((self.env.num_envs, 11), obs_policy.shape)
         self.assertEqual((self.env.num_envs, 12), obs_critic.shape)
-        self.assertEqual((self.env.num_envs, 128, 128, 4), obs_image.shape)
+        self.assertEqual((self.env.num_envs, 128, 256, 4), obs_image.shape)
         # make sure that the data are the same for same terms
         # -- within group
         torch.testing.assert_close(obs_critic[:, 0:3], obs_critic[:, 6:9])
