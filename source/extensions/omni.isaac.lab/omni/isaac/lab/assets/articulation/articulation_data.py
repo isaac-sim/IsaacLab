@@ -15,8 +15,9 @@ from omni.isaac.lab.utils.buffers import TimestampedBuffer
 class ArticulationData:
     """Data container for an articulation.
 
-    This class extends the :class:`RigidObjectData` class to provide additional data for
-    an articulation mainly related to the joints and tendons.
+    This class contains the data for an articulation in the simulation. The data includes the state of
+    the root rigid body, the state of all the bodies in the articulation, and the joint state. The data is
+    stored in the simulation world frame unless otherwise specified.
 
     An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
     of reference that are used:
@@ -358,7 +359,7 @@ class ArticulationData:
     def root_pos_w(self) -> torch.Tensor:
         """Root position in simulation world frame. Shape is (num_instances, 3).
 
-        This quantity is the position of the actor frame of the root rigid body.
+        This quantity is the position of the actor frame of the articulation root.
         """
         return self.root_state_w[:, :3]
 
@@ -366,7 +367,7 @@ class ArticulationData:
     def root_quat_w(self) -> torch.Tensor:
         """Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).
 
-        This quantity is the orientation of the actor frame of the root rigid body.
+        This quantity is the orientation of the actor frame of the articulation root.
         """
         return self.root_state_w[:, 3:7]
 
@@ -374,7 +375,8 @@ class ArticulationData:
     def root_vel_w(self) -> torch.Tensor:
         """Root velocity in simulation world frame. Shape is (num_instances, 6).
 
-        This quantity contains the linear and angular velocities of the root rigid body's center of mass frame.
+        This quantity contains the linear and angular velocities of the articulation root's center of
+        mass frame.
         """
         return self.root_state_w[:, 7:13]
 
@@ -382,7 +384,7 @@ class ArticulationData:
     def root_lin_vel_w(self) -> torch.Tensor:
         """Root linear velocity in simulation world frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the root rigid body's center of mass frame.
+        This quantity is the linear velocity of the articulation root's center of mass frame.
         """
         return self.root_state_w[:, 7:10]
 
@@ -390,7 +392,7 @@ class ArticulationData:
     def root_ang_vel_w(self) -> torch.Tensor:
         """Root angular velocity in simulation world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the root rigid body's center of mass frame.
+        This quantity is the angular velocity of the articulation root's center of mass frame.
         """
         return self.root_state_w[:, 10:13]
 
@@ -398,8 +400,8 @@ class ArticulationData:
     def root_lin_vel_b(self) -> torch.Tensor:
         """Root linear velocity in base frame. Shape is (num_instances, 3).
 
-        This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
-        rigid body's actor frame.
+        This quantity is the linear velocity of the articulation root's center of mass frame with
+        respect to the articulation root's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_lin_vel_w)
 
@@ -407,8 +409,8 @@ class ArticulationData:
     def root_ang_vel_b(self) -> torch.Tensor:
         """Root angular velocity in base world frame. Shape is (num_instances, 3).
 
-        This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
-        rigid body's actor frame.
+        This quantity is the angular velocity of the articulation root's center of mass frame with respect to the
+        articulation root's actor frame.
         """
         return math_utils.quat_rotate_inverse(self.root_quat_w, self.root_ang_vel_w)
 

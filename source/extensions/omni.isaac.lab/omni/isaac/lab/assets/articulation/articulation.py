@@ -48,11 +48,6 @@ class Articulation(AssetBase):
     articulation root prim and creates the corresponding articulation in the physics engine. The
     articulation root prim can be specified using the :attr:`AssetBaseCfg.prim_path` attribute.
 
-    The articulation class is a subclass of the :class:`RigidObject` class. Therefore, it inherits
-    all the functionality of the rigid object class. In case of an articulation, the :attr:`root_physx_view`
-    attribute corresponds to the articulation root view and can be used to access the articulation
-    related data.
-
     The articulation class also provides the functionality to augment the simulation of an articulated
     system with custom actuator models. These models can either be explicit or implicit, as detailed in
     the :mod:`omni.isaac.lab.actuators` module. The actuator models are specified using the
