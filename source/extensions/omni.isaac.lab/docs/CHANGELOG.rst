@@ -1,7 +1,18 @@
 Changelog
 ---------
 
-0.20.1 (2024-07-26)
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
