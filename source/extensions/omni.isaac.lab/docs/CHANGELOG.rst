@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.20.1 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
+
+
 0.20.0 (2024-07-26)
 ~~~~~~~~~~~~~~~~~~~
 
