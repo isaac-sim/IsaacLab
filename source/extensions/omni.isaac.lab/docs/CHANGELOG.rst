@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
+
+
 0.20.2 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
