@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.20.4 (2024-08-02)
+0.20.6 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -12,6 +12,29 @@ Changed
   all the functions of the rigid object class making the hierarchy redundant. Now, the articulation class
   is a standalone class that does not inherit from the rigid object class. This does add some code
   duplication but the simplicity and clarity of the code is improved.
+
+
+0.20.5 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.terrain.TerrainGeneratorCfg.border_height` to set the height of the border
+  around the terrain.
+
+
+0.20.4 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the caching of terrains when using the :class:`omni.isaac.lab.terrains.TerrainGenerator` class.
+  Earlier, the random sampling of the difficulty levels led to different hash values for the same terrain
+  configuration. This caused the terrains to be re-generated even when the same configuration was used.
+  Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
+  sampled in the same order between different runs.
 
 
 0.20.3 (2024-08-02)
