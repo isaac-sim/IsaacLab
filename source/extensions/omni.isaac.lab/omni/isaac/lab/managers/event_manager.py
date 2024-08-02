@@ -278,6 +278,13 @@ class EventManager(ManagerBase):
                     f"Configuration for the term '{term_name}' is not of type EventTermCfg."
                     f" Received: '{type(term_cfg)}'."
                 )
+
+            if term_cfg.mode != "reset" and term_cfg.min_step_count_between_reset != 0:
+                carb.log_warn(
+                    f"Event term '{term_name}' has 'min_step_count_between_reset' set to a non-zero value"
+                    " but the mode is not 'reset'. Ignoring the 'min_step_count_between_reset' value."
+                )
+
             # resolve common parameters
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
             # check if mode is a new mode
