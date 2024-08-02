@@ -180,7 +180,7 @@ class TerrainGeneratorCfg:
 
     If enabled, the generated terrains are stored in the cache directory. When generating terrains, the cache
     is checked to see if the terrain already exists. If it does, the terrain is loaded from the cache. Otherwise,
-    the terrain is generated and stored in the cache.
+    the terrain is generated and stored in the cache. Caching can be used to speed up terrain generation.
     """
 
     cache_dir: str = "/tmp/isaaclab/terrains"
