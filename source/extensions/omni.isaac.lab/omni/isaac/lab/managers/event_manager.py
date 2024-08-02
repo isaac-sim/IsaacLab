@@ -152,14 +152,12 @@ class EventManager(ManagerBase):
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(
-                f"Event mode '{mode}' requires the time step of the environment"
-                " to be passed to the event manager."
+                f"Event mode '{mode}' requires the time step of the environment to be passed to the event manager."
             )
         # check if mode is reset and global_env_step_count is not provided
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(
-                f"Event mode '{mode}' requires the step count of the environment"
-                " to be passed to the event manager."
+                f"Event mode '{mode}' requires the step count of the environment to be passed to the event manager."
             )
 
         # iterate over all the event terms
