@@ -42,8 +42,7 @@ class ArticulationCfg(AssetBaseCfg):
     """Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state."""
 
     soft_joint_pos_limit_factor: float = 1.0
-    """Fraction specifying the range of DOF position limits (parsed from the asset) to use.
-    Defaults to 1.0.
+    """Fraction specifying the range of DOF position limits (parsed from the asset) to use. Defaults to 1.0.
 
     The joint position limits are scaled by this factor to allow for a limited range of motion.
     This is accessible in the articulation data through :attr:`ArticulationData.soft_joint_pos_limits` attribute.
