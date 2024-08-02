@@ -165,7 +165,7 @@ format.
 
    .. code:: bash
 
-      ./isaaclab.sh -p source/standalone//workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/play.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --checkpoint /PATH/TO/model.pth
 
 Reinforcement Learning
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -1,6 +1,53 @@
 Changelog
 ---------
 
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
+
+
+0.20.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support for the Isaac Sim 4.1.0 release.
+
+Removed
+^^^^^^^
+
+* The ``mdp.add_body_mass`` method in the events. Please use the
+  :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg`` are replaced with
+  :class:`omni.isaac.lab.managers.EventManager` and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
+* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
+
+  * ``target_rot_source`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * ``target_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * ``source_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+
+* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
+  Isaac Sim 2023.1.1 completely.
+
+
 0.19.4 (2024-07-13)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -81,7 +128,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData`class.
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData` class.
   Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
   gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
   and used to compute the projection of the gravity vector on the object.

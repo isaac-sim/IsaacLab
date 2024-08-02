@@ -136,7 +136,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          # create a symbolic link
          ln -s path_to_isaac_sim _isaac_sim
-         # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.0.0 _isaac_sim
+         # For example: ln -s /home/nvidia/.local/share/ov/pkg/isaac-sim-4.1.0 _isaac_sim
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -147,7 +147,7 @@ to index the python modules and look for extensions shipped with Isaac Sim.
          cd IsaacLab
          :: create a symbolic link - requires launching Command Prompt with Administrator access
          mklink /D _isaac_sim path_to_isaac_sim
-         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.0.0
+         :: For example: mklink /D _isaac_sim C:/Users/nvidia/AppData/Local/ov/pkg/isaac-sim-4.1.0
 
 
 Setting up the conda environment (optional)

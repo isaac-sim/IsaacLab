@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import torch
-import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
@@ -209,25 +208,6 @@ class EventTermCfg(ManagerTermBaseCfg):
     Note:
         This is only used if the mode is ``"interval"``.
     """
-
-
-@configclass
-class RandomizationTermCfg(EventTermCfg):
-    """Configuration for a randomization term.
-
-    .. deprecated:: v0.3.0
-
-        This class is deprecated and will be removed in v0.4.0. Please use :class:`EventTermCfg` instead.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Deprecation warning.
-        warnings.warn(
-            "The RandomizationTermCfg has been renamed to EventTermCfg and will be removed in v0.4.0. Please use"
-            " EventTermCfg instead.",
-            DeprecationWarning,
-        )
 
 
 ##

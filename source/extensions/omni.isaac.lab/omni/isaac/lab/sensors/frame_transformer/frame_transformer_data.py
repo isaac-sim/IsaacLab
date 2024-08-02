@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-import warnings
 from dataclasses import dataclass
 
 
@@ -55,33 +54,3 @@ class FrameTransformerData:
 
     Shape is (N, 4), where N is the number of environments.
     """
-
-    @property
-    def target_rot_source(self) -> torch.Tensor:
-        """Alias for :attr:`target_quat_source`.
-
-        .. deprecated:: v0.2.1
-            Use :attr:`target_quat_source` instead. Will be removed in v0.3.0.
-        """
-        warnings.warn("'target_rot_source' is deprecated, use 'target_quat_source' instead.", DeprecationWarning)
-        return self.target_quat_source
-
-    @property
-    def target_rot_w(self) -> torch.Tensor:
-        """Alias for :attr:`target_quat_w`.
-
-        .. deprecated:: v0.2.1
-            Use :attr:`target_quat_w` instead. Will be removed in v0.3.0.
-        """
-        warnings.warn("'target_rot_w' is deprecated, use 'target_quat_w' instead.", DeprecationWarning)
-        return self.target_quat_w
-
-    @property
-    def source_rot_w(self) -> torch.Tensor:
-        """Alias for :attr:`source_quat_w`.
-
-        .. deprecated:: v0.2.1
-            Use :attr:`source_quat_w` instead. Will be removed in v0.3.0.
-        """
-        warnings.warn("'source_rot_w' is deprecated, use 'source_quat_w' instead.", DeprecationWarning)
-        return self.source_quat_w
