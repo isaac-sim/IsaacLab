@@ -175,7 +175,7 @@ class EventManager(ManagerBase):
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
                         self._interval_mode_time_global[index] = sampled_interval
                     else:
-                        # no need to call func to sample
+                        # no need to call func to apply term
                         continue
                 else:
                     # extract time left for this term
@@ -188,6 +188,9 @@ class EventManager(ManagerBase):
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
                         self._interval_mode_time_left[index][env_ids] = sampled_time
+                    else:
+                        # no need to call func to apply term
+                        continue
             # check for minimum frequency for reset
             elif mode == "reset":
                 # obtain the minimum step count between resets
@@ -209,7 +212,7 @@ class EventManager(ManagerBase):
                     if len(env_ids) > 0:
                         self._reset_mode_last_apply_step_count[index][env_ids] = global_env_step_count
                     else:
-                        # no need to call func to sample
+                        # no need to call func to apply term
                         continue
             # call the event term
             term_cfg.func(self._env, env_ids, **term_cfg.params)
