@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.20.3 (2024-08-02)
+0.20.5 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -13,6 +13,31 @@ Fixed
   group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
 * Improved the error message when the observation terms are not of the same shape in the
   :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
+0.20.4 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the caching of terrains when using the :class:`omni.isaac.lab.terrains.TerrainGenerator` class.
+  Earlier, the random sampling of the difficulty levels led to different hash values for the same terrain
+  configuration. This caused the terrains to be re-generated even when the same configuration was used.
+  Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
+  sampled in the same order between different runs.
+
+
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
 
 
 0.20.2 (2024-08-02)
