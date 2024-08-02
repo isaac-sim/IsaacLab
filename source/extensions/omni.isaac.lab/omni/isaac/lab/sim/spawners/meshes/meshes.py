@@ -300,8 +300,6 @@ def _spawn_mesh_geom_from_mesh(
     mesh_prim = prim_utils.create_prim(
         mesh_prim_path,
         prim_type="Mesh",
-        translation=translation,
-        orientation=orientation,
         scale=scale,
         attributes={
             "points": mesh.vertices,
