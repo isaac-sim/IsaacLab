@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.8.1 (2024-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the folder names for Unitree robots in the manager-based locomotion tasks. Earlier, there was an inconsistency
+  in the folder names as some had ``unitree_`` prefix and some didn't. Now, none of the folders have the prefix.
+
+
 0.8.0 (2024-07-26)
 ~~~~~~~~~~~~~~~~~~
 
