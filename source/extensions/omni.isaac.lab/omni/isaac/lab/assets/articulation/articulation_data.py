@@ -71,8 +71,8 @@ class ArticulationData:
 
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
-        self._body_acc_w = TimestampedBuffer()
         self._body_state_w = TimestampedBuffer()
+        self._body_acc_w = TimestampedBuffer()
         self._joint_pos = TimestampedBuffer()
         self._joint_acc = TimestampedBuffer()
         self._joint_vel = TimestampedBuffer()
