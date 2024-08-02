@@ -950,6 +950,16 @@ document.write(`
             <span class="k">if</span> <span class="n">distributed_train</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span>
                 <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;multi_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="c1"># limit CPU threads to minimize thread context switching</span>
+            <span class="c1"># this ensures processes do not take up all available threads and fight for resources</span>
+            <span class="n">num_cpu_cores</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+            <span class="n">num_threads_per_process</span> <span class="o">=</span> <span class="n">num_cpu_cores</span> <span class="o">//</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;WORLD_SIZE&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="c1"># set environment variables to limit CPU threads</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;PXR_WORK_THREAD_LIMIT&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">num_threads_per_process</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;OPENBLAS_NUM_THREADS&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">num_threads_per_process</span><span class="p">)</span>
+            <span class="c1"># pass command line variable to kit</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;--/plugins/carb.tasking.plugin/threadCount=</span><span class="si">{</span><span class="n">num_threads_per_process</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
         <span class="c1"># set physics and rendering device</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;physics_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>
         <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;active_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span>

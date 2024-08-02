@@ -734,11 +734,13 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.timer">Timer operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.TimerError"><code class="docutils literal notranslate"><span class="pre">TimerError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer"><code class="docutils literal notranslate"><span class="pre">Timer</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.timing_info"><code class="docutils literal notranslate"><span class="pre">Timer.timing_info</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.__init__"><code class="docutils literal notranslate"><span class="pre">Timer.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.time_elapsed"><code class="docutils literal notranslate"><span class="pre">Timer.time_elapsed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.total_run_time"><code class="docutils literal notranslate"><span class="pre">Timer.total_run_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.start"><code class="docutils literal notranslate"><span class="pre">Timer.start()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.stop"><code class="docutils literal notranslate"><span class="pre">Timer.stop()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.get_timer_info"><code class="docutils literal notranslate"><span class="pre">Timer.get_timer_info()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -3434,10 +3436,25 @@ highest resolution available on the system.</p>
 </pre></div>
 </div>
 <p>Reference: <a class="reference external" href="https://gist.github.com/sumeet/1123871">https://gist.github.com/sumeet/1123871</a></p>
+<p><strong>Attributes:</strong></p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.timing_info" title="omni.isaac.lab.utils.timer.Timer.timing_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">timing_info</span></code></a></p></td>
+<td><p>Dictionary for storing the elapsed time per timer instances globally.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.time_elapsed" title="omni.isaac.lab.utils.timer.Timer.time_elapsed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_elapsed</span></code></a></p></td>
+<td><p>The number of seconds that have elapsed since this timer started timing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.total_run_time" title="omni.isaac.lab.utils.timer.Timer.total_run_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">total_run_time</span></code></a></p></td>
+<td><p>The number of seconds that elapsed from when the timer started to when it ended.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.__init__" title="omni.isaac.lab.utils.timer.Timer.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([msg])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.__init__" title="omni.isaac.lab.utils.timer.Timer.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([msg, name])</p></td>
 <td><p>Initializes the timer.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.start" title="omni.isaac.lab.utils.timer.Timer.start"><code class="xref py py-obj docutils literal notranslate"><span class="pre">start</span></code></a>()</p></td>
@@ -3446,29 +3463,33 @@ highest resolution available on the system.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.stop" title="omni.isaac.lab.utils.timer.Timer.stop"><code class="xref py py-obj docutils literal notranslate"><span class="pre">stop</span></code></a>()</p></td>
 <td><p>Stop timing.</p></td>
 </tr>
-</tbody>
-</table>
-</div>
-<p><strong>Attributes:</strong></p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.time_elapsed" title="omni.isaac.lab.utils.timer.Timer.time_elapsed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">time_elapsed</span></code></a></p></td>
-<td><p>The number of seconds that have elapsed since this timer started timing.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.total_run_time" title="omni.isaac.lab.utils.timer.Timer.total_run_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">total_run_time</span></code></a></p></td>
-<td><p>The number of seconds that elapsed from when the timer started to when it ended.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.Timer.get_timer_info" title="omni.isaac.lab.utils.timer.Timer.get_timer_info"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_timer_info</span></code></a>(name)</p></td>
+<td><p>Retrieves the time logged in the global dictionary</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.timer.Timer.timing_info">
+<span class="sig-name descname"><span class="pre">timing_info</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.12)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></em><a class="headerlink" href="#omni.isaac.lab.utils.timer.Timer.timing_info" title="Permalink to this definition">#</a></dt>
+<dd><p>Dictionary for storing the elapsed time per timer instances globally.</p>
+<p>This dictionary logs the timer information. The keys are the names given to the timer class
+at its initialization. If no <code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code> is passed to the constructor, no time
+is recorded in the dictionary.</p>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.timer.Timer.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/timer.html#Timer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.timer.Timer.__init__" title="Permalink to this definition">#</a></dt>
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">msg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/timer.html#Timer.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.timer.Timer.__init__" title="Permalink to this definition">#</a></dt>
 <dd><p>Initializes the timer.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>msg</strong> – The message to display when using the timer
-class in a context manager. Defaults to None.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>msg</strong> – The message to display when using the timer
+class in a context manager. Defaults to None.</p></li>
+<li><p><strong>name</strong> – The name to use for logging times in a global
+dictionary. Defaults to None.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -3499,6 +3520,26 @@ class in a context manager. Defaults to None.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.utils.timer.Timer.stop">
 <span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/timer.html#Timer.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.timer.Timer.stop" title="Permalink to this definition">#</a></dt>
 <dd><p>Stop timing.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.timer.Timer.get_timer_info">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_timer_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/timer.html#Timer.get_timer_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.timer.Timer.get_timer_info" title="Permalink to this definition">#</a></dt>
+<dd><dl class="simple">
+<dt>Retrieves the time logged in the global dictionary</dt><dd><p>based on name.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> – Name of the the entry to be retrieved.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#omni.isaac.lab.utils.timer.TimerError" title="omni.isaac.lab.utils.timer.TimerError"><strong>TimerError</strong></a> – If name doesn’t exist in the log.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A float containing the time logged if the name exists.</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
@@ -3808,11 +3849,13 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.timer">Timer operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.TimerError"><code class="docutils literal notranslate"><span class="pre">TimerError</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer"><code class="docutils literal notranslate"><span class="pre">Timer</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.timing_info"><code class="docutils literal notranslate"><span class="pre">Timer.timing_info</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.__init__"><code class="docutils literal notranslate"><span class="pre">Timer.__init__()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.time_elapsed"><code class="docutils literal notranslate"><span class="pre">Timer.time_elapsed</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.total_run_time"><code class="docutils literal notranslate"><span class="pre">Timer.total_run_time</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.start"><code class="docutils literal notranslate"><span class="pre">Timer.start()</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.stop"><code class="docutils literal notranslate"><span class="pre">Timer.stop()</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.timer.Timer.get_timer_info"><code class="docutils literal notranslate"><span class="pre">Timer.get_timer_info()</span></code></a></li>
 </ul>
 </li>
 </ul>

@@ -593,7 +593,7 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_step_counter</span> <span class="o">=</span> <span class="mi">0</span>
 
         <span class="c1"># generate scene</span>
-        <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for scene creation&quot;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for scene creation&quot;</span><span class="p">,</span> <span class="s2">&quot;scene_creation&quot;</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">scene</span> <span class="o">=</span> <span class="n">InteractiveScene</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">scene</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Scene manager: &quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="p">)</span>
 
@@ -611,7 +611,7 @@ document.write(`
         <span class="c1"># note: when started in extension mode, first call sim.reset_async() and then initialize the managers</span>
         <span class="k">if</span> <span class="n">builtins</span><span class="o">.</span><span class="n">ISAAC_LAUNCHED_FROM_TERMINAL</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[INFO]: Starting the simulation. This may take a few seconds. Please wait...&quot;</span><span class="p">)</span>
-            <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">):</span>
+            <span class="k">with</span> <span class="n">Timer</span><span class="p">(</span><span class="s2">&quot;[INFO]: Time taken for simulation start&quot;</span><span class="p">,</span> <span class="s2">&quot;simulation_start&quot;</span><span class="p">):</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
             <span class="c1"># add timeline event to load managers</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">load_managers</span><span class="p">()</span>

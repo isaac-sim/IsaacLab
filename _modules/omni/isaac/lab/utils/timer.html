@@ -495,7 +495,7 @@ document.write(`
 
 <span class="kn">import</span> <span class="nn">time</span>
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">ContextDecorator</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span>
 
 
 <div class="viewcode-block" id="TimerError"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.timer.TimerError">[docs]</a><span class="k">class</span> <span class="nc">TimerError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
@@ -546,14 +546,25 @@ document.write(`
 <span class="sd">    Reference: https://gist.github.com/sumeet/1123871</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="Timer.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.timer.Timer.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="n">timing_info</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Dictionary for storing the elapsed time per timer instances globally.</span>
+
+<span class="sd">    This dictionary logs the timer information. The keys are the names given to the timer class</span>
+<span class="sd">    at its initialization. If no :attr:`name` is passed to the constructor, no time</span>
+<span class="sd">    is recorded in the dictionary.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Timer.__init__"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.timer.Timer.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the timer.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            msg: The message to display when using the timer</span>
 <span class="sd">                class in a context manager. Defaults to None.</span>
+<span class="sd">            name: The name to use for logging times in a global</span>
+<span class="sd">                dictionary. Defaults to None.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_msg</span> <span class="o">=</span> <span class="n">msg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_start_time</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_stop_time</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_elapsed_time</span> <span class="o">=</span> <span class="kc">None</span></div>
@@ -602,7 +613,10 @@ document.write(`
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_stop_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_elapsed_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop_time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_start_time</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_start_time</span> <span class="o">=</span> <span class="kc">None</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_start_time</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">:</span>
+            <span class="n">Timer</span><span class="o">.</span><span class="n">timing_info</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_elapsed_time</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Context managers</span>
@@ -618,7 +632,29 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
         <span class="c1"># print message</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_msg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_msg</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_elapsed_time</span><span class="si">:</span><span class="s2">0.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span></div>
+            <span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_msg</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_elapsed_time</span><span class="si">:</span><span class="s2">0.6f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Static Methods</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Timer.get_timer_info"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.timer.Timer.get_timer_info">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_timer_info</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Retrieves the time logged in the global dictionary</span>
+<span class="sd">            based on name.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Name of the the entry to be retrieved.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TimerError: If name doesn&#39;t exist in the log.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A float containing the time logged if the name exists.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">Timer</span><span class="o">.</span><span class="n">timing_info</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TimerError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Timer </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> does not exist&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Timer</span><span class="o">.</span><span class="n">timing_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></div></div>
 </pre></div>
 
                 </article>
