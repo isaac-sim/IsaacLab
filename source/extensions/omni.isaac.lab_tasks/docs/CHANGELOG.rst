@@ -370,7 +370,7 @@ Added
 * Added a new flag ``viewport`` to the :class:`IsaacEnv` class to enable/disable rendering of the viewport.
   If the flag is set to ``True``, the viewport is enabled and the environment is rendered in the background.
 * Updated the training scripts in the ``source/standalone/workflows`` directory to use the new flag ``viewport``.
-  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos`` directory using the
+  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos/train`` directory using the
   :class:`gym.wrappers.RecordVideo` wrapper.
 
 Changed
