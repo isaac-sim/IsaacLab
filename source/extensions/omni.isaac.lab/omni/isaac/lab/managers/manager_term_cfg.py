@@ -214,6 +214,7 @@ class EventTermCfg(ManagerTermBaseCfg):
 
     When mode is "reset", the term will not be applied on the next reset unless
     the number of steps since the last application of the term has exceeded this.
+    This is useful to avoid calling this term too often and improve performance.
 
     Note:
         This is only used if the mode is ``"reset"``.
