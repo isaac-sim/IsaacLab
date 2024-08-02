@@ -120,6 +120,10 @@ class RigidObject(AssetBase):
     def update(self, dt: float):
         self._data.update(dt)
 
+    """
+    Operations - Finders.
+    """
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 

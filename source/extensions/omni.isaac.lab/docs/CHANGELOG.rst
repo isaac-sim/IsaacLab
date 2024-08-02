@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.20.6 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the hierarchy from :class:`~omni.isaac.lab.assets.RigidObject` class to
+  :class:`~omni.isaac.lab.assets.Articulation` class. Previously, the articulation class overrode  almost
+  all the functions of the rigid object class making the hierarchy redundant. Now, the articulation class
+  is a standalone class that does not inherit from the rigid object class. This does add some code
+  duplication but the simplicity and clarity of the code is improved.
+
+
 0.20.5 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
