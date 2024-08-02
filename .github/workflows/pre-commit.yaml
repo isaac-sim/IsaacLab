@@ -1,4 +1,4 @@
-name: pre-commit
+name: Run linters using pre-commit
 
 on:
   pull_request:
