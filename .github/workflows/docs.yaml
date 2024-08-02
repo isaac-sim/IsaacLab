@@ -1,4 +1,4 @@
-name: Build & deploy docs
+name: Docs status
 
 on: [push]
 
