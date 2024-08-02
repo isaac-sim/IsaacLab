@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.20.1 (2024-07-30)
+0.20.4 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,6 +12,40 @@ Fixed
   configuration. This caused the terrains to be re-generated even when the same configuration was used.
   Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
   sampled in the same order between different runs.
+
+
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
+
+
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
 
 
 0.20.0 (2024-07-26)

@@ -93,18 +93,27 @@ def normalize(x: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
 
 @torch.jit.script
 def wrap_to_pi(angles: torch.Tensor) -> torch.Tensor:
-    """Wraps input angles (in radians) to the range [-pi, pi].
+    r"""Wraps input angles (in radians) to the range :math:`[-\pi, \pi]`.
+
+    This function wraps angles in radians to the range :math:`[-\pi, \pi]`, such that
+    :math:`\pi` maps to :math:`\pi`, and :math:`-\pi` maps to :math:`-\pi`. In general,
+    odd positive multiples of :math:`\pi` are mapped to :math:`\pi`, and odd negative
+    multiples of :math:`\pi` are mapped to :math:`-\pi`.
+
+    The function behaves similar to MATLAB's `wrapToPi <https://www.mathworks.com/help/map/ref/wraptopi.html>`_
+    function.
 
     Args:
         angles: Input angles of any shape.
 
     Returns:
-        Angles in the range [-pi, pi].
+        Angles in the range :math:`[-\pi, \pi]`.
     """
-    angles = angles.clone()
-    angles %= 2 * torch.pi
-    angles -= 2 * torch.pi * (angles > torch.pi)
-    return angles
+    # wrap to [0, 2*pi)
+    wrapped_angle = (angles + torch.pi) % (2 * torch.pi)
+    # map to [-pi, pi]
+    # we check for zero in wrapped angle to make it go to pi when input angle is odd multiple of pi
+    return torch.where((wrapped_angle == 0) & (angles > 0), torch.pi, wrapped_angle - torch.pi)
 
 
 @torch.jit.script
@@ -121,8 +130,8 @@ def copysign(mag: float, other: torch.Tensor) -> torch.Tensor:
     Returns:
         The output tensor.
     """
-    mag = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
-    return torch.abs(mag) * torch.sign(other)
+    mag_torch = torch.tensor(mag, device=other.device, dtype=torch.float).repeat(other.shape[0])
+    return torch.abs(mag_torch) * torch.sign(other)
 
 
 """
