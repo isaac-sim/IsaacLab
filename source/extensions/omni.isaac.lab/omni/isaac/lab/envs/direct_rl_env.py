@@ -283,6 +283,7 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model.apply(action.clone())
