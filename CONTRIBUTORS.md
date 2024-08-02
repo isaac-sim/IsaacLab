@@ -43,6 +43,7 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Kourosh Darvish
 * Lorenz Wellhausen
+* Masoud Moghani
 * Muhong Guo
 * Nuralem Abizov
 * Özhan Özen
