@@ -197,20 +197,20 @@ class EventManager(ManagerBase):
                 min_step_count = term_cfg.min_step_count_between_reset
                 # check if it zero to bypass the check
                 if min_step_count == 0:
-                    self._reset_mode_last_apply_step_count[index][:] = global_env_step_count
+                    self._reset_mode_last_applied_step_count[index][:] = global_env_step_count
                 else:
                     # resolve the environment indices
                     if env_ids is None:
                         env_ids = slice(None)
                     # extract last reset step for this term
-                    last_reset_step = self._reset_mode_last_apply_step_count[index]
+                    last_reset_step = self._reset_mode_last_applied_step_count[index]
                     # compute the steps since last reset
                     steps_since_reset = global_env_step_count - last_reset_step
                     # check if the term can be applied
                     env_ids = (steps_since_reset[env_ids] >= min_step_count).nonzero().flatten()
                     # reset the last reset step for each environment to the current env step count
                     if len(env_ids) > 0:
-                        self._reset_mode_last_apply_step_count[index][env_ids] = global_env_step_count
+                        self._reset_mode_last_applied_step_count[index][env_ids] = global_env_step_count
                     else:
                         # no need to call func to apply term
                         continue
@@ -278,7 +278,7 @@ class EventManager(ManagerBase):
         # global timer for "interval" mode for global properties
         self._interval_mode_time_global: list[torch.Tensor] = list()
         # buffer to store the step count when the term was last applied for each environment for "reset" mode
-        self._reset_mode_last_apply_step_count: list[torch.Tensor] = list()
+        self._reset_mode_last_applied_step_count: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -347,4 +347,4 @@ class EventManager(ManagerBase):
 
                 # initialize the current step count for each environment to zero
                 step_count = torch.zeros(self.num_envs, device=self.device, dtype=torch.int32)
-                self._reset_mode_last_apply_step_count.append(step_count)
+                self._reset_mode_last_applied_step_count.append(step_count)
