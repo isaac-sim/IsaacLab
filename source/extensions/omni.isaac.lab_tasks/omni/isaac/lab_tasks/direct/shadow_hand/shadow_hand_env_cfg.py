@@ -29,8 +29,9 @@ class EventCfg:
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="reset",
+        min_step_count_between_reset=720,
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "asset_cfg": SceneEntityCfg("robot"),
             "static_friction_range": (0.7, 1.3),
             "dynamic_friction_range": (1.0, 1.0),
             "restitution_range": (1.0, 1.0),
@@ -39,6 +40,7 @@ class EventCfg:
     )
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -50,6 +52,7 @@ class EventCfg:
     )
     robot_joint_limits = EventTerm(
         func=mdp.randomize_joint_parameters,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -61,6 +64,7 @@ class EventCfg:
     )
     robot_tendon_properties = EventTerm(
         func=mdp.randomize_fixed_tendon_parameters,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
@@ -74,9 +78,10 @@ class EventCfg:
     # -- object
     object_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
+            "asset_cfg": SceneEntityCfg("object"),
             "static_friction_range": (0.7, 1.3),
             "dynamic_friction_range": (1.0, 1.0),
             "restitution_range": (1.0, 1.0),
@@ -85,6 +90,7 @@ class EventCfg:
     )
     object_scale_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
+        min_step_count_between_reset=720,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("object"),
@@ -223,9 +229,18 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
 
 @configclass
 class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
+    # env
+    decimation = 3
+    episode_length_s = 8.0
+    num_actions = 20
+    num_observations = 42
+    num_states = 187
+    asymmetric_obs = True
+    obs_type = "openai"
     # simulation
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 60,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
             dynamic_friction=1.0,
@@ -236,14 +251,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
             gpu_max_rigid_patch_count=2**23,
         ),
     )
-    # env
-    decimation = 3
-    episode_length_s = 8.0
-    num_actions = 20
-    num_observations = 42
-    num_states = 187
-    asymmetric_obs = True
-    obs_type = "openai"
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset

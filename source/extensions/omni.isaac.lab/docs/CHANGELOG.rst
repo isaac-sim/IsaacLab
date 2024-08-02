@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.20.7 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Performance improvements for material randomization in events.
+
+Added
+^^^^^
+
+* Added minimum randomization frequency for reset mode randomizations.
+
+
 0.20.6 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
