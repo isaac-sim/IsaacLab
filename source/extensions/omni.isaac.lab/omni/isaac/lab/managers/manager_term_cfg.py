@@ -211,13 +211,13 @@ class EventTermCfg(ManagerTermBaseCfg):
     """
 
     min_step_count_between_reset: int = 0
-    """The minimum number of environment steps between which the term is applied. Defaults to 0.
+    """The number of environment steps after which the term is applied since its last application. Defaults to 0.
 
-    When the mode is "reset", the term is not applied unless the number of environment steps since
-    its last application exceeds this quantity. This is useful to avoid calling this term too often
-    and improve throughput performance.
+    When the mode is "reset", the term is only applied if the number of environment steps since
+    its last application exceeds this quantity. This helps to avoid calling the term too often,
+    thereby improving performance.
 
-    If the value is zero, the term is applied on every reset.
+    If the value is zero, the term is applied on every call to the manager with the mode "reset".
 
     Note:
         This is only used if the mode is ``"reset"``.
