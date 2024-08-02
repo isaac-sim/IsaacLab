@@ -30,14 +30,6 @@ class ArticulationData:
     can be interpreted as the link frame.
     """
 
-    _root_physx_view: physx.ArticulationView
-    """The root articulation view of the object.
-
-    Note:
-        Internally, this is stored as a weak reference to avoid circular references between the asset class
-        and the data container. This is important to avoid memory leaks.
-    """
-
     def __init__(self, root_physx_view: physx.ArticulationView, device: str):
         """Initializes the articulation data.
 
@@ -47,7 +39,11 @@ class ArticulationData:
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
+        # Set the root articulation view
+        # note: this is stored as a weak reference to avoid circular references between the asset class
+        #  and the data container. This is important to avoid memory leaks.
+        self._root_physx_view: physx.ArticulationView = weakref.proxy(root_physx_view)
+
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
@@ -63,9 +59,6 @@ class ArticulationData:
         self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
 
-        # Initialize buffers for finite differencing
-        self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
-
         # Initialize history for finite differencing
         self._previous_joint_vel = self._root_physx_view.get_dof_velocities().clone()
 
@@ -78,6 +71,7 @@ class ArticulationData:
         self._joint_vel = TimestampedBuffer()
 
     def update(self, dt: float):
+        # update the simulation timestamp
         self._sim_timestamp += dt
         # Trigger an update of the joint acceleration buffer at a higher frequency
         # since we do finite differencing.

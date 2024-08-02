@@ -33,14 +33,6 @@ class RigidObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
-    _root_physx_view: physx.RigidBodyView
-    """The root rigid body view of the object.
-
-    Note:
-        Internally, this is stored as a weak reference to avoid circular references between the asset class
-        and the data container. This is important to avoid memory leaks.
-    """
-
     def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
         """Initializes the rigid object data.
 
@@ -50,7 +42,11 @@ class RigidObjectData:
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
+        # Set the root rigid body view
+        # note: this is stored as a weak reference to avoid circular references between the asset class
+        #  and the data container. This is important to avoid memory leaks.
+        self._root_physx_view: physx.RigidBodyView = weakref.proxy(root_physx_view)
+
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
@@ -76,6 +72,7 @@ class RigidObjectData:
         Args:
             dt: The time step for the update. This must be a positive value.
         """
+        # update the simulation timestamp
         self._sim_timestamp += dt
 
     ##
