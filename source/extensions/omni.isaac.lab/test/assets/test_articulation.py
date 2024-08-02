@@ -46,6 +46,7 @@ class TestArticulation(unittest.TestCase):
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=self.dt, device="cuda:0")
         self.sim = sim_utils.SimulationContext(sim_cfg)
+
     def tearDown(self):
         """Stops simulator after each test."""
         # stop simulation
