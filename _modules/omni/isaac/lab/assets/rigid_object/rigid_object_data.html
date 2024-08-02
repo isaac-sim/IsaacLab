@@ -543,9 +543,6 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span> <span class="o">=</span> <span class="n">gravity_dir</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
-        <span class="c1"># Initialize buffers for finite differencing</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
-
         <span class="c1"># Initialize the lazy buffers.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
@@ -556,10 +553,7 @@ document.write(`
 <span class="sd">        Args:</span>
 <span class="sd">            dt: The time step for the update. This must be a positive value.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">+=</span> <span class="n">dt</span>
-        <span class="c1"># Trigger an update of the body acceleration buffer at a higher frequency</span>
-        <span class="c1"># since we do finite differencing.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">+=</span> <span class="n">dt</span></div>
 
     <span class="c1">##</span>
     <span class="c1"># Names.</span>
@@ -605,12 +599,8 @@ document.write(`
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, 1, 6).&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># note: we use finite differencing to compute acceleration</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body_vel_w</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span>
-            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_accelerations</span><span class="p">()</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
-            <span class="c1"># update the previous velocity</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_previous_body_vel_w</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_vel_w</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
