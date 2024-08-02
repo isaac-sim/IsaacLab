@@ -189,7 +189,7 @@ class EventTermCfg(ManagerTermBaseCfg):
     """
 
     interval_range_s: tuple[float, float] | None = None
-    """The range of time in seconds at which the term is applied.
+    """The range of time in seconds at which the term is applied. Defaults to None.
 
     Based on this, the interval is sampled uniformly between the specified
     range for each environment instance. The term is applied on the environment
@@ -200,21 +200,24 @@ class EventTermCfg(ManagerTermBaseCfg):
     """
 
     is_global_time: bool = False
-    """ Whether randomization should be tracked on a per-environment basis.
+    """Whether randomization should be tracked on a per-environment basis. Defaults to False.
 
-    If True, the same time for the interval is tracked for all the environments instead of
-    tracking the time per-environment.
+    If True, the same interval time is used for all the environment instances.
+    If False, the interval time is sampled independently for each environment instance
+    and the term is applied when the current time hits the interval time for that instance.
 
     Note:
         This is only used if the mode is ``"interval"``.
     """
 
     min_step_count_between_reset: int = 0
-    """The minimum number of environment steps between when term is applied.
+    """The minimum number of environment steps between which the term is applied. Defaults to 0.
 
-    When mode is "reset", the term will not be applied on the next reset unless
-    the number of steps since the last application of the term has exceeded this.
-    This is useful to avoid calling this term too often and improve performance.
+    When the mode is "reset", the term is not applied unless the number of environment steps since
+    its last application exceeds this quantity. This is useful to avoid calling this term too often
+    and improve throughput performance.
+
+    If the value is zero, the term is applied on every reset.
 
     Note:
         This is only used if the mode is ``"reset"``.
