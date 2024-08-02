@@ -24,11 +24,11 @@ class PhysxCfg:
     documentation`_.
 
     PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
-    by setting the :attr:`~SimulationCfg.device` to `cpu` in :class:`SimulationCfg`. Unlike CPU PhysX, the GPU
-    simulation feature is not able to dynamically grow all the buffers. Therefore, it is necessary to provide
+    by setting the :attr:`~SimulationCfg.device` to ``cpu`` in :class:`SimulationCfg`. Unlike CPU PhysX, the GPU
+    simulation feature is unable to dynamically grow all the buffers. Therefore, it is necessary to provide
     a reasonable estimate of the buffer sizes for GPU features. If insufficient buffer sizes are provided, the
     simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
-    `gpu_*` parameters.
+    ``gpu_*`` parameters.
 
     .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html
 
