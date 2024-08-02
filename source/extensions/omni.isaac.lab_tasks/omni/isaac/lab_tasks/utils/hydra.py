@@ -28,8 +28,8 @@ def register_task_to_hydra(
     It then registers the configurations to the Hydra configuration store.
 
     Args:
-        task_name (str): The name of the task.
-        agent_cfg_entry_point (str): The entry point key to resolve the agent's configuration file.
+        task_name: The name of the task.
+        agent_cfg_entry_point: The entry point key to resolve the agent's configuration file.
 
     Returns:
         The parsed environment and agent configurations.
