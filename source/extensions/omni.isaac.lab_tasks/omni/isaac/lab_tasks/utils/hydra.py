@@ -32,7 +32,7 @@ def register_task_to_hydra(
         agent_cfg_entry_point: The entry point key to resolve the agent's configuration file.
 
     Returns:
-        The parsed environment and agent configurations.
+        A tuple containing the parsed environment and agent configuration objects.
     """
     # load the configurations
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
