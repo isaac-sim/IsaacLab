@@ -596,6 +596,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.size"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.size</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.border_width</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.border_height</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.num_rows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.num_cols</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.color_scheme</span></code></a></li>
@@ -1531,34 +1532,37 @@ Similarly, the key “target_spawn” maps to a tensor containing the flat patch
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_width</span></code></a></p></td>
 <td><p>The width of the border around the terrain (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rows</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height"><code class="xref py py-obj docutils literal notranslate"><span class="pre">border_height</span></code></a></p></td>
+<td><p>The height of the border around the terrain (in m).</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_rows</span></code></a></p></td>
 <td><p>Number of rows of sub-terrains to generate.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_cols</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols"><code class="xref py py-obj docutils literal notranslate"><span class="pre">num_cols</span></code></a></p></td>
 <td><p>Number of columns of sub-terrains to generate.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_scheme</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme"><code class="xref py py-obj docutils literal notranslate"><span class="pre">color_scheme</span></code></a></p></td>
 <td><p>Color scheme to use for the terrain.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.horizontal_scale" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.horizontal_scale" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.horizontal_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">horizontal_scale</span></code></a></p></td>
 <td><p>The discretization of the terrain along the x and y axes (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.vertical_scale" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.vertical_scale" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.vertical_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vertical_scale</span></code></a></p></td>
 <td><p>The discretization of the terrain along the z axis (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.slope_threshold" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.slope_threshold" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.slope_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">slope_threshold</span></code></a></p></td>
 <td><p>The slope threshold above which surfaces are made vertical.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.sub_terrains" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.sub_terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sub_terrains</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.sub_terrains" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.sub_terrains"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sub_terrains</span></code></a></p></td>
 <td><p>Dictionary of sub-terrain configurations.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.difficulty_range" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.difficulty_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">difficulty_range</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.difficulty_range" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.difficulty_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">difficulty_range</span></code></a></p></td>
 <td><p>The range of difficulty values for the sub-terrains.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.use_cache" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.use_cache"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_cache</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.use_cache" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.use_cache"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_cache</span></code></a></p></td>
 <td><p>Whether to load the sub-terrain from cache if it exists.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.cache_dir" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cache_dir</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.cache_dir" title="omni.isaac.lab.terrains.TerrainGeneratorCfg.cache_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cache_dir</span></code></a></p></td>
 <td><p>The directory where the terrain cache is stored.</p></td>
 </tr>
 </tbody>
@@ -1593,6 +1597,12 @@ they are randomly generated.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width">
 <span class="sig-name descname"><span class="pre">border_width</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width" title="Permalink to this definition">#</a></dt>
 <dd><p>The width of the border around the terrain (in m). Defaults to 0.0.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height">
+<span class="sig-name descname"><span class="pre">border_height</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a></em><a class="headerlink" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height" title="Permalink to this definition">#</a></dt>
+<dd><p>The height of the border around the terrain (in m). Defaults to 1.0.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -4482,6 +4492,7 @@ the patch is rejected.</p></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.curriculum"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.curriculum</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.size"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.size</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_width"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.border_width</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.border_height"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.border_height</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_rows"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.num_rows</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.num_cols"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.num_cols</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.terrains.TerrainGeneratorCfg.color_scheme"><code class="docutils literal notranslate"><span class="pre">TerrainGeneratorCfg.color_scheme</span></code></a></li>
