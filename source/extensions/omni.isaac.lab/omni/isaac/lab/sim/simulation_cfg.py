@@ -166,7 +166,7 @@ class SimulationCfg:
 
     - ``"cpu"``: Use CPU.
     - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~omni.isaac.lab.app.AppLauncher`'s config.
-    - ``"cuda:N"`` Use GPU, where N is the device ID.
+    - ``"cuda:N"`` Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
     dt: float = 1.0 / 60.0
