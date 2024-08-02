@@ -97,7 +97,7 @@ class RigidObjectData:
     """
 
     default_mass: torch.Tensor = None
-    """ Default mass provided by simulation. Shape is (num_instances, num_bodies)."""
+    """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
 
     ##
     # Properties.
@@ -133,8 +133,7 @@ class RigidObjectData:
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, 1, 6).
 
-        This quantity is the acceleration of the rigid bodies' center of mass frame. The acceleration
-        is computed using finite differencing of the linear and angular velocities of the bodies.
+        This quantity is the acceleration of the rigid bodies' center of mass frame.
         """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
@@ -262,10 +261,16 @@ class RigidObjectData:
 
     @property
     def body_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear acceleration of the rigid bodies' center of mass frame.
+        """
         return self.body_acc_w[..., 0:3]
 
     @property
     def body_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular acceleration of the rigid bodies' center of mass frame.
+        """
         return self.body_acc_w[..., 3:6]
