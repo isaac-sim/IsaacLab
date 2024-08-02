@@ -17,7 +17,7 @@ from .shadow_hand_env_cfg import ShadowHandEnvCfg, ShadowHandOpenAIEnvCfg
 ##
 
 gym.register(
-    id="Isaac-Shadow-Hand-Direct-v0",
+    id="Isaac-Repose-Cube-Shadow-Direct-v0",
     entry_point="omni.isaac.lab_tasks.direct.inhand_manipulation:InHandManipulationEnv",
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Shadow-Hand-OpenAI-FF-Direct-v0",
+    id="Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0",
     entry_point="omni.isaac.lab_tasks.direct.inhand_manipulation:InHandManipulationEnv",
     disable_env_checker=True,
     kwargs={
@@ -39,7 +39,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0",
+    id="Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0",
     entry_point="omni.isaac.lab_tasks.direct.inhand_manipulation:InHandManipulationEnv",
     disable_env_checker=True,
     kwargs={

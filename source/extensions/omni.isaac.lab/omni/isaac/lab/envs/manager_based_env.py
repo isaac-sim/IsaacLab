@@ -107,7 +107,7 @@ class ManagerBasedEnv:
         self._sim_step_counter = 0
 
         # generate scene
-        with Timer("[INFO]: Time taken for scene creation"):
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             self.scene = InteractiveScene(self.cfg.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
@@ -125,7 +125,7 @@ class ManagerBasedEnv:
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
         if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
             print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start"):
+            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
                 self.sim.reset()
             # add timeline event to load managers
             self.load_managers()

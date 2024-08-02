@@ -17,7 +17,7 @@ from .allegro_hand_env_cfg import AllegroHandEnvCfg
 ##
 
 gym.register(
-    id="Isaac-Allegro-Hand-Direct-v0",
+    id="Isaac-Repose-Cube-Allegro-Direct-v0",
     entry_point="omni.isaac.lab_tasks.direct.inhand_manipulation:InHandManipulationEnv",
     disable_env_checker=True,
     kwargs={
