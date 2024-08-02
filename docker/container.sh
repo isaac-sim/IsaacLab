@@ -25,7 +25,7 @@ fi
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [...] -- Utility for handling Docker in Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help                  Display the help content."
     echo -e "\tstart [profile]             Build the docker image and create the container in detached mode."
@@ -36,8 +36,9 @@ print_help () {
     echo -e "\tjob [profile] [job_args]    Submit a job to the cluster."
     echo -e "\tconfig [profile]            Parse, resolve and render compose file in canonical format."
     echo -e "\n"
-    echo -e "[profile] is the optional container profile specification and [job_args] optional arguments specific"
-    echo -e "to the executed script"
+    echo -e "where: "
+    echo -e "\t[profile] is the optional container profile specification. Example: 'isaaclab', 'base', 'ros2'."
+    echo -e "\t[job_args] are optional arguments specific to the executed script."
     echo -e "\n" >&2
 }
 
@@ -56,8 +57,8 @@ install_apptainer() {
 
 install_yq() {
     # Installing yq to handle file parsing
-    # Installation procedure from here: https://github.com/mikefarah/yq
-    read -p "[INFO] Required 'yq' package could not be found. Would you like to install it via wget? (y/N)" yq_answer
+    # Installation procedure from here: https://github.com/mikefarah/yq?tab=readme-ov-file#linux-via-snap
+    read -p "[INFO] Required 'yq' package could not be found. Would you like to install it via snap? (y/N)" yq_answer
     if [ "$yq_answer" != "${yq_answer#[Yy]}" ]; then
         sudo snap install yq
     else
@@ -67,17 +68,29 @@ install_yq() {
 }
 
 set_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Stores key $1 with value $2 in yaml $STATEFILE
     yq -i '.["'"$1"'"] = "'"$2"'"' $STATEFILE
 }
 
 load_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Loads key $1 from yaml $STATEFILE as an envvar
     # If key does not exist, the loaded var will equal "null"
     eval $1="$(yq ".$1" $STATEFILE)"
 }
 
 delete_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Deletes key $1 from yaml $STATEFILE
     yq -i "del(.$1)" $STATEFILE
 }
@@ -211,9 +224,9 @@ x11_check() {
     else
         echo "[INFO] X11 Forwarding is configured as $__ISAACLAB_X11_FORWARDING_ENABLED in .container.yaml"
         if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
-            echo "[INFO] To disable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=0 in .container.yaml"
+            echo "[INFO] To disable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 0\` in .container.yaml"
         else
-            echo "[INFO] To enable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=1 in .container.yaml"
+            echo "[INFO] To enable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 1\` in .container.yaml"
         fi
     fi
 
@@ -268,10 +281,6 @@ fi
 if ! command -v docker &> /dev/null; then
     echo "[Error] Docker is not installed! Please check the 'Docker Guide' for instruction." >&2;
     exit 1
-fi
-
-if ! command -v yq &> /dev/null; then
-    install_yq
 fi
 
 # parse arguments

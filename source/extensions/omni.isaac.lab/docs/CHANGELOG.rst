@@ -1,6 +1,99 @@
 Changelog
 ---------
 
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
+
+
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
+
+
+0.20.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support for the Isaac Sim 4.1.0 release.
+
+Removed
+^^^^^^^
+
+* The ``mdp.add_body_mass`` method in the events. Please use the
+  :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg`` are replaced with
+  :class:`omni.isaac.lab.managers.EventManager` and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
+* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
+
+  * ``target_rot_source`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * ``target_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * ``source_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+
+* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
+  Isaac Sim 2023.1.1 completely.
+
+
+0.19.4 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the call to "startup" events when using the :class:`~omni.isaac.lab.envs.ManagerBasedEnv` class.
+  Earlier, the "startup" events were not being called when the environment was initialized. This issue
+  did not occur when using the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class since the "startup"
+  events were called in the constructor.
+
+
+0.19.3 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added schemas for setting and modifying deformable body properties on a USD prim.
+* Added API to spawn a deformable body material in the simulation.
+* Added APIs to spawn rigid and deformable meshes of primitive shapes (cone, cylinder, sphere, box, capsule)
+  in the simulation. This is possible through the :mod:`omni.isaac.lab.sim.spawners.meshes` module.
+
+
+0.19.2 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics`
+  to determine whether environment is homogeneous or heterogeneous.
+
+
 0.19.1 (2024-07-05)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -47,7 +140,7 @@ Fixed
 Fixed
 ^^^^^
 
-* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData`class.
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData` class.
   Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
   gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
   and used to compute the projection of the gravity vector on the object.

@@ -17,6 +17,16 @@ class ArticulationData:
 
     This class extends the :class:`RigidObjectData` class to provide additional data for
     an articulation mainly related to the joints and tendons.
+
+    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
+    of reference that are used:
+
+    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+      with the rigid body schema.
+    - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
+    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
+    can be interpreted as the link frame.
     """
 
     _root_physx_view: physx.ArticulationView
@@ -246,7 +256,11 @@ class ArticulationData:
 
     @property
     def root_state_w(self):
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13)."""
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).
+
+        The position and quaternion are of the articulation root's actor frame. Meanwhile, the linear and angular
+        velocities are of the articulation root's center of mass frame.
+        """
         if self._root_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             pose = self._root_physx_view.get_root_transforms().clone()
@@ -260,7 +274,11 @@ class ArticulationData:
     @property
     def body_state_w(self):
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
-        Shape is (num_instances, num_bodies, 13)."""
+        Shape is (num_instances, num_bodies, 13).
+
+        The position and quaternion are of all the articulation links's actor frame. Meanwhile, the linear and angular
+        velocities are of the articulation links's center of mass frame.
+        """
         if self._body_state_w.timestamp < self._sim_timestamp:
             # read data from simulation
             poses = self._root_physx_view.get_link_transforms().clone()
@@ -273,7 +291,10 @@ class ArticulationData:
 
     @property
     def body_acc_w(self):
-        """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6)."""
+        """Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).
+
+        This quantity is the acceleration of the articulation links' center of mass frame.
+        """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             self._body_acc_w.data = self._root_physx_view.get_link_accelerations()
@@ -393,10 +414,16 @@ class ArticulationData:
 
     @property
     def body_lin_acc_w(self) -> torch.Tensor:
-        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear acceleration of the articulation links' center of mass frame.
+        """
         return self.body_acc_w[..., 0:3]
 
     @property
     def body_ang_acc_w(self) -> torch.Tensor:
-        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3)."""
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular acceleration of the articulation links' center of mass frame.
+        """
         return self.body_acc_w[..., 3:6]

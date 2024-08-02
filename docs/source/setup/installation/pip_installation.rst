@@ -1,3 +1,5 @@
+.. _isaacsim-pip-installation:
+
 Installation using Isaac Sim pip
 ================================
 
@@ -5,18 +7,18 @@ Installation using Isaac Sim pip
 Installing Isaac Sim
 --------------------
 
-.. note::
+From Isaac Sim 4.0 release, it is possible to install Isaac Sim using pip. This approach is experimental and may have
+compatibility issues with some Linux distributions. If you encounter any issues, please report them to the
+`Isaac Sim Forums <https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html>`_.
 
-   Installing Isaac Sim from pip is currently an experimental feature.
-   If errors occur, please report them to the
-   `Isaac Sim Forums <https://docs.omniverse.nvidia.com/isaacsim/latest/common/feedback.html>`_
-   and install Isaac Sim from pre-built binaries.
-
-.. note::
+.. attention::
 
    Installing Isaac Sim with pip requires GLIBC 2.34+ version compatibility.
    To check the GLIBC version on your system, use command ``ldd --version``.
 
+   This may pose compatibility issues with some Linux distributions. For instance, Ubuntu 20.04 LTS has GLIBC 2.31
+   by default. If you encounter compatibility issues, we recommend following the
+   :ref:`Isaac Sim Binaries Installation <isaacsim-binaries-installation>` approach.
 
 -  To use the pip installation approach for Isaac Sim, we recommend first creating a virtual environment.
    Ensure that the python version of the virtual environment is **Python 3.10**.
