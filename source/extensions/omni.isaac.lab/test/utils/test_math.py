@@ -5,7 +5,6 @@
 
 import torch
 import unittest
-from math import pi as PI
 
 """Launch Isaac Sim Simulator first.
 
@@ -17,6 +16,10 @@ from omni.isaac.lab.app import AppLauncher, run_tests
 # launch omniverse app in headless mode
 simulation_app = AppLauncher(headless=True).app
 
+
+"""Rest everything follows."""
+
+from math import pi as PI
 
 import omni.isaac.lab.utils.math as math_utils
 
@@ -189,6 +192,40 @@ class TestMathUtilities(unittest.TestCase):
         torch.testing.assert_close(error_2, error_3)
         torch.testing.assert_close(error_3, error_4)
         torch.testing.assert_close(error_4, error_1)
+
+    def test_wrap_to_pi(self):
+        """Test wrap_to_pi method."""
+        # Define test cases
+        # Each tuple contains: angle, expected wrapped angle
+        test_cases = [
+            # No wrapping needed
+            (torch.Tensor([0.0]), torch.Tensor([0.0])),
+            # Positive angle
+            (torch.Tensor([PI]), torch.Tensor([PI])),
+            # Negative angle
+            (torch.Tensor([-PI]), torch.Tensor([-PI])),
+            # Multiple angles
+            (torch.Tensor([3 * PI, -3 * PI, 4 * PI, -4 * PI]), torch.Tensor([PI, -PI, 0.0, 0.0])),
+            # Multiple angles from MATLAB docs
+            # fmt: off
+            (
+                torch.Tensor([-2 * PI, - PI - 0.1, -PI, -2.8, 3.1, PI, PI + 0.001, PI + 1, 2 * PI, 2 * PI + 0.1]),
+                torch.Tensor([0.0, PI - 0.1, -PI, -2.8, 3.1 , PI, -PI + 0.001, -PI + 1 , 0.0, 0.1])
+            ),
+            # fmt: on
+        ]
+
+        # Iterate over test cases
+        for device in ["cpu", "cuda:0"]:
+            for angle, expected_angle in test_cases:
+                with self.subTest(angle=angle, device=device):
+                    # move to the device
+                    angle = angle.to(device)
+                    expected_angle = expected_angle.to(device)
+                    # Compute the wrapped angle
+                    wrapped_angle = math_utils.wrap_to_pi(angle)
+                    # Check that the wrapped angle is close to the expected value
+                    torch.testing.assert_close(wrapped_angle, expected_angle)
 
 
 if __name__ == "__main__":

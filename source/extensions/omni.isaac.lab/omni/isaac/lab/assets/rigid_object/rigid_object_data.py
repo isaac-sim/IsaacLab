@@ -57,9 +57,6 @@ class RigidObjectData:
         self.GRAVITY_VEC_W = gravity_dir.repeat(self._root_physx_view.count, 1)
         self.FORWARD_VEC_B = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1)
 
-        # Initialize buffers for finite differencing
-        self._previous_body_vel_w = torch.zeros((self._root_physx_view.count, 1, 6), device=self.device)
-
         # Initialize the lazy buffers.
         self._root_state_w = TimestampedBuffer()
         self._body_acc_w = TimestampedBuffer()
@@ -71,9 +68,6 @@ class RigidObjectData:
             dt: The time step for the update. This must be a positive value.
         """
         self._sim_timestamp += dt
-        # Trigger an update of the body acceleration buffer at a higher frequency
-        # since we do finite differencing.
-        self.body_acc_w
 
     ##
     # Names.
@@ -119,12 +113,8 @@ class RigidObjectData:
         """Acceleration of all bodies. Shape is (num_instances, 1, 6)."""
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
-            self._body_acc_w.data = (self.body_vel_w - self._previous_body_vel_w) / (
-                self._sim_timestamp - self._body_acc_w.timestamp
-            )
+            self._body_acc_w.data = self._root_physx_view.get_accelerations().unsqueeze(1)
             self._body_acc_w.timestamp = self._sim_timestamp
-            # update the previous velocity
-            self._previous_body_vel_w[:] = self.body_vel_w
         return self._body_acc_w.data
 
     @property
