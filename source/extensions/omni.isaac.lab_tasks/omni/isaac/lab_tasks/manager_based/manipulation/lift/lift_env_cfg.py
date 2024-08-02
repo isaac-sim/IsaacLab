@@ -21,7 +21,7 @@ from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import Frame
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
-from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg, save_images_to_file
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
 
 from . import mdp
 
@@ -110,8 +110,10 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    body_joint_pos: mdp.JointPositionActionCfg = MISSING
-    finger_joint_pos: mdp.BinaryJointPositionActionCfg = MISSING
+    #body_joint_pos: mdp.JointPositionActionCfg = MISSING
+    #finger_joint_pos: mdp.BinaryJointPositionActionCfg = MISSING
+    arm_action: mdp.JointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -129,8 +131,7 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
 
         # camera
-        cam_data = ObsTerm(func=mdp.rgb_camera) 
-        #save_images_to_file(cam_data, f"{os.getcwd()}/franka_list_cube_rgb.png")
+        cam_data = ObsTerm(func=mdp.rgb_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
 
         def __post_init__(self):
             self.enable_corruption = True

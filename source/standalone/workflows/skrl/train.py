@@ -99,13 +99,16 @@ def main():
     log_root_path = os.path.join("logs", "skrl", experiment_cfg["agent"]["experiment"]["directory"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
+
     # specify directory for logging runs: {time-stamp}_{run_name}
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if experiment_cfg["agent"]["experiment"]["experiment_name"]:
         log_dir += f'_{experiment_cfg["agent"]["experiment"]["experiment_name"]}'
+
     # set directory into agent config
     experiment_cfg["agent"]["experiment"]["directory"] = log_root_path
     experiment_cfg["agent"]["experiment"]["experiment_name"] = log_dir
+    
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
 
@@ -128,6 +131,7 @@ def main():
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -139,6 +143,7 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="isaaclab")`
 
@@ -150,6 +155,7 @@ def main():
     models = {}
     if args_cli.ml_framework.startswith("jax"):
         experiment_cfg["models"]["separate"] = True  # shared model is not supported in JAX
+
     # non-shared models
     if experiment_cfg["models"]["separate"]:
         models["policy"] = gaussian_model(
@@ -164,6 +170,7 @@ def main():
             device=env.device,
             **process_skrl_cfg(experiment_cfg["models"]["value"], ml_framework=args_cli.ml_framework),
         )
+
     # shared models
     else:
         models["policy"] = shared_model(
@@ -178,6 +185,7 @@ def main():
             ],
         )
         models["value"] = models["policy"]
+
     # instantiate models' state dict
     if args_cli.ml_framework.startswith("jax"):
         for role, model in models.items():

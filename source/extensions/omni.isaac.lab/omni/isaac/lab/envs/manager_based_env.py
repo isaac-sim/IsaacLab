@@ -200,15 +200,15 @@ class ManagerBasedEnv:
 
         """
         # check the configs
-        if self.cfg.randomization is not None:
-            msg = (
-                "The 'randomization' attribute is deprecated and will be removed in a future release. "
-                "Please use the 'events' attribute to configure the randomization settings."
-            )
-            warnings.warn(msg, category=DeprecationWarning)
-            carb.log_warn(msg)
-            # set the randomization as events (for backward compatibility)
-            self.cfg.events = self.cfg.randomization
+        # if self.cfg.randomization is not None:
+        #     msg = (
+        #         "The 'randomization' attribute is deprecated and will be removed in a future release. "
+        #         "Please use the 'events' attribute to configure the randomization settings."
+        #     )
+        #     warnings.warn(msg, category=DeprecationWarning)
+        #     carb.log_warn(msg)
+        #     # set the randomization as events (for backward compatibility)
+        #     self.cfg.events = self.cfg.randomization
 
         # prepare the managers
         # -- action manager

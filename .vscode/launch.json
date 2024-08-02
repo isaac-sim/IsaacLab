@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug train skrl",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/skrl/train.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0",
+                "--num_envs", "2",
+                "--headless",
+                "--enable_cameras",
+                "--video",
+                "--video_length", "100",
+                "--video_interval", "500"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
+    ]
+}
