@@ -3,6 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""This sub-module contains the reward functions that can be used for Spot's locomotion task.
+
+The functions can be passed to the :class:`omni.isaac.lab.managers.RewardTermCfg` object to
+specify the reward function and its parameters.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,9 @@ if TYPE_CHECKING:
     from omni.isaac.lab.managers import RewardTermCfg
 
 
-# -- Task Rewards
+##
+# Task Rewards
+##
 
 
 def air_time_reward(
@@ -28,7 +35,7 @@ def air_time_reward(
     mode_time: float,
     velocity_threshold: float,
 ) -> torch.Tensor:
-    """Reward longer feet air and contact time"""
+    """Reward longer feet air and contact time."""
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     asset: Articulation = env.scene[asset_cfg.name]
@@ -146,6 +153,10 @@ class GaitReward(ManagerTermBase):
             torch.logical_or(cmd > 0.0, body_vel > self.velocity_threshold), sync_reward * async_reward, 0.0
         )
 
+    """
+    Helper functions.
+    """
+
     def _sync_reward_func(self, foot_0: int, foot_1: int) -> torch.Tensor:
         """Reward synchronization of two feet."""
         air_time = self.contact_sensor.data.current_air_time
@@ -177,7 +188,9 @@ def foot_clearance_reward(
     return torch.exp(-torch.sum(reward, dim=1) / std)
 
 
-# -- Regularization Penalties
+##
+# Regularization Penalties
+##
 
 
 def action_smoothness_penalty(env: ManagerBasedRLEnv) -> torch.Tensor:

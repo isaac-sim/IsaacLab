@@ -7,8 +7,8 @@ services:
       - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
     volumes:
     - type: bind
-      source: ${__ISAACLAB_TMP_XAUTH}
-      target: ${__ISAACLAB_TMP_XAUTH}
+      source: ${__ISAACLAB_TMP_DIR}
+      target: ${__ISAACLAB_TMP_DIR}
     - type: bind
       source: /tmp/.X11-unix
       target: /tmp/.X11-unix
@@ -25,8 +25,8 @@ services:
       - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
     volumes:
     - type: bind
-      source: ${__ISAACLAB_TMP_XAUTH}
-      target: ${__ISAACLAB_TMP_XAUTH}
+      source: ${__ISAACLAB_TMP_DIR}
+      target: ${__ISAACLAB_TMP_DIR}
     - type: bind
       source: /tmp/.X11-unix
       target: /tmp/.X11-unix
