@@ -33,24 +33,20 @@ class RigidObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
-    _root_physx_view: physx.RigidBodyView
-    """The root rigid body view of the object.
-
-    Note:
-        Internally, this is stored as a weak reference to avoid circular references between the asset class
-        and the data container. This is important to avoid memory leaks.
-    """
-
     def __init__(self, root_physx_view: physx.RigidBodyView, device: str):
         """Initializes the rigid object data.
 
         Args:
-            root_physx_view: The root rigid body view of the object.
+            root_physx_view: The root rigid body view.
             device: The device used for processing.
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
+        # Set the root rigid body view
+        # note: this is stored as a weak reference to avoid circular references between the asset class
+        #  and the data container. This is important to avoid memory leaks.
+        self._root_physx_view: physx.RigidBodyView = weakref.proxy(root_physx_view)
+
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
@@ -76,6 +72,7 @@ class RigidObjectData:
         Args:
             dt: The time step for the update. This must be a positive value.
         """
+        # update the simulation timestamp
         self._sim_timestamp += dt
 
     ##
@@ -97,7 +94,7 @@ class RigidObjectData:
     """
 
     default_mass: torch.Tensor = None
-    """ Default mass provided by simulation. Shape is (num_instances, num_bodies)."""
+    """Default mass read from the simulation. Shape is (num_instances, num_bodies)."""
 
     ##
     # Properties.
@@ -133,8 +130,7 @@ class RigidObjectData:
     def body_acc_w(self):
         """Acceleration of all bodies. Shape is (num_instances, 1, 6).
 
-        This quantity is the acceleration of the rigid bodies' center of mass frame. The acceleration
-        is computed using finite differencing of the linear and angular velocities of the bodies.
+        This quantity is the acceleration of the rigid bodies' center of mass frame.
         """
         if self._body_acc_w.timestamp < self._sim_timestamp:
             # note: we use finite differencing to compute acceleration
@@ -157,6 +153,10 @@ class RigidObjectData:
         """
         forward_w = math_utils.quat_apply(self.root_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
+
+    ##
+    # Derived properties.
+    ##
 
     @property
     def root_pos_w(self) -> torch.Tensor:
@@ -255,3 +255,19 @@ class RigidObjectData:
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
         return self.body_state_w[..., 10:13]
+
+    @property
+    def body_lin_acc_w(self) -> torch.Tensor:
+        """Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the linear acceleration of the rigid bodies' center of mass frame.
+        """
+        return self.body_acc_w[..., 0:3]
+
+    @property
+    def body_ang_acc_w(self) -> torch.Tensor:
+        """Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).
+
+        This quantity is the angular acceleration of the rigid bodies' center of mass frame.
+        """
+        return self.body_acc_w[..., 3:6]

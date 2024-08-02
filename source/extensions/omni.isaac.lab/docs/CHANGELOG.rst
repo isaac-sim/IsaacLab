@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.20.5 (2024-08-02)
+0.20.7 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -13,6 +13,29 @@ Fixed
   group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
 * Improved the error message when the observation terms are not of the same shape in the
   :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
+0.20.6 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the hierarchy from :class:`~omni.isaac.lab.assets.RigidObject` class to
+  :class:`~omni.isaac.lab.assets.Articulation` class. Previously, the articulation class overrode  almost
+  all the functions of the rigid object class making the hierarchy redundant. Now, the articulation class
+  is a standalone class that does not inherit from the rigid object class. This does add some code
+  duplication but the simplicity and clarity of the code is improved.
+
+
+0.20.5 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.terrain.TerrainGeneratorCfg.border_height` to set the height of the border
+  around the terrain.
 
 
 0.20.4 (2024-08-02)

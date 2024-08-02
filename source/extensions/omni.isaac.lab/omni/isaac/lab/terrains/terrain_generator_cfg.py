@@ -125,6 +125,9 @@ class TerrainGeneratorCfg:
     border_width: float = 0.0
     """The width of the border around the terrain (in m). Defaults to 0.0."""
 
+    border_height: float = 1.0
+    """The height of the border around the terrain (in m). Defaults to 1.0."""
+
     num_rows: int = 1
     """Number of rows of sub-terrains to generate. Defaults to 1."""
 
