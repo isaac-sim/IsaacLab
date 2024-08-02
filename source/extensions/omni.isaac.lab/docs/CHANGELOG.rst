@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.20.7 (2024-08-02)
+0.20.8 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -13,6 +13,20 @@ Fixed
   group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
 * Improved the error message when the observation terms are not of the same shape in the
   :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
+0.20.7 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Performance improvements for material randomization in events.
+
+Added
+^^^^^
+
+* Added minimum randomization frequency for reset mode randomizations.
 
 
 0.20.6 (2024-08-02)

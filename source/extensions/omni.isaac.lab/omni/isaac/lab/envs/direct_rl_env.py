@@ -287,7 +287,8 @@ class DirectRLEnv(gym.Env):
         """
         # add action noise
         if self.cfg.action_noise_model:
-            action = self._action_noise_model.apply(action.clone())
+            action = self._action_noise_model.apply(action)
+
         # process actions
         self._pre_physics_step(action)
 
@@ -518,7 +519,8 @@ class DirectRLEnv(gym.Env):
         # apply events such as randomization for environments that need a reset
         if self.cfg.events:
             if "reset" in self.event_manager.available_modes:
-                self.event_manager.apply(env_ids=env_ids, mode="reset")
+                env_step_count = self._sim_step_counter // self.cfg.decimation
+                self.event_manager.apply(env_ids=env_ids, mode="reset", global_env_step_count=env_step_count)
 
         # reset noise models
         if self.cfg.action_noise_model:
