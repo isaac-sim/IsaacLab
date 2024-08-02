@@ -107,13 +107,13 @@ class Articulation(AssetBase):
         return self._data
 
     @property
+    def num_instances(self) -> int:
+        return self.root_physx_view.count
+
+    @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
         return self.root_physx_view.shared_metatype.fixed_base
-
-    @property
-    def num_instances(self) -> int:
-        return self.root_physx_view.count
 
     @property
     def num_joints(self) -> int:
