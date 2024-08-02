@@ -513,6 +513,7 @@ document.write(`
 <span class="sd">    Keyword Args:</span>
 <span class="sd">        color: A list of 3 integers in the range [0,255] representing the RGB</span>
 <span class="sd">            color of the mesh. Used when the z-coordinates of all vertices are the same.</span>
+<span class="sd">            Defaults to [172, 216, 230].</span>
 <span class="sd">        color_map: The name of the color map to be used. Defaults to &quot;turbo&quot;.</span>
 
 <span class="sd">    Returns:</span>
@@ -525,7 +526,7 @@ document.write(`
     <span class="c1"># Check if the z-coordinates are all the same</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">heights</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">heights</span><span class="p">):</span>
         <span class="c1"># Obtain a single color: light blue</span>
-        <span class="n">color</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;color&quot;</span><span class="p">,</span> <span class="p">[</span><span class="mi">172</span><span class="p">,</span> <span class="mi">216</span><span class="p">,</span> <span class="mi">230</span><span class="p">,</span> <span class="mi">255</span><span class="p">])</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;color&quot;</span><span class="p">,</span> <span class="p">(</span><span class="mi">172</span><span class="p">,</span> <span class="mi">216</span><span class="p">,</span> <span class="mi">230</span><span class="p">))</span>
         <span class="n">color</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">color</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
         <span class="c1"># Set the color for all vertices</span>
         <span class="n">mesh</span><span class="o">.</span><span class="n">visual</span><span class="o">.</span><span class="n">vertex_colors</span> <span class="o">=</span> <span class="n">color</span>
@@ -626,7 +627,7 @@ document.write(`
     <span class="n">y_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">z_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
     <span class="n">max_height_diff</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
-<span class="p">):</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Finds flat patches of given radius in the input mesh.</span>
 
 <span class="sd">    The function finds flat patches of given radius based on the search space defined by the input ranges.</span>
