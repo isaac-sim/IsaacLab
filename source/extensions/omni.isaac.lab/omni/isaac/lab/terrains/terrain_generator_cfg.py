@@ -179,7 +179,12 @@ class TerrainGeneratorCfg:
     """
 
     use_cache: bool = False
-    """Whether to load the terrain from cache if it exists. Defaults to True."""
+    """Whether to load the sub-terrain from cache if it exists. Defaults to True.
+
+    If enabled, the generated terrains are stored in the cache directory. When generating terrains, the cache
+    is checked to see if the terrain already exists. If it does, the terrain is loaded from the cache. Otherwise,
+    the terrain is generated and stored in the cache. Caching can be used to speed up terrain generation.
+    """
 
     cache_dir: str = "/tmp/isaaclab/terrains"
     """The directory where the terrain cache is stored. Defaults to "/tmp/isaaclab/terrains"."""
