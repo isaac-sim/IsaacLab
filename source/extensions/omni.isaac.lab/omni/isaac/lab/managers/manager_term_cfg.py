@@ -155,7 +155,7 @@ class ObservationGroupCfg:
     If true, the observation terms in the group are concatenated along the last dimension.
     Otherwise, they are kept separate and returned as a dictionary.
 
-    If the observation group contains terms of different dimensions, please set this to False.
+    If the observation group contains terms of different dimensions, it must be set to False.
     """
 
     enable_corruption: bool = False
