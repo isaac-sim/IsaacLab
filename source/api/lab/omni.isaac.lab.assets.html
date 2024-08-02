@@ -1442,6 +1442,14 @@ does not support debug visualization.</p>
 <p>This class contains the data for a rigid object in the simulation. The data includes the state of
 the root rigid body and the state of all the bodies in the object. The data is stored in the simulation
 world frame unless otherwise specified.</p>
+<p>For a rigid body, there are two frames of reference that are used:</p>
+<ul class="simple">
+<li><p>Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+with the rigid body schema.</p></li>
+<li><p>Center of mass frame: The frame of reference of the center of mass of the rigid body.</p></li>
+</ul>
+<p>Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
+This needs to be taken into account when interpreting the data.</p>
 <p>The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
 when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
 is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.</p>
@@ -1541,6 +1549,8 @@ is older than the current simulation timestamp. The timestamp is updated wheneve
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.default_root_state">
 <span class="sig-name descname"><span class="pre">default_root_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.default_root_state" title="Permalink to this definition">#</a></dt>
 <dd><p>Default root state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in local environment frame. Shape is (num_instances, 13).</p>
+<p>The position and quaternion are of the rigid body’s actor frame. Meanwhile, the linear and angular velocities are
+of the center of mass frame.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1553,18 +1563,24 @@ is older than the current simulation timestamp. The timestamp is updated wheneve
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_state_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_state_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in simulation world frame. Shape is (num_instances, 13).</p>
+<p>The position and orientation are of the rigid body’s actor frame. Meanwhile, the linear and angular
+velocities are of the rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_state_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_state_w" title="Permalink to this definition">#</a></dt>
 <dd><p>State of all bodies <cite>[pos, quat, lin_vel, ang_vel]</cite> in simulation world frame. Shape is (num_instances, 1, 13).</p>
+<p>The position and orientation are of the rigid bodies’ actor frame. Meanwhile, the linear and angular
+velocities are of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_acc_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Acceleration of all bodies. Shape is (num_instances, 1, 6).</p>
+<p>This quantity is the acceleration of the rigid bodies’ center of mass frame. The acceleration
+is computed using finite differencing of the linear and angular velocities of the bodies.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1588,72 +1604,86 @@ frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_pos_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root position in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the position of the actor frame of the root rigid body.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).</p>
+<p>This quantity is the orientation of the actor frame of the root rigid body.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root velocity in simulation world frame. Shape is (num_instances, 6).</p>
+<p>This quantity contains the linear and angular velocities of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root linear velocity in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the linear velocity of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root angular velocity in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the angular velocity of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_lin_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_lin_vel_b" title="Permalink to this definition">#</a></dt>
 <dd><p>Root linear velocity in base frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the linear velocity of the root rigid body’s center of mass frame with respect to the
+rigid body’s actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_ang_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.root_ang_vel_b" title="Permalink to this definition">#</a></dt>
 <dd><p>Root angular velocity in base world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the angular velocity of the root rigid body’s center of mass frame with respect to the
+rigid body’s actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_pos_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the position of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</p>
+<p>This quantity is the orientation of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
+<p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_lin_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the linear velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.RigidObjectData.body_ang_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the angular velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 </dd></dl>
@@ -2569,6 +2599,15 @@ and angular velocity. All the quantities are in the simulation frame.</p>
 <p>Data container for an articulation.</p>
 <p>This class extends the <a class="reference internal" href="#omni.isaac.lab.assets.RigidObjectData" title="omni.isaac.lab.assets.RigidObjectData"><code class="xref py py-class docutils literal notranslate"><span class="pre">RigidObjectData</span></code></a> class to provide additional data for
 an articulation mainly related to the joints and tendons.</p>
+<p>An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames
+of reference that are used:</p>
+<ul class="simple">
+<li><p>Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
+with the rigid body schema.</p></li>
+<li><p>Center of mass frame: The frame of reference of the center of mass of the rigid body.</p></li>
+</ul>
+<p>Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
+can be interpreted as the link frame.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2903,12 +2942,14 @@ actuator model.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_ang_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the angular velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_lin_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the linear velocity of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2921,18 +2962,21 @@ actuator model.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_pos_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the position of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</p>
+<p>This quantity is the orientation of the rigid bodies’ actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</p>
+<p>This quantity contains the linear and angular velocities of the rigid bodies’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -2945,6 +2989,8 @@ actuator model.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.default_root_state">
 <span class="sig-name descname"><span class="pre">default_root_state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.default_root_state" title="Permalink to this definition">#</a></dt>
 <dd><p>Default root state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in local environment frame. Shape is (num_instances, 13).</p>
+<p>The position and quaternion are of the rigid body’s actor frame. Meanwhile, the linear and angular velocities are
+of the center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -2974,42 +3020,51 @@ frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_ang_vel_b">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_ang_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_b" title="Permalink to this definition">#</a></dt>
 <dd><p>Root angular velocity in base world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the angular velocity of the root rigid body’s center of mass frame with respect to the
+rigid body’s actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_ang_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_ang_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_ang_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root angular velocity in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the angular velocity of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_lin_vel_b">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_lin_vel_b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_b" title="Permalink to this definition">#</a></dt>
 <dd><p>Root linear velocity in base frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the linear velocity of the root rigid body’s center of mass frame with respect to the
+rigid body’s actor frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_lin_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_lin_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_lin_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root linear velocity in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the linear velocity of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_pos_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_pos_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_pos_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root position in simulation world frame. Shape is (num_instances, 3).</p>
+<p>This quantity is the position of the actor frame of the root rigid body.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_quat_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_quat_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_quat_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).</p>
+<p>This quantity is the orientation of the actor frame of the root rigid body.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_vel_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_vel_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_vel_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root velocity in simulation world frame. Shape is (num_instances, 6).</p>
+<p>This quantity contains the linear and angular velocities of the root rigid body’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3094,6 +3149,8 @@ frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.root_state_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">root_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.root_state_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Root state <code class="docutils literal notranslate"><span class="pre">[pos,</span> <span class="pre">quat,</span> <span class="pre">lin_vel,</span> <span class="pre">ang_vel]</span></code> in simulation world frame. Shape is (num_instances, 13).</p>
+<p>The position and quaternion are of the articulation root’s actor frame. Meanwhile, the linear and angular
+velocities are of the articulation root’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -3101,24 +3158,29 @@ frame is along x-direction, i.e. <span class="math notranslate nohighlight">\((1
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_state_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_state_w" title="Permalink to this definition">#</a></dt>
 <dd><p>State of all bodies <cite>[pos, quat, lin_vel, ang_vel]</cite> in simulation world frame.
 Shape is (num_instances, num_bodies, 13).</p>
+<p>The position and quaternion are of all the articulation links’s actor frame. Meanwhile, the linear and angular
+velocities are of the articulation links’s center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_acc_w</span></span><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).</p>
+<p>This quantity is the acceleration of the articulation links’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_lin_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_lin_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_lin_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the linear acceleration of the articulation links’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.assets.ArticulationData.body_ang_acc_w">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">body_ang_acc_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a></em><a class="headerlink" href="#omni.isaac.lab.assets.ArticulationData.body_ang_acc_w" title="Permalink to this definition">#</a></dt>
 <dd><p>Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</p>
+<p>This quantity is the angular acceleration of the articulation links’ center of mass frame.</p>
 </dd></dl>
 
 <dl class="py property">

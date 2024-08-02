@@ -530,6 +530,11 @@ document.write(`
 
 <span class="sd">        Example: ``{ENV_REGEX_NS}/Object`` will be replaced with ``/World/envs/env_.*/Object``.</span>
 
+<span class="sd">    .. attention::</span>
+<span class="sd">        The reporting of filtered contacts only works when the sensor primitive :attr:`prim_path` corresponds to a</span>
+<span class="sd">        single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the</span>
+<span class="sd">        filtering will not work as expected. Please check :class:`~omni.isaac.lab.sensors.contact_sensor.ContactSensor`</span>
+<span class="sd">        for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">visualizer_cfg</span><span class="p">:</span> <span class="n">VisualizationMarkersCfg</span> <span class="o">=</span> <span class="n">CONTACT_SENSOR_MARKER_CFG</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/Visuals/ContactSensor&quot;</span><span class="p">)</span>

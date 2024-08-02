@@ -505,6 +505,15 @@ document.write(`
 <span class="sd">    the root rigid body and the state of all the bodies in the object. The data is stored in the simulation</span>
 <span class="sd">    world frame unless otherwise specified.</span>
 
+<span class="sd">    For a rigid body, there are two frames of reference that are used:</span>
+
+<span class="sd">    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim</span>
+<span class="sd">      with the rigid body schema.</span>
+<span class="sd">    - Center of mass frame: The frame of reference of the center of mass of the rigid body.</span>
+
+<span class="sd">    Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.</span>
+<span class="sd">    This needs to be taken into account when interpreting the data.</span>
+
 <span class="sd">    The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful</span>
 <span class="sd">    when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer</span>
 <span class="sd">    is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.</span>
@@ -567,7 +576,11 @@ document.write(`
     <span class="c1">##</span>
 
     <span class="n">default_root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).</span>
+
+<span class="sd">    The position and quaternion are of the rigid body&#39;s actor frame. Meanwhile, the linear and angular velocities are</span>
+<span class="sd">    of the center of mass frame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot; Default mass provided by simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
@@ -578,7 +591,11 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).</span>
+
+<span class="sd">        The position and orientation are of the rigid body&#39;s actor frame. Meanwhile, the linear and angular</span>
+<span class="sd">        velocities are of the rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation</span>
             <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -591,12 +608,20 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame. Shape is (num_instances, 1, 13).</span>
+
+<span class="sd">        The position and orientation are of the rigid bodies&#39; actor frame. Meanwhile, the linear and angular</span>
+<span class="sd">        velocities are of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, 1, 6).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, 1, 6).</span>
+
+<span class="sd">        This quantity is the acceleration of the rigid bodies&#39; center of mass frame. The acceleration</span>
+<span class="sd">        is computed using finite differencing of the linear and angular velocities of the bodies.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># note: we use finite differencing to compute acceleration</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_accelerations</span><span class="p">()</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
@@ -621,62 +646,100 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root position in simulation world frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root position in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the position of the actor frame of the root rigid body.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the actor frame of the root rigid body.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root velocity in simulation world frame. Shape is (num_instances, 6).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root velocity in simulation world frame. Shape is (num_instances, 6).</span>
+
+<span class="sd">        This quantity contains the linear and angular velocities of the root rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in simulation world frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the root rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in simulation world frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the root rigid body&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in base frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the root rigid body&#39;s center of mass frame with respect to the</span>
+<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_lin_vel_w</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in base world frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in base world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the root rigid body&#39;s center of mass frame with respect to the</span>
+<span class="sd">        rigid body&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_ang_vel_w</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the position of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</span>
+
+<span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span></div>
 </pre></div>
 

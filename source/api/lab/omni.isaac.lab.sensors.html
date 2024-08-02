@@ -2229,7 +2229,19 @@ It relies on the <a class="reference external" href="https://docs.omniverse.nvid
 asset spawner configuration. This will enable the contact reporter on all the rigid bodies
 in the asset.</p>
 <p>The sensor can be configured to report the contact forces on a set of bodies with a given
-filter pattern. Please check the documentation on <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.RigidContactView">RigidContactView</a> for more details.</p>
+filter pattern using the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="omni.isaac.lab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a>. This is useful
+when you want to report the contact forces between the sensor bodies and a specific set of
+bodies in the scene. The data can be accessed using the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorData.force_matrix_w" title="omni.isaac.lab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorData.force_matrix_w</span></code></a>.
+Please check the documentation on <a class="reference external" href="https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.RigidContactView">RigidContactView</a> for more details.</p>
+<p>The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
+sensor body in an environment can be filtered against multiple bodies in that environment. If you need to
+filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor
+body.</p>
+<p>As an example, suppose you want to report the contact forces for all the feet of a robot against an object
+exclusively. In that case, setting the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.prim_path" title="omni.isaac.lab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.prim_path</span></code></a> and
+<a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.filter_prim_paths_expr" title="omni.isaac.lab.sensors.ContactSensorCfg.filter_prim_paths_expr"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.filter_prim_paths_expr</span></code></a> with <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Robot/.*_FOOT</span></code> and <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Object</span></code>
+respectively will not work. Instead, you need to create a separate sensor for each foot and filter
+it against the object.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -2503,13 +2515,13 @@ does not support debug visualization.</p>
 <td><p>Orientation of the sensor origin in quaternion (w, x, y, z) in world frame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorData.net_forces_w" title="omni.isaac.lab.sensors.ContactSensorData.net_forces_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w</span></code></a></p></td>
-<td><p>The net contact forces in world frame.</p></td>
+<td><p>The net normal contact forces in world frame.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorData.net_forces_w_history" title="omni.isaac.lab.sensors.ContactSensorData.net_forces_w_history"><code class="xref py py-obj docutils literal notranslate"><span class="pre">net_forces_w_history</span></code></a></p></td>
-<td><p>The net contact forces in world frame.</p></td>
+<td><p>The net normal contact forces in world frame.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorData.force_matrix_w" title="omni.isaac.lab.sensors.ContactSensorData.force_matrix_w"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_matrix_w</span></code></a></p></td>
-<td><p>The contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
+<td><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorData.last_air_time" title="omni.isaac.lab.sensors.ContactSensorData.last_air_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">last_air_time</span></code></a></p></td>
 <td><p>Time spent (in s) in the air before the last contact.</p></td>
@@ -2533,7 +2545,7 @@ does not support debug visualization.</p>
 <p>Shape is (N, 3), where N is the number of sensors.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.track_pose" title="omni.isaac.lab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a> is False, then this qunatity is None.</p>
+<p>If the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.track_pose" title="omni.isaac.lab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a> is False, then this quantity is None.</p>
 </div>
 </dd></dl>
 
@@ -2544,30 +2556,40 @@ does not support debug visualization.</p>
 <p>Shape is (N, 4), where N is the number of sensors.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.track_pose" title="omni.isaac.lab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a> is False, then this qunatity is None.</p>
+<p>If the <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.track_pose" title="omni.isaac.lab.sensors.ContactSensorCfg.track_pose"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ContactSensorCfg.track_pose</span></code></a> is False, then this quantity is None.</p>
 </div>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.ContactSensorData.net_forces_w">
 <span class="sig-name descname"><span class="pre">net_forces_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.ContactSensorData.net_forces_w" title="Permalink to this definition">#</a></dt>
-<dd><p>The net contact forces in world frame.</p>
+<dd><p>The net normal contact forces in world frame.</p>
 <p>Shape is (N, B, 3), where N is the number of sensors and B is the number of bodies in each sensor.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This quantity is the sum of the normal contact forces acting on the sensor bodies. It must not be confused
+with the total contact forces acting on the sensor bodies (which also includes the tangential forces).</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.ContactSensorData.net_forces_w_history">
 <span class="sig-name descname"><span class="pre">net_forces_w_history</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.ContactSensorData.net_forces_w_history" title="Permalink to this definition">#</a></dt>
-<dd><p>The net contact forces in world frame.</p>
+<dd><p>The net normal contact forces in world frame.</p>
 <p>Shape is (N, T, B, 3), where N is the number of sensors, T is the configured history length
 and B is the number of bodies in each sensor.</p>
 <p>In the history dimension, the first index is the most recent and the last index is the oldest.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This quantity is the sum of the normal contact forces acting on the sensor bodies. It must not be confused
+with the total contact forces acting on the sensor bodies (which also includes the tangential forces).</p>
+</div>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sensors.ContactSensorData.force_matrix_w">
 <span class="sig-name descname"><span class="pre">force_matrix_w</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.4)"><span class="pre">torch.Tensor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#omni.isaac.lab.sensors.ContactSensorData.force_matrix_w" title="Permalink to this definition">#</a></dt>
-<dd><p>The contact forces filtered between the sensor bodies and filtered bodies in world frame.</p>
+<dd><p>The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.</p>
 <p>Shape is (N, B, M, 3), where N is the number of sensors, B is number of bodies in each sensor
 and <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of filtered bodies.</p>
 <div class="admonition note">
@@ -2712,6 +2734,13 @@ you can obtain individual contact reports of the base of the robot with the grou
 <p>The expression in the list can contain the environment namespace regex <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}</span></code> which
 will be replaced with the environment namespace.</p>
 <p>Example: <code class="docutils literal notranslate"><span class="pre">{ENV_REGEX_NS}/Object</span></code> will be replaced with <code class="docutils literal notranslate"><span class="pre">/World/envs/env_.*/Object</span></code>.</p>
+</div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>The reporting of filtered contacts only works when the sensor primitive <a class="reference internal" href="#omni.isaac.lab.sensors.ContactSensorCfg.prim_path" title="omni.isaac.lab.sensors.ContactSensorCfg.prim_path"><code class="xref py py-attr docutils literal notranslate"><span class="pre">prim_path</span></code></a> corresponds to a
+single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
+filtering will not work as expected. Please check <code class="xref py py-class docutils literal notranslate"><span class="pre">ContactSensor</span></code>
+for more details.</p>
 </div>
 </dd></dl>
 

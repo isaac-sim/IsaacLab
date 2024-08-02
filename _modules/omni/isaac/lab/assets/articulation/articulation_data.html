@@ -504,6 +504,16 @@ document.write(`
 
 <span class="sd">    This class extends the :class:`RigidObjectData` class to provide additional data for</span>
 <span class="sd">    an articulation mainly related to the joints and tendons.</span>
+
+<span class="sd">    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames</span>
+<span class="sd">    of reference that are used:</span>
+
+<span class="sd">    - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim</span>
+<span class="sd">      with the rigid body schema.</span>
+<span class="sd">    - Center of mass frame: The frame of reference of the center of mass of the rigid body.</span>
+
+<span class="sd">    Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame</span>
+<span class="sd">    can be interpreted as the link frame.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span>
@@ -697,7 +707,11 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame. Shape is (num_instances, 13).</span>
+
+<span class="sd">        The position and quaternion are of the articulation root&#39;s actor frame. Meanwhile, the linear and angular</span>
+<span class="sd">        velocities are of the articulation root&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation</span>
             <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_root_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -711,7 +725,11 @@ document.write(`
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_state_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.</span>
-<span class="sd">        Shape is (num_instances, num_bodies, 13).&quot;&quot;&quot;</span>
+<span class="sd">        Shape is (num_instances, num_bodies, 13).</span>
+
+<span class="sd">        The position and quaternion are of all the articulation links&#39;s actor frame. Meanwhile, the linear and angular</span>
+<span class="sd">        velocities are of the articulation links&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation</span>
             <span class="n">poses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
@@ -724,7 +742,10 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, num_bodies, 6).</span>
+
+<span class="sd">        This quantity is the acceleration of the articulation links&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># read data from simulation and set the buffer data and timestamp</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_link_accelerations</span><span class="p">()</span>
@@ -733,12 +754,18 @@ document.write(`
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the linear acceleration of the articulation links&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the angular acceleration of the articulation links&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
 
     <span class="nd">@property</span>

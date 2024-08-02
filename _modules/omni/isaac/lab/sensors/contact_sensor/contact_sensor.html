@@ -525,7 +525,21 @@ document.write(`
 <span class="sd">    in the asset.</span>
 
 <span class="sd">    The sensor can be configured to report the contact forces on a set of bodies with a given</span>
-<span class="sd">    filter pattern. Please check the documentation on `RigidContactView`_ for more details.</span>
+<span class="sd">    filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful</span>
+<span class="sd">    when you want to report the contact forces between the sensor bodies and a specific set of</span>
+<span class="sd">    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.</span>
+<span class="sd">    Please check the documentation on `RigidContactView`_ for more details.</span>
+
+<span class="sd">    The reporting of the filtered contact forces is only possible as one-to-many. This means that only one</span>
+<span class="sd">    sensor body in an environment can be filtered against multiple bodies in that environment. If you need to</span>
+<span class="sd">    filter multiple sensor bodies against multiple bodies, you need to create separate sensors for each sensor</span>
+<span class="sd">    body.</span>
+
+<span class="sd">    As an example, suppose you want to report the contact forces for all the feet of a robot against an object</span>
+<span class="sd">    exclusively. In that case, setting the :attr:`ContactSensorCfg.prim_path` and</span>
+<span class="sd">    :attr:`ContactSensorCfg.filter_prim_paths_expr` with ``{ENV_REGEX_NS}/Robot/.*_FOOT`` and ``{ENV_REGEX_NS}/Object``</span>
+<span class="sd">    respectively will not work. Instead, you need to create a separate sensor for each foot and filter</span>
+<span class="sd">    it against the object.</span>
 
 <span class="sd">    .. _PhysX ContactReporter: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_contact_report_a_p_i.html</span>
 <span class="sd">    .. _RigidContactView: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.core/docs/index.html#omni.isaac.core.prims.RigidContactView</span>
@@ -807,11 +821,13 @@ document.write(`
             <span class="n">force_matrix_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contact_physx_view</span><span class="o">.</span><span class="n">get_contact_force_matrix</span><span class="p">(</span><span class="n">dt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sim_physics_dt</span><span class="p">)</span>
             <span class="n">force_matrix_w</span> <span class="o">=</span> <span class="n">force_matrix_w</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="n">num_filters</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">force_matrix_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">force_matrix_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span>
+
         <span class="c1"># obtain the pose of the sensor origin</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_pose</span><span class="p">:</span>
             <span class="n">pose</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_physx_view</span><span class="o">.</span><span class="n">get_transforms</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_bodies</span><span class="p">,</span> <span class="mi">7</span><span class="p">)[</span><span class="n">env_ids</span><span class="p">]</span>
             <span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">convert_quat</span><span class="p">(</span><span class="n">pose</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:],</span> <span class="n">to</span><span class="o">=</span><span class="s2">&quot;wxyz&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">pos_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">quat_w</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">pose</span><span class="o">.</span><span class="n">split</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
         <span class="c1"># obtain the air time</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">track_air_time</span><span class="p">:</span>
             <span class="c1"># -- time elapsed since last update</span>
