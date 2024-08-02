@@ -44,6 +44,11 @@ class ContactSensorCfg(SensorBaseCfg):
 
         Example: ``{ENV_REGEX_NS}/Object`` will be replaced with ``/World/envs/env_.*/Object``.
 
+    .. attention::
+        The reporting of filtered contacts only works when the sensor primitive :attr:`prim_path` corresponds to a
+        single primitive in that environment. If the sensor primitive corresponds to multiple primitives, the
+        filtering will not work as expected. Please check :class:`~omni.isaac.lab.sensors.contact_sensor.ContactSensor`
+        for more details.
     """
 
     visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")

@@ -96,7 +96,11 @@ def callable_to_string(value: Callable) -> str:
         raise ValueError(f"The input argument is not callable: {value}.")
     # check if lambda function
     if value.__name__ == "<lambda>":
-        return f"lambda {inspect.getsourcelines(value)[0][0].strip().split('lambda')[1].strip().split(',')[0]}"
+        # we resolve the lambda expression by checking the source code and extracting the line with lambda expression
+        # we also remove any comments from the line
+        lambda_line = inspect.getsourcelines(value)[0][0].strip().split("lambda")[1].strip().split(",")[0]
+        lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
+        return f"lambda {lambda_line}"
     else:
         # get the module and function name
         module_name = value.__module__

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 from contextlib import ContextDecorator
-from typing import Any
+from typing import Any, ClassVar
 
 
 class TimerError(Exception):
@@ -60,14 +60,25 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    def __init__(self, msg: str | None = None):
+    timing_info: ClassVar[dict[str, float]] = dict()
+    """Dictionary for storing the elapsed time per timer instances globally.
+
+    This dictionary logs the timer information. The keys are the names given to the timer class
+    at its initialization. If no :attr:`name` is passed to the constructor, no time
+    is recorded in the dictionary.
+    """
+
+    def __init__(self, msg: str | None = None, name: str | None = None):
         """Initializes the timer.
 
         Args:
             msg: The message to display when using the timer
                 class in a context manager. Defaults to None.
+            name: The name to use for logging times in a global
+                dictionary. Defaults to None.
         """
         self._msg = msg
+        self._name = name
         self._start_time = None
         self._stop_time = None
         self._elapsed_time = None
@@ -118,6 +129,9 @@ class Timer(ContextDecorator):
         self._elapsed_time = self._stop_time - self._start_time
         self._start_time = None
 
+        if self._name:
+            Timer.timing_info[self._name] = self._elapsed_time
+
     """
     Context managers
     """
@@ -133,3 +147,25 @@ class Timer(ContextDecorator):
         # print message
         if self._msg is not None:
             print(self._msg, f": {self._elapsed_time:0.6f} seconds")
+
+    """
+    Static Methods
+    """
+
+    @staticmethod
+    def get_timer_info(name: str) -> float:
+        """Retrieves the time logged in the global dictionary
+            based on name.
+
+        Args:
+            name: Name of the the entry to be retrieved.
+
+        Raises:
+            TimerError: If name doesn't exist in the log.
+
+        Returns:
+            A float containing the time logged if the name exists.
+        """
+        if name not in Timer.timing_info:
+            raise TimerError(f"Timer {name} does not exist")
+        return Timer.timing_info.get(name)

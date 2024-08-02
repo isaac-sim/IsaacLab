@@ -22,7 +22,7 @@ from .utils import color_meshes_by_height, find_flat_patches
 
 
 class TerrainGenerator:
-    """Terrain generator to handle different terrain generation functions.
+    r"""Terrain generator to handle different terrain generation functions.
 
     The terrains are represented as meshes. These are obtained either from height fields or by using the
     `trimesh <https://trimsh.org/trimesh.html>`__ library. The height field representation is more
@@ -39,18 +39,41 @@ class TerrainGenerator:
     which contains the common parameters for all terrains.
 
     If a curriculum is used, the terrains are generated based on their difficulty parameter.
-    The difficulty is varied linearly over the number of rows (i.e. along x). If a curriculum
-    is not used, the terrains are generated randomly.
+    The difficulty is varied linearly over the number of rows (i.e. along x) with a small random value
+    added to the difficulty to ensure that the columns with the same sub-terrain type are not exactly
+    the same. The difficulty parameter for a sub-terrain at a given row is calculated as:
 
-    If the :obj:`cfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
+    .. math::
+
+        \text{difficulty} = \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
+
+    where :math:`\eta\sim\mathcal{U}(0, 1)` is a random perturbation to the difficulty, and
+    :math:`(\text{lower}, \text{upper})` is the range of the difficulty parameter, specified using the
+    :attr:`~TerrainGeneratorCfg.difficulty_range` parameter.
+
+    If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter
+    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range` parameter:
+
+    .. math::
+
+        \text{difficulty} \sim \mathcal{U}(\text{lower}, \text{upper})
+
+    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
     on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
     in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the
     value is a tensor containing the flat patches for each sub-terrain.
 
-    If the flag :obj:`cfg.use_cache` is set to True, the terrains are cached based on their
+    If the flag :attr:`~TerrainGeneratorCfg.use_cache` is set to True, the terrains are cached based on their
     sub-terrain configurations. This means that if the same sub-terrain configuration is used
     multiple times, the terrain is only generated once and then reused. This is useful when
     generating complex sub-terrains that take a long time to generate.
+
+    .. attention::
+
+        The terrain generation has its own seed parameter. This is set using the :attr:`TerrainGeneratorCfg.seed`
+        parameter. If the seed is not set and the caching is disabled, the terrain generation will not be
+        reproducible.
+
     """
 
     terrain_mesh: trimesh.Trimesh
@@ -83,8 +106,7 @@ class TerrainGenerator:
         # store inputs
         self.cfg = cfg
         self.device = device
-        # -- valid patches
-        self.flat_patches = {}
+
         # set common values to all sub-terrains config
         for sub_cfg in self.cfg.sub_terrains.values():
             # size of all terrains
@@ -95,10 +117,20 @@ class TerrainGenerator:
                 sub_cfg.vertical_scale = self.cfg.vertical_scale
                 sub_cfg.slope_threshold = self.cfg.slope_threshold
 
+        # throw a warning if the cache is enabled but the seed is not set
+        if self.cfg.use_cache and self.cfg.seed is None:
+            carb.log_warn(
+                "Cache is enabled but the seed is not set. The terrain generation will not be reproducible."
+                " Please set the seed in the terrain generator configuration to make the generation reproducible."
+            )
+
         # set the seed for reproducibility
-        if self.cfg.seed is not None:
-            torch.manual_seed(self.cfg.seed)
-            np.random.seed(self.cfg.seed)
+        # note: we create a new random number generator to avoid affecting the global state
+        #  in the other places where random numbers are used.
+        self.np_rng = np.random.default_rng(self.cfg.seed)
+
+        # buffer for storing valid patches
+        self.flat_patches = {}
         # create a list of all sub-terrains
         self.terrain_meshes = list()
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
@@ -120,7 +152,7 @@ class TerrainGenerator:
         if self.cfg.color_scheme == "height":
             self.terrain_mesh = color_meshes_by_height(self.terrain_mesh)
         elif self.cfg.color_scheme == "random":
-            self.terrain_mesh.visual.vertex_colors = np.random.choice(
+            self.terrain_mesh.visual.vertex_colors = self.np_rng.choice(
                 range(256), size=(len(self.terrain_mesh.vertices), 4)
             )
         elif self.cfg.color_scheme == "none":
@@ -140,6 +172,23 @@ class TerrainGenerator:
         for name, value in self.flat_patches.items():
             self.flat_patches[name] = value + terrain_origins_torch
 
+    def __str__(self):
+        """Return a string representation of the terrain generator."""
+        msg = "Terrain Generator:"
+        msg += f"\n\tSeed: {self.cfg.seed}"
+        msg += f"\n\tNumber of rows: {self.cfg.num_rows}"
+        msg += f"\n\tNumber of columns: {self.cfg.num_cols}"
+        msg += f"\n\tSub-terrain size: {self.cfg.size}"
+        msg += f"\n\tSub-terrain types: {list(self.cfg.sub_terrains.keys())}"
+        msg += f"\n\tCurriculum: {self.cfg.curriculum}"
+        msg += f"\n\tDifficulty range: {self.cfg.difficulty_range}"
+        msg += f"\n\tColor scheme: {self.cfg.color_scheme}"
+        msg += f"\n\tUse cache: {self.cfg.use_cache}"
+        if self.cfg.use_cache:
+            msg += f"\n\tCache directory: {self.cfg.cache_dir}"
+
+        return msg
+
     """
     Terrain generator functions.
     """
@@ -157,9 +206,9 @@ class TerrainGenerator:
             # coordinate index of the sub-terrain
             (sub_row, sub_col) = np.unravel_index(index, (self.cfg.num_rows, self.cfg.num_cols))
             # randomly sample terrain index
-            sub_index = np.random.choice(len(proportions), p=proportions)
+            sub_index = self.np_rng.choice(len(proportions), p=proportions)
             # randomly sample difficulty parameter
-            difficulty = np.random.uniform(*self.cfg.difficulty_range)
+            difficulty = self.np_rng.uniform(*self.cfg.difficulty_range)
             # generate terrain
             mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_index])
             # add to sub-terrains
@@ -185,8 +234,13 @@ class TerrainGenerator:
         for sub_col in range(self.cfg.num_cols):
             for sub_row in range(self.cfg.num_rows):
                 # vary the difficulty parameter linearly over the number of rows
+                # note: based on the proportion, multiple columns can have the same sub-terrain type.
+                #  Thus to increase the diversity along the rows, we add a small random value to the difficulty.
+                #  This ensures that the terrains are not exactly the same. For example, if the
+                #  the row index is 2 and the number of rows is 10, the nominal difficulty is 0.2.
+                #  We add a small random value to the difficulty to make it between 0.2 and 0.3.
                 lower, upper = self.cfg.difficulty_range
-                difficulty = (sub_row + np.random.uniform()) / self.cfg.num_rows
+                difficulty = (sub_row + self.np_rng.uniform()) / self.cfg.num_rows
                 difficulty = lower + (upper - lower) * difficulty
                 # generate terrain
                 mesh, origin = self._get_terrain_mesh(difficulty, sub_terrains_cfgs[sub_indices[sub_col]])
@@ -205,9 +259,13 @@ class TerrainGenerator:
             self.cfg.num_cols * self.cfg.size[1] + 2 * self.cfg.border_width,
         )
         inner_size = (self.cfg.num_rows * self.cfg.size[0], self.cfg.num_cols * self.cfg.size[1])
-        border_center = (self.cfg.num_rows * self.cfg.size[0] / 2, self.cfg.num_cols * self.cfg.size[1] / 2, -0.5)
+        border_center = (
+            self.cfg.num_rows * self.cfg.size[0] / 2,
+            self.cfg.num_cols * self.cfg.size[1] / 2,
+            -self.cfg.border_height / 2,
+        )
         # border mesh
-        border_meshes = make_border(border_size, inner_size, height=1.0, position=border_center)
+        border_meshes = make_border(border_size, inner_size, height=self.cfg.border_height, position=border_center)
         border = trimesh.util.concatenate(border_meshes)
         # update the faces to have minimal triangles
         selector = ~(np.asarray(border.triangles)[:, :, 2] < -0.1).any(1)
@@ -280,6 +338,8 @@ class TerrainGenerator:
         Returns:
             The sub-terrain mesh and origin.
         """
+        # copy the configuration
+        cfg = cfg.copy()
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)
         cfg.seed = self.cfg.seed
@@ -287,14 +347,14 @@ class TerrainGenerator:
         sub_terrain_hash = dict_to_md5_hash(cfg.to_dict())
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
-        sub_terrain_stl_filename = os.path.join(sub_terrain_cache_dir, "mesh.stl")
+        sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.obj")
         sub_terrain_csv_filename = os.path.join(sub_terrain_cache_dir, "origin.csv")
         sub_terrain_meta_filename = os.path.join(sub_terrain_cache_dir, "cfg.yaml")
 
         # check if hash exists - if true, load the mesh and origin and return
-        if self.cfg.use_cache and os.path.exists(sub_terrain_stl_filename):
+        if self.cfg.use_cache and os.path.exists(sub_terrain_obj_filename):
             # load existing mesh
-            mesh = trimesh.load_mesh(sub_terrain_stl_filename)
+            mesh = trimesh.load_mesh(sub_terrain_obj_filename, process=False)
             origin = np.loadtxt(sub_terrain_csv_filename, delimiter=",")
             # return the generated mesh
             return mesh, origin
@@ -314,7 +374,7 @@ class TerrainGenerator:
             # create the cache directory
             os.makedirs(sub_terrain_cache_dir, exist_ok=True)
             # save the data
-            mesh.export(sub_terrain_stl_filename)
+            mesh.export(sub_terrain_obj_filename)
             np.savetxt(sub_terrain_csv_filename, origin, delimiter=",", header="x,y,z")
             dump_yaml(sub_terrain_meta_filename, cfg)
         # return the generated mesh
