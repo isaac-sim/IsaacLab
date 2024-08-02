@@ -519,24 +519,20 @@ document.write(`
 <span class="sd">    is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The root rigid body view of the object.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        Internally, this is stored as a weak reference to avoid circular references between the asset class</span>
-<span class="sd">        and the data container. This is important to avoid memory leaks.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the rigid object data.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            root_physx_view: The root rigid body view of the object.</span>
+<span class="sd">            root_physx_view: The root rigid body view.</span>
 <span class="sd">            device: The device used for processing.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Set the parameters</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="n">root_physx_view</span><span class="p">)</span>  <span class="c1"># weak reference to avoid circular references</span>
+        <span class="c1"># Set the root rigid body view</span>
+        <span class="c1"># note: this is stored as a weak reference to avoid circular references between the asset class</span>
+        <span class="c1">#  and the data container. This is important to avoid memory leaks.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">RigidBodyView</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="n">root_physx_view</span><span class="p">)</span>
+
         <span class="c1"># Set initial time stamp</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">=</span> <span class="mf">0.0</span>
 
@@ -562,6 +558,7 @@ document.write(`
 <span class="sd">        Args:</span>
 <span class="sd">            dt: The time step for the update. This must be a positive value.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># update the simulation timestamp</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">+=</span> <span class="n">dt</span></div>
 
     <span class="c1">##</span>
@@ -583,7 +580,7 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot; Default mass provided by simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default mass read from the simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
 
     <span class="c1">##</span>
     <span class="c1"># Properties.</span>
@@ -619,8 +616,7 @@ document.write(`
     <span class="k">def</span> <span class="nf">body_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Acceleration of all bodies. Shape is (num_instances, 1, 6).</span>
 
-<span class="sd">        This quantity is the acceleration of the rigid bodies&#39; center of mass frame. The acceleration</span>
-<span class="sd">        is computed using finite differencing of the linear and angular velocities of the bodies.</span>
+<span class="sd">        This quantity is the acceleration of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># note: we use finite differencing to compute acceleration</span>
@@ -643,6 +639,10 @@ document.write(`
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">forward_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Derived properties.</span>
+    <span class="c1">##</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">root_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -740,7 +740,23 @@ document.write(`
 
 <span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the linear acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the angular acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span></div>
 </pre></div>
 
                 </article>

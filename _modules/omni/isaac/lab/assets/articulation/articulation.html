@@ -510,14 +510,14 @@ document.write(`
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.string</span> <span class="k">as</span> <span class="nn">string_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ActuatorBase</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">,</span> <span class="n">ImplicitActuator</span>
 
-<span class="kn">from</span> <span class="nn">..rigid_object</span> <span class="kn">import</span> <span class="n">RigidObject</span>
+<span class="kn">from</span> <span class="nn">..asset_base</span> <span class="kn">import</span> <span class="n">AssetBase</span>
 <span class="kn">from</span> <span class="nn">.articulation_data</span> <span class="kn">import</span> <span class="n">ArticulationData</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span> <span class="nn">.articulation_cfg</span> <span class="kn">import</span> <span class="n">ArticulationCfg</span>
 
 
-<div class="viewcode-block" id="Articulation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation">[docs]</a><span class="k">class</span> <span class="nc">Articulation</span><span class="p">(</span><span class="n">RigidObject</span><span class="p">):</span>
+<div class="viewcode-block" id="Articulation"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation">[docs]</a><span class="k">class</span> <span class="nc">Articulation</span><span class="p">(</span><span class="n">AssetBase</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;An articulation asset class.</span>
 
 <span class="sd">    An articulation is a collection of rigid bodies connected by joints. The joints can be either</span>
@@ -533,11 +533,6 @@ document.write(`
 <span class="sd">    the reduced coordinate formulation. On playing the simulation, the physics engine parses the</span>
 <span class="sd">    articulation root prim and creates the corresponding articulation in the physics engine. The</span>
 <span class="sd">    articulation root prim can be specified using the :attr:`AssetBaseCfg.prim_path` attribute.</span>
-
-<span class="sd">    The articulation class is a subclass of the :class:`RigidObject` class. Therefore, it inherits</span>
-<span class="sd">    all the functionality of the rigid object class. In case of an articulation, the :attr:`root_physx_view`</span>
-<span class="sd">    attribute corresponds to the articulation root view and can be used to access the articulation</span>
-<span class="sd">    related data.</span>
 
 <span class="sd">    The articulation class also provides the functionality to augment the simulation of an articulated</span>
 <span class="sd">    system with custom actuator models. These models can either be explicit or implicit, as detailed in</span>
@@ -598,6 +593,10 @@ document.write(`
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">num_instances</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">count</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_fixed_base</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Whether the articulation is a fixed-base or floating-base system.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">shared_metatype</span><span class="o">.</span><span class="n">fixed_base</span>
@@ -646,22 +645,35 @@ document.write(`
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="Articulation.reset"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
         <span class="c1"># use ellipses object to skip initial indices.</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
         <span class="c1"># reset actuators</span>
         <span class="k">for</span> <span class="n">actuator</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">actuators</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">actuator</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span></div>
+            <span class="n">actuator</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="c1"># reset external wrench</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span></div>
 
 <div class="viewcode-block" id="Articulation.write_data_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_data_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_data_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Write external wrenches and joint commands to the simulation.</span>
 
 <span class="sd">        If any explicit actuators are present, then the actuator models are used to compute the</span>
 <span class="sd">        joint commands. Otherwise, the joint commands are directly set into the simulation.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            We write external wrench to the simulation here since this function is called before the simulation step.</span>
+<span class="sd">            This ensures that the external wrench is applied at every simulation step.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># apply external forces and torques</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">write_data_to_sim</span><span class="p">()</span>
+        <span class="c1"># write external wrench</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">apply_forces_and_torques_at_position</span><span class="p">(</span>
+                <span class="n">force_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+                <span class="n">torque_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+                <span class="n">position_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">,</span>
+                <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
 
         <span class="c1"># apply actuator models</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_actuator_model</span><span class="p">()</span>
@@ -671,6 +683,28 @@ document.write(`
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_implicit_actuators</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_position_targets</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos_target_sim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_velocity_targets</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel_target_sim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Articulation.update"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span></div>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Operations - Finders.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Articulation.find_bodies"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_bodies">[docs]</a>    <span class="k">def</span> <span class="nf">find_bodies</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Find bodies in the articulation based on the name keys.</span>
+
+<span class="sd">        Please check the :meth:`omni.isaac.lab.utils.string_utils.resolve_matching_names` function for more</span>
+<span class="sd">        information on the name matching.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name_keys: A regular expression or a list of regular expressions to match the body names.</span>
+<span class="sd">            preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of lists containing the body indices and names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names</span><span class="p">(</span><span class="n">name_keys</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Articulation.find_joints"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.find_joints">[docs]</a>    <span class="k">def</span> <span class="nf">find_joints</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">name_keys</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">joint_subset</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
@@ -722,7 +756,29 @@ document.write(`
 <span class="sd">    Operations - Writers.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+<div class="viewcode-block" id="Articulation.write_root_state_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_state_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_root_state_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root state over selected environment indices into the simulation.</span>
+
+<span class="sd">        The root state comprises of the cartesian position, quaternion orientation in (w, x, y, z), and linear</span>
+<span class="sd">        and angular velocity. All the quantities are in the simulation frame.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            root_state: Root state in simulation frame. Shape is (len(env_ids), 13).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># set into simulation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_pose_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">7</span><span class="p">],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_root_velocity_to_sim</span><span class="p">(</span><span class="n">root_state</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:],</span> <span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span></div>
+
 <div class="viewcode-block" id="Articulation.write_root_pose_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_pose_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_root_pose_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_pose</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root pose over selected environment indices into the simulation.</span>
+
+<span class="sd">        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -738,6 +794,12 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_root_transforms</span><span class="p">(</span><span class="n">root_poses_xyzw</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Articulation.write_root_velocity_to_sim"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.write_root_velocity_to_sim">[docs]</a>    <span class="k">def</span> <span class="nf">write_root_velocity_to_sim</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_velocity</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the root velocity over selected environment indices into the simulation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), 6).</span>
+<span class="sd">            env_ids: Environment indices. If None, then all indices are used.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># resolve all indices</span>
         <span class="n">physx_env_ids</span> <span class="o">=</span> <span class="n">env_ids</span>
         <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -963,8 +1025,69 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">set_dof_limits</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_limits</span><span class="o">.</span><span class="n">cpu</span><span class="p">(),</span> <span class="n">indices</span><span class="o">=</span><span class="n">physx_env_ids</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Operations - State.</span>
+<span class="sd">    Operations - Setters.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Articulation.set_external_force_and_torque"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_external_force_and_torque">[docs]</a>    <span class="k">def</span> <span class="nf">set_external_force_and_torque</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">forces</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">torques</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">body_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set external force and torque to apply on the asset&#39;s bodies in their local frame.</span>
+
+<span class="sd">        For many applications, we want to keep the applied external force on rigid bodies constant over a period of</span>
+<span class="sd">        time (for instance, during the policy control). This function allows us to store the external force and torque</span>
+<span class="sd">        into buffers which are then applied to the simulation at every step.</span>
+
+<span class="sd">        .. caution::</span>
+<span class="sd">            If the function is called with empty forces and torques, then this function disables the application</span>
+<span class="sd">            of external wrench to the simulation.</span>
+
+<span class="sd">            .. code-block:: python</span>
+
+<span class="sd">                # example of disabling external wrench</span>
+<span class="sd">                asset.set_external_force_and_torque(forces=torch.zeros(0, 3), torques=torch.zeros(0, 3))</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            This function does not apply the external wrench to the simulation. It only fills the buffers with</span>
+<span class="sd">            the desired values. To apply the external wrench, call the :meth:`write_data_to_sim` function</span>
+<span class="sd">            right before the simulation step.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            forces: External forces in bodies&#39; local frame. Shape is (len(env_ids), len(body_ids), 3).</span>
+<span class="sd">            torques: External torques in bodies&#39; local frame. Shape is (len(env_ids), len(body_ids), 3).</span>
+<span class="sd">            body_ids: Body indices to apply external wrench to. Defaults to None (all bodies).</span>
+<span class="sd">            env_ids: Environment indices to apply external wrench to. Defaults to None (all instances).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">forces</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="n">torques</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="c1"># resolve all indices</span>
+            <span class="c1"># -- env_ids</span>
+            <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">env_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">env_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">env_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="c1"># -- body_ids</span>
+            <span class="k">if</span> <span class="n">body_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">body_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_ids</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+                <span class="n">body_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)[</span><span class="n">body_ids</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">body_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">body_ids</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+            <span class="c1"># note: we need to do this complicated indexing since torch doesn&#39;t support multi-indexing</span>
+            <span class="c1"># create global body indices from env_ids and env_body_ids</span>
+            <span class="c1"># (env_id * total_bodies_per_env) + body_id</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">body_ids</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">env_ids</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="c1"># set into internal buffers</span>
+            <span class="c1"># note: these are applied in the write_to_sim function</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">forces</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">torques</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 <div class="viewcode-block" id="Articulation.set_joint_position_target"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.Articulation.set_joint_position_target">[docs]</a>    <span class="k">def</span> <span class="nf">set_joint_position_target</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">joint_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">slice</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1298,12 +1421,21 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_log_articulation_joint_info</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">_create_buffers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># allocate buffers</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_create_buffers</span><span class="p">()</span>
+        <span class="c1"># constants</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_INDICES</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+        <span class="c1"># external forces and torques</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">has_external_wrench</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_bodies</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_torque_b</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_external_force_b</span><span class="p">)</span>
 
         <span class="c1"># asset data</span>
         <span class="c1"># -- properties</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_names</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">body_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_names</span>
+
+        <span class="c1"># -- bodies</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_mass</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_masses</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
         <span class="c1"># -- default joint state</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_pos</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_joints</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
@@ -1392,7 +1524,16 @@ document.write(`
     <span class="k">def</span> <span class="nf">_process_cfg</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Post processing of configuration parameters.&quot;&quot;&quot;</span>
         <span class="c1"># default state</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_process_cfg</span><span class="p">()</span>
+        <span class="c1"># -- root state</span>
+        <span class="c1"># note: we cast to tuple to avoid torch/numpy type mismatch.</span>
+        <span class="n">default_root_state</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">rot</span><span class="p">)</span>
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">lin_vel</span><span class="p">)</span>
+            <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">init_state</span><span class="o">.</span><span class="n">ang_vel</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">default_root_state</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">default_root_state</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_root_state</span> <span class="o">=</span> <span class="n">default_root_state</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_instances</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="c1"># -- joint state</span>
         <span class="c1"># joint pos</span>
         <span class="n">indices_list</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">values_list</span> <span class="o">=</span> <span class="n">string_utils</span><span class="o">.</span><span class="n">resolve_matching_names_values</span><span class="p">(</span>
@@ -1408,6 +1549,18 @@ document.write(`
         <span class="c1"># -- joint limits</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_physx_view</span><span class="o">.</span><span class="n">get_dof_limits</span><span class="p">()</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">joint_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">default_joint_limits</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal simulation callbacks.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_invalidate_initialize_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Invalidates the scene elements.&quot;&quot;&quot;</span>
+        <span class="c1"># call parent</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_invalidate_initialize_callback</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="c1"># set all existing views to None to invalidate them</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_physics_sim_view</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span> <span class="o">=</span> <span class="kc">None</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Internal helpers -- Actuators.</span>

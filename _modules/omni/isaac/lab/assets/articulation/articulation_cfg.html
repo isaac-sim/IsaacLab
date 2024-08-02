@@ -494,21 +494,25 @@ document.write(`
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.actuators</span> <span class="kn">import</span> <span class="n">ActuatorBaseCfg</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils</span> <span class="kn">import</span> <span class="n">configclass</span>
 
-<span class="kn">from</span> <span class="nn">..rigid_object</span> <span class="kn">import</span> <span class="n">RigidObjectCfg</span>
+<span class="kn">from</span> <span class="nn">..asset_base_cfg</span> <span class="kn">import</span> <span class="n">AssetBaseCfg</span>
 <span class="kn">from</span> <span class="nn">.articulation</span> <span class="kn">import</span> <span class="n">Articulation</span>
 
 
 <div class="viewcode-block" id="ArticulationCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg">[docs]</a><span class="nd">@configclass</span>
-<span class="k">class</span> <span class="nc">ArticulationCfg</span><span class="p">(</span><span class="n">RigidObjectCfg</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">ArticulationCfg</span><span class="p">(</span><span class="n">AssetBaseCfg</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration parameters for an articulation.&quot;&quot;&quot;</span>
 
-    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Articulation</span>
-
 <div class="viewcode-block" id="ArticulationCfg.InitialStateCfg"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationCfg.InitialStateCfg">[docs]</a>    <span class="nd">@configclass</span>
-    <span class="k">class</span> <span class="nc">InitialStateCfg</span><span class="p">(</span><span class="n">RigidObjectCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">InitialStateCfg</span><span class="p">(</span><span class="n">AssetBaseCfg</span><span class="o">.</span><span class="n">InitialStateCfg</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Initial state of the articulation.&quot;&quot;&quot;</span>
 
-        <span class="c1"># root position</span>
+        <span class="c1"># root velocity</span>
+        <span class="n">lin_vel</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+        <span class="n">ang_vel</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of the root in simulation world frame. Defaults to (0.0, 0.0, 0.0).&quot;&quot;&quot;</span>
+
+        <span class="c1"># joint state</span>
         <span class="n">joint_pos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint positions of the joints. Defaults to 0.0 for all joints.&quot;&quot;&quot;</span>
         <span class="n">joint_vel</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;.*&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
@@ -518,11 +522,18 @@ document.write(`
     <span class="c1"># Initialize configurations.</span>
     <span class="c1">##</span>
 
+    <span class="n">class_type</span><span class="p">:</span> <span class="nb">type</span> <span class="o">=</span> <span class="n">Articulation</span>
+
     <span class="n">init_state</span><span class="p">:</span> <span class="n">InitialStateCfg</span> <span class="o">=</span> <span class="n">InitialStateCfg</span><span class="p">()</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Initial state of the articulated object. Defaults to identity pose with zero velocity and zero joint state.&quot;&quot;&quot;</span>
+
     <span class="n">soft_joint_pos_limit_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fraction specifying the range of DOF position limits (parsed from the asset) to use.</span>
-<span class="sd">    Defaults to 1.0.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fraction specifying the range of DOF position limits (parsed from the asset) to use. Defaults to 1.0.</span>
+
+<span class="sd">    The joint position limits are scaled by this factor to allow for a limited range of motion.</span>
+<span class="sd">    This is accessible in the articulation data through :attr:`ArticulationData.soft_joint_pos_limits` attribute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="n">actuators</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ActuatorBaseCfg</span><span class="p">]</span> <span class="o">=</span> <span class="n">MISSING</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Actuators for the robot with corresponding joint names.&quot;&quot;&quot;</span></div>
 </pre></div>

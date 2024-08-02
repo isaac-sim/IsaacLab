@@ -490,20 +490,20 @@ document.write(`
 <span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
 
 <span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
 
 <span class="kn">import</span> <span class="nn">omni.physics.tensors.impl.api</span> <span class="k">as</span> <span class="nn">physx</span>
 
 <span class="kn">import</span> <span class="nn">omni.isaac.lab.utils.math</span> <span class="k">as</span> <span class="nn">math_utils</span>
 <span class="kn">from</span> <span class="nn">omni.isaac.lab.utils.buffers</span> <span class="kn">import</span> <span class="n">TimestampedBuffer</span>
 
-<span class="kn">from</span> <span class="nn">..rigid_object</span> <span class="kn">import</span> <span class="n">RigidObjectData</span>
 
-
-<div class="viewcode-block" id="ArticulationData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData">[docs]</a><span class="k">class</span> <span class="nc">ArticulationData</span><span class="p">(</span><span class="n">RigidObjectData</span><span class="p">):</span>
+<div class="viewcode-block" id="ArticulationData"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData">[docs]</a><span class="k">class</span> <span class="nc">ArticulationData</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Data container for an articulation.</span>
 
-<span class="sd">    This class extends the :class:`RigidObjectData` class to provide additional data for</span>
-<span class="sd">    an articulation mainly related to the joints and tendons.</span>
+<span class="sd">    This class contains the data for an articulation in the simulation. The data includes the state of</span>
+<span class="sd">    the root rigid body, the state of all the bodies in the articulation, and the joint state. The data is</span>
+<span class="sd">    stored in the simulation world frame unless otherwise specified.</span>
 
 <span class="sd">    An articulation is comprised of multiple rigid bodies or links. For a rigid body, there are two frames</span>
 <span class="sd">    of reference that are used:</span>
@@ -516,36 +516,59 @@ document.write(`
 <span class="sd">    can be interpreted as the link frame.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;The root articulation view of the object.</span>
-
-<span class="sd">    Note:</span>
-<span class="sd">        Internally, this is stored as a weak reference to avoid circular references between the asset class</span>
-<span class="sd">        and the data container. This is important to avoid memory leaks.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="c1"># Initialize the parent class</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">root_physx_view</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the articulation data.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            root_physx_view: The root articulation view.</span>
+<span class="sd">            device: The device used for processing.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Set the parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">device</span>
+        <span class="c1"># Set the root articulation view</span>
+        <span class="c1"># note: this is stored as a weak reference to avoid circular references between the asset class</span>
+        <span class="c1">#  and the data container. This is important to avoid memory leaks.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="p">:</span> <span class="n">physx</span><span class="o">.</span><span class="n">ArticulationView</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="n">root_physx_view</span><span class="p">)</span>
+
+        <span class="c1"># Set initial time stamp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="c1"># Obtain global physics sim view</span>
+        <span class="n">physics_sim_view</span> <span class="o">=</span> <span class="n">physx</span><span class="o">.</span><span class="n">create_simulation_view</span><span class="p">(</span><span class="s2">&quot;torch&quot;</span><span class="p">)</span>
+        <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">set_subspace_roots</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="n">physics_sim_view</span><span class="o">.</span><span class="n">get_gravity</span><span class="p">()</span>
+        <span class="c1"># Convert to direction vector</span>
+        <span class="n">gravity_dir</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="n">gravity</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">gravity</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">gravity_dir</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">gravity_dir</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># Initialize constants</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span> <span class="o">=</span> <span class="n">gravity_dir</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">((</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">count</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="c1"># Initialize history for finite differencing</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_root_physx_view</span><span class="o">.</span><span class="n">get_dof_velocities</span><span class="p">()</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
 
         <span class="c1"># Initialize the lazy buffers.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_root_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_body_state_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_pos</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_joint_vel</span> <span class="o">=</span> <span class="n">TimestampedBuffer</span><span class="p">()</span>
 
-<div class="viewcode-block" id="ArticulationData.update"><a class="viewcode-back" href="../../../../../../source/api/lab/omni.isaac.lab.assets.html#omni.isaac.lab.assets.ArticulationData.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="c1"># update the simulation timestamp</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">+=</span> <span class="n">dt</span>
         <span class="c1"># Trigger an update of the joint acceleration buffer at a higher frequency</span>
         <span class="c1"># since we do finite differencing.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">joint_acc</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">joint_acc</span>
 
     <span class="c1">##</span>
     <span class="c1"># Names.</span>
     <span class="c1">##</span>
+
+    <span class="n">body_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Body names in the order parsed by the simulation view.&quot;&quot;&quot;</span>
 
     <span class="n">joint_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint names in the order parsed by the simulation view.&quot;&quot;&quot;</span>
@@ -556,6 +579,16 @@ document.write(`
     <span class="c1">##</span>
     <span class="c1"># Defaults.</span>
     <span class="c1">##</span>
+
+    <span class="n">default_root_state</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame. Shape is (num_instances, 13).</span>
+
+<span class="sd">    The position and quaternion are of the articulation root&#39;s actor frame. Meanwhile, the linear and angular</span>
+<span class="sd">    velocities are of its center of mass frame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_mass</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Default mass read from the simulation. Shape is (num_instances, num_bodies).&quot;&quot;&quot;</span>
 
     <span class="n">default_joint_pos</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Default joint positions of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
@@ -753,20 +786,20 @@ document.write(`
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_body_acc_w</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
-
-<span class="sd">        This quantity is the linear acceleration of the articulation links&#39; center of mass frame.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="k">def</span> <span class="nf">projected_gravity_b</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Projection of the gravity direction on base frame. Shape is (num_instances, 3).&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">GRAVITY_VEC_W</span><span class="p">)</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+    <span class="k">def</span> <span class="nf">heading_w</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Yaw heading of the base frame (in radians). Shape is (num_instances,).</span>
 
-<span class="sd">        This quantity is the angular acceleration of the articulation links&#39; center of mass frame.</span>
+<span class="sd">        Note:</span>
+<span class="sd">            This quantity is computed by assuming that the forward-direction of the base</span>
+<span class="sd">            frame is along x-direction, i.e. :math:`(1, 0, 0)`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+        <span class="n">forward_w</span> <span class="o">=</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_apply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">FORWARD_VEC_B</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">forward_w</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">joint_pos</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -791,13 +824,131 @@ document.write(`
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Joint acceleration of all joints. Shape is (num_instances, num_joints).&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span><span class="p">:</span>
             <span class="c1"># note: we use finite differencing to compute acceleration</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">timestamp</span>
-            <span class="p">)</span>
+            <span class="n">time_elapsed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">timestamp</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">)</span> <span class="o">/</span> <span class="n">time_elapsed</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_timestamp</span>
             <span class="c1"># update the previous joint velocity</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_previous_joint_vel</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">joint_vel</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_joint_acc</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="c1">##</span>
+    <span class="c1"># Derived properties.</span>
+    <span class="c1">##</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root position in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the position of the actor frame of the articulation root.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root orientation (w, x, y, z) in simulation world frame. Shape is (num_instances, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the actor frame of the articulation root.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root velocity in simulation world frame. Shape is (num_instances, 6).</span>
+
+<span class="sd">        This quantity contains the linear and angular velocities of the articulation root&#39;s center of</span>
+<span class="sd">        mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the articulation root&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in simulation world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the articulation root&#39;s center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_state_w</span><span class="p">[:,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_lin_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root linear velocity in base frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the articulation root&#39;s center of mass frame with</span>
+<span class="sd">        respect to the articulation root&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_lin_vel_w</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">root_ang_vel_b</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Root angular velocity in base world frame. Shape is (num_instances, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the articulation root&#39;s center of mass frame with respect to the</span>
+<span class="sd">        articulation root&#39;s actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">math_utils</span><span class="o">.</span><span class="n">quat_rotate_inverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root_quat_w</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_ang_vel_w</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_pos_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Positions of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the position of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_quat_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation (w, x, y, z) of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 4).</span>
+
+<span class="sd">        This quantity is the orientation of the rigid bodies&#39; actor frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 6).</span>
+
+<span class="sd">        This quantity contains the linear and angular velocities of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_lin_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the linear velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">10</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_ang_vel_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular velocity of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the angular velocity of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_state_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">10</span><span class="p">:</span><span class="mi">13</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_lin_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Linear acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the linear acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">body_ang_acc_w</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Angular acceleration of all bodies in simulation world frame. Shape is (num_instances, num_bodies, 3).</span>
+
+<span class="sd">        This quantity is the angular acceleration of the rigid bodies&#39; center of mass frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">body_acc_w</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span></div>
 </pre></div>
 
                 </article>
