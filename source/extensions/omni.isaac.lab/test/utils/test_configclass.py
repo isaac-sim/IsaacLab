@@ -24,7 +24,7 @@ from functools import wraps
 from typing import ClassVar
 
 from omni.isaac.lab.utils.configclass import configclass
-from omni.isaac.lab.utils.dict import class_to_dict, update_class_from_dict
+from omni.isaac.lab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from omni.isaac.lab.utils.io import dump_yaml, load_yaml
 
 """
@@ -749,6 +749,18 @@ class TestConfigClass(unittest.TestCase):
         # check dictionaries are the same
         self.assertNotEqual(list(cfg.to_dict().keys()), list(cfg_loaded.keys()))
         self.assertDictEqual(cfg.to_dict(), cfg_loaded)
+
+    def test_config_md5_hash(self):
+        """Check that config md5 hash generation works properly."""
+
+        # create config
+        cfg = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
+
+        # generate md5 hash
+        md5_hash_1 = dict_to_md5_hash(cfg.to_dict())
+        md5_hash_2 = dict_to_md5_hash(cfg.to_dict())
+
+        self.assertEqual(md5_hash_1, md5_hash_2)
 
 
 if __name__ == "__main__":

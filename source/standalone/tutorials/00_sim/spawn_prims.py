@@ -71,7 +71,7 @@ def design_scene():
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     cfg_cone_rigid.func(
-        "/World/Objects/ConeRigid", cfg_cone_rigid, translation=(0.0, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
+        "/World/Objects/ConeRigid", cfg_cone_rigid, translation=(-0.2, 0.0, 2.0), orientation=(0.5, 0.0, 0.5, 0.0)
     )
 
     # spawn a blue cuboid with deformable body

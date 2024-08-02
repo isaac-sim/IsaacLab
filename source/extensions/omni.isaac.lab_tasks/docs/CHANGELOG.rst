@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.8.1 (2024-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the folder names for Unitree robots in the manager-based locomotion tasks. Earlier, there was an inconsistency
+  in the folder names as some had ``unitree_`` prefix and some didn't. Now, none of the folders have the prefix.
+
+
+0.8.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Renamed the action term names inside the manager-based lift-manipulation task. Earlier, they were called
+  ``body_joint_pos`` and ``gripper_joint_pos``. Now, they are called ``arm_action`` and ``gripper_action``.
+
+
 0.7.10 (2024-07-02)
 ~~~~~~~~~~~~~~~~~~~
 
