@@ -2,6 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import os
 
 from dataclasses import MISSING
 
@@ -20,6 +21,7 @@ from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import Frame
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg, save_images_to_file
 
 from . import mdp
 
@@ -41,6 +43,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     ee_frame: FrameTransformerCfg = MISSING
     # target object: will be populated by agent env cfg
     object: RigidObjectCfg = MISSING
+    # camera object: will be populated by agent env cfg
+    camera: CameraCfg = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -60,6 +64,24 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
+    # sensors
+    print(f"Creating camera sensor (RGB)")
+    camera = CameraCfg(
+        #prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+        prim_path="/World/envs/env_.*/Camera",
+        update_period=0.1,
+        height=480,
+        width=640,
+        data_types=["rgb", "distance_to_image_plane"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0, 
+            focus_distance=400.0, 
+            horizontal_aperture=20.955, 
+            clipping_range=(0.1, 1.0e5)
+        ),
+        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
 
 
@@ -88,8 +110,8 @@ class ActionsCfg:
     """Action specifications for the MDP."""
 
     # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    body_joint_pos: mdp.JointPositionActionCfg = MISSING
+    finger_joint_pos: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -105,6 +127,10 @@ class ObservationsCfg:
         object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
         target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
+
+        # camera
+        cam_data = ObsTerm(func=mdp.rgb_camera) 
+        #save_images_to_file(cam_data, f"{os.getcwd()}/franka_list_cube_rgb.png")
 
         def __post_init__(self):
             self.enable_corruption = True

@@ -22,6 +22,8 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 from omni.isaac.lab.utils.math import sample_uniform
 
+DEBUG = True
+
 
 @configclass
 class FrankaCabinetEnvCfg(DirectRLEnvCfg):

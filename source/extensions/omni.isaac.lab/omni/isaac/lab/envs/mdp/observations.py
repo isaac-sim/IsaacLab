@@ -11,13 +11,15 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
+import os
+
 import torch
 from typing import TYPE_CHECKING
 
 import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import Articulation, RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
-from omni.isaac.lab.sensors import RayCaster
+from omni.isaac.lab.sensors import RayCaster, CameraCfg, TiledCameraCfg, Camera, TiledCamera
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -158,6 +160,15 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
 Sensors.
 """
 
+
+def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
+    """RGB camera from give sensor w.r.t. the sensor's frame"""
+    raise("debug")
+    sensor: Camera = env.scene.sensors[sensor_cfg.name]
+    rgb_data = sensor.data.output["rgb"].clone()
+    print(rgb_data.shape)
+    raise("debug")
+    return rgb_data
 
 def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.
