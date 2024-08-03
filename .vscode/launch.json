@@ -25,5 +25,26 @@
             "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
             
         },
+        {
+            "name": "Debug train skrl (RGB)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/skrl/train_rgb.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0",
+                "--num_envs", "2",
+                "--headless",
+                "--enable_cameras",
+                "--video",
+                "--video_length", "100",
+                "--video_interval", "500"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
     ]
 }

@@ -1,3 +1,3 @@
-python source/standalone/workflows/skrl/train.py --task Isaac-Lift-Cube-Franka-v0 --num_envs 32 --headless --enable_cameras --video --video_length 100 --video_interval 500
+python source/standalone/workflows/skrl/train_rgb.py --task Isaac-Lift-Cube-Franka-v0 --num_envs 2 --headless --enable_cameras --video --video_length 100 --video_interval 500
 #python source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --num_envs 32 --headless --enable_cameras --video --video_length 100 --video_interval 500
 #python source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
