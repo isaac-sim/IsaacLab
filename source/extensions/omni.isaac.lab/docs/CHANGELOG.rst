@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.20.8 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the handling of observation terms with different shapes in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class. Earlier, the constructor would throw an error if the
+  shapes of the observation terms were different. Now, this operation only happens when the terms in an observation
+  group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
+* Improved the error message when the observation terms are not of the same shape in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
 0.20.7 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
