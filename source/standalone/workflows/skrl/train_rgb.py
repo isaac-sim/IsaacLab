@@ -147,7 +147,7 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
-    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device)
+    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type="cnn")
     models["value"] = models["policy"]  # same instance: shared model
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
