@@ -118,7 +118,7 @@ class ObservationManager(ManagerBase):
 
     @property
     def active_terms(self) -> dict[str, list[str]]:
-        """A dictionary with the name of active observation terms in each group.
+        """Name of active observation terms in each group.
 
         The keys are the group names and the values are the list of observation term names in the group.
         """
@@ -126,7 +126,7 @@ class ObservationManager(ManagerBase):
 
     @property
     def group_obs_dim(self) -> dict[str, tuple[int, ...] | list[tuple[int, ...]]]:
-        """A dictionary with the shape of observation tensor in each group.
+        """Shape of computed observations in each group.
 
         The key is the group name and the value is the shape of the observation tensor.
         If the terms in the group are concatenated, the value is a single tuple representing the
@@ -137,7 +137,7 @@ class ObservationManager(ManagerBase):
 
     @property
     def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...]]]:
-        """A dictionary with the shape of observation tensor for each term in each group.
+        """Shape of individual observation terms in each group.
 
         The key is the group name and the value is a list of tuples representing the shape of the observation terms
         in the group. The order of the tuples corresponds to the order of the terms in the group.
@@ -147,7 +147,7 @@ class ObservationManager(ManagerBase):
 
     @property
     def group_obs_concatenate(self) -> dict[str, bool]:
-        """A dictionary specifying whether the observation terms are concatenated in each group.
+        """Whether the observation terms are concatenated in each group or not.
 
         The key is the group name and the value is a boolean specifying whether the observation terms in the group
         are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.
