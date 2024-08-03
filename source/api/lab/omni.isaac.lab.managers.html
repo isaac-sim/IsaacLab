@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab.envs" href="omni.isaac.lab.envs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 02, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 03, 2024"/>
   </head>
   
   
@@ -1250,7 +1250,25 @@ groups for different types of learning such as asymmetric actor-critic and stude
 group contains observation terms which contain information about the observation function to call, the noise
 corruption model to use, and the sensor to retrieve data from.</p>
 <p>Each observation group should inherit from the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg" title="omni.isaac.lab.managers.ObservationGroupCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationGroupCfg</span></code></a> class. Within each group, each
-observation term should instantiate the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg" title="omni.isaac.lab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a> class.</p>
+observation term should instantiate the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationTermCfg" title="omni.isaac.lab.managers.ObservationTermCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObservationTermCfg</span></code></a> class. Based on the configuration, the
+observations in a group can be concatenated into a single tensor or returned as a dictionary with keys
+corresponding to the term’s name.</p>
+<p>If the observations in a group are concatenated, the shape of the concatenated tensor is computed based on the
+shapes of the individual observation terms. This information is stored in the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.group_obs_dim" title="omni.isaac.lab.managers.ObservationManager.group_obs_dim"><code class="xref py py-attr docutils literal notranslate"><span class="pre">group_obs_dim</span></code></a> dictionary
+with keys as the group names and values as the shape of the observation tensor. When the terms in a group are not
+concatenated, the attribute stores a list of shapes for each term in the group.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When the observation terms in a group do not have the same shape, the observation terms cannot be
+concatenated. In this case, please set the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms" title="omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ObservationGroupCfg.concatenate_terms</span></code></a> attribute in the
+group configuration to False.</p>
+</div>
+<p>The observation manager can be used to compute observations for all the groups or for a specific group. The
+observations are computed by calling the registered functions for each term in the group. The functions are
+called in the order of the terms in the group. The functions are expected to return a tensor with shape
+(num_envs, …). If a corruption/noise model is registered for a term, the function is called to corrupt
+the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+The observations are clipped and scaled as per the configuration settings.</p>
 <p><strong>Methods:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
@@ -1279,13 +1297,13 @@ observation term should instantiate the <a class="reference internal" href="#omn
 <td><p>Name of active observation terms in each group.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.group_obs_dim" title="omni.isaac.lab.managers.ObservationManager.group_obs_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">group_obs_dim</span></code></a></p></td>
-<td><p>Shape of observation tensor in each group.</p></td>
+<td><p>Shape of computed observations in each group.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.group_obs_term_dim" title="omni.isaac.lab.managers.ObservationManager.group_obs_term_dim"><code class="xref py py-obj docutils literal notranslate"><span class="pre">group_obs_term_dim</span></code></a></p></td>
-<td><p>Shape of observation tensor for each term in each group.</p></td>
+<td><p>Shape of individual observation terms in each group.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.group_obs_concatenate" title="omni.isaac.lab.managers.ObservationManager.group_obs_concatenate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">group_obs_concatenate</span></code></a></p></td>
-<td><p>Whether the observation terms are concatenated in each group.</p></td>
+<td><p>Whether the observation terms are concatenated in each group or not.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.device" title="omni.isaac.lab.managers.ObservationManager.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
 <td><p>Device on which to perform computations.</p></td>
@@ -1307,6 +1325,10 @@ observation term should instantiate the <a class="reference internal" href="#omn
 <li><p><strong>env</strong> – The environment instance.</p></li>
 </ul>
 </dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.12)"><strong>RuntimeError</strong></a> – If the shapes of the observation terms in a group are not compatible for concatenation
+    and the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms" title="omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> attribute is set to True.</p>
+</dd>
 </dl>
 </dd></dl>
 
@@ -1314,24 +1336,36 @@ observation term should instantiate the <a class="reference internal" href="#omn
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationManager.active_terms">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">active_terms</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationManager.active_terms" title="Permalink to this definition">#</a></dt>
 <dd><p>Name of active observation terms in each group.</p>
+<p>The keys are the group names and the values are the list of observation term names in the group.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationManager.group_obs_dim">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">group_obs_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationManager.group_obs_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>Shape of observation tensor in each group.</p>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">group_obs_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationManager.group_obs_dim" title="Permalink to this definition">#</a></dt>
+<dd><p>Shape of computed observations in each group.</p>
+<p>The key is the group name and the value is the shape of the observation tensor.
+If the terms in the group are concatenated, the value is a single tuple representing the
+shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
+where each tuple represents the shape of the observation tensor for a term in the group.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationManager.group_obs_term_dim">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">group_obs_term_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.12)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationManager.group_obs_term_dim" title="Permalink to this definition">#</a></dt>
-<dd><p>Shape of observation tensor for each term in each group.</p>
+<dd><p>Shape of individual observation terms in each group.</p>
+<p>The key is the group name and the value is a list of tuples representing the shape of the observation terms
+in the group. The order of the tuples corresponds to the order of the terms in the group.
+This matches the order of the terms in the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.active_terms" title="omni.isaac.lab.managers.ObservationManager.active_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">active_terms</span></code></a>.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.ObservationManager.group_obs_concatenate">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">group_obs_concatenate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.managers.ObservationManager.group_obs_concatenate" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether the observation terms are concatenated in each group.</p>
+<dd><p>Whether the observation terms are concatenated in each group or not.</p>
+<p>The key is the group name and the value is a boolean specifying whether the observation terms in the group
+are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.</p>
+<p>The values are set based on the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms" title="omni.isaac.lab.managers.ObservationGroupCfg.concatenate_terms"><code class="xref py py-attr docutils literal notranslate"><span class="pre">concatenate_terms</span></code></a> attribute in the group
+configuration.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1357,7 +1391,9 @@ Defaults None, which logs data for all environments.</p>
 Please check the <a class="reference internal" href="#omni.isaac.lab.managers.ObservationManager.compute_group" title="omni.isaac.lab.managers.ObservationManager.compute_group"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_group()</span></code></a> on the processing of observations per group.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A dictionary with keys as the group names and values as the computed observations.</p>
+<dd class="field-odd"><p>A dictionary with keys as the group names and values as the computed observations.
+The observations are either concatenated into a single tensor or returned as a dictionary
+with keys corresponding to the term’s name.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1446,6 +1482,7 @@ information on the name matching.</p>
 <dd><p>Whether to concatenate the observation terms in the group. Defaults to True.</p>
 <p>If true, the observation terms in the group are concatenated along the last dimension.
 Otherwise, they are kept separate and returned as a dictionary.</p>
+<p>If the observation group contains terms of different dimensions, it must be set to False.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -3483,7 +3520,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 02, 2024.
+  Last updated on Aug 03, 2024.
   <br/>
 </p>
   </div>

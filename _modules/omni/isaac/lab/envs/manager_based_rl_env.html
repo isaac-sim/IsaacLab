@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 02, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 03, 2024"/>
   </head>
   
   
@@ -775,7 +775,6 @@ document.write(`
             <span class="c1"># extract quantities about the group</span>
             <span class="n">has_concatenated_obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_concatenate</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
             <span class="n">group_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
-            <span class="n">group_term_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">observation_manager</span><span class="o">.</span><span class="n">group_obs_term_dim</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span>
             <span class="c1"># check if group is concatenated or not</span>
             <span class="c1"># if not concatenated, then we need to add each term separately as a dictionary</span>
             <span class="k">if</span> <span class="n">has_concatenated_obs</span><span class="p">:</span>
@@ -783,7 +782,7 @@ document.write(`
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">single_observation_space</span><span class="p">[</span><span class="n">group_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Dict</span><span class="p">({</span>
                     <span class="n">term_name</span><span class="p">:</span> <span class="n">gym</span><span class="o">.</span><span class="n">spaces</span><span class="o">.</span><span class="n">Box</span><span class="p">(</span><span class="n">low</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">term_dim</span><span class="p">)</span>
-                    <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_dim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">group_term_names</span><span class="p">,</span> <span class="n">group_term_dim</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">term_name</span><span class="p">,</span> <span class="n">term_dim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">group_term_names</span><span class="p">,</span> <span class="n">group_dim</span><span class="p">)</span>
                 <span class="p">})</span>
         <span class="c1"># action space (unbounded since we don&#39;t impose any limits)</span>
         <span class="n">action_dim</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">action_manager</span><span class="o">.</span><span class="n">action_term_dim</span><span class="p">)</span>
@@ -883,7 +882,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 02, 2024.
+  Last updated on Aug 03, 2024.
   <br/>
 </p>
   </div>
