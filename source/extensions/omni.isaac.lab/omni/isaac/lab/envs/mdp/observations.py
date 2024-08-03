@@ -160,7 +160,7 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
 Sensors.
 """
 
-DEBUG = True
+DEBUG = False
 def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     """RGB camera from give sensor w.r.t. the sensor's frame"""
     sensor: Camera = env.scene.sensors[sensor_cfg.name]
