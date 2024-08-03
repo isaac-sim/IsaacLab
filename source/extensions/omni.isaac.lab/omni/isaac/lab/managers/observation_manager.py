@@ -118,31 +118,43 @@ class ObservationManager(ManagerBase):
 
     @property
     def active_terms(self) -> dict[str, list[str]]:
-        """Name of active observation terms in each group."""
+        """A dictionary with the name of active observation terms in each group.
+
+        The keys are the group names and the values are the list of observation term names in the group.
+        """
         return self._group_obs_term_names
 
     @property
     def group_obs_dim(self) -> dict[str, tuple[int, ...] | list[tuple[int, ...]]]:
-        """Shape of observation tensor in each group.
+        """A dictionary with the shape of observation tensor in each group.
 
-        If the terms are concatenated, the value is a single tuple representing the shape of the
-        concatenated observation tensor. Otherwise, the value is a list of tuples, where each tuple
-        represents the shape of the observation tensor for a term in the group.
+        The key is the group name and the value is the shape of the observation tensor.
+        If the terms in the group are concatenated, the value is a single tuple representing the
+        shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
+        where each tuple represents the shape of the observation tensor for a term in the group.
         """
         return self._group_obs_dim
 
     @property
     def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...]]]:
-        """Shape of observation tensor for each term in each group.
+        """A dictionary with the shape of observation tensor for each term in each group.
 
-        The value is a list of tuples, where each tuple represents the shape of the observation tensor
-        for a term in the group. The corresponding term name can be found in the :attr:`active_terms`.
+        The key is the group name and the value is a list of tuples representing the shape of the observation terms
+        in the group. The order of the tuples corresponds to the order of the terms in the group.
+        This matches the order of the terms in the :attr:`active_terms`.
         """
         return self._group_obs_term_dim
 
     @property
     def group_obs_concatenate(self) -> dict[str, bool]:
-        """Whether the observation terms are concatenated in each group."""
+        """A dictionary specifying whether the observation terms are concatenated in each group.
+
+        The key is the group name and the value is a boolean specifying whether the observation terms in the group
+        are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.
+
+        The values are set based on the :attr:`~ObservationGroupCfg.concatenate_terms` attribute in the group
+        configuration.
+        """
         return self._group_obs_concatenate
 
     """
@@ -165,6 +177,8 @@ class ObservationManager(ManagerBase):
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
+            The observations are either concatenated into a single tensor or returned as a dictionary
+            with keys corresponding to the term's name.
         """
         # create a buffer for storing obs from all the groups
         obs_buffer = dict()
