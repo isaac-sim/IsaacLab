@@ -66,24 +66,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
 
-    # sensors
-    print(f"Creating camera sensor (RGB)")
-    camera = CameraCfg(
-        #prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-        prim_path="/World/envs/env_.*/Camera",
-        update_period=0.1,
-        height=480,
-        width=640,
-        data_types=["rgb", "distance_to_image_plane"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, 
-            focus_distance=400.0, 
-            horizontal_aperture=20.955, 
-            clipping_range=(0.1, 1.0e5)
-        ),
-        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
-    )
-
 
 ##
 # MDP settings
@@ -124,11 +106,11 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        #joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        #joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        #object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        #target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        #actions = ObsTerm(func=mdp.last_action)
 
         # camera
         cam_data = ObsTerm(func=mdp.rgb_camera, params={"sensor_cfg": SceneEntityCfg("camera")})

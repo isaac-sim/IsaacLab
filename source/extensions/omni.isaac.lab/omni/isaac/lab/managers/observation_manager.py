@@ -66,6 +66,7 @@ class ObservationManager(ManagerBase):
         # compute combined vector for obs group
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
+            
             # if terms are concatenated, compute the combined shape into a single tuple
             # otherwise, keep the list of shapes as is
             if self._group_obs_concatenate[group_name]:
@@ -133,6 +134,7 @@ class ObservationManager(ManagerBase):
         shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
         where each tuple represents the shape of the observation tensor for a term in the group.
         """
+    #def group_obs_dim(self) -> dict[str, tuple[int, ...]]:
         return self._group_obs_dim
 
     @property

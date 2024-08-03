@@ -13,6 +13,8 @@ from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
 from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
+import omni.isaac.lab.sim as sim_utils
 
 ##
 # Pre-defined configs
@@ -57,8 +59,27 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                     max_linear_velocity=1000.0,
                     max_depenetration_velocity=5.0,
                     disable_gravity=False,
+                    retain_accelerations=False
                 ),
             ),
+        )
+
+        # sensors
+        print(f"Creating camera sensor (RGB)")
+        self.scene.camera = CameraCfg(
+            #prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+            prim_path="/World/envs/env_.*/Camera",
+            update_period=0.1,
+            height=480,
+            width=640,
+            data_types=["rgb", "distance_to_image_plane"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, 
+                focus_distance=400.0, 
+                horizontal_aperture=20.955, 
+                clipping_range=(0.1, 1.0e5)
+            ),
+            offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.3), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"), #z = 0.015, convention="ros"
         )
 
         # Listens to the required transforms

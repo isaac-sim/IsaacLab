@@ -167,8 +167,11 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     rgb_data = sensor.data.output["rgb"].clone()
     if DEBUG:
         print(rgb_data.shape)
-        save_images_to_file(rgb_data, f"{os.getcwd()}/franka_list_cube_rgb.png")
-    return rgb_data
+        import matplotlib.pyplot as plt
+        plt.imshow(rgb_data[0, ..., :-1].cpu().numpy())
+        plt.savefig(f"{os.getcwd()}/franka_list_cube_rgb_plt.jpg")
+        #save_images_to_file(rgb_data[0, ..., :-1].float(), f"{os.getcwd()}/franka_list_cube_rgb.jpg")
+    return rgb_data[..., :-1]
 
 def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.
