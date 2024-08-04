@@ -408,6 +408,7 @@ def save_images_to_file(images: torch.Tensor, file_path: str):
     """
     from torchvision.utils import make_grid, save_image
 
+    formatted_images = torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1)
     save_image(
-        make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5)), file_path
+        make_grid(formatted_images, nrow=round(images.shape[0] ** 0.5)), file_path
     )
