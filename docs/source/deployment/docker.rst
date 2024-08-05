@@ -80,7 +80,8 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * ``base.env``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#isaac-lab-image-extensions>`_.
-* ``container.sh``: A script that wraps the ``docker compose`` command to build the image and run the container.
+* ``container.py``: A script that interfaces with tools in ``isaaclab_container_utils`` to configure and build the image,
+  and run and interact with the container.
 
 Running the Container
 ---------------------
@@ -89,7 +90,7 @@ Running the Container
 
     The docker container copies all the files from the repository into the container at the
     location ``/workspace/isaaclab`` at build time. This means that any changes made to the files in the container would not
-    normally be reflected in the repository after the image has been built, i.e. after ``./container.sh start`` is run.
+    normally be reflected in the repository after the image has been built, i.e. after ``./container.py start`` is run.
 
     For a faster development cycle, we mount the following directories in the Isaac Lab repository into the container
     so that you can edit their files from the host machine:
@@ -99,15 +100,14 @@ Running the Container
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.sh`` wraps around three basic ``docker compose`` commands. Each can accept an `image_extension argument <#isaac-lab-image-extensions>`_,
+The script ``container.py`` parallels three basic ``docker compose`` commands. Each can accept an `image_extension argument <#isaac-lab-image-extensions>`_,
 or else they will default to image_extension ``base``:
 
 1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background).
 2. ``enter``: This begins a new bash process in an existing isaaclab container, and which can be exited
    without bringing down the container.
 3. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
-   volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker
-   container instances and are shared between image extensions.
+   volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
 4. ``stop``: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
@@ -116,10 +116,10 @@ The following shows how to launch the container in a detached state and enter it
 
     # Launch the container in detached mode
     # We don't pass an image extension arg, so it defaults to 'base'
-    ./docker/container.sh start
+    python docker/container.py start
     # Enter the container
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
-    ./docker/container.sh enter base
+    python docker/container.py enter base
 
 To copy files from the base container to the host machine, you can use the following command:
 
@@ -128,13 +128,13 @@ To copy files from the base container to the host machine, you can use the follo
     # Copy the file /workspace/isaaclab/logs to the current directory
     docker cp isaac-lab-base:/workspace/isaaclab/logs .
 
-The script ``container.sh`` provides a wrapper around this command to copy the ``logs`` , ``data_storage`` and ``docs/_build``
+The script ``container.py`` provides a wrapper around this command to copy the ``logs`` , ``data_storage`` and ``docs/_build``
 directories to the ``docker/artifacts`` directory. This is useful for copying the logs, data and documentation:
 
 .. code::
 
     # stop the container
-    ./docker/container.sh stop
+    python docker/container.py stop
 
 
 X11 forwarding
@@ -194,7 +194,7 @@ To view the contents of these volumes, you can use the following command:
 Isaac Lab Image Extensions
 --------------------------
 
-The produced image depends upon the arguments passed to ``./container.sh start`` and ``./container.sh stop``. These
+The produced image depends upon the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an ``image_extension`` as an additional argument. If no argument is passed, then these
 commands default to ``base``. Currently, the only valid ``image_extension`` arguments are (``base``, ``ros2``).
 Only one ``image_extension`` can be passed at a time, and the produced container will be named ``isaaclab``.
@@ -202,13 +202,13 @@ Only one ``image_extension`` can be passed at a time, and the produced container
 .. code:: bash
 
     # start base by default
-    ./container.sh start
+    python docker/container.py start
     # stop base explicitly
-    ./container.sh stop base
+    python docker/container.py stop base
     # start ros2 container
-    ./container.sh start ros2
+    python docker/container.py start ros2
     # stop ros2 container
-    ./container.sh stop ros2
+    python docker/container.py stop ros2
 
 The passed ``image_extension`` argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
