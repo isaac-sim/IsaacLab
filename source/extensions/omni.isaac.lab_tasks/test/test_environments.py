@@ -87,6 +87,9 @@ class TestEnvironments(unittest.TestCase):
         env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # create environment
         env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the 
+        # test on many environments.
+        env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
 
         # reset environment
         obs, _ = env.reset()
