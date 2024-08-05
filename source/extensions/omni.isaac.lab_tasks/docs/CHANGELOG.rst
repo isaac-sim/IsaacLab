@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.9.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced the command line input ``--cpu`` with ``--device`` in the train and play scripts. Running on cpu is
+  supported by passing ``--device cpu``. Running on a specific gpu is now supported by passing ``--device cuda:<device_id>``,
+  where ``<device_id>`` is the id of the GPU to use, for example ``--device cuda:0``.
+
+
 0.8.2 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
