@@ -11,6 +11,11 @@ As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the f
 the key differences between IsaacGymEnvs and Isaac Lab, as well as differences in APIs between Isaac Gym Preview
 Release and Isaac Sim.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
+
 
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
@@ -783,7 +788,7 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 |     velocities = 0.5 * (torch.rand((len(env_ids), self.num_dof),      |                                                                           |
 |         device=self.device) - 0.5)                                    |     time_out = self.episode_length_buf >= self.max_episode_length - 1     |
 |                                                                       |     out_of_bounds = torch.any(torch.abs(                                  |
-|     self.dof_pos[env_ids, :] = positions[:]                           |         self.joint_pos[:, self._pole_dof_idx] > self.cfg.max_cart_pos),   |
+|     self.dof_pos[env_ids, :] = positions[:]                           |         self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos,   |
 |     self.dof_vel[env_ids, :] = velocities[:]                          |         dim=1)                                                            |
 |                                                                       |     out_of_bounds = out_of_bounds | torch.any(                            |
 |     env_ids_int32 = env_ids.to(dtype=torch.int32)                     |         torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2,   |
@@ -921,3 +926,4 @@ To launch inferencing in Isaac Lab, use the command:
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _Isaac Gym Preview Release: https://developer.nvidia.com/isaac-gym
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases

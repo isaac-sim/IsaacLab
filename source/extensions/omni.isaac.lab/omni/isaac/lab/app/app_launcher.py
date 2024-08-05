@@ -485,6 +485,16 @@ class AppLauncher:
             if distributed_train:
                 self.device_id = self.local_rank
                 launcher_args["multi_gpu"] = False
+            # limit CPU threads to minimize thread context switching
+            # this ensures processes do not take up all available threads and fight for resources
+            num_cpu_cores = os.cpu_count()
+            num_threads_per_process = num_cpu_cores // int(os.getenv("WORLD_SIZE", 1))
+            # set environment variables to limit CPU threads
+            os.environ["PXR_WORK_THREAD_LIMIT"] = str(num_threads_per_process)
+            os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads_per_process)
+            # pass command line variable to kit
+            sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
+
         # set physics and rendering device
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
@@ -585,8 +595,8 @@ class AppLauncher:
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
-                enable_extension("omni.kit.livestream.core-3.2.0")
+                enable_extension("omni.kit.streamsdk.plugins-4.5.1")
+                enable_extension("omni.kit.livestream.core-4.3.6")
                 enable_extension("omni.kit.livestream.native-4.1.0")
             elif self._livestream == 2:
                 # Enable WebRTC Livestream extension
@@ -612,7 +622,7 @@ class AppLauncher:
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
-        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0"
+        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.1"
         carb_settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)

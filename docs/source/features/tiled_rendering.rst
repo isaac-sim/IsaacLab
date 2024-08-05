@@ -9,7 +9,7 @@ Tiled Rendering
 
 .. note::
 
-    This feature is only available from Isaac Sim version 4.0.0.
+    This feature is only available from Isaac Sim version 4.0.0 onwards.
 
     Tiled rendering requires heavy memory resources. We recommend running at most 256 cameras in the scene.
 
@@ -64,7 +64,7 @@ Recording during training
 
 Isaac Lab supports recording video clips during training using the `gymnasium.wrappers.RecordVideo <https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/>`_ class.
 
-This feature can be enabled by using the following command line arguments with the training script:
+This feature can be enabled by installing ``ffmpeg`` and using the following command line arguments with the training script:
 
 * ``--video`` - enables video recording during training
 * ``--video_length`` - length of each recorded video (in steps)
@@ -77,6 +77,6 @@ Example usage:
 
 .. code-block:: shell
 
-    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --enable_cameras --video --video_length 100 --video_interval 500
+    python source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
 
-Recorded videos will be saved in the same directory as the training checkpoints, under ``IsaacLab/logs/<rl_workflow>/<task>/<run>/videos``.
+Recorded videos will be saved in the same directory as the training checkpoints, under ``IsaacLab/logs/<rl_workflow>/<task>/<run>/videos/train``.

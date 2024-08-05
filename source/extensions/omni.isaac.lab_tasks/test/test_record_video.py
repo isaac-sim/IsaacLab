@@ -41,7 +41,7 @@ class TestRecordVideoWrapper(unittest.TestCase):
         # print all existing task names
         print(">>> All registered environments:", cls.registered_tasks)
         # directory to save videos
-        cls.videos_dir = os.path.join(os.path.dirname(__file__), "output", "videos")
+        cls.videos_dir = os.path.join(os.path.dirname(__file__), "output", "videos", "train")
 
     def setUp(self) -> None:
         # common parameters

@@ -27,6 +27,7 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
     Keyword Args:
         color: A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
+            Defaults to [172, 216, 230].
         color_map: The name of the color map to be used. Defaults to "turbo".
 
     Returns:
@@ -39,7 +40,7 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
     # Check if the z-coordinates are all the same
     if np.max(heights) == np.min(heights):
         # Obtain a single color: light blue
-        color = kwargs.pop("color", [172, 216, 230, 255])
+        color = kwargs.pop("color", (172, 216, 230))
         color = np.asarray(color, dtype=np.uint8)
         # Set the color for all vertices
         mesh.visual.vertex_colors = color
@@ -140,7 +141,7 @@ def find_flat_patches(
     y_range: tuple[float, float],
     z_range: tuple[float, float],
     max_height_diff: float,
-):
+) -> torch.Tensor:
     """Finds flat patches of given radius in the input mesh.
 
     The function finds flat patches of given radius based on the search space defined by the input ranges.

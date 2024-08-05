@@ -63,8 +63,6 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # ground plane
     ground = TerrainImporterCfg(
-        num_envs=2048,
-        env_spacing=3.0,
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type="generator",
