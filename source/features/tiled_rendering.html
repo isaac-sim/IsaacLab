@@ -57,7 +57,7 @@
     <link rel="prev" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 03, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
   </head>
   
   
@@ -610,7 +610,7 @@ environment. For example:</p>
 <section id="recording-during-training">
 <h2>Recording during training<a class="headerlink" href="#recording-during-training" title="Permalink to this heading">#</a></h2>
 <p>Isaac Lab supports recording video clips during training using the <a class="reference external" href="https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/">gymnasium.wrappers.RecordVideo</a> class.</p>
-<p>This feature can be enabled by using the following command line arguments with the training script:</p>
+<p>This feature can be enabled by installing <code class="docutils literal notranslate"><span class="pre">ffmpeg</span></code> and using the following command line arguments with the training script:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--video</span></code> - enables video recording during training</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--video_length</span></code> - length of each recorded video (in steps)</p></li>
@@ -619,10 +619,10 @@ environment. For example:</p>
 <p>Make sure to also add the <code class="docutils literal notranslate"><span class="pre">--enable_cameras</span></code> argument when running headless.
 Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.</p>
 <p>Example usage:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--enable_cameras<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">100</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">500</span>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--video_length<span class="w"> </span><span class="m">100</span><span class="w"> </span>--video_interval<span class="w"> </span><span class="m">500</span>
 </pre></div>
 </div>
-<p>Recorded videos will be saved in the same directory as the training checkpoints, under <code class="docutils literal notranslate"><span class="pre">IsaacLab/logs/&lt;rl_workflow&gt;/&lt;task&gt;/&lt;run&gt;/videos</span></code>.</p>
+<p>Recorded videos will be saved in the same directory as the training checkpoints, under <code class="docutils literal notranslate"><span class="pre">IsaacLab/logs/&lt;rl_workflow&gt;/&lt;task&gt;/&lt;run&gt;/videos/train</span></code>.</p>
 </section>
 </section>
 
@@ -706,7 +706,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 03, 2024.
+  Last updated on Aug 05, 2024.
   <br/>
 </p>
   </div>

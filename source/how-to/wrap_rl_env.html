@@ -57,7 +57,7 @@
     <link rel="prev" title="Creating Visualization Markers" href="draw_markers.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 03, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
   </head>
   
   
@@ -693,7 +693,7 @@ for 200 steps, and saves it in the <code class="docutils literal notranslate"><s
 <span class="n">env</span> <span class="o">=</span> <span class="n">gym</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">task_name</span><span class="p">,</span> <span class="n">cfg</span><span class="o">=</span><span class="n">env_cfg</span><span class="p">,</span> <span class="n">render_mode</span><span class="o">=</span><span class="s2">&quot;rgb_array&quot;</span><span class="p">)</span>
 <span class="c1"># wrap for video recording</span>
 <span class="n">video_kwargs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="s2">&quot;videos&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;video_folder&quot;</span><span class="p">:</span> <span class="s2">&quot;videos/train&quot;</span><span class="p">,</span>
     <span class="s2">&quot;step_trigger&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">step</span><span class="p">:</span> <span class="n">step</span> <span class="o">%</span> <span class="mi">1500</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
     <span class="s2">&quot;video_length&quot;</span><span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
 <span class="p">}</span>
@@ -817,7 +817,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 03, 2024.
+  Last updated on Aug 05, 2024.
   <br/>
 </p>
   </div>
