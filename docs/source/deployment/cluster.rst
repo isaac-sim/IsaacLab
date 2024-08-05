@@ -58,7 +58,7 @@ the user cluster password from being requested multiple times.
 Configuring the cluster parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First, you need to configure the cluster-specific parameters in ``docker/.env.base`` file.
+First, you need to configure the cluster-specific parameters in ``docker/cluster/.env.cluster`` file.
 The following describes the parameters that need to be configured:
 - ``CLUSTER_JOB_SCHEDULER``:
   The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
@@ -82,6 +82,9 @@ The following describes the parameters that need to be configured:
 - ``CLUSTER_PYTHON_EXECUTABLE``:
   The path within Isaac Lab to the Python executable that should be executed in the submitted job.
 
+When a ``job`` is submitted, it will also use variables defined in ``docker/.env.base``, though these
+should be correct by default.
+
 Exporting to singularity image
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -94,10 +97,11 @@ To export to a singularity image, execute the following command:
 
 .. code:: bash
 
-    ./docker/container.sh push [profile]
+    ./docker/cluster/cluster_interface.sh push [profile]
 
 This command will create a singularity image under ``docker/exports`` directory and
-upload it to the defined location on the cluster. Be aware that creating the singularity
+upload it to the defined location on the cluster. It requires that you have previously
+built the image with the ``container.py`` interface. Be aware that creating the singularity
 image can take a while.
 ``[profile]`` is an optional argument that specifies the container profile to be used. If no profile is
 specified, the default profile ``base`` will be used.
@@ -105,7 +109,7 @@ specified, the default profile ``base`` will be used.
 .. note::
   By default, the singularity image is created without root access by providing the ``--fakeroot`` flag to
   the ``apptainer build`` command. In case the image creation fails, you can try to create it with root
-  access by removing the flag in ``docker/container.sh``.
+  access by removing the flag in ``docker/cluster/cluster_interface.sh``.
 
 
 Defining the job parameters
@@ -168,7 +172,7 @@ To submit a job on the cluster, the following command can be used:
 
 .. code:: bash
 
-    ./docker/container.sh job [profile] "argument1" "argument2" ...
+    ./docker/cluster/cluster_interface.sh job [profile] "argument1" "argument2" ...
 
 This command will copy the latest changes in your code to the cluster and submit a job. Please ensure that
 your Python executable's output is stored under ``isaaclab/logs`` as this directory will be copied again
@@ -184,13 +188,13 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 
 .. code:: bash
 
-    ./docker/container.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --enable_cameras
+    ./docker/cluster/cluster_interface.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --enable_cameras
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
 
 .. note::
 
-    The ``./docker/container.sh job`` command will copy the latest changes in your code to the cluster. However,
+    The ``./docker/cluster/cluster_interface.sh job`` command will copy the latest changes in your code to the cluster. However,
     it will not delete any files that have been deleted locally. These files will still exist on the cluster
     which can lead to issues. In this case, we recommend removing the ``CLUSTER_ISAACLAB_DIR`` directory on
     the cluster and re-run the command.

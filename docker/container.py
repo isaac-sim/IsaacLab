@@ -17,15 +17,47 @@ def main():
     parser = argparse.ArgumentParser(description="Utility for using Docker with Isaac Lab.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # We have to create a separate parent parser for common options to our subparsers
+    # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument("profile", nargs="?", default="base", help="Optional container profile specification.")
+    parent_parser.add_argument(
+        "--files",
+        nargs="*",
+        default=None,
+        help=(
+            "Allows additional .yaml files to be passed to the docker compose command. Files will be merged with"
+            " docker-compose.yaml in the order in which they are provided."
+        ),
+    )
+    parent_parser.add_argument(
+        "--env-files",
+        nargs="*",
+        default=None,
+        help=(
+            "Allows additional .env files to be passed to the docker compose command. Files will be merged with"
+            " .env.base in the order in which they are provided."
+        ),
+    )
 
+    # Actual command definition begins here
     subparsers.add_parser(
-        "start", help="Build the docker image and create the container in detached mode.", parents=[parent_parser]
+        "start",
+        help="Build the docker image and create the container in detached mode.",
+        parents=[parent_parser],
     )
     subparsers.add_parser(
         "enter", help="Begin a new bash process within an existing Isaac Lab container.", parents=[parent_parser]
+    )
+    config = subparsers.add_parser(
+        "config",
+        help=(
+            "Generate a docker-compose.yaml from the passed yamls, .envs, and either print to the terminal or create a"
+            " yaml at output_yaml"
+        ),
+        parents=[parent_parser],
+    )
+    config.add_argument(
+        "--output-yaml", nargs="?", default=None, help="Yaml file to write config output to. Defaults to None."
     )
     subparsers.add_parser(
         "copy", help="Copy build and logs artifacts from the container to the host machine.", parents=[parent_parser]
@@ -38,11 +70,12 @@ def main():
         raise RuntimeError("Docker is not installed! Please check the 'Docker Guide' for instruction.")
 
     # Creating container interface
-    ci = IsaacLabContainerInterface(context_dir=Path(__file__).resolve().parent, profile=args.profile)
+    ci = IsaacLabContainerInterface(
+        context_dir=Path(__file__).resolve().parent, profile=args.profile, yamls=args.files, envs=args.env_files
+    )
 
     print(f"[INFO] Using container profile: {ci.profile}")
     if args.command == "start":
-        print(f"[INFO] Building the docker image and starting the container {ci.container_name} in the background...")
         x11_outputs = x11_utils.x11_check(ci.statefile)
         if x11_outputs is not None:
             (x11_yaml, x11_envar) = x11_outputs
@@ -50,15 +83,13 @@ def main():
             ci.environ.update(x11_envar)
         ci.start()
     elif args.command == "enter":
-        print(f"[INFO] Entering the existing {ci.container_name} container in a bash session...")
         x11_utils.x11_refresh(ci.statefile)
         ci.enter()
+    elif args.command == "config":
+        ci.config(args.output_yaml)
     elif args.command == "copy":
-        print(f"[INFO] Copying artifacts from the 'isaac-lab-{ci.container_name}' container...")
         ci.copy()
-        print("\n[INFO] Finished copying the artifacts from the container.")
     elif args.command == "stop":
-        print(f"[INFO] Stopping the launched docker container {ci.container_name}...")
         ci.stop()
         x11_utils.x11_cleanup(ci.statefile)
     else:

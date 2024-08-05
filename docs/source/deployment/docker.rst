@@ -80,7 +80,7 @@ needed to run Isaac Lab inside a Docker container. A subset of these are summari
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * ``base.env``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#isaac-lab-image-extensions>`_.
-* ``container.py``: A script that interfaces with tools in ``isaaclab_container_utils`` to configure and build the image,
+* ``container.py``: A script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
 Running the Container
@@ -106,9 +106,11 @@ or else they will default to image_extension ``base``:
 1. ``start``: This builds the image and brings up the container in detached mode (i.e. in the background).
 2. ``enter``: This begins a new bash process in an existing isaaclab container, and which can be exited
    without bringing down the container.
-3. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
+3. ``config``: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
+   for debugging a compose configuration.
+4. ``copy``: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
    volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
-4. ``stop``: This brings down the container and removes it.
+5. ``stop``: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
 
@@ -117,6 +119,11 @@ The following shows how to launch the container in a detached state and enter it
     # Launch the container in detached mode
     # We don't pass an image extension arg, so it defaults to 'base'
     python docker/container.py start
+
+    # If we want to add .env or .yaml files to customize our compose config,
+    # we can simply specify them in the same manner as the compose cli
+    # python docker/container.py start --file my-compose.yaml --env-file .env.my-vars
+
     # Enter the container
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
     python docker/container.py enter base
@@ -131,7 +138,7 @@ To copy files from the base container to the host machine, you can use the follo
 The script ``container.py`` provides a wrapper around this command to copy the ``logs`` , ``data_storage`` and ``docs/_build``
 directories to the ``docker/artifacts`` directory. This is useful for copying the logs, data and documentation:
 
-.. code::
+.. code:: bash
 
     # stop the container
     python docker/container.py stop
@@ -143,9 +150,9 @@ X11 forwarding
 The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
 on the host machine.
 
-The first time a container is started with ``./docker/container.sh start``, the script prompts
-the user whether to activate X11 forwarding. This will create a file ``docker/.container.yaml`` to store the user's choice.
-Subsequently, X11 forwarding can be toggled by changing ``__ISAACLAB_X11_FORWARDING_ENABLED`` to 0 or 1 in ``docker/.container.yaml``.
+The first time a container is started with ``python docker/container.py start``, the script prompts
+the user whether to activate X11 forwarding. This will create a file ``docker/.container.cfg`` to store the user's choice.
+Subsequently, X11 forwarding can be toggled by changing ``__ISAACLAB_X11_FORWARDING_ENABLED`` to 0 or 1 in ``docker/.container.cfg``.
 
 
 Python Interpreter
@@ -197,7 +204,7 @@ Isaac Lab Image Extensions
 The produced image depends upon the arguments passed to ``container.py start`` and ``container.py stop``. These
 commands accept an ``image_extension`` as an additional argument. If no argument is passed, then these
 commands default to ``base``. Currently, the only valid ``image_extension`` arguments are (``base``, ``ros2``).
-Only one ``image_extension`` can be passed at a time, and the produced container will be named ``isaaclab``.
+Only one ``image_extension`` can be passed at a time, and the produced container will be named ``isaac-lab-${profile}``.
 
 .. code:: bash
 
