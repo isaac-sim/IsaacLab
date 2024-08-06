@@ -166,7 +166,7 @@ def rgb_camera(env: ManagerBasedEnv, sensor_cfg: CameraCfg) -> torch.Tensor:
     sensor: Camera = env.scene.sensors[sensor_cfg.name]
     rgb_data = sensor.data.output["rgb"].clone()
     if DEBUG:
-        print(rgb_data.shape)
+        #print(rgb_data.shape)
         import matplotlib.pyplot as plt
         #$plt.imshow(rgb_data[0, ..., :-1].cpu().numpy())
         rgb_data_np = rgb_data.cpu().numpy()

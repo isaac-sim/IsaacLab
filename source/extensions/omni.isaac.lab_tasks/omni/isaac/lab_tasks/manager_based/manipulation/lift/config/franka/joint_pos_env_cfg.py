@@ -63,27 +63,31 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                     max_linear_velocity=1000.0,
                     max_depenetration_velocity=5.0,
                     disable_gravity=False,
-                    retain_accelerations=False
+                    #retain_accelerations=False
                 ),
             ),
         )
 
         # sensors
+        # NOTE: {ENV_REGEX_NS} = /World/envs/env_.*/
         print(f"Creating camera sensor (RGB)")
-        #pos = (0.04339012, -0.03256147, 0.04373) # (0.510, 0.0, 0.015)
-        pos = (0.510, -0.2, 0.6)
-        roll, pitch, yaw = torch.tensor([0]), torch.tensor([-90]), torch.tensor([0])
+        #ros: pos = (0.510, 0.0, 0.015)
+        # NOTE: ros
+        # (
+        #   x: up (number increases) and down, 
+        #   y: sideways - left (number decreases) and right (number increases), 
+        #   z: forward(back (bigger) and forth)
+        #)
+        POSITION = (1, 0, 1) #world
+        roll, pitch, yaw = torch.tensor([-180]), torch.tensor([90]), torch.tensor([0])
         rot = quat_from_euler_xyz(roll=roll, pitch=pitch, yaw=yaw).numpy() + 0.0
         rot = np.around(rot, decimals=4).flatten()
         rot = (rot[0], rot[1], rot[2], rot[3]) # (0.5, -0.5, 0.5, -0.5) (orig)
-        #rot = tuple(map(tuple, rot))
         # NOTE: The above fails with a C++ mismatch issue
-        #rot = (0.653, 0.653, 0.271, 0.271)
-        coord_sys = "ros" # "ros"
+        coord_sys = "world" # "ros"
         RESOLUTION = (480, 640)
         self.scene.camera = CameraCfg(
-            #prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.1,
             height=RESOLUTION[0],
             width=RESOLUTION[1],
@@ -94,7 +98,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                 horizontal_aperture=20.955, 
                 clipping_range=(0.1, 1.0e5)
             ),
-            offset=CameraCfg.OffsetCfg(pos=pos, rot=rot, convention=coord_sys),
+            offset=CameraCfg.OffsetCfg(pos=POSITION, rot=rot, convention=coord_sys),
         )
 
         # Listens to the required transforms
