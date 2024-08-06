@@ -56,6 +56,7 @@ Guidelines for modifications:
 * Vladimir Fokow
 * Zhengyu Zhang
 * Ziqi Fan
+* Xavier Nal
 
 ## Acknowledgements
 
