@@ -57,7 +57,7 @@
     <link rel="prev" title="From OmniIsaacGymEnvs" href="migrating_from_omniisaacgymenvs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -552,6 +552,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-class-names">Updates to class names</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-the-tasks-folder-structure">Updates to the tasks folder structure</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#other-breaking-changes">Other Breaking changes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-device">Setting the device</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#offscreen-rendering">Offscreen rendering</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#event-term-distribution-configuration">Event term distribution configuration</a></li>
 </ul>
@@ -660,6 +661,16 @@ This change must also be reflected in the imports for your tasks. For example,</
 </section>
 <section id="other-breaking-changes">
 <h2>Other Breaking changes<a class="headerlink" href="#other-breaking-changes" title="Permalink to this heading">#</a></h2>
+<section id="setting-the-device">
+<h3>Setting the device<a class="headerlink" href="#setting-the-device" title="Permalink to this heading">#</a></h3>
+<p>The argument <code class="docutils literal notranslate"><span class="pre">--cpu</span></code> has been removed in favor of <code class="docutils literal notranslate"><span class="pre">--device</span> <span class="pre">device_name</span></code>. Valid options for <code class="docutils literal notranslate"><span class="pre">device_name</span></code> are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cpu</span></code>: Use CPU.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cuda</span></code>: Use GPU with device ID <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cuda:N</span></code>: Use GPU, where N is the device ID. For example, <code class="docutils literal notranslate"><span class="pre">cuda:0</span></code>.</p></li>
+</ul>
+<p>The default value is <code class="docutils literal notranslate"><span class="pre">cuda:0</span></code>.</p>
+</section>
 <section id="offscreen-rendering">
 <h3>Offscreen rendering<a class="headerlink" href="#offscreen-rendering" title="Permalink to this heading">#</a></h3>
 <p>The input argument <code class="docutils literal notranslate"><span class="pre">--offscreen_render</span></code> given to <a class="reference internal" href="../api/lab/omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">omni.isaac.lab.app.AppLauncher</span></code></a> and the environment variable
@@ -748,6 +759,7 @@ Therefore, event term configurations whose functions have a <code class="docutil
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-class-names">Updates to class names</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#updates-to-the-tasks-folder-structure">Updates to the tasks folder structure</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#other-breaking-changes">Other Breaking changes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-the-device">Setting the device</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#offscreen-rendering">Offscreen rendering</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#event-term-distribution-configuration">Event term distribution configuration</a></li>
 </ul>
@@ -785,7 +797,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

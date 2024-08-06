@@ -182,8 +182,8 @@ from the environments into the respective libraries function argument and return
       # install python module (for stable-baselines3)
       ./isaaclab.sh -i sb3
       # run script for training
-      # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
-      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+      # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
+      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
       # run script for recording video of a trained agent (requires installing `ffmpeg`)

@@ -57,7 +57,7 @@
     <link rel="prev" title="Developer’s Guide" href="developer.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -722,8 +722,8 @@ on <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># install python module (for stable-baselines3)</span>
 ./isaaclab.sh<span class="w"> </span>-i<span class="w"> </span>sb3
 <span class="c1"># run script for training</span>
-<span class="c1"># note: we enable cpu flag since SB3 doesn&#39;t optimize for GPU anyway</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--cpu
+<span class="c1"># note: we set the device to cpu since SB3 doesn&#39;t optimize for GPU anyway</span>
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/train.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--device<span class="w"> </span>cpu
 <span class="c1"># run script for playing with 32 environments</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/sb3/play.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Cartpole-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">32</span><span class="w"> </span>--checkpoint<span class="w"> </span>/PATH/TO/model.zip
 <span class="c1"># run script for recording video of a trained agent (requires installing `ffmpeg`)</span>
@@ -893,7 +893,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

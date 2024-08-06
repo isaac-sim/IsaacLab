@@ -57,7 +57,7 @@
     <link rel="prev" title="API Reference" href="../index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -760,14 +760,28 @@ environment variables using command-line arguments.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">headless</span></code> (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
 as that for the <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable. If False, then headless mode is determined by the
 <code class="docutils literal notranslate"><span class="pre">HEADLESS</span></code> environment variable.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">livestream</span></code> (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values
+<li><p><code class="docutils literal notranslate"><span class="pre">livestream</span></code> (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
 map the same as that for the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable. If <code class="xref py py-obj docutils literal notranslate"><span class="pre">-1</span></code>, then livestreaming is
-determined by the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable.</p></li>
+determined by the <code class="docutils literal notranslate"><span class="pre">LIVESTREAM</span></code> environment variable.
+Valid options are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: Disabled</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/native.html">Native</a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2</span></code>: <a class="reference external" href="https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/webrtc.html">WebRTC</a></p></li>
+</ul>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">enable_cameras</span></code> (bool): If True, the app will enable camera sensors and render them, even when in
 headless mode. This flag must be set to True if the environments contains any camera sensors.
 The values map the same as that for the <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> environment variable.
 If False, then enable_cameras mode is determined by the <code class="docutils literal notranslate"><span class="pre">ENABLE_CAMERAS</span></code> environment variable.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">device_id</span></code> (int): If specified, simulation will run on the specified GPU device.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">device</span></code> (str): The device to run the simulation on.
+Valid options are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cpu</span></code>: Use CPU.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cuda</span></code>: Use GPU with device ID <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cuda:N</span></code>: Use GPU, where N is the device ID. For example, “cuda:0”.</p></li>
+</ul>
+</li>
 <li><p><code class="docutils literal notranslate"><span class="pre">experience</span></code> (str): The experience file to load when launching the SimulationApp. If a relative path
 is provided, it is resolved relative to the <code class="docutils literal notranslate"><span class="pre">apps</span></code> folder in Isaac Sim and Isaac Lab (in that order).</p>
 <p>If provided as an empty string, the experience file is determined based on the headless flag:</p>
@@ -880,7 +894,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

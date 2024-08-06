@@ -57,7 +57,7 @@
     <link rel="prev" title="Mastering Omniverse for Robotics" href="master_omniverse.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -671,7 +671,7 @@ settings, you can directly use the <a class="reference external" href="https://d
 <h2>Example Usage<a class="headerlink" href="#example-usage" title="Permalink to this heading">#</a></h2>
 <p>In all environment standalone scripts, Fabric can be disabled by passing the <code class="docutils literal notranslate"><span class="pre">--disable_fabric</span></code> flag to the script.
 Here we run the state-machine example and record the animation of the simulation.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/state_machine/lift_cube_sm.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">8</span><span class="w"> </span>--cpu<span class="w"> </span>--disable_fabric
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/state_machine/lift_cube_sm.py<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">8</span><span class="w"> </span>--device<span class="w"> </span>cpu<span class="w"> </span>--disable_fabric
 </pre></div>
 </div>
 <p>On running the script, the Isaac Lab UI window opens with the button “Record Animation” in the toolbar.
@@ -775,7 +775,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

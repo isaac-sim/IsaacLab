@@ -57,7 +57,7 @@
     <link rel="prev" title="From IsaacGymEnvs" href="migrating_from_isaacgymenvs.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -650,6 +650,7 @@ for setting the GPU buffer dimensions.</p>
 <tbody>
 <tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># OmniIsaacGymEnvs</span>
 <span class="nt">sim</span><span class="p">:</span>
+
 <span class="w">  </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0083</span><span class="w"> </span><span class="c1"># 1/120 s</span>
 <span class="w">  </span><span class="nt">use_gpu_pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${eq:${...pipeline},&quot;gpu&quot;}</span>
 <span class="w">  </span><span class="nt">use_fabric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
@@ -692,8 +693,9 @@ for setting the GPU buffer dimensions.</p>
 </td>
 <td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
 <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
+   <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span> <span class="c1"># can be &quot;cpu&quot;, &quot;cuda&quot;, &quot;cuda:&lt;device_id&gt;&quot;</span>
    <span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span>
-   <span class="n">use_gpu_pipeline</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+   <span class="c1"># use_gpu_pipeline is deduced from the device</span>
    <span class="n">use_fabric</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
    <span class="n">enable_scene_query_support</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
    <span class="n">disable_contact_processing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
@@ -707,7 +709,7 @@ for setting the GPU buffer dimensions.</p>
    <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span>
        <span class="c1"># worker_thread_count is no longer needed</span>
        <span class="n">solver_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-       <span class="n">use_gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+       <span class="c1"># use_gpu is deduced from the device</span>
        <span class="n">max_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
        <span class="n">max_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
        <span class="c1"># moved to actor config</span>
@@ -1894,7 +1896,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

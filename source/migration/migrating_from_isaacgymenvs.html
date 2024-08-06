@@ -57,7 +57,7 @@
     <link rel="prev" title="omni.isaac.lab_tasks.utils.data_collector" href="../api/lab_tasks/omni.isaac.lab_tasks.utils.data_collector.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -659,6 +659,7 @@ setting the GPU buffer dimensions.</p>
 <tbody>
 <tr class="row-odd"><td><div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacGymEnvs</span>
 <span class="nt">sim</span><span class="p">:</span>
+
 <span class="w">  </span><span class="nt">dt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0166</span><span class="w"> </span><span class="c1"># 1/60 s</span>
 <span class="w">  </span><span class="nt">substeps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
 <span class="w">  </span><span class="nt">up_axis</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;z&quot;</span>
@@ -683,15 +684,16 @@ setting the GPU buffer dimensions.</p>
 </td>
 <td><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># IsaacLab</span>
 <span class="n">sim</span><span class="p">:</span> <span class="n">SimulationCfg</span> <span class="o">=</span> <span class="n">SimulationCfg</span><span class="p">(</span>
+   <span class="n">device</span> <span class="o">=</span> <span class="s2">&quot;cuda:0&quot;</span> <span class="c1"># can be &quot;cpu&quot;, &quot;cuda&quot;, &quot;cuda:&lt;device_id&gt;&quot;</span>
    <span class="n">dt</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">120</span><span class="p">,</span>
    <span class="c1"># decimation will be set in the task config</span>
    <span class="c1"># up axis will always be Z in isaac sim</span>
-   <span class="n">use_gpu_pipeline</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+   <span class="c1"># use_gpu_pipeline is deduced from the device</span>
    <span class="n">gravity</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">),</span>
    <span class="n">physx</span><span class="p">:</span> <span class="n">PhysxCfg</span> <span class="o">=</span> <span class="n">PhysxCfg</span><span class="p">(</span>
        <span class="c1"># num_threads is no longer needed</span>
        <span class="n">solver_type</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-       <span class="n">use_gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+       <span class="c1"># use_gpu is deduced from the device</span>
        <span class="n">max_position_iteration_count</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
        <span class="n">max_velocity_iteration_count</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
        <span class="c1"># moved to actor config</span>
@@ -1844,7 +1846,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>

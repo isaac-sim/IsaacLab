@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.sensors" href="omni.isaac.lab.sensors.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 05, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 06, 2024"/>
   </head>
   
   
@@ -576,20 +576,18 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-configuration">Simulation Configuration</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg"><code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.device"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.dt"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render_interval</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_gpu_pipeline</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.device"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.use_gpu"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.use_gpu</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.solver_type"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solver_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.max_position_iteration_count</span></code></a></li>
@@ -1052,34 +1050,31 @@ background. The rendering components are refreshed based on the render mode.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path" title="omni.isaac.lab.sim.SimulationCfg.physics_prim_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_prim_path</span></code></a></p></td>
 <td><p>The prim path where the USD PhysicsScene is created.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.dt" title="omni.isaac.lab.sim.SimulationCfg.dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dt</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.device" title="omni.isaac.lab.sim.SimulationCfg.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
+<td><p>The device to run the simulation on.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.dt" title="omni.isaac.lab.sim.SimulationCfg.dt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dt</span></code></a></p></td>
 <td><p>The physics simulation time-step (in seconds).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_interval</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.render_interval" title="omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_interval</span></code></a></p></td>
 <td><p>The number of physics simulation steps per rendering step.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.gravity" title="omni.isaac.lab.sim.SimulationCfg.gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gravity</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.gravity" title="omni.isaac.lab.sim.SimulationCfg.gravity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gravity</span></code></a></p></td>
 <td><p>The gravity vector (in m/s^2).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support" title="omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_scene_query_support</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support" title="omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_scene_query_support</span></code></a></p></td>
 <td><p>Enable/disable scene query support for collision shapes.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric" title="omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_fabric</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric" title="omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_fabric</span></code></a></p></td>
 <td><p>Enable/disable reading of physics buffers directly.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing" title="omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">disable_contact_processing</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing" title="omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">disable_contact_processing</span></code></a></p></td>
 <td><p>Enable/disable contact processing.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline" title="omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_gpu_pipeline</span></code></a></p></td>
-<td><p>Enable/disable GPU pipeline.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.device" title="omni.isaac.lab.sim.SimulationCfg.device"><code class="xref py py-obj docutils literal notranslate"><span class="pre">device</span></code></a></p></td>
-<td><p>The device for running the simulation/environment.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physx" title="omni.isaac.lab.sim.SimulationCfg.physx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physx</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physx" title="omni.isaac.lab.sim.SimulationCfg.physx"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physx</span></code></a></p></td>
 <td><p>PhysX solver settings.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physics_material" title="omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.physics_material" title="omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="xref py py-obj docutils literal notranslate"><span class="pre">physics_material</span></code></a></p></td>
 <td><p>Default physics material settings for rigid bodies.</p></td>
 </tr>
 </tbody>
@@ -1089,6 +1084,18 @@ background. The rendering components are refreshed based on the render mode.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.physics_prim_path">
 <span class="sig-name descname"><span class="pre">physics_prim_path</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path" title="Permalink to this definition">#</a></dt>
 <dd><p>The prim path where the USD PhysicsScene is created. Default is “/physicsScene”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.device">
+<span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.device" title="Permalink to this definition">#</a></dt>
+<dd><p>The device to run the simulation on. Default is <code class="docutils literal notranslate"><span class="pre">&quot;cuda:0&quot;</span></code>.</p>
+<p>Valid options are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;cpu&quot;</span></code>: Use CPU.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;cuda&quot;</span></code>: Use GPU, where the device ID is inferred from <a class="reference internal" href="omni.isaac.lab.app.html#omni.isaac.lab.app.AppLauncher" title="omni.isaac.lab.app.AppLauncher"><code class="xref py py-class docutils literal notranslate"><span class="pre">AppLauncher</span></code></a>’s config.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;cuda:N&quot;</span></code>: Use GPU, where N is the device ID. For example, “cuda:0”.</p></li>
+</ul>
 </dd></dl>
 
 <dl class="py attribute">
@@ -1156,19 +1163,6 @@ processing and querying the contacts manually by the user over a limited set of 
 </dd></dl>
 
 <dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline">
-<span class="sig-name descname"><span class="pre">use_gpu_pipeline</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable/disable GPU pipeline. Default is True.</p>
-<p>If set to False, the physics data will be read as CPU buffers.</p>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.device">
-<span class="sig-name descname"><span class="pre">device</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.device" title="Permalink to this definition">#</a></dt>
-<dd><p>The device for running the simulation/environment. Default is <code class="docutils literal notranslate"><span class="pre">&quot;cuda:0&quot;</span></code>.</p>
-</dd></dl>
-
-<dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.SimulationCfg.physx">
 <span class="sig-name descname"><span class="pre">physx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg" title="omni.isaac.lab.sim.simulation_cfg.PhysxCfg"><span class="pre">PhysxCfg</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.SimulationCfg.physx" title="Permalink to this definition">#</a></dt>
 <dd><p>PhysX solver settings. Default is PhysxCfg().</p>
@@ -1193,93 +1187,83 @@ physics material specified on them.</p>
 <p>These parameters are used to configure the PhysX solver. For more information, see the <a class="reference external" href="https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html">PhysX 5 SDK
 documentation</a>.</p>
 <p>PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
-through the flag <cite>use_gpu</cite>. Unlike CPU PhysX, the GPU simulation feature is not able to dynamically
-grow all the buffers. Therefore, it is necessary to provide a reasonable estimate of the buffer sizes
-for GPU features. If insufficient buffer sizes are provided, the simulation will fail with errors and
-lead to adverse behaviors. The buffer sizes can be adjusted through the <cite>gpu_*</cite> parameters.</p>
+by setting the <a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg.device" title="omni.isaac.lab.sim.SimulationCfg.device"><code class="xref py py-attr docutils literal notranslate"><span class="pre">device</span></code></a> to <code class="docutils literal notranslate"><span class="pre">cpu</span></code> in <a class="reference internal" href="#omni.isaac.lab.sim.SimulationCfg" title="omni.isaac.lab.sim.SimulationCfg"><code class="xref py py-class docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a>. Unlike CPU PhysX, the GPU
+simulation feature is unable to dynamically grow all the buffers. Therefore, it is necessary to provide
+a reasonable estimate of the buffer sizes for GPU features. If insufficient buffer sizes are provided, the
+simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
+<code class="docutils literal notranslate"><span class="pre">gpu_*</span></code> parameters.</p>
 <p><strong>Attributes:</strong></p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table autosummary">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.use_gpu" title="omni.isaac.lab.sim.PhysxCfg.use_gpu"><code class="xref py py-obj docutils literal notranslate"><span class="pre">use_gpu</span></code></a></p></td>
-<td><p>Enable/disable GPU accelerated dynamics simulation.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.solver_type" title="omni.isaac.lab.sim.PhysxCfg.solver_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solver_type</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.solver_type" title="omni.isaac.lab.sim.PhysxCfg.solver_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">solver_type</span></code></a></p></td>
 <td><p>The type of solver to use.Default is 1 (TGS).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_position_iteration_count</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_position_iteration_count</span></code></a></p></td>
 <td><p>Minimum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_position_iteration_count</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_position_iteration_count</span></code></a></p></td>
 <td><p>Maximum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.min_velocity_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.min_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_velocity_iteration_count</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.min_velocity_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.min_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_velocity_iteration_count</span></code></a></p></td>
 <td><p>Minimum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.max_velocity_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.max_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_velocity_iteration_count</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.max_velocity_iteration_count" title="omni.isaac.lab.sim.PhysxCfg.max_velocity_iteration_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">max_velocity_iteration_count</span></code></a></p></td>
 <td><p>Maximum number of solver position iterations (rigid bodies, cloth, particles etc.).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_ccd" title="omni.isaac.lab.sim.PhysxCfg.enable_ccd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ccd</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_ccd" title="omni.isaac.lab.sim.PhysxCfg.enable_ccd"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_ccd</span></code></a></p></td>
 <td><p>Enable a second broad-phase pass that makes it possible to prevent objects from tunneling through each other.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_stabilization" title="omni.isaac.lab.sim.PhysxCfg.enable_stabilization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_stabilization</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_stabilization" title="omni.isaac.lab.sim.PhysxCfg.enable_stabilization"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_stabilization</span></code></a></p></td>
 <td><p>Enable/disable additional stabilization pass in solver.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism" title="omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_enhanced_determinism</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism" title="omni.isaac.lab.sim.PhysxCfg.enable_enhanced_determinism"><code class="xref py py-obj docutils literal notranslate"><span class="pre">enable_enhanced_determinism</span></code></a></p></td>
 <td><p>Enable/disable improved determinism at the expense of performance.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.bounce_threshold_velocity" title="omni.isaac.lab.sim.PhysxCfg.bounce_threshold_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.bounce_threshold_velocity" title="omni.isaac.lab.sim.PhysxCfg.bounce_threshold_velocity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bounce_threshold_velocity</span></code></a></p></td>
 <td><p>Relative velocity threshold for contacts to bounce (in m/s).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.friction_offset_threshold" title="omni.isaac.lab.sim.PhysxCfg.friction_offset_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_offset_threshold</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.friction_offset_threshold" title="omni.isaac.lab.sim.PhysxCfg.friction_offset_threshold"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_offset_threshold</span></code></a></p></td>
 <td><p>Threshold for contact point to experience friction force (in m).</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.friction_correlation_distance" title="omni.isaac.lab.sim.PhysxCfg.friction_correlation_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_correlation_distance</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.friction_correlation_distance" title="omni.isaac.lab.sim.PhysxCfg.friction_correlation_distance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">friction_correlation_distance</span></code></a></p></td>
 <td><p>Distance threshold for merging contacts into a single friction anchor point (in m).</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_contact_count" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_contact_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_contact_count</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_contact_count" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_contact_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_contact_count</span></code></a></p></td>
 <td><p>Size of rigid contact stream buffer allocated in pinned host memory.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_patch_count" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_patch_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_patch_count</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_patch_count" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_rigid_patch_count"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_rigid_patch_count</span></code></a></p></td>
 <td><p>Size of the rigid contact patch stream buffer allocated in pinned host memory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_pairs_capacity</span></code></a></p></td>
 <td><p>Capacity of found and lost buffers allocated in GPU global memory.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_aggregate_pairs_capacity</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_found_lost_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_found_lost_aggregate_pairs_capacity</span></code></a></p></td>
 <td><p>Capacity of found and lost buffers in aggregate system allocated in GPU global memory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_total_aggregate_pairs_capacity</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_total_aggregate_pairs_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_total_aggregate_pairs_capacity</span></code></a></p></td>
 <td><p>Capacity of total number of aggregate pairs allocated in GPU global memory.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_collision_stack_size" title="omni.isaac.lab.sim.PhysxCfg.gpu_collision_stack_size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_collision_stack_size" title="omni.isaac.lab.sim.PhysxCfg.gpu_collision_stack_size"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_collision_stack_size</span></code></a></p></td>
 <td><p>Size of the collision stack buffer allocated in pinned host memory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_heap_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_heap_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_heap_capacity</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_heap_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_heap_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_heap_capacity</span></code></a></p></td>
 <td><p>Initial capacity of the GPU and pinned host memory heaps.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_temp_buffer_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_temp_buffer_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_temp_buffer_capacity</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_temp_buffer_capacity" title="omni.isaac.lab.sim.PhysxCfg.gpu_temp_buffer_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_temp_buffer_capacity</span></code></a></p></td>
 <td><p>Capacity of temp buffer allocated in pinned host memory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_num_partitions</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_num_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_num_partitions</span></code></a></p></td>
 <td><p>Limitation for the partitions in the GPU dynamics pipeline.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_soft_body_contacts</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_soft_body_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_soft_body_contacts</span></code></a></p></td>
 <td><p>Size of soft body contacts stream buffer allocated in pinned host memory.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_particle_contacts</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts" title="omni.isaac.lab.sim.PhysxCfg.gpu_max_particle_contacts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">gpu_max_particle_contacts</span></code></a></p></td>
 <td><p>Size of particle contacts stream buffer allocated in pinned host memory.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="omni.isaac.lab.sim.PhysxCfg.use_gpu">
-<span class="sig-name descname"><span class="pre">use_gpu</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.sim.PhysxCfg.use_gpu" title="Permalink to this definition">#</a></dt>
-<dd><p>Enable/disable GPU accelerated dynamics simulation. Default is True.</p>
-<p>This enables GPU-accelerated implementations for broad-phase collision checks, contact generation,
-shape and body management, and constrained solver.</p>
-</dd></dl>
-
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.sim.PhysxCfg.solver_type">
 <span class="sig-name descname"><span class="pre">solver_type</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.12)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="m"><span class="pre">0</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="m"><span class="pre">1</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#omni.isaac.lab.sim.PhysxCfg.solver_type" title="Permalink to this definition">#</a></dt>
@@ -1997,20 +1981,18 @@ selections as follows:</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-configuration">Simulation Configuration</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg"><code class="docutils literal notranslate"><span class="pre">SimulationCfg</span></code></a><ul class="nav section-nav flex-column">
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_prim_path"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_prim_path</span></code></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.device"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.dt"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.dt</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.render_interval"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.render_interval</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.gravity"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.gravity</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.enable_scene_query_support"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.enable_scene_query_support</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_fabric"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_fabric</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.disable_contact_processing"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.disable_contact_processing</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.use_gpu_pipeline</span></code></a></li>
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.device"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.device</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physx"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physx</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.SimulationCfg.physics_material"><code class="docutils literal notranslate"><span class="pre">SimulationCfg.physics_material</span></code></a></li>
 </ul>
 </li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg"><code class="docutils literal notranslate"><span class="pre">PhysxCfg</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.use_gpu"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.use_gpu</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.solver_type"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.solver_type</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.min_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.min_position_iteration_count</span></code></a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.sim.PhysxCfg.max_position_iteration_count"><code class="docutils literal notranslate"><span class="pre">PhysxCfg.max_position_iteration_count</span></code></a></li>
@@ -2092,7 +2074,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 05, 2024.
+  Last updated on Aug 06, 2024.
   <br/>
 </p>
   </div>
