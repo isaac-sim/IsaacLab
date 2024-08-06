@@ -35,7 +35,7 @@ class TestRslRlVecEnvWrapper(unittest.TestCase):
         # acquire all Isaac environments names
         cls.registered_tasks = list()
         for task_spec in gym.registry.values():
-            if "Isaac" in task_spec.id and "Isaac-Cartpole-v0" in task_spec.id:
+            if "Isaac" in task_spec.id:
                 cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rsl_rl_cfg_entry_point")
                 if cfg_entry_point is not None:
                     cls.registered_tasks.append(task_spec.id)
