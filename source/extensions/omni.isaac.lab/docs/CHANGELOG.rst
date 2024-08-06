@@ -1,5 +1,12 @@
 Changelog
 ---------
+0.20.9 (2024-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added flag to preserve joint order inside JointActionCfg action term.
 
 0.20.8 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
