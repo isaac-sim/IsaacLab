@@ -96,8 +96,7 @@ class DirectRLEnv(gym.Env):
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
-        print(f"\tPhysics GPU pipeline  : {self.cfg.sim.use_gpu_pipeline}")
-        print(f"\tPhysics GPU simulation: {self.cfg.sim.physx.use_gpu}")
+        print(f"\tEnvironment device: {self.device}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -285,6 +284,7 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
             action = self._action_noise_model.apply(action)

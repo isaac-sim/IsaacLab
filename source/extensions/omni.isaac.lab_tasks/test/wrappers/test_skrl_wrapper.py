@@ -48,7 +48,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
     def setUp(self) -> None:
         # common parameters
         self.num_envs = 64
-        self.use_gpu = True
+        self.device = "cuda"
 
     def test_random_actions(self):
         """Run random actions and check environments return valid signals."""
@@ -58,7 +58,7 @@ class TestSKRLVecEnvWrapper(unittest.TestCase):
                 # create a new stage
                 omni.usd.get_context().new_stage()
                 # parse configuration
-                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=self.use_gpu, num_envs=self.num_envs)
+                env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
 
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg)

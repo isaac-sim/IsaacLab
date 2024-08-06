@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+0.21.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the command line argument ``--device`` in :class:`~omni.isaac.lab.app.AppLauncher`. Valid options are:
+
+  * ``cpu``: Use CPU.
+  * ``cuda``: Use GPU with device ID ``0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
+  The default value is ``cuda:0``.
+
+Changed
+^^^^^^^
+
+* Simplified setting the device throughout the code by relying on :attr:`omni.isaac.lab.sim.SimulationCfg.device`
+  to activate gpu/cpu pipelines.
+
+Removed
+^^^^^^^
+
+* Removed the parameter :attr:`omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline`. This is now directly inferred from
+  :attr:`omni.isaac.lab.sim.SimulationCfg.device`.
+* Removed the command line input argument ``--device_id`` in :class:`~omni.isaac.lab.app.AppLauncher`. The device id can
+  now be set using the ``--device`` argument, for example with ``--device cuda:0``.
+
+
 0.20.8 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~~
 
