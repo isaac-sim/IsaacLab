@@ -23,7 +23,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for cabinet environments.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -265,7 +264,7 @@ def main():
     # parse configuration
     env_cfg: CabinetEnvCfg = parse_env_cfg(
         "Isaac-Open-Drawer-Franka-IK-Abs-v0",
-        use_gpu=not args_cli.cpu,
+        device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )

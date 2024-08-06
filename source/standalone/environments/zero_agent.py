@@ -13,7 +13,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Zero agent for Isaac Lab environments.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -41,7 +40,7 @@ def main():
     """Zero actions agent with Isaac Lab environment."""
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
