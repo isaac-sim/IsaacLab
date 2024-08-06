@@ -249,6 +249,8 @@ class AppLauncher:
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
+        # Add the deprecated cpu flag to raise an error if it is used
+        arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
             action="store_true",
@@ -475,6 +477,10 @@ class AppLauncher:
             )
         if "cuda:" in device:
             self.device_id = int(device.split(":")[-1])
+
+        # Raise an error for the deprecated cpu flag
+        if launcher_args.get("cpu", False):
+            raise ValueError("The `--cpu` flag is deprecated. Please use `--device cpu` instead.")
 
         if "distributed" in launcher_args:
             distributed_train = launcher_args["distributed"]
