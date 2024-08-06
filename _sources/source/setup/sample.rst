@@ -106,7 +106,7 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -139,7 +139,7 @@ format.
    .. code:: bash
 
       # step a: collect data with keyboard
-      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --teleop_device keyboard
       # step b: inspect the collected dataset
       ./isaaclab.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 

@@ -653,7 +653,7 @@ for robot control. In case of SE(2) teleoperation, the returned command
 is the linear x-y velocity and yaw rate, while in SE(3), the returned
 command is a 6-D vector representing the change in pose.</p>
 <p>To play inverse kinematics (IK) control with a keyboard device:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--device<span class="w"> </span>keyboard
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/environments/teleoperation/teleop_se3_agent.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
 </pre></div>
 </div>
 <p>The script prints the teleoperation events configured. For keyboard,
@@ -682,7 +682,7 @@ format.</p>
 <li><p>Collect demonstrations with teleoperation for the environment
 <code class="docutils literal notranslate"><span class="pre">Isaac-Lift-Cube-Franka-IK-Rel-v0</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># step a: collect data with keyboard</span>
-./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/collect_demonstrations.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num_demos<span class="w"> </span><span class="m">10</span><span class="w"> </span>--device<span class="w"> </span>keyboard
+./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/collect_demonstrations.py<span class="w"> </span>--task<span class="w"> </span>Isaac-Lift-Cube-Franka-IK-Rel-v0<span class="w"> </span>--num_envs<span class="w"> </span><span class="m">1</span><span class="w"> </span>--num_demos<span class="w"> </span><span class="m">10</span><span class="w"> </span>--teleop_device<span class="w"> </span>keyboard
 <span class="c1"># step b: inspect the collected dataset</span>
 ./isaaclab.sh<span class="w"> </span>-p<span class="w"> </span>source/standalone/workflows/robomimic/tools/inspect_demonstrations.py<span class="w"> </span>logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 </pre></div>
