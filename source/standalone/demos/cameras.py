@@ -282,8 +282,6 @@ def main():
     if args_cli.disable_fabric:
         sim_cfg.use_fabric = False
         sim_cfg.device = "cpu"
-        sim_cfg.use_gpu_pipeline = False
-        sim_cfg.physx.use_gpu = False
 
     # Initialize the simulation context
     sim = sim_utils.SimulationContext(sim_cfg)

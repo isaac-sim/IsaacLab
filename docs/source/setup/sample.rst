@@ -106,7 +106,7 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -139,7 +139,7 @@ format.
    .. code:: bash
 
       # step a: collect data with keyboard
-      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --teleop_device keyboard
       # step b: inspect the collected dataset
       ./isaaclab.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
@@ -182,8 +182,8 @@ from the environments into the respective libraries function argument and return
       # install python module (for stable-baselines3)
       ./isaaclab.sh -i sb3
       # run script for training
-      # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
-      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+      # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
+      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
       # run script for recording video of a trained agent (requires installing `ffmpeg`)
