@@ -171,9 +171,9 @@ class AppLauncher:
         * ``device`` (str): The device to run the simulation on.
           Valid options are:
 
-          - ``"cpu"``: Use CPU.
-          - ``"cuda"``: Use GPU with device ID ``0``.
-          - ``"cuda:N"`` Use GPU, where N is the device ID. For example, "cuda:0".
+          - ``cpu``: Use CPU.
+          - ``cuda``: Use GPU with device ID ``0``.
+          - ``cuda:N``: Use GPU, where N is the device ID. For example, "cuda:0".
 
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).

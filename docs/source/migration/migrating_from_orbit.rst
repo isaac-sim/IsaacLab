@@ -90,6 +90,17 @@ should now be:
 Other Breaking changes
 ~~~~~~~~~~~~~~~~~~~~~~
 
+Setting the device
+------------------
+
+The argument ``--cpu`` has been removed in favor of ``--device device_name``. Valid options for ``device_name`` are:
+
+- ``cpu``: Use CPU.
+- ``cuda``: Use GPU with device ID ``0``.
+- ``cuda:N`` Use GPU, where N is the device ID. For example, ``cuda:0``.
+The default value is ``cuda:0``.
+
+
 Offscreen rendering
 -------------------
 
