@@ -142,7 +142,7 @@ def main():
         print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
 
     if args_cli.sigma is not None:
-        train_sigma= float(args_cli.sigma)
+        train_sigma = float(args_cli.sigma)
     else:
         train_sigma = None
     
