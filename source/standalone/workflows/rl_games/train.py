@@ -23,6 +23,10 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+
+parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--sigma", type=str, default=None, help="model action sigma")
+
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
@@ -58,6 +62,7 @@ import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
+from omni.isaac.lab.utils.assets import retrieve_file_path
 
 def main():
     """Train with RL-Games agent."""
@@ -131,6 +136,19 @@ def main():
     )
     env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
 
+    if args_cli.checkpoint is not None:
+        resume_path = retrieve_file_path(args_cli.checkpoint)
+        agent_cfg["params"]["load_checkpoint"] = True
+        agent_cfg["params"]["load_path"] = resume_path
+        print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+
+    if args_cli.sigma is not None:
+        train_sigma= float(args_cli.sigma)
+    else:
+        train_sigma = None
+    
+
+
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
@@ -142,7 +160,10 @@ def main():
     # reset the agent and env
     runner.reset()
     # train the agent
-    runner.run({"train": True, "play": False, "sigma": None})
+    if args_cli.checkpoint is not None:
+        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+    else:
+        runner.run({"train": True, "play": False, "sigma": train_sigma})
 
     # close the simulator
     env.close()
