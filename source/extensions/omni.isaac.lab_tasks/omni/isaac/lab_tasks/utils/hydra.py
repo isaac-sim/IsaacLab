@@ -9,9 +9,12 @@
 import functools
 from collections.abc import Callable
 
-import hydra
-from hydra.core.config_store import ConfigStore
-from omegaconf import DictConfig, OmegaConf
+try:
+    import hydra
+    from hydra.core.config_store import ConfigStore
+    from omegaconf import DictConfig, OmegaConf
+except ImportError:
+    raise ImportError("Hydra is not installed. Please install it by running 'pip install hydra-core'.")
 
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from omni.isaac.lab.utils import replace_slices_with_strings, replace_strings_with_slices
