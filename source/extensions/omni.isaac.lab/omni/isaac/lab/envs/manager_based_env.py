@@ -337,10 +337,10 @@ class ManagerBasedEnv:
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
-        # apply events such as randomizations for environments that need a reset
+        # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(env_ids=env_ids, mode="reset", global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
