@@ -374,32 +374,28 @@ class RTXRayCaster(SensorBase):
         self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {}#= {name: list() for name in lidar_prim_paths}
         
         for lidar_prim in lidar_prim_paths:
-            # Get lidar prim
             lidar_prim = lidar_prim.GetPath()
             
             render_prod_path = rep.create.render_product(lidar_prim, [1, 1])
-            lidar_prim_path: str = lidar_prim.pathString
-            # create annotator node
-            rep_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer")
-            rep_annotator.attach(render_prod_path)
-            self.writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
-            self.writer.attach(render_prod_path)
-            
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
             self._render_product_paths.append(render_prod_path)
+            # create annotator node
+            rep_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer", do_array_copy=False)
+            rep_annotator.attach(render_prod_path)
+            # Debug draw
+            # self.writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
+            # self.writer.attach(render_prod_path)
 
             # add to registry
-            if lidar_prim_path not in self._rep_registry:
-                self._rep_registry[lidar_prim_path] = []
-                self._data[lidar_prim_path] = []
-            self._rep_registry[lidar_prim_path].append(rep_annotator)
-            self._data[lidar_prim_path].append(RTXRayCasterData())
+            if lidar_prim.pathString not in self._rep_registry:
+                self._rep_registry[lidar_prim.pathString] = []
+                self._data[lidar_prim.pathString] = []
+            self._rep_registry[lidar_prim.pathString].append(rep_annotator)
+            self._data[lidar_prim.pathString].append(RTXRayCasterData())
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         for lidar_prim_path, annotators in self._rep_registry.items():
             for i, annotator in enumerate(annotators):
-                sensor_data = annotator.get_data()
+                sensor_data = annotator.get_data(do_array_copy=False)
                 sensor_info_data = sensor_data['info']
                 sensor_info = RTXRayCasterInfo(
                     numChannels=sensor_info_data['numChannels'],
@@ -407,21 +403,7 @@ class RTXRayCaster(SensorBase):
                     numReturnsPerScan=sensor_info_data['numReturnsPerScan'],
                     renderProductPath=sensor_info_data['renderProductPath'],
                     ticksPerScan=sensor_info_data['ticksPerScan'],
-                    transform=to_tensor(sensor_info_data['transform']),
-                    azimuth=to_tensor(sensor_info_data['azimuth']),
-                    beamId=to_tensor(sensor_info_data['beamId']),
-                    distance=to_tensor(sensor_info_data['distance']),
-                    elevation=to_tensor(sensor_info_data['elevation']),
-                    emitterId=to_tensor(sensor_info_data['emitterId']),
-                    index=to_tensor(sensor_info_data['index']),
-                    intensity=to_tensor(sensor_info_data['intensity']),
-                    materialId=to_tensor(sensor_info_data['materialId']),
-                    normal=to_tensor(sensor_info_data['normal']),
-                    objectId=to_tensor(sensor_info_data['objectId']),
-                    timestamp=to_tensor(sensor_info_data['timestamp']),
-                    velocity=to_tensor(sensor_info_data['velocity'])
                 )
-                # Only support single lidar per path
                 self._data[lidar_prim_path][i] = RTXRayCasterData(
                     azimuth=to_tensor(sensor_data['azimuth']),
                     beamId=to_tensor(sensor_data['beamId']),
