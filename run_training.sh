@@ -10,7 +10,7 @@ if [ $MODE = "train" ]; then
     python source/standalone/workflows/skrl/train_rgb.py --task Isaac-Lift-Cube-Franka-v0-RGB --num_envs $NUM_ENVS \
     --headless \
     --enable_cameras \
-    --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL \
+    --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL #\
     #--checkpoint /PATH/TO/model.pt
 
     # (2) State-based training
