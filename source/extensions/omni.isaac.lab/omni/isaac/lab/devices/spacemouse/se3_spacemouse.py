@@ -150,7 +150,7 @@ class Se3SpaceMouse(DeviceBase):
                 elif data[0] == 2 and not self._read_rotation:
                     self._delta_rot[1] = self.rot_sensitivity * convert_buffer(data[1], data[2])
                     self._delta_rot[0] = self.rot_sensitivity * convert_buffer(data[3], data[4])
-                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6])
+                    self._delta_rot[2] = self.rot_sensitivity * convert_buffer(data[5], data[6]) * -1.0
                 # readings from the side buttons
                 elif data[0] == 3:
                     # press left button
