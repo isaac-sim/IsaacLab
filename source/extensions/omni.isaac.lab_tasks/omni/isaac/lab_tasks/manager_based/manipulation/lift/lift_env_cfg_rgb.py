@@ -2,6 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import os
 
 from dataclasses import MISSING
 
@@ -20,6 +21,7 @@ from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import Frame
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
 
 from . import mdp
 
@@ -41,6 +43,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     ee_frame: FrameTransformerCfg = MISSING
     # target object: will be populated by agent env cfg
     object: RigidObjectCfg = MISSING
+    # camera object: will be populated by agent env cfg
+    camera: CameraCfg = MISSING
 
     # Table
     table = AssetBaseCfg(
@@ -100,11 +104,14 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        actions = ObsTerm(func=mdp.last_action)
+        #joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        #joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        #object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
+        #target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        #actions = ObsTerm(func=mdp.last_action)
+
+        # camera
+        cam_data = ObsTerm(func=mdp.rgb_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
 
         def __post_init__(self):
             self.enable_corruption = True

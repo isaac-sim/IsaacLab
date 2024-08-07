@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import numpy as np
+import torch
+
 from omni.isaac.lab.assets import RigidObjectCfg
 from omni.isaac.lab.sensors import FrameTransformerCfg
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
@@ -12,7 +15,10 @@ from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from omni.isaac.lab_tasks.manager_based.manipulation.lift import mdp
-from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg import LiftEnvCfg
+from omni.isaac.lab_tasks.manager_based.manipulation.lift.lift_env_cfg_rgb import LiftEnvCfg
+from omni.isaac.lab.sensors import CameraCfg, TiledCameraCfg
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.utils.math import quat_from_euler_xyz
 
 ##
 # Pre-defined configs
@@ -57,8 +63,42 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                     max_linear_velocity=1000.0,
                     max_depenetration_velocity=5.0,
                     disable_gravity=False,
+                    #retain_accelerations=False
                 ),
             ),
+        )
+
+        # sensors
+        # NOTE: {ENV_REGEX_NS} = /World/envs/env_.*/
+        print(f"Creating camera sensor (RGB)")
+        #ros: pos = (0.510, 0.0, 0.015)
+        # NOTE: ros
+        # (
+        #   x: up (number increases) and down, 
+        #   y: sideways - left (number decreases) and right (number increases), 
+        #   z: forward(back (bigger) and forth)
+        #)
+        POSITION = (1, 0, 1) #world
+        roll, pitch, yaw = torch.tensor([-180]), torch.tensor([90]), torch.tensor([0])
+        rot = quat_from_euler_xyz(roll=roll, pitch=pitch, yaw=yaw).numpy() + 0.0
+        rot = np.around(rot, decimals=4).flatten()
+        rot = (rot[0], rot[1], rot[2], rot[3]) # (0.5, -0.5, 0.5, -0.5) (orig)
+        # NOTE: The above fails with a C++ mismatch issue
+        coord_sys = "world" # "ros"
+        RESOLUTION = (480, 640)
+        self.scene.camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Camera",
+            update_period=0.1,
+            height=RESOLUTION[0],
+            width=RESOLUTION[1],
+            data_types=["rgb", "distance_to_image_plane"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0, 
+                focus_distance=400.0, 
+                horizontal_aperture=20.955, 
+                clipping_range=(0.1, 1.0e5)
+            ),
+            offset=CameraCfg.OffsetCfg(pos=POSITION, rot=rot, convention=coord_sys),
         )
 
         # Listens to the required transforms
