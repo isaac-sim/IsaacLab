@@ -24,7 +24,7 @@ import omni.usd
 from omni.isaac.lab.envs import ManagerBasedRLEnvCfg
 
 import omni.isaac.lab_tasks  # noqa: F401
-from omni.isaac.lab_tasks.utils.parse_cfg import parse_env_cfg
+from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper
 
 
@@ -60,7 +60,7 @@ class TestStableBaselines3VecEnvWrapper(unittest.TestCase):
                 omni.usd.get_context().new_stage()
                 # parse configuration
                 env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=self.device, num_envs=self.num_envs)
-
+                agent_cfg = load_cfg_from_registry(task_name, "sb3_cfg_entry_point")  # noqa: F841
                 # create environment
                 env = gym.make(task_name, cfg=env_cfg)
                 # wrap environment
