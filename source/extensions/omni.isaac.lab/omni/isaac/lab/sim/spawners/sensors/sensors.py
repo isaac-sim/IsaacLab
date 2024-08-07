@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import omni.isaac.core.utils.prims as prim_utils
 import omni.kit.commands
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, Gf
 
 from omni.isaac.lab.sim.utils import clone
 from omni.isaac.lab.utils import to_camel_case
@@ -127,3 +127,21 @@ def spawn_camera(
         prim.GetAttribute(prim_prop_name).Set(param_value)
     # return the prim
     return prim_utils.get_prim_at_path(prim_path)
+
+
+@clone
+def spawn_lidar(
+    prim_path: str,
+    cfg: sensors_cfg.LidarCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+) -> Usd.Prim:
+    _, sensor = omni.kit.commands.execute(
+        "IsaacSensorCreateRtxLidar",
+        path=prim_path,
+        parent=None,
+        config=cfg.lidar_type,
+        translation=translation,
+        orientation=Gf.Quatd(orientation[0], Gf.Vec3d(orientation[1], orientation[2], orientation[3])),
+    )
+    return sensor

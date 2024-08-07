@@ -9,6 +9,7 @@ import torch
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import Articulation, ArticulationCfg
+from omni.isaac.lab.sensors import RayCasterCfg, RayCaster, RTXRayCasterCfg, RTXRayCaster
 from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg
 from omni.isaac.lab.scene import InteractiveSceneCfg
 from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg, RayCaster, RayCasterCfg, patterns
@@ -67,6 +68,11 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     contact_sensor: ContactSensorCfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/.*", history_length=3, update_period=0.005, track_air_time=True
+    )
+    lidar = RTXRayCasterCfg(
+        prim_path="/World/envs/env_.*/Robot/base/lidar",
+        offset=RTXRayCasterCfg.OffsetCfg(),
+        spawn=sim_utils.LidarCfg(lidar_type=sim_utils.LidarCfg.LidarType.VELODYNE_VLS128)
     )
 
     # reward scales
@@ -175,6 +181,9 @@ class AnymalCEnv(DirectRLEnv):
             # we add a height scanner for perceptive locomotion
             self._height_scanner = RayCaster(self.cfg.height_scanner)
             self.scene.sensors["height_scanner"] = self._height_scanner
+        if isinstance(self.cfg, AnymalCFlatEnvCfg):
+            self._lidar_scanner = RTXRayCaster(self.cfg.lidar)
+            self.scene.sensors["lidar_scanner"] = self._lidar_scanner
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
@@ -250,6 +259,8 @@ class AnymalCEnv(DirectRLEnv):
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation
         flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b[:, :2]), dim=1)
+
+        print(self._lidar_scanner.data)
 
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale * self.step_dt,

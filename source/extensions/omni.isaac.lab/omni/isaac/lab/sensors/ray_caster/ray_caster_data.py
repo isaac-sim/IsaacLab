@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -27,3 +27,52 @@ class RayCasterData:
     Shape is (N, B, 3), where N is the number of sensors, B is the number of rays
     in the scan pattern per sensor.
     """
+
+@dataclass
+class RTXRayCasterInfo:
+    numChannels: int
+    numEchos: int
+    numReturnsPerScan: int
+    renderProductPath: str
+    ticksPerScan: int
+    transform: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    azimuth: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    beamId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    distance: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    elevation: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    emitterId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    index: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    intensity: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    materialId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    normal: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    objectId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    timestamp: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    velocity: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+
+
+def default_rtx_ray_caster_info():
+    return RTXRayCasterInfo(
+        numChannels=0,
+        numEchos=0,
+        numReturnsPerScan=0,
+        renderProductPath='',
+        ticksPerScan=0
+    )
+
+
+@dataclass
+class RTXRayCasterData:
+    azimuth: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    beamId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    data: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    distance: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    elevation: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    emitterId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    index: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    intensity: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    materialId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    normal: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    objectId: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    timestamp: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    velocity: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    info: RTXRayCasterInfo = field(default_factory=default_rtx_ray_caster_info)

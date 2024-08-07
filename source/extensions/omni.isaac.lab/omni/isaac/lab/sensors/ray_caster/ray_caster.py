@@ -24,10 +24,10 @@ from omni.isaac.lab.utils.math import convert_quat, quat_apply, quat_apply_yaw
 from omni.isaac.lab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .ray_caster_data import RayCasterData
+from .ray_caster_data import RayCasterData, RTXRayCasterData, RTXRayCasterInfo
 
 if TYPE_CHECKING:
-    from .ray_caster_cfg import RayCasterCfg
+    from .ray_caster_cfg import RayCasterCfg, RTXRayCasterCfg
 
 
 class RayCaster(SensorBase):
@@ -293,3 +293,148 @@ class RayCaster(SensorBase):
         # set all existing views to None to invalidate them
         self._physics_sim_view = None
         self._view = None
+
+
+# Helper function to convert numpy arrays to torch tensors
+def to_tensor(data):
+    if isinstance(data, np.ndarray):
+        if data.dtype == np.uint32:
+            data = data.astype(np.int32)
+        return torch.from_numpy(data)
+    return torch.tensor([])
+
+
+class RTXRayCaster(SensorBase):
+
+    cfg: RTXRayCasterCfg
+    
+    def __init__(self, cfg: RTXRayCasterCfg):
+        """Initializes the RTX ray-caster object.
+
+        Args:
+            cfg: The configuration parameters.
+        """
+        # Initialize base class
+        super().__init__(cfg)
+        # check if sensor path is valid
+        # note: currently we do not handle environment indices if there is a regex pattern in the leaf
+        #   For example, if the prim path is "/World/Sensor_[1,2]".
+        sensor_path = cfg.prim_path.split("/")[-1]
+        sensor_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", sensor_path) is None
+        if sensor_path_is_regex:
+            raise RuntimeError(
+                f"Invalid prim path for the ray-caster sensor: {self.cfg.prim_path}."
+                "\n\tHint: Please ensure that the prim path does not contain any regex patterns in the leaf."
+            )
+            
+        # toggle rendering of rtx sensors as True
+        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
+        carb_settings_iface = carb.settings.get_settings()
+        carb_settings_iface.set_bool("/isaaclab/render/rtx_sensors", True)
+        
+        # spawn the asset
+        if self.cfg.spawn is not None:
+            self.cfg.spawn.func(
+                self.cfg.prim_path, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=self.cfg.offset.rot
+            )
+        # check that spawn was successful
+        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        if len(matching_prims) == 0:
+            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
+        
+        self._sensor_prims: list[UsdGeom.Camera] = list()
+        # Create empty variables for storing output data
+        self._data: dict[str, list[RTXRayCasterData]] = {}
+
+    """
+    Properties
+    """
+
+    @property
+    def num_instances(self) -> int:
+        return 1
+
+    @property
+    def data(self) -> RTXRayCasterData:
+        # update sensors if needed
+        self._update_outdated_buffers()
+        # return the data
+        return self._data
+    
+    def _initialize_impl(self):
+        super()._initialize_impl()
+        try:
+            import omni.replicator.core as rep
+        except ModuleNotFoundError:
+            raise RuntimeError(
+                "Replicator was not found for rendering. Please use --enable_cameras to enable rendering."
+            )
+        lidar_prim_paths = sim_utils.find_matching_prims(self.cfg.prim_path)
+        self._render_product_paths: list[str] = list()
+        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {}#= {name: list() for name in lidar_prim_paths}
+        
+        for lidar_prim in lidar_prim_paths:
+            # Get lidar prim
+            lidar_prim = lidar_prim.GetPath()
+            
+            render_prod_path = rep.create.render_product(lidar_prim, [1, 1])
+            lidar_prim_path: str = lidar_prim.pathString
+            # create annotator node
+            rep_annotator = rep.AnnotatorRegistry.get_annotator("RtxSensorCpuIsaacCreateRTXLidarScanBuffer")
+            rep_annotator.attach(render_prod_path)
+            self.writer = rep.writers.get("RtxLidarDebugDrawPointCloudBuffer")
+            self.writer.attach(render_prod_path)
+            
+            if not isinstance(render_prod_path, str):
+                render_prod_path = render_prod_path.path
+            self._render_product_paths.append(render_prod_path)
+
+            # add to registry
+            if lidar_prim_path not in self._rep_registry:
+                self._rep_registry[lidar_prim_path] = []
+                self._data[lidar_prim_path] = []
+            self._rep_registry[lidar_prim_path].append(rep_annotator)
+            self._data[lidar_prim_path].append(RTXRayCasterData())
+
+    def _update_buffers_impl(self, env_ids: Sequence[int]):
+        for lidar_prim_path, annotators in self._rep_registry.items():
+            for i, annotator in enumerate(annotators):
+                sensor_data = annotator.get_data()
+                sensor_info_data = sensor_data['info']
+                sensor_info = RTXRayCasterInfo(
+                    numChannels=sensor_info_data['numChannels'],
+                    numEchos=sensor_info_data['numEchos'],
+                    numReturnsPerScan=sensor_info_data['numReturnsPerScan'],
+                    renderProductPath=sensor_info_data['renderProductPath'],
+                    ticksPerScan=sensor_info_data['ticksPerScan'],
+                    transform=to_tensor(sensor_info_data['transform']),
+                    azimuth=to_tensor(sensor_info_data['azimuth']),
+                    beamId=to_tensor(sensor_info_data['beamId']),
+                    distance=to_tensor(sensor_info_data['distance']),
+                    elevation=to_tensor(sensor_info_data['elevation']),
+                    emitterId=to_tensor(sensor_info_data['emitterId']),
+                    index=to_tensor(sensor_info_data['index']),
+                    intensity=to_tensor(sensor_info_data['intensity']),
+                    materialId=to_tensor(sensor_info_data['materialId']),
+                    normal=to_tensor(sensor_info_data['normal']),
+                    objectId=to_tensor(sensor_info_data['objectId']),
+                    timestamp=to_tensor(sensor_info_data['timestamp']),
+                    velocity=to_tensor(sensor_info_data['velocity'])
+                )
+                # Only support single lidar per path
+                self._data[lidar_prim_path][i] = RTXRayCasterData(
+                    azimuth=to_tensor(sensor_data['azimuth']),
+                    beamId=to_tensor(sensor_data['beamId']),
+                    data=to_tensor(sensor_data['data']),
+                    distance=to_tensor(sensor_data['distance']),
+                    elevation=to_tensor(sensor_data['elevation']),
+                    emitterId=to_tensor(sensor_data['emitterId']),
+                    index=to_tensor(sensor_data['index']),
+                    intensity=to_tensor(sensor_data['intensity']),
+                    materialId=to_tensor(sensor_data['materialId']),
+                    normal=to_tensor(sensor_data['normal']),
+                    objectId=to_tensor(sensor_data['objectId']),
+                    timestamp=to_tensor(sensor_data['timestamp']),
+                    velocity=to_tensor(sensor_data['velocity']),
+                    info=sensor_info
+                )

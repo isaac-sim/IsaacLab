@@ -9,12 +9,13 @@
 from dataclasses import MISSING
 
 from omni.isaac.lab.markers import VisualizationMarkersCfg
+from omni.isaac.lab.sim import LidarCfg
 from omni.isaac.lab.markers.config import RAY_CASTER_MARKER_CFG
 from omni.isaac.lab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
-from .ray_caster import RayCaster
+from .ray_caster import RayCaster, RTXRayCaster
 
 
 @configclass
@@ -67,3 +68,20 @@ class RayCasterCfg(SensorBaseCfg):
     Note:
         This attribute is only used when debug visualization is enabled.
     """
+
+
+@configclass
+class RTXRayCasterCfg(SensorBaseCfg):
+
+    @configclass
+    class OffsetCfg:
+        """The offset pose of the sensor's frame from the sensor's parent frame."""
+
+        pos: tuple[float, float, float] = (0.0, 0.0, 1.0)
+        """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
+        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+        """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+
+    class_type: type = RTXRayCaster
+    offset: OffsetCfg = OffsetCfg()
+    spawn: LidarCfg | None = MISSING

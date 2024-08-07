@@ -6,8 +6,8 @@
 """Sub-module for Warp-based ray-cast sensor."""
 
 from . import patterns
-from .ray_caster import RayCaster
+from .ray_caster import RayCaster, RTXRayCaster
 from .ray_caster_camera import RayCasterCamera
 from .ray_caster_camera_cfg import RayCasterCameraCfg
-from .ray_caster_cfg import RayCasterCfg
+from .ray_caster_cfg import RayCasterCfg, RTXRayCasterCfg
 from .ray_caster_data import RayCasterData

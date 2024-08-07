@@ -560,6 +560,8 @@ class AppLauncher:
         # Retrieve carb settings for modification
         carb_settings_iface = carb.settings.get_settings()
 
+        if self._offscreen_render:
+            enable_extension("omni.isaac.sensor")
         if self._livestream >= 1:
             # Ensure that a viewport exists in case an experience has been
             # loaded which does not load it by default
