@@ -145,7 +145,6 @@ def main():
         train_sigma = float(args_cli.sigma)
     else:
         train_sigma = None
-    
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
     # create runner from rl-games
