@@ -1,6 +1,12 @@
 Changelog
 ---------
 
+0.21.1 (2024-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a flag to preserve joint ordering inside the :class:`omni.isaac.lab.envs.mdp.JointAction` action term.
+
+
 0.21.0 (2024-08-05)
 ~~~~~~~~~~~~~~~~~~~
 
