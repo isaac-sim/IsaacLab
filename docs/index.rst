@@ -70,6 +70,7 @@ Table of Contents
    :caption: Features
 
    source/features/task_workflows
+   source/features/hydra
    source/features/multi_gpu
    source/features/tiled_rendering
    source/features/environments

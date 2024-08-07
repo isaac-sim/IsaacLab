@@ -107,7 +107,7 @@ class RewardManager(ManagerBase):
             # store information
             # r_1 + r_2 + ... + r_n
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
+            extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
             # reset episodic sum
             self._episode_sums[key][env_ids] = 0.0
         # reset all the reward terms

@@ -58,6 +58,32 @@ def to_snake_case(camel_str: str) -> str:
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", camel_str).lower()
 
 
+def string_to_slice(s: str):
+    """Convert a string representation of a slice to a slice object.
+
+    Args:
+        s: The string representation of the slice.
+
+    Returns:
+        The slice object.
+    """
+    # extract the content inside the slice()
+    match = re.match(r"slice\((.*),(.*),(.*)\)", s)
+    if not match:
+        raise ValueError(f"Invalid slice string format: {s}")
+
+    # extract start, stop, and step values
+    start_str, stop_str, step_str = match.groups()
+
+    # convert 'None' to None and other strings to integers
+    start = None if start_str == "None" else int(start_str)
+    stop = None if stop_str == "None" else int(stop_str)
+    step = None if step_str == "None" else int(step_str)
+
+    # create and return the slice object
+    return slice(start, stop, step)
+
+
 """
 String <-> Callable operations.
 """
