@@ -17,11 +17,13 @@ import torch
 import unittest
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
 from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
+from omni.isaac.core.utils.extensions import enable_extension
 
 import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.sim import SimulationContext, build_simulation_context
@@ -152,17 +154,25 @@ class TestTerrainImporter(unittest.TestCase):
                 self.assertAlmostEqual(actualSize[1], expectedSizeY)
 
     def test_ball_drop(self) -> None:
-        """Generates assorted terrains and spheres. Tests that spheres fall onto terrain and do not pass through it"""
+        """Generates assorted terrains and spheres created as meshes.
+
+        Tests that spheres fall onto terrain and do not pass through it. This ensures that the triangle mesh
+        collision works as expected.
+        """
         for device in ("cuda:0", "cpu"):
             with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                # Create a scene with rough terrain and balls
                 self._populate_scene(geom_sphere=False, sim=sim)
-                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
-                sim.reset()
 
+                # Create a view over all the balls
+                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+
+                # Play simulator
+                sim.reset()
                 # Initialize the ball views for physics simulation
                 ball_view.initialize()
 
-                # Play simulator
+                # Run simulator
                 for _ in range(500):
                     sim.step(render=False)
 
@@ -172,17 +182,28 @@ class TestTerrainImporter(unittest.TestCase):
                 self.assertLessEqual(max_velocity_z.item(), 0.5)
 
     def test_ball_drop_geom_sphere(self) -> None:
-        """Generates assorted terrains and geom sepheres. Tests that spheres fall onto terrain and do not pass through it"""
+        """Generates assorted terrains and geom spheres.
+
+        Tests that spheres fall onto terrain and do not pass through it. This ensures that the sphere collision
+        works as expected.
+        """
         for device in ("cuda:0", "cpu"):
             with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+                # Create a scene with rough terrain and balls
+                # TODO: Currently the test fails with geom spheres, need to investigate with the PhysX team.
+                #   Setting the geom_sphere as False to pass the test. This test should be enabled once
+                #   the issue is fixed.
                 self._populate_scene(geom_sphere=False, sim=sim)
-                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
-                sim.reset()
 
+                # Create a view over all the balls
+                ball_view = RigidPrimView("/World/envs/env_.*/ball", reset_xform_properties=False)
+
+                # Play simulator
+                sim.reset()
                 # Initialize the ball views for physics simulation
                 ball_view.initialize()
 
-                # Play simulator
+                # Run simulator
                 for _ in range(500):
                     sim.step(render=False)
 
@@ -241,6 +262,7 @@ class TestTerrainImporter(unittest.TestCase):
             )
         else:
             # -- Ball geometry
+            enable_extension("omni.kit.primitive.mesh")
             cube_prim_path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Sphere")[1]
             prim_utils.move_prim(cube_prim_path, "/World/envs/env_0/ball")
             # -- Ball physics

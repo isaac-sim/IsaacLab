@@ -97,13 +97,13 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | Manag
 
 
 def parse_env_cfg(
-    task_name: str, use_gpu: bool | None = None, num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
 ) -> dict | ManagerBasedRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
         task_name: The name of the environment.
-        use_gpu: Whether to use GPU/CPU pipeline. Defaults to None, in which case it is left unchanged.
+        device: The device to run the simulation on. Defaults to "cuda:0".
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
@@ -120,16 +120,9 @@ def parse_env_cfg(
         raise ValueError("Please provide a valid task name. Hint: Use --task <task_name>.")
     # create a dictionary to update from
     args_cfg = {"sim": {"physx": dict()}, "scene": dict()}
-    # resolve pipeline to use (based on input)
-    if use_gpu is not None:
-        if not use_gpu:
-            args_cfg["sim"]["use_gpu_pipeline"] = False
-            args_cfg["sim"]["physx"]["use_gpu"] = False
-            args_cfg["sim"]["device"] = "cpu"
-        else:
-            args_cfg["sim"]["use_gpu_pipeline"] = True
-            args_cfg["sim"]["physx"]["use_gpu"] = True
-            args_cfg["sim"]["device"] = "cuda:0"
+
+    # simulation device
+    args_cfg["sim"]["device"] = device
 
     # disable fabric to read/write through USD
     if use_fabric is not None:

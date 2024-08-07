@@ -28,7 +28,26 @@ class ObservationManager(ManagerBase):
     corruption model to use, and the sensor to retrieve data from.
 
     Each observation group should inherit from the :class:`ObservationGroupCfg` class. Within each group, each
-    observation term should instantiate the :class:`ObservationTermCfg` class.
+    observation term should instantiate the :class:`ObservationTermCfg` class. Based on the configuration, the
+    observations in a group can be concatenated into a single tensor or returned as a dictionary with keys
+    corresponding to the term's name.
+
+    If the observations in a group are concatenated, the shape of the concatenated tensor is computed based on the
+    shapes of the individual observation terms. This information is stored in the :attr:`group_obs_dim` dictionary
+    with keys as the group names and values as the shape of the observation tensor. When the terms in a group are not
+    concatenated, the attribute stores a list of shapes for each term in the group.
+
+    .. note::
+        When the observation terms in a group do not have the same shape, the observation terms cannot be
+        concatenated. In this case, please set the :attr:`ObservationGroupCfg.concatenate_terms` attribute in the
+        group configuration to False.
+
+    The observation manager can be used to compute observations for all the groups or for a specific group. The
+    observations are computed by calling the registered functions for each term in the group. The functions are
+    called in the order of the terms in the group. The functions are expected to return a tensor with shape
+    (num_envs, ...). If a corruption/noise model is registered for a term, the function is called to corrupt
+    the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+    The observations are clipped and scaled as per the configuration settings.
     """
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
@@ -37,13 +56,31 @@ class ObservationManager(ManagerBase):
         Args:
             cfg: The configuration object or dictionary (``dict[str, ObservationGroupCfg]``).
             env: The environment instance.
+
+        Raises:
+            RuntimeError: If the shapes of the observation terms in a group are not compatible for concatenation
+                and the :attr:`~ObservationGroupCfg.concatenate_terms` attribute is set to True.
         """
         super().__init__(cfg, env)
+
         # compute combined vector for obs group
-        self._group_obs_dim: dict[str, tuple[int, ...]] = dict()
+        self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
         for group_name, group_term_dims in self._group_obs_term_dim.items():
-            term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
-            self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
+            # if terms are concatenated, compute the combined shape into a single tuple
+            # otherwise, keep the list of shapes as is
+            if self._group_obs_concatenate[group_name]:
+                try:
+                    term_dims = [torch.tensor(dims, device="cpu") for dims in group_term_dims]
+                    self._group_obs_dim[group_name] = tuple(torch.sum(torch.stack(term_dims, dim=0), dim=0).tolist())
+                except RuntimeError:
+                    raise RuntimeError(
+                        f"Unable to concatenate observation terms in group '{group_name}'."
+                        f" The shapes of the terms are: {group_term_dims}."
+                        " Please ensure that the shapes are compatible for concatenation."
+                        " Otherwise, set 'concatenate_terms' to False in the group configuration."
+                    )
+            else:
+                self._group_obs_dim[group_name] = group_term_dims
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -53,7 +90,9 @@ class ObservationManager(ManagerBase):
         for group_name, group_dim in self._group_obs_dim.items():
             # create table for term information
             table = PrettyTable()
-            table.title = f"Active Observation Terms in Group: '{group_name}' (shape: {group_dim})"
+            table.title = f"Active Observation Terms in Group: '{group_name}'"
+            if self._group_obs_concatenate[group_name]:
+                table.title += f" (shape: {group_dim})"
             table.field_names = ["Index", "Name", "Shape"]
             # set alignment of table columns
             table.align["Name"] = "l"
@@ -79,22 +118,43 @@ class ObservationManager(ManagerBase):
 
     @property
     def active_terms(self) -> dict[str, list[str]]:
-        """Name of active observation terms in each group."""
+        """Name of active observation terms in each group.
+
+        The keys are the group names and the values are the list of observation term names in the group.
+        """
         return self._group_obs_term_names
 
     @property
-    def group_obs_dim(self) -> dict[str, tuple[int, ...]]:
-        """Shape of observation tensor in each group."""
+    def group_obs_dim(self) -> dict[str, tuple[int, ...] | list[tuple[int, ...]]]:
+        """Shape of computed observations in each group.
+
+        The key is the group name and the value is the shape of the observation tensor.
+        If the terms in the group are concatenated, the value is a single tuple representing the
+        shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
+        where each tuple represents the shape of the observation tensor for a term in the group.
+        """
         return self._group_obs_dim
 
     @property
     def group_obs_term_dim(self) -> dict[str, list[tuple[int, ...]]]:
-        """Shape of observation tensor for each term in each group."""
+        """Shape of individual observation terms in each group.
+
+        The key is the group name and the value is a list of tuples representing the shape of the observation terms
+        in the group. The order of the tuples corresponds to the order of the terms in the group.
+        This matches the order of the terms in the :attr:`active_terms`.
+        """
         return self._group_obs_term_dim
 
     @property
     def group_obs_concatenate(self) -> dict[str, bool]:
-        """Whether the observation terms are concatenated in each group."""
+        """Whether the observation terms are concatenated in each group or not.
+
+        The key is the group name and the value is a boolean specifying whether the observation terms in the group
+        are concatenated into a single tensor. If True, the observations are concatenated along the last dimension.
+
+        The values are set based on the :attr:`~ObservationGroupCfg.concatenate_terms` attribute in the group
+        configuration.
+        """
         return self._group_obs_concatenate
 
     """
@@ -117,6 +177,8 @@ class ObservationManager(ManagerBase):
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
+            The observations are either concatenated into a single tensor or returned as a dictionary
+            with keys corresponding to the term's name.
         """
         # create a buffer for storing obs from all the groups
         obs_buffer = dict()
@@ -195,7 +257,7 @@ class ObservationManager(ManagerBase):
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
         self._group_obs_term_names: dict[str, list[str]] = dict()
-        self._group_obs_term_dim: dict[str, list[int]] = dict()
+        self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = dict()
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()

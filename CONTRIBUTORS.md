@@ -45,6 +45,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Kourosh Darvish
 * Lorenz Wellhausen
+* Masoud Moghani
 * Muhong Guo
 * Nuralem Abizov
 * Özhan Özen
