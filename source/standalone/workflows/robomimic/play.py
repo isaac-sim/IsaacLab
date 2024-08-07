@@ -13,7 +13,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play policy trained using robomimic for Isaac Lab environments.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -44,7 +43,7 @@ from omni.isaac.lab_tasks.utils import parse_env_cfg
 def main():
     """Run a trained policy from robomimic with Isaac Lab environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=1, use_fabric=not args_cli.disable_fabric)
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric)
     # we want to have the terms in the observations returned as a dictionary
     # rather than a concatenated tensor
     env_cfg.observations.policy.concatenate_terms = False
