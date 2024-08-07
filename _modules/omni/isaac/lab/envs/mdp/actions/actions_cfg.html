@@ -514,7 +514,9 @@ document.write(`
     <span class="n">scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Scale factor for the action (float or dict of regex expressions). Defaults to 1.0.&quot;&quot;&quot;</span>
     <span class="n">offset</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Offset factor for the action (float or dict of regex expressions). Defaults to 0.0.&quot;&quot;&quot;</span></div>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Offset factor for the action (float or dict of regex expressions). Defaults to 0.0.&quot;&quot;&quot;</span>
+    <span class="n">preserve_order</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether to preserve the order of the joint names in the action output. Defaults to False.&quot;&quot;&quot;</span></div>
 
 
 <div class="viewcode-block" id="JointPositionActionCfg"><a class="viewcode-back" href="../../../../../../../source/api/lab/omni.isaac.lab.envs.mdp.html#omni.isaac.lab.envs.mdp.actions.actions_cfg.JointPositionActionCfg">[docs]</a><span class="nd">@configclass</span>
