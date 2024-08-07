@@ -186,9 +186,6 @@ class ObservationManager(ManagerBase):
         obs_buffer = dict()
         # iterate over all the terms in each group
         for group_name in self._group_obs_term_names:
-            # debug
-            #print(f"group_name: {group_name}")
-            # debug
             obs_buffer[group_name] = self.compute_group(group_name)
         # otherwise return a dict with observations of all groups
         return obs_buffer
