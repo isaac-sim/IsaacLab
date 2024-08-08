@@ -1,0 +1,22 @@
+# Teams
+* @team-aii-devs @hhansen-bdai @jsmith-bdai @jtigue-bdai
+* @team-nvidia @Dhoeller19 @kellyguo11 @Mayankm96 @nikitardn # TODO: Add other members
+* @team-rsl @Mayankm96 @nikitardn @pascal-roth # TODO: Add other members
+
+
+# Person specific
+# Hunter Hansen
+docker/* @hhansen-bdai # All docker stuff
+tools/install_deps.py @hhansen-bdai # Dependency installation
+source/extensions/omni.isaac.lab/omni/isaac/lab/app_launcher.py @hhansen-bdai # App launcher
+
+# James Smith
+tools/*test* @jsmith-bdai # Testing scripts
+source/standalone/tools/* @jsmith-bdai # Standalone tools
+source/extensions/omni.isaac.lab/omni/isaac/lab/sensors/frame_transformer/* @jsmith-bdai # Frame transformer
+source/extensions/omni.isaac.lab/omni/isaac/lab/sim/* @jsmith-bdai # Converters, spawners and schemas
+
+
+# Team Specific
+# Non-RL Managers
+source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_env* @team-aii-devs
