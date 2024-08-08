@@ -147,7 +147,7 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
-    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type="cnn")
+    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type="cnn_mix")
     models["value"] = models["policy"]  # same instance: shared model
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
@@ -163,6 +163,8 @@ def main():
 
     agent_cfg["state_preprocessor_kwargs"].update({"size": env.observation_space, "device": env.device})
     agent_cfg["value_preprocessor_kwargs"].update({"size": 1, "device": env.device})
+    agent_cfg["state_preprocessor"] = ""
+    agent_cfg["value_preprocessor"] = ""
 
     agent = PPO(
         models=models,
