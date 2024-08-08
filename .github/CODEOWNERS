@@ -1,7 +1,8 @@
 # Teams
-* @team-aii-devs @hhansen-bdai @jsmith-bdai @jtigue-bdai
-* @team-nvidia @Dhoeller19 @kellyguo11 @Mayankm96 @nikitardn # TODO: Add other members
-* @team-rsl @Mayankm96 @nikitardn @pascal-roth # TODO: Add other members
+# These don't currently work - need to figure out how to do team codeowners
+# @team-aii-devs @hhansen-bdai @jsmith-bdai @jtigue-bdai
+# @team-nvidia @Dhoeller19 @kellyguo11 @Mayankm96 @nikitardn # TODO: Add other members
+# @team-rsl @Mayankm96 @nikitardn @pascal-roth # TODO: Add other members
 
 
 # Person specific
@@ -19,4 +20,4 @@ source/extensions/omni.isaac.lab/omni/isaac/lab/sim/* @jsmith-bdai # Converters,
 
 # Team Specific
 # Non-RL Managers
-source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_env* @team-aii-devs
+source/extensions/omni.isaac.lab/omni/isaac/lab/envs/manager_based_env* @jsmith-bdai # Might better be AII?
