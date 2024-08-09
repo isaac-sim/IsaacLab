@@ -69,16 +69,15 @@ class MySceneCfg(InteractiveSceneCfg):
     imu_ball: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/ball",
     )
+    imu_robot_imu_link: ImuCfg = ImuCfg(
+        prim_path="{ENV_REGEX_NS}/robot/imu_link",
+    )
     imu_robot_base: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/robot/base",
         offset=ImuCfg.OffsetCfg(
             pos=POS_OFFSET,
             rot=ROT_OFFSET,
         ),
-    )
-
-    imu_robot_imu_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/robot/base/imu_joint",
     )
 
     def __post_init__(self):
@@ -208,6 +207,12 @@ class TestImu(unittest.TestCase):
             torch.testing.assert_close(
                 self.scene.sensors["imu_robot_base"].data.lin_acc_b,
                 self.scene.sensors["imu_robot_imu_link"].data.lin_acc_b,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+            torch.testing.assert_close(
+                self.scene.sensors["imu_robot_base"]._last_lin_vel_w,
+                self.scene.sensors["imu_robot_imu_link"]._last_lin_vel_w,
                 rtol=1e-4,
                 atol=1e-4,
             )

@@ -115,9 +115,6 @@ class Imu(SensorBase):
         # check if it is a RigidBody Prim
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             self._view = self._physics_sim_view.create_rigid_body_view(self.cfg.prim_path.replace(".*", "*"))
-        # elif prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-        # else:
-        #     self._view = self._physics_sim_view.create_articulation_view(self.cfg.prim_path.replace(".*", "*"))
         else:
             raise RuntimeError(f"Failed to find a RigidBodyAPI for the prim paths: {self.cfg.prim_path}")
 
@@ -132,10 +129,6 @@ class Imu(SensorBase):
                 "The update function must be called before the data buffers are accessed the first time."
             )
         # obtain the poses of the sensors
-        # if isinstance(self._view, physx.RigidBodyView):
-        #     pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        # else:
-        #     pos_w, quat_w = self._view.get_link_transforms()[env_ids].split([3, 4], dim=-1)
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         # store the poses
