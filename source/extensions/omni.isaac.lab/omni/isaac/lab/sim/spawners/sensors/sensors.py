@@ -100,7 +100,18 @@ def spawn_camera(
     else:
         attribute_types = CUSTOM_FISHEYE_CAMERA_ATTRIBUTES
     # custom attributes in the config that are not USD Camera parameters
-    non_usd_cfg_param_names = ["func", "copy_from_source", "lock_camera", "visible", "semantic_tags"]
+    non_usd_cfg_param_names = [
+        "func",
+        "copy_from_source",
+        "lock_camera",
+        "visible",
+        "semantic_tags",
+        "from_intrinsic_matrix",
+    ]
+
+    # TODO: Adjust to handle aperture offsets once supported by omniverse
+    if cfg.horizontal_aperture_offset > 1e-4 or cfg.vertical_aperture_offset > 1e-4:
+        print("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
 
     # get camera prim
     prim = prim_utils.get_prim_at_path(prim_path)

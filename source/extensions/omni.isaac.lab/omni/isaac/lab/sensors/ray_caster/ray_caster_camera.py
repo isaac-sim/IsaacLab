@@ -347,9 +347,10 @@ class RayCasterCamera(RayCaster):
         # get the sensor properties
         pattern_cfg = self.cfg.pattern_cfg
         # compute the intrinsic matrix
-        vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
+        if pattern_cfg.vertical_aperture is None:
+            pattern_cfg.vertical_aperture = pattern_cfg.horizontal_aperture * pattern_cfg.height / pattern_cfg.width
         f_x = pattern_cfg.width * pattern_cfg.focal_length / pattern_cfg.horizontal_aperture
-        f_y = pattern_cfg.height * pattern_cfg.focal_length / vertical_aperture
+        f_y = pattern_cfg.height * pattern_cfg.focal_length / pattern_cfg.vertical_aperture
         c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
         c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
         # allocate the intrinsic matrices
@@ -357,6 +358,7 @@ class RayCasterCamera(RayCaster):
         self._data.intrinsic_matrices[:, 0, 2] = c_x
         self._data.intrinsic_matrices[:, 1, 1] = f_y
         self._data.intrinsic_matrices[:, 1, 2] = c_y
+
         # save focal length
         self._focal_length = pattern_cfg.focal_length
 

@@ -36,6 +36,11 @@ from omni.isaac.lab.terrains.utils import create_prim_from_mesh
 from omni.isaac.lab.utils import convert_dict_to_backend
 from omni.isaac.lab.utils.timer import Timer
 
+##
+# Pre-defined configs
+##
+from omni.isaac.lab_assets import ZED_X_NARROW_RAYCASTER_CFG, ZED_X_NARROW_USD_CFG  # isort: skip
+
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
@@ -202,6 +207,58 @@ class TestWarpCamera(unittest.TestCase):
         np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
         np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
         np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
+
+    def test_camera_init_intrinsic_matrix(self):
+        # get the first camera
+        camera_1 = RayCasterCamera(cfg=self.camera_cfg)
+        # get intrinsic matrix
+        self.sim.reset()
+        intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+        self.tearDown()
+        # reinit the first camera
+        self.setUp()
+        camera_1 = RayCasterCamera(cfg=self.camera_cfg)
+        # initialize from intrinsic matrix
+        intrinsic_camera_cfg = RayCasterCameraCfg(
+            prim_path="/World/Camera",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            update_period=0,
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+            debug_vis=False,
+            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+                focal_length=self.camera_cfg.pattern_cfg.focal_length,
+                intrinsic_matrix=intrinsic_matrix,
+                height=self.camera_cfg.pattern_cfg.height,
+                width=self.camera_cfg.pattern_cfg.width,
+            ),
+            data_types=[
+                "distance_to_image_plane",
+            ],
+        )
+        camera_2 = RayCasterCamera(cfg=intrinsic_camera_cfg)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # update cameras
+        camera_1.update(self.dt)
+        camera_2.update(self.dt)
+
+        # check image data
+        torch.testing.assert_close(
+            camera_1.data.output["distance_to_image_plane"],
+            camera_2.data.output["distance_to_image_plane"],
+            rtol=5e-3,
+            atol=1e-4,
+        )
+        # check that both intrinsic matrices are the same
+        torch.testing.assert_close(
+            camera_1.data.intrinsic_matrices[0],
+            camera_2.data.intrinsic_matrices[0],
+            rtol=5e-3,
+            atol=1e-4,
+        )
 
     def test_multi_camera_init(self):
         """Test multi-camera initialization."""
@@ -583,6 +640,65 @@ class TestWarpCamera(unittest.TestCase):
             camera_usd.data.output["normals"][..., :3],
             camera_warp.data.output["normals"],
             rtol=1e-5,
+            atol=1e-4,
+        )
+
+    def test_output_equal_to_usdcamera_intrinsics(self):
+        """Test that the output of the ray caster camera is equal to the output of the usd camera when both are
+        initialized with the same intrinsic matrix."""
+
+        # create cameras
+        offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+        prim_utils.create_prim("/World/Camera_warp", "Xform")
+        # get camera cfgs
+        camera_warp_cfg = ZED_X_NARROW_RAYCASTER_CFG.replace(
+            prim_path="/World/Camera_warp",
+            mesh_prim_paths=["/World/defaultGroundPlane"],
+            offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+        )
+        camera_usd_cfg = ZED_X_NARROW_USD_CFG.replace(
+            prim_path="/World/Camera_usd",
+            offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+        )
+        # set aperture offsets to 0, as currently not supported for usd camera
+        camera_warp_cfg.pattern_cfg.horizontal_aperture_offset = 0
+        camera_warp_cfg.pattern_cfg.vertical_aperture_offset = 0
+        camera_usd_cfg.spawn.horizontal_aperture_offset = 0
+        camera_usd_cfg.spawn.vertical_aperture_offset = 0
+        # init cameras
+        camera_warp = RayCasterCamera(camera_warp_cfg)
+        camera_usd = Camera(camera_usd_cfg)
+
+        # play sim
+        self.sim.reset()
+        self.sim.play()
+
+        # perform steps
+        for _ in range(5):
+            self.sim.step()
+
+        # update camera
+        camera_usd.update(self.dt)
+        camera_warp.update(self.dt)
+
+        # filter nan and inf from output
+        cam_warp_output = camera_warp.data.output["distance_to_image_plane"].clone()
+        cam_usd_output = camera_usd.data.output["distance_to_image_plane"].clone()
+        cam_warp_output[torch.isnan(cam_warp_output)] = 0
+        cam_warp_output[torch.isinf(cam_warp_output)] = 0
+        cam_usd_output[torch.isnan(cam_usd_output)] = 0
+        cam_usd_output[torch.isinf(cam_usd_output)] = 0
+
+        # check that both have the same intrinsic matrices
+        torch.testing.assert_close(
+            camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0], rtol=5e-3, atol=1e-4
+        )
+
+        # check image data
+        torch.testing.assert_close(
+            cam_warp_output,
+            cam_usd_output,
+            rtol=5e-3,
             atol=1e-4,
         )
 
