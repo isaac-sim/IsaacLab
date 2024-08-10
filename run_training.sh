@@ -19,6 +19,12 @@ if [ $MODE = "train" ]; then
     #--enable_cameras 
     #--video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL \
     #--checkpoint /PATH/TO/model.pt
+elif [ $MODE = "state" ]; then
+    python source/standalone/workflows/skrl/train.py --task Isaac-Lift-Cube-Franka-v0 --num_envs $NUM_ENVS \
+    --headless \
+    --enable_cameras \
+    --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL #\
+    #--checkpoint /PATH/TO/model.pt
 else
     echo "Playing"
     python source/standalone/workflows/skrl/play_rgb.py --task Isaac-Lift-Cube-Franka-v0-RGB --num_envs 2 \

@@ -124,6 +124,7 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
+    # NOTE: Can be used to randomize the states or the robots attributes
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
@@ -142,6 +143,8 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
+    # Rewards: ---------------------------------------------------------------------------------------------------------
+
     reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
 
     lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
@@ -158,6 +161,8 @@ class RewardsCfg:
         weight=5.0,
     )
 
+    # Penalties: -------------------------------------------------------------------------------------------------------
+
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
 
@@ -166,6 +171,8 @@ class RewardsCfg:
         weight=-1e-4,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
+
+    # TODO: penalize staying in one place (not moving)
 
 
 @configclass
@@ -179,17 +186,29 @@ class TerminationsCfg:
     )
 
 
+# TODO: Explore further
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
-    )
+    # (1) reaching the object
+    reaching_object = CurrTerm(
+        func=mdp.modify_reward_weight, 
+        params={
+            "term_name": "reaching_object", 
+            "weight": 5.0,
+            "num_steps": 10000
+        })
+    # (2) grasping the object
+    # (3) lifting the object
 
-    joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
-    )
+    # action_rate = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
+    # )
+
+    # joint_vel = CurrTerm(
+    #     func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
+    # )
 
 
 ##
