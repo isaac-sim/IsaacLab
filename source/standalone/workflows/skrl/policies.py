@@ -142,14 +142,12 @@ class LargeCNNMixNet(nn.Module):
         # NOTE: Pretrained backbone
         self.weights = ResNet50_Weights.IMAGENET1K_V2
         self.backbone = resnet50(weights=self.weights)
-        self.backbone = torch.nn.Sequential(*(list(self.backbone.children())[:-1]))
+        self.backbone = torch.nn.Sequential(*(list(self.backbone.children())[:-6]))
         self.preprocess = self.weights.transforms()
 
-        print(self.backbone)
-        raise
-
         self.cnn = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=8, stride=4),
+            self.backbone,
+            nn.Conv2d(64, 32, kernel_size=8, stride=4),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
@@ -174,6 +172,7 @@ class LargeCNNMixNet(nn.Module):
             sample_linear_output = self.linear(sample_states)
         
             sample_img = torch.zeros(img_space_size)[None, ...].view(-1, *img_space).permute(0, 3, 1, 2)
+            sample_img = self.preprocess(sample_img)
             sample_cnn_output = self.cnn(sample_img)
 
             self.fc = nn.Sequential(
@@ -188,19 +187,20 @@ class LargeCNNMixNet(nn.Module):
             )
 
     def forward(self, x):
-        x = self.preprocess(x)
         img = x["cam_data"].float()
+        img = self.preprocess(img)
         if DEBUG:
             print(f"{img.mean()}+-{img.std()}: [{img.min()}, {img.max()}]")
+        
         joint_pos = x["joint_pos"]
         joint_vel = x["joint_vel"]
         last_action = x["last_action"]
         states = torch.cat([joint_pos, joint_vel, last_action], dim=1)
 
-        linear_out = self.linear(states)
         cnn_out = self.cnn(img)
+        linear_out = self.linear(states)
         
-        out = torch.cat([linear_out, cnn_out], dim=1)
+        out = torch.cat([cnn_out, linear_out], dim=1)
         return self.fc(out)
 
 
@@ -227,7 +227,14 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
             self.REL_VEL_SHAPE = (9) # 1 TODO: Make dynamic
             self.LAST_ACTION_SHAPE = (8) # 2 TODO: Make dynamic
             self.IMG_SHAPE = (480, 640, 3) # 3 TODO: Make dynamic
-            self.net = CNNMixNet(
+            # self.net = CNNMixNet(
+            #     observation_space, 
+            #     img_space=self.IMG_SHAPE,
+            #     rel_pos_space = self.REL_POS_SHAPE,
+            #     rel_vel_space = self.REL_VEL_SHAPE,
+            #     last_action_space = self.LAST_ACTION_SHAPE,
+            # )
+            self.net = LargeCNNMixNet(
                 observation_space, 
                 img_space=self.IMG_SHAPE,
                 rel_pos_space = self.REL_POS_SHAPE,
@@ -321,7 +328,11 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
             return self.value_layer(shared_output), {}
         
 def test_net():
+    import numpy as np
     model = LargeCNNMixNet(None, None, None, None , None)
+    sample = torch.from_numpy(np.zeros(shape=(1, 3, 480, 640)))
+    output = model(sample)
+    print(f"output: {output.shape}")
 
 if __name__ == "__main__":
     test_net()
