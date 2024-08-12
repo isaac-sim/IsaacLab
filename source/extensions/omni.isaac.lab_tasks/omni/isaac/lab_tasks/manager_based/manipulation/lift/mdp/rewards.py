@@ -24,6 +24,99 @@ def object_is_lifted(
     object: RigidObject = env.scene[object_cfg.name]
     return torch.where(object.data.root_pos_w[:, 2] > minimal_height, 1.0, 0.0)
 
+def align_grasp_around_object(
+    env: ManagerBasedRLEnv,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Bonus for correct hand orientation around the object.
+
+    The correct hand orientation is when the left finger is above the handle and the right finger is below the handle.
+    """
+    # extract the used quantities (to enable type-hinting)
+    object: RigidObject = env.scene[object_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+
+    # Target object position: (num_envs, 3)
+    object_pos = object.data.root_pos_w#[..., 0, :]
+
+    # Fingertips position: (num_envs, n_fingertips, 3)
+    ee_fingertips_w = ee_frame.data.target_pos_w[..., 1:, :]
+    lfinger_pos = ee_fingertips_w[..., 0, :]
+    rfinger_pos = ee_fingertips_w[..., 1, :]
+
+    # Check if hand is in a graspable pose
+    is_graspable = (rfinger_pos[:, 2] < object_pos[:, 2]) & (lfinger_pos[:, 2] > object_pos[:, 2])
+
+    # bonus if left finger is above the drawer handle and right below
+    return is_graspable
+
+
+def approach_gripper_object(
+    env: ManagerBasedRLEnv, 
+    offset: float = 0.04,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward the robot's gripper reaching the object with the right pose.
+
+    This function returns the distance of fingertips to the object when the fingers are in a grasping orientation
+    (i.e., fingers are around the cube/object). Otherwise, it returns zero.
+    """
+    # extract the used quantities (to enable type-hinting)
+    object: RigidObject = env.scene[object_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+
+    # Target object position: (num_envs, 3)
+    object_pos = object.data.root_pos_w#[..., 0, :]
+
+    # Fingertips position: (num_envs, n_fingertips, 3)
+    ee_fingertips_w = ee_frame.data.target_pos_w[..., 1:, :]
+    lfinger_pos = ee_fingertips_w[..., 0, :]
+    rfinger_pos = ee_fingertips_w[..., 1, :]
+
+    # Compute the distance of each finger from the handle (top and bottom, TODO: change this)
+    lfinger_dist = torch.abs(lfinger_pos[:, 2] - object_pos[:, 2])
+    rfinger_dist = torch.abs(rfinger_pos[:, 2] - object_pos[:, 2])
+
+    # Check if hand is in a graspable pose
+    is_graspable = (rfinger_pos[:, 2] < object_pos[:, 2]) & (lfinger_pos[:, 2] > object_pos[:, 2])
+    is_approached_in_right_pose = is_graspable * ((offset - lfinger_dist) + (offset - rfinger_dist))
+
+    return is_approached_in_right_pose
+
+
+def grasp_object(
+    env: ManagerBasedRLEnv, 
+    threshold: float, 
+    open_joint_pos: float, 
+    asset_cfg: SceneEntityCfg,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward for closing the fingers when being close to the object.
+
+    The :attr:`threshold` is the distance from the object at which the fingers should be closed.
+    The :attr:`open_joint_pos` is the joint position when the fingers are open.
+
+    Note:
+        It is assumed that zero joint position corresponds to the fingers being closed.
+    """
+    # extract the used quantities (to enable type-hinting)
+    object: RigidObject = env.scene[object_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+
+    ee_tcp_pos = ee_frame.data.target_pos_w[..., 0, :]
+    object_pos = object.data.root_pos_w#[..., 0, :]
+    gripper_joint_pos = env.scene[asset_cfg.name].data.joint_pos[:, asset_cfg.joint_ids]
+
+    distance = torch.norm(object_pos - ee_tcp_pos, dim=-1, p=2)
+    is_close = distance <= threshold
+    # NOTE: Maximize difference between the gripper pose and its open position.
+    # The only way is to close it as much as possible.
+    is_grasped = is_close * torch.sum(open_joint_pos - gripper_joint_pos, dim=-1)
+
+    return is_grasped
 
 def object_ee_distance(
     env: ManagerBasedRLEnv,
@@ -65,3 +158,9 @@ def object_goal_distance(
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
     # rewarded if the object is lifted above the threshold
     return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
+
+def is_ee_stationary():
+    """Penalize stationary ee joint velocities"""
+    # NOTE: track the joint velocities of the end-effector and see if it stays stationary for 2
+    # successive iterations
+    raise NotImplementedError

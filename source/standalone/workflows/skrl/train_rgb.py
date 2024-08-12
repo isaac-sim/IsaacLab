@@ -14,6 +14,7 @@ a more user-friendly way.
 
 
 import argparse
+import wandb
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -46,6 +47,7 @@ parser.add_argument(
     choices=["torch", "jax", "jax-numpy"],
     help="The ML framework used for training the skrl agent.",
 )
+parser.add_argument("--wandb", action="store_true", default=False, help="Enable logging in Weights&Biases")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -147,13 +149,14 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
-    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type="cnn_mix")
+    ARCH_TYPE = "cnn_mix"
+    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type=ARCH_TYPE)
     models["value"] = models["policy"]  # same instance: shared model
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
     # https://skrl.readthedocs.io/en/latest/api/memories/random.html
     memory_size = experiment_cfg["agent"]["rollouts"]  # memory_size is the agent's number of rollouts
-    experiment_cfg["agent"]["rollouts"] = 10000
+    #experiment_cfg["agent"]["rollouts"] = 10000
     memory = RandomMemory(memory_size=memory_size, num_envs=env.num_envs, device=env.device)
 
     # configure and instantiate PPO agent
@@ -183,11 +186,38 @@ def main():
     trainer_cfg["close_environment_at_exit"] = False
     trainer = SequentialTrainer(cfg=trainer_cfg, env=env, agents=agent)
 
+    # wandb initialization (logging, besides tensorboard)
+    if args_cli.wandb:
+        wandb.init(
+            project="isaaclab-lift-cube-RGB",
+            sync_tensorboard=True,
+            config={
+            "rollout": experiment_cfg["agent"]["rollouts"],
+            "learning_epochs": experiment_cfg["agent"]["learning_epochs"],
+            "learning_rate": experiment_cfg["agent"]["learning_rate"],
+            "architecture": ARCH_TYPE.title(),
+            "timesteps": experiment_cfg["trainer"]["timesteps"],
+            "num_envs": args_cli.num_envs,
+            }
+        )
+
+    # Load the checkpoint
+    # "./runs/22-09-29_22-48-49-816281_DDPG/checkpoints/agent_1200.pt"
+    AGENT_PRETRAINED = False # TODO: make dynamic
+    CHECKPOINTS = ""
+    if AGENT_PRETRAINED:
+        print(f"Loading pretrained agent weights from {CHECKPOINTS}\n")
+        agent.load(CHECKPOINTS)
+
     # train the agent
     trainer.train()
 
     # close the simulator
     env.close()
+
+    # close wandb
+    if args_cli.wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":

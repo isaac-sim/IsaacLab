@@ -147,6 +147,19 @@ class RewardsCfg:
 
     reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
 
+    # grasping
+    approach_gripper_object = RewTerm(func=mdp.approach_gripper_object, weight=5.0, params={"offset": MISSING})
+    align_grasp_around_object = RewTerm(func=mdp.align_grasp_around_object, weight=0.125)
+    grasp_object = RewTerm(
+        func=mdp.grasp_object,
+        weight=0.5,
+        params={
+            "threshold": 0.03,
+            "open_joint_pos": MISSING,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=MISSING),
+        },
+    )
+
     lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
 
     object_goal_tracking = RewTerm(
@@ -173,7 +186,11 @@ class RewardsCfg:
     )
 
     # TODO: penalize staying in one place (not moving)
-
+    # joint_vel_ee_stationary = RewTerm(
+    #     func=mdp.is_ee_stationary,
+    #     weight=-1e-4,
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
+    # )
 
 @configclass
 class TerminationsCfg:
@@ -199,16 +216,20 @@ class CurriculumCfg:
             "weight": 5.0,
             "num_steps": 10000
         })
+    
     # (2) grasping the object
+    # TODO
+
     # (3) lifting the object
+    # TODO
 
-    # action_rate = CurrTerm(
-    #     func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
-    # )
+    action_rate = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
+    )
 
-    # joint_vel = CurrTerm(
-    #     func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
-    # )
+    joint_vel = CurrTerm(
+        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
+    )
 
 
 ##

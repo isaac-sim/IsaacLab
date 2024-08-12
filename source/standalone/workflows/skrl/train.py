@@ -14,6 +14,7 @@ a more user-friendly way.
 
 
 import argparse
+import wandb
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -39,6 +40,7 @@ parser.add_argument(
     choices=["torch", "jax", "jax-numpy"],
     help="The ML framework used for training the skrl agent.",
 )
+parser.add_argument("--wandb", action="store_true", default=False, help="Enable logging in Weights&Biases")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -212,11 +214,30 @@ def main():
     trainer_cfg["close_environment_at_exit"] = False
     trainer = SequentialTrainer(cfg=trainer_cfg, env=env, agents=agent)
 
+    # wandb initialization (logging, besides tensorboard)
+    if args_cli.wandb:
+        wandb.init(
+            project="isaaclab-lift-cube",
+            sync_tensorboard=True,
+            config={
+            "rollout": experiment_cfg["agent"]["rollouts"],
+            "learning_epochs": experiment_cfg["agent"]["learning_epochs"],
+            "learning_rate": experiment_cfg["agent"]["learning_rate"],
+            "architecture": "linear",
+            "timesteps": experiment_cfg["trainer"]["timesteps"],
+            "num_envs": args_cli.num_envs,
+            }
+        )
+
     # train the agent
     trainer.train()
 
     # close the simulator
     env.close()
+
+    # close wandb
+    if args_cli.wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":

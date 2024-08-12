@@ -117,8 +117,27 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                         pos=[0.0, 0.0, 0.1034],
                     ),
                 ),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                    name="tool_leftfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
+                    ),
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                    name="tool_rightfinger",
+                    offset=OffsetCfg(
+                        pos=(0.0, 0.0, 0.046),
+                    ),
+                ),
             ],
         )
+
+        # override rewards (these are filling in for MISSING values)
+        self.rewards.approach_gripper_object.params["offset"] = 0.04
+        self.rewards.grasp_object.params["open_joint_pos"] = 0.04
+        self.rewards.grasp_object.params["asset_cfg"].joint_names = ["panda_finger_.*"]
 
 
 @configclass
