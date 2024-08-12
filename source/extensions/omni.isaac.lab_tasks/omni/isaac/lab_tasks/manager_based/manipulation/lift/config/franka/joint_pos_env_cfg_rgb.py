@@ -138,6 +138,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         self.rewards.approach_gripper_object.params["offset"] = 0.04
         self.rewards.grasp_object.params["open_joint_pos"] = 0.04
         self.rewards.grasp_object.params["asset_cfg"].joint_names = ["panda_finger_.*"]
+        self.rewards.joint_vel_ee_stationary.params["prev_joint_vel"] = torch.zeros((self.scene.num_envs, 6)) # TODO: Fix the num_envs
 
 
 @configclass

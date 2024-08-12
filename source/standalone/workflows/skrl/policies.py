@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from skrl.models.torch import DeterministicMixin, GaussianMixin, Model
 
-from nets import LinearNet, CNNNet, LargeCNNMixNet, CNNMixNet, ViTMix
+from nets import LinearNet, CNNNet, ResnetCNNMixNet, CNNMixNet, ViTMix
 
 DEBUG = False
 MEAN_IMAGENET = [0.485, 0.456, 0.406]
@@ -19,19 +19,22 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
         DeterministicMixin.__init__(self, clip_actions)
 
         self.arch_type = type
-        if self.arch_type == "linear":
+        if self.arch_type == "linear-state":
             print(f"{self.arch_type.title()} architecture\n")
-            self.net = LinearNet(self.num_observations).net
-        elif self.arch_type == "cnn":
+            self.net = LinearNet(self.num_observations).net.to(device)
+
+        elif self.arch_type == "cnn-rgb":
             print(f"{self.arch_type.title()} architecture\n")
             self.IMG_SHAPE = (480, 640, 3) # TODO: Make dynamic
-            self.net = CNNNet(observation_space.shape, img_space=self.IMG_SHAPE).net
-        elif self.arch_type == "cnn_mix":
+            self.net = CNNNet(observation_space.shape, img_space=self.IMG_SHAPE).net.to(device)
+
+        elif self.arch_type == "cnn-rgb-state":
             print(f"{self.arch_type.title()} architecture\n")
             self.REL_POS_SHAPE = (9) # 0 TODO: Make dynamic
             self.REL_VEL_SHAPE = (9) # 1 TODO: Make dynamic
             self.LAST_ACTION_SHAPE = (8) # 2 TODO: Make dynamic
             self.IMG_SHAPE = (480, 640, 3) # 3 TODO: Make dynamic
+
             # self.net = CNNMixNet(
             #     observation_space, 
             #     img_space=self.IMG_SHAPE,
@@ -40,21 +43,30 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
             #     last_action_space = self.LAST_ACTION_SHAPE,
             # )
 
-            self.net = LargeCNNMixNet(
+            self.net = ResnetCNNMixNet(
                 observation_space, 
                 img_space=self.IMG_SHAPE,
                 rel_pos_space = self.REL_POS_SHAPE,
                 rel_vel_space = self.REL_VEL_SHAPE,
                 last_action_space = self.LAST_ACTION_SHAPE,
-            )
+            ).to(device)
 
-            # self.net = ViTMix(
-            #     observation_space, 
-            #     img_space=self.IMG_SHAPE,
-            #     rel_pos_space = self.REL_POS_SHAPE,
-            #     rel_vel_space = self.REL_VEL_SHAPE,
-            #     last_action_space = self.LAST_ACTION_SHAPE,
-            # )
+        elif self.arch_type == "large_model-rgb-state":
+            print(f"{self.arch_type.title()} architecture\n")
+            self.REL_POS_SHAPE = (9) # 0 TODO: Make dynamic
+            self.REL_VEL_SHAPE = (9) # 1 TODO: Make dynamic
+            self.LAST_ACTION_SHAPE = (8) # 2 TODO: Make dynamic
+            self.IMG_SHAPE = (480, 640, 3) # 3 TODO: Make dynamic
+
+            self.net = ViTMix(
+                observation_space, 
+                img_space=self.IMG_SHAPE,
+                rel_pos_space = self.REL_POS_SHAPE,
+                rel_vel_space = self.REL_VEL_SHAPE,
+                last_action_space = self.LAST_ACTION_SHAPE,
+                device=device,
+            ).to(device)
+
         else:
             raise NotImplementedError
 
@@ -75,10 +87,10 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
     def compute(self, inputs, role):
         if role == "policy":
             inputs = inputs["states"]
-            if self.arch_type == "cnn":
+            if self.arch_type == "cnn-rgb":
                 inputs = inputs.view(-1, *self.IMG_SHAPE).permute(0, 3, 1, 2)
                 inputs = inputs / inputs.max()
-            elif self.arch_type == "cnn_mix":
+            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state":
                 joint_pos_input = inputs[:, :9]
                 joint_vel_input = inputs[:, 9:18]
                 last_action_input = inputs[:, 18:26]
@@ -108,10 +120,10 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
         
         elif role == "value":
             inputs = inputs["states"]
-            if self.arch_type == "cnn":
+            if self.arch_type == "cnn-rgb":
                 inputs = inputs.view(-1, *self.IMG_SHAPE).permute(0, 3, 1, 2)
                 inputs = inputs / inputs.max()
-            elif self.arch_type == "cnn_mix":
+            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state":
                 joint_pos_input = inputs[:, :9]
                 joint_vel_input = inputs[:, 9:18]
                 last_action_input = inputs[:, 18:26]

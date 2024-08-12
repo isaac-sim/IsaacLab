@@ -33,12 +33,13 @@
             "program": "${workspaceFolder}/source/standalone/workflows/skrl/train_rgb.py",
             "args": [
                 "--task", "Isaac-Lift-Cube-Franka-v0-RGB",
-                "--num_envs", "10",
+                "--num_envs", "10", // Modify here
                 "--headless",
                 "--enable_cameras",
                 "--video",
                 "--video_length", "100",
-                "--video_interval", "500"
+                "--video_interval", "500",
+                "--arch_type", "large_model-rgb-state", // Modify here
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

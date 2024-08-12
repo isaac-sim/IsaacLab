@@ -128,6 +128,7 @@ def object_ee_distance(
     # extract the used quantities (to enable type-hinting)
     object: RigidObject = env.scene[object_cfg.name]
     ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+
     # Target object position: (num_envs, 3)
     cube_pos_w = object.data.root_pos_w
     # End-effector position: (num_envs, 3)
@@ -150,6 +151,7 @@ def object_goal_distance(
     # extract the used quantities (to enable type-hinting)
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
+
     command = env.command_manager.get_command(command_name)
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
@@ -159,8 +161,21 @@ def object_goal_distance(
     # rewarded if the object is lifted above the threshold
     return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
 
-def is_ee_stationary():
+def is_ee_stationary(
+    env: ManagerBasedRLEnv,
+    threshold: float, 
+    prev_joint_vel: torch.Tensor, 
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
     """Penalize stationary ee joint velocities"""
     # NOTE: track the joint velocities of the end-effector and see if it stays stationary for 2
     # successive iterations
-    raise NotImplementedError
+    # extract the used quantities (to enable type-hinting)
+    robot: RigidObject = env.scene[robot_cfg.name]
+
+    curr_joint_vel = robot.data.root_vel_w
+    difference = torch.norm(curr_joint_vel - prev_joint_vel, dim=-1, p=2) #L2
+    is_stationary = difference <= threshold
+    prev_joint_vel = curr_joint_vel.clone()
+
+    return is_stationary

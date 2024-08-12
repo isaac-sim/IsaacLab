@@ -124,9 +124,9 @@ class CNNMixNet(nn.Module):
         out = torch.cat([linear_out, cnn_out], dim=1)
         return self.fc(out)
     
-class LargeCNNMixNet(nn.Module):
+class ResnetCNNMixNet(nn.Module):
     def __init__(self, observation_space, img_space, rel_pos_space, rel_vel_space, last_action_space):
-        super(LargeCNNMixNet, self).__init__()
+        super(ResnetCNNMixNet, self).__init__()
 
         # Flat shapes
         # img_space_size = observation_space.spaces["cam_data"].shape
@@ -204,7 +204,7 @@ class LargeCNNMixNet(nn.Module):
         return self.fc(out)
     
 class ViTMix(nn.Module):
-    def __init__(self, observation_space, img_space, rel_pos_space, rel_vel_space, last_action_space):
+    def __init__(self, observation_space, img_space, rel_pos_space, rel_vel_space, last_action_space, device):
         super(ViTMix, self).__init__()
 
         # self.weights = ViT_B_16_Weights.DEFAULT
@@ -217,12 +217,9 @@ class ViTMix(nn.Module):
         last_action_size = 8
         img_space_size = 921600
 
+        self.device = device
         self.process = AutoImageProcessor.from_pretrained("google/vit-base-patch16-224-in21k")
         self.backbone = ViTModel.from_pretrained("google/vit-base-patch16-224-in21k")
-
-        self.head = nn.Sequential(
-            nn.Linear(768, 64),
-        )
 
         with torch.no_grad():
             sample_rel_pos = torch.zeros(rel_pos_size)[None, ...].view(-1, rel_pos_space)
@@ -243,6 +240,10 @@ class ViTMix(nn.Module):
             sample_img = self.process(sample_img, return_tensors="pt", do_rescale=False, use_fast=True)
             sample_img = self.backbone(**sample_img)
             sample_img = sample_img.last_hidden_state
+            sample_img = sample_img.view(-1, sample_img.shape[1] * sample_img.shape[2])
+            self.head = nn.Sequential(
+                nn.Linear(sample_img.shape[-1], 64),
+            )
             sample_img_output = self.head(sample_img)
 
             self.fc = nn.Sequential(
@@ -258,7 +259,7 @@ class ViTMix(nn.Module):
 
     def forward(self, x):
         img = x["cam_data"].float()
-        img = self.process(img, return_tensors="pt", do_rescale=False, use_fast=True)
+        img = self.process(img, return_tensors="pt", do_rescale=False, use_fast=True).to(self.device)
         if DEBUG:
             print(f"{img.mean()}+-{img.std()}: [{img.min()}, {img.max()}]")
         
@@ -270,7 +271,8 @@ class ViTMix(nn.Module):
         with torch.no_grad():
             cnn_out = self.backbone(**img)
             cnn_out = cnn_out.last_hidden_state
-            
+
+        cnn_out = cnn_out.view(-1, cnn_out.shape[1] * cnn_out.shape[2])
         cnn_out = self.head(cnn_out)
         linear_out = self.linear(states)
         
@@ -280,7 +282,7 @@ class ViTMix(nn.Module):
     
 def test():
     import numpy as np
-    model = ViTMix(None, None, None, None , None)
+    model = ViTMix(None, None, None, None, None, None)
     sample = torch.from_numpy(np.zeros(shape=(1, 3, 480, 640)))
     output = model(sample)
     print(f"output: {output.shape}")

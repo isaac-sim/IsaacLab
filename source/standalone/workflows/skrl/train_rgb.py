@@ -48,6 +48,7 @@ parser.add_argument(
     help="The ML framework used for training the skrl agent.",
 )
 parser.add_argument("--wandb", action="store_true", default=False, help="Enable logging in Weights&Biases")
+parser.add_argument("--arch_type", type=str, default="cnn-rgb-state", help="Type of neural network used for policies")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -149,8 +150,7 @@ def main():
     # instantiate models using skrl model instantiator utility
     # https://skrl.readthedocs.io/en/latest/api/utils/model_instantiators.html
     models = {}
-    ARCH_TYPE = "cnn_mix"
-    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type=ARCH_TYPE)
+    models["policy"] = Shared(env.observation_space, env.action_space, env_cfg.sim.device, type=args_cli.arch_type)
     models["value"] = models["policy"]  # same instance: shared model
 
     # instantiate a RandomMemory as rollout buffer (any memory can be used for this)
