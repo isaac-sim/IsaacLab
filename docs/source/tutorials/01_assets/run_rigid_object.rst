@@ -131,9 +131,6 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.png
-    :align: center
-
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
@@ -144,6 +141,10 @@ Now that we have gone through the code, let's run the script and see the result:
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from
 a random height and settling on to the ground. To stop the simulation, you can either close the window, or press
 the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
+
+.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.png
+    :align: center
+
 
 This tutorial showed how to spawn rigid objects and wrap them in a :class:`RigidObject` class to initialize their
 physics handles which allows setting and obtaining their state. In the next tutorial, we will see how to interact

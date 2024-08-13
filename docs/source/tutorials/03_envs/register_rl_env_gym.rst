@@ -142,10 +142,6 @@ Once creating the environment, the rest of the execution follows the standard re
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_register_environment.png
-    :align: center
-
-
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
@@ -155,6 +151,11 @@ Now that we have gone through the code, let's run the script and see the result:
 
 This should open a stage with everything similar to the :ref:`tutorial-create-manager-rl-env` tutorial.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
+
+
+.. figure:: ../../_static/tutorials/tutorial_register_environment.png
+    :align: center
+
 
 In addition, you can also change the simulation device from GPU to CPU by setting the value of the ``--device`` flag explicitly:
 

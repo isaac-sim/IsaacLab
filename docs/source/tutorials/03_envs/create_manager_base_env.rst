@@ -186,9 +186,6 @@ operations.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_create_manager_base.png
-    :align: center
-
 
 To run the base environment made in this tutorial, you can use the following command:
 
@@ -201,6 +198,11 @@ This should open a stage with a ground plane, light source, and cartpoles. The s
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
 right corner of the screen named ``"Isaac Lab"``. This window contains different UI elements that
 can be used for debugging and visualization.
+
+
+.. figure:: ../../_static/tutorials/tutorial_create_manager_base.png
+    :align: center
+
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal where you
 started the simulation.

@@ -169,9 +169,6 @@ to access the data for the different sensors created in this tutorial:
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_add_sensors.png
-    :align: center
-
 
 Now that we have gone through the code, let's run the script and see the result:
 
@@ -185,6 +182,9 @@ Around the robots, you should see red spheres that indicate the points where the
 Additionally, you can switch the viewport to the camera view to see the RGB image captured by the
 camera sensor. Please check `here <https://youtu.be/htPbcKkNMPs?feature=shared>`_ for more information
 on how to switch the viewport to the camera view.
+
+.. figure:: ../../_static/tutorials/tutorial_add_sensors.png
+    :align: center
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 

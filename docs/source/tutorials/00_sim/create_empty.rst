@@ -135,11 +135,6 @@ Lastly, the simulation application is stopped and its window is closed by callin
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_create_empty.png
-    :align: center
-
-
-
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
@@ -149,6 +144,9 @@ Now that we have gone through the code, let's run the script and see the result:
 
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
 you can either close the window, or press ``Ctrl+C`` in the terminal.
+
+.. figure:: ../../_static/tutorials/tutorial_create_empty.png
+    :align: center
 
 Passing ``--help`` to the above script will show the different command-line arguments added
 earlier by the :class:`app.AppLauncher` class. To run the script headless, you can execute the

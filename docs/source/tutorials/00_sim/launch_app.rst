@@ -132,9 +132,6 @@ For more information on this flag, please see the :class:`~app.AppLauncher` API 
 The Code Execution
 ------------------
 
-.. figure:: ../../_static/tutorials/tutorial_launch_app.png
-    :align: center
-
 We will now run the example script:
 
 .. code-block:: console
@@ -147,6 +144,8 @@ envar. If a visualization is desired, we could get one via Isaac's `Native Lives
 is currently the only supported method of visualization from within the container. The
 process can be killed by pressing ``Ctrl+C`` in the launching terminal.
 
+.. figure:: ../../_static/tutorials/tutorial_launch_app.png
+    :align: center
 
 Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 

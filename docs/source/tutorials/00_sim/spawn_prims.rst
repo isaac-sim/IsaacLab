@@ -167,9 +167,6 @@ actually modifying the underlying file for the table asset directly. Only the ch
 Executing the Script
 ~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_spawn_prims.png
-    :align: center
-
 Similar to the tutorial before, to run the script, execute the following command:
 
 .. code-block:: bash
@@ -180,6 +177,9 @@ Once the simulation starts, you should see a window with a ground plane, a light
 The green cone, which has rigid body physics enabled, should fall and collide with the table and the ground
 plane. The other cones are visual elements and should not move. To stop the simulation, you can close the window,
 or press ``Ctrl+C`` in the terminal.
+
+.. figure:: ../../_static/tutorials/tutorial_spawn_prims.png
+    :align: center
 
 This tutorial provided a foundation for spawning various prims into the scene in Isaac Lab. Although simple, it
 demonstrates the basic concepts of scene designing in Isaac Lab and how to use the spawners. In the coming tutorials,

@@ -201,15 +201,14 @@ for each physics step.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.png
-    :align: center
-
-
 To run training for the direct workflow Cartpole environment, we can use the following command:
 
 .. code-block:: bash
 
    ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task=Isaac-Cartpole-Direct-v0
+
+.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.png
+    :align: center
 
 All direct workflow tasks have the suffix ``-Direct`` added to the task name to differentiate the implementation style.
 

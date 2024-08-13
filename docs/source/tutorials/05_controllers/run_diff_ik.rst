@@ -140,9 +140,6 @@ previous tutorials.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../_static/tutorials/tutorial_task_space_controller.png
-    :align: center
-
 
 Now that we have gone through the code, let's run the script and see the result:
 
@@ -153,6 +150,9 @@ Now that we have gone through the code, let's run the script and see the result:
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches
 the desired pose, the command should cycle through to the next pose specified in the script.
+
+.. figure:: ../../_static/tutorials/tutorial_task_space_controller.png
+    :align: center
 
 To stop the simulation, you can either close the window, or press the ``STOP`` button in the UI, or
 press ``Ctrl+C`` in the terminal.
