@@ -142,7 +142,7 @@ class EventManager(ManagerBase):
         Args:
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
-                Defaults to None, in which case the event is applied to all environments.
+                Defaults to None, in which case the event is applied to all environments when applicable.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
