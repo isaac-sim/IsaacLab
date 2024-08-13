@@ -327,9 +327,8 @@ class TestEventManager(unittest.TestCase):
 
             # we increment the dummy1 by 1 every call to reset mode
             # every 10th call, we reset the dummy1 to 0
-            if count > 0:
-                expected_dummy1_value[env_ids] += 1  # effect of term 1
-                expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
+            expected_dummy1_value[env_ids] += 1  # effect of term 1
+            expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
 
             torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
 
