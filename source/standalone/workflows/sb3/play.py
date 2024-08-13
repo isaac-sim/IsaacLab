@@ -13,7 +13,8 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from Stable-Baselines3.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -29,6 +30,9 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
+# always enable cameras to record video
+if args_cli.video:
+    args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -44,6 +48,8 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
+from omni.isaac.lab.utils.dict import print_dict
+
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils.parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from omni.isaac.lab_tasks.utils.wrappers.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
@@ -53,14 +59,40 @@ def main():
     """Play with stable-baselines agent."""
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg = load_cfg_from_registry(args_cli.task, "sb3_cfg_entry_point")
+
+    # directory for logging into
+    log_root_path = os.path.join("logs", "sb3", args_cli.task)
+    log_root_path = os.path.abspath(log_root_path)
+    # check checkpoint is valid
+    if args_cli.checkpoint is None:
+        if args_cli.use_last_checkpoint:
+            checkpoint = "model_.*.zip"
+        else:
+            checkpoint = "model.zip"
+        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
+    else:
+        checkpoint_path = args_cli.checkpoint
+    log_dir = os.path.dirname(checkpoint_path)
+
     # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg)
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg)
+    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    # wrap for video recording
+    if args_cli.video:
+        video_kwargs = {
+            "video_folder": os.path.join(log_dir, "videos", "play"),
+            "step_trigger": lambda step: step == 0,
+            "video_length": args_cli.video_length,
+            "disable_logger": True,
+        }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
@@ -76,24 +108,13 @@ def main():
             clip_reward=np.inf,
         )
 
-    # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", args_cli.task)
-    log_root_path = os.path.abspath(log_root_path)
-    # check checkpoint is valid
-    if args_cli.checkpoint is None:
-        if args_cli.use_last_checkpoint:
-            checkpoint = "model_.*.zip"
-        else:
-            checkpoint = "model.zip"
-        checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint)
-    else:
-        checkpoint_path = args_cli.checkpoint
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
     agent = PPO.load(checkpoint_path, env, print_system_info=True)
 
     # reset environment
     obs = env.reset()
+    timestep = 0
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -102,6 +123,11 @@ def main():
             actions, _ = agent.predict(obs, deterministic=True)
             # env stepping
             obs, _, _, _ = env.step(actions)
+        if args_cli.video:
+            timestep += 1
+            # Exit the play loop after recording one video
+            if timestep == args_cli.video_length:
+                break
 
     # close the simulator
     env.close()

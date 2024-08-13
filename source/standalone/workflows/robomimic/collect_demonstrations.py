@@ -13,10 +13,9 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Collect demonstrations for Isaac Lab environments.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU pipeline.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-parser.add_argument("--device", type=str, default="keyboard", help="Device for interacting with environment")
+parser.add_argument("--teleop_device", type=str, default="keyboard", help="Device for interacting with environment")
 parser.add_argument("--num_demos", type=int, default=1, help="Number of episodes to store in the dataset.")
 parser.add_argument("--filename", type=str, default="hdf_dataset", help="Basename of output file.")
 # append AppLauncher cli args
@@ -66,7 +65,7 @@ def main():
         args_cli.task == "Isaac-Lift-Cube-Franka-IK-Rel-v0"
     ), "Only 'Isaac-Lift-Cube-Franka-IK-Rel-v0' is supported currently."
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, use_gpu=not args_cli.cpu, num_envs=args_cli.num_envs)
+    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
 
     # modify configuration such that the environment runs indefinitely
     # until goal is reached
@@ -84,12 +83,12 @@ def main():
     env = gym.make(args_cli.task, cfg=env_cfg)
 
     # create controller
-    if args_cli.device.lower() == "keyboard":
+    if args_cli.teleop_device.lower() == "keyboard":
         teleop_interface = Se3Keyboard(pos_sensitivity=0.04, rot_sensitivity=0.08)
-    elif args_cli.device.lower() == "spacemouse":
+    elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(pos_sensitivity=0.05, rot_sensitivity=0.005)
     else:
-        raise ValueError(f"Invalid device interface '{args_cli.device}'. Supported: 'keyboard', 'spacemouse'.")
+        raise ValueError(f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse'.")
     # add teleoperation key for env reset
     teleop_interface.add_callback("L", env.reset)
     # print helper
@@ -108,7 +107,7 @@ def main():
         filename=args_cli.filename,
         num_demos=args_cli.num_demos,
         flush_freq=env.num_envs,
-        env_config={"device": args_cli.device},
+        env_config={"teleop_device": args_cli.teleop_device},
     )
 
     # reset environment

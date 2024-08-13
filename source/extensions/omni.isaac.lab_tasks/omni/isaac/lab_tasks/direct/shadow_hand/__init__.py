@@ -23,7 +23,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": ShadowHandEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.ShadowHandPPORunnerCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandPPORunnerCfg",
     },
 )
 
@@ -34,7 +34,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": ShadowHandOpenAIEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_ff_cfg.yaml",
-        "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.ShadowHandAsymFFPPORunnerCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandAsymFFPPORunnerCfg",
     },
 )
 

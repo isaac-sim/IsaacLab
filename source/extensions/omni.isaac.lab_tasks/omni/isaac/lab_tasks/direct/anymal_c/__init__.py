@@ -23,7 +23,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": AnymalCFlatEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_flat_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.AnymalCFlatPPORunnerCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalCFlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
 )
@@ -35,7 +35,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": AnymalCRoughEnvCfg,
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_rough_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": agents.rsl_rl_ppo_cfg.AnymalCRoughPPORunnerCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalCRoughPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
     },
 )
