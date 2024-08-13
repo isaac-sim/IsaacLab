@@ -161,6 +161,7 @@ def object_goal_distance(
     # rewarded if the object is lifted above the threshold
     return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
 
+# NOTE: EXPERIMENTAL
 def is_ee_stationary(
     env: ManagerBasedRLEnv,
     threshold: float, 
@@ -173,8 +174,8 @@ def is_ee_stationary(
     # extract the used quantities (to enable type-hinting)
     robot: RigidObject = env.scene[robot_cfg.name]
 
-    curr_joint_vel = robot.data.root_vel_w
-    difference = torch.norm(curr_joint_vel - prev_joint_vel, dim=-1, p=2) #L2
+    curr_joint_vel = robot.data.body_vel_w[:, -1, :]
+    difference = torch.norm(curr_joint_vel - prev_joint_vel.to(curr_joint_vel.device), dim=-1, p=2) #L2
     is_stationary = difference <= threshold
     prev_joint_vel = curr_joint_vel.clone()
 

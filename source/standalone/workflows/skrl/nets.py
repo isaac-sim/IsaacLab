@@ -29,10 +29,13 @@ class CNNNet(nn.Module):
         self.cnn = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=8, stride=4),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.Flatten(),
         )
 
@@ -75,10 +78,13 @@ class CNNMixNet(nn.Module):
         self.cnn = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=8, stride=4),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.Flatten(),
         )
 
@@ -121,6 +127,126 @@ class CNNMixNet(nn.Module):
         states = torch.cat([joint_pos, joint_vel, last_action], dim=1)
         linear_out = self.linear(states)
         cnn_out = self.cnn(img)
+        out = torch.cat([linear_out, cnn_out], dim=1)
+        return self.fc(out)
+    
+
+class FastAttention(nn.Module):
+    def __init__(self, dim, heads=8, k=64):
+        super(FastAttention, self).__init__()
+        self.dim = dim
+        self.heads = heads
+        self.k = k
+
+        # Linear projections for queries, keys, and values
+        self.to_q = nn.Linear(dim, heads * k, bias=False)
+        self.to_k = nn.Linear(dim, heads * k, bias=False)
+        self.to_v = nn.Linear(dim, heads * k, bias=False)
+
+        # Output projection
+        self.to_out = nn.Linear(heads * k, dim, bias=False)
+
+    def forward(self, x):
+        b, n, d = x.shape  # Batch size, sequence length, and embedding dimension
+        h = self.heads
+
+        # Linear projections
+        q = self.to_q(x).view(b, n, h, self.k)
+        k = self.to_k(x).view(b, n, h, self.k)
+        v = self.to_v(x).view(b, n, h, self.k)
+
+        # Softmax over keys (for normalization)
+        k_softmax = torch.softmax(k, dim=1)
+
+        # Compute the attention output
+        # Efficient computation by rearranging operations
+        qk = torch.einsum('bnhd,bnhe->bhde', q, k_softmax)
+        qkv = torch.einsum('bhde,bnhe->bnhd', qk, v)
+
+        # Concatenate heads and apply the output projection
+        out = qkv.contiguous().view(b, n, h * self.k)
+        return self.to_out(out)
+    
+class AttentionGRUCNNMixNet(nn.Module):
+    def __init__(self, observation_space, img_space, rel_pos_space, rel_vel_space, last_action_space, hidden_dim=256):
+        super(AttentionGRUCNNMixNet, self).__init__()
+
+        self.hiden_dim = hidden_dim
+
+        rel_pos_size = 9
+        rel_vel_size = 9
+        last_action_size = 8
+        img_space_size = 921600
+
+        self.cnn = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.AdaptiveAvgPool2d((2, 2)),
+            nn.Flatten(),
+        )
+
+        with torch.no_grad():
+            sample_rel_pos = torch.zeros(rel_pos_size)[None, ...].view(-1, rel_pos_space)
+            sample_rel_vel = torch.zeros(rel_vel_size)[None, ...].view(-1, rel_vel_space)
+            sample_last_action = torch.zeros(last_action_size)[None, ...].view(-1, last_action_space)
+            sample_states = torch.cat([sample_rel_pos, sample_rel_vel, sample_last_action], dim=1)
+            self.linear = nn.Sequential(
+                nn.Linear(sample_states.shape[-1], 256),
+                nn.ELU(),
+                nn.Linear(256, 128),
+                nn.ELU(),
+                nn.Linear(128, 64),
+                nn.ELU()
+            )
+            sample_linear_output = self.linear(sample_states)
+        
+            sample_img = torch.zeros(img_space_size)[None, ...].view(-1, *img_space).permute(0, 3, 1, 2)
+            sample_cnn_output = self.cnn(sample_img)
+            self.atten = FastAttention(dim=sample_cnn_output.shape[1])
+            sample_cnn_output = sample_cnn_output.view(sample_cnn_output.shape[0], -1)
+            # (batch, input_dim)
+            sample_cnn_output = self.atten(sample_cnn_output.unsqueeze(1)).squeeze(1)
+            self.gru = nn.GRU(input_size=sample_cnn_output.shape[1], hidden_size=256)
+            sample_cnn_output, _ = self.gru(sample_cnn_output)
+            self.head = nn.Linear(sample_cnn_output.shape[1], 256)
+
+            self.fc = nn.Sequential(
+                nn.Linear(sample_linear_output.shape[-1] + sample_cnn_output.shape[-1], 512),
+                nn.ReLU(),
+                nn.Linear(512, 16),
+                nn.Tanh(),
+                nn.Linear(16, 64),
+                nn.Tanh(),
+                nn.Linear(64, 64),
+                nn.Tanh(),
+            )
+
+    def forward(self, x):
+        img = x["cam_data"].float()
+        if DEBUG:
+            print(f"{img.mean()}+-{img.std()}: [{img.min()}, {img.max()}]")
+        joint_pos = x["joint_pos"]
+        joint_vel = x["joint_vel"]
+        last_action = x["last_action"]
+        states = torch.cat([joint_pos, joint_vel, last_action], dim=1)
+        linear_out = self.linear(states)
+
+        cnn_out = self.cnn(img)
+        cnn_out = cnn_out.view(img.shape[0], -1)
+        cnn_out = self.atten(cnn_out.unsqueeze(1)).squeeze(1)
+        cnn_out, _ = self.gru(cnn_out)
+        cnn_out = self.head(cnn_out)
+        
         out = torch.cat([linear_out, cnn_out], dim=1)
         return self.fc(out)
     

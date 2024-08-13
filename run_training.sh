@@ -9,11 +9,11 @@ if [ $MODE = "train_rgb_and_state" ]; then
     python source/standalone/workflows/skrl/train_rgb.py \
     --task Isaac-Lift-Cube-Franka-v0-RGB \
     --num_envs $NUM_ENVS \
-    --arch_type cnn-rgb-state \
+    --arch_type attention_gru_cnn-rgb-state \
     --headless \
     --enable_cameras \
     --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL #\
-    #--wandb \
+    --wandb \
     #--checkpoint /PATH/TO/model.pt
 
 elif [ $MODE = "train_state" ]; then

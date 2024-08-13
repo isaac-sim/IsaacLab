@@ -153,7 +153,7 @@ class RewardsCfg:
     align_grasp_around_object = RewTerm(func=mdp.align_grasp_around_object, weight=0.125)
     grasp_object = RewTerm(
         func=mdp.grasp_object,
-        weight=3.0,
+        weight=5.0,
         params={
             "threshold": 0.03,
             "open_joint_pos": MISSING,
@@ -180,22 +180,22 @@ class RewardsCfg:
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
 
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-1e-4,
-        params={"asset_cfg": SceneEntityCfg("robot")},
-    )
+    # joint_vel = RewTerm(
+    #     func=mdp.joint_vel_l2,
+    #     weight=-1e-4,
+    #     params={"asset_cfg": SceneEntityCfg("robot")},
+    # )
 
     # penalize staying in one place (not moving)
     # NOTE: EXPERIMENTAL
-    joint_vel_ee_stationary = RewTerm(
-        func=mdp.is_ee_stationary,
-        weight=-1e-4,
-        params={
-            "threshold": 0.01,
-            "prev_joint_vel": MISSING,
-        },
-    )
+    # joint_vel_ee_stationary = RewTerm(
+    #     func=mdp.is_ee_stationary,
+    #     weight=-1e-4,
+    #     params={
+    #         "threshold": 0.01,
+    #         "prev_joint_vel": MISSING,
+    #     },
+    # )
 
 @configclass
 class TerminationsCfg:

@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from skrl.models.torch import DeterministicMixin, GaussianMixin, Model
 
-from nets import LinearNet, CNNNet, ResnetCNNMixNet, CNNMixNet, ViTMix
+from nets import LinearNet, CNNNet, ResnetCNNMixNet, CNNMixNet, ViTMix, AttentionGRUCNNMixNet
 
 DEBUG = False
 MEAN_IMAGENET = [0.485, 0.456, 0.406]
@@ -67,6 +67,21 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
                 device=device,
             ).to(device)
 
+        elif self.arch_type == "attention_gru_cnn-rgb-state":
+            print(f"{self.arch_type.title()} architecture\n")
+            self.REL_POS_SHAPE = (9) # 0 TODO: Make dynamic
+            self.REL_VEL_SHAPE = (9) # 1 TODO: Make dynamic
+            self.LAST_ACTION_SHAPE = (8) # 2 TODO: Make dynamic
+            self.IMG_SHAPE = (480, 640, 3) # 3 TODO: Make dynamic
+
+            self.net = AttentionGRUCNNMixNet(
+                observation_space, 
+                img_space=self.IMG_SHAPE,
+                rel_pos_space = self.REL_POS_SHAPE,
+                rel_vel_space = self.REL_VEL_SHAPE,
+                last_action_space = self.LAST_ACTION_SHAPE,
+            ).to(device)
+
         else:
             raise NotImplementedError
 
@@ -90,7 +105,8 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
             if self.arch_type == "cnn-rgb":
                 inputs = inputs.view(-1, *self.IMG_SHAPE).permute(0, 3, 1, 2)
                 inputs = inputs / inputs.max()
-            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state":
+            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state" or \
+                self.arch_type == "attention_gru_cnn-rgb-state":
                 joint_pos_input = inputs[:, :9]
                 joint_vel_input = inputs[:, 9:18]
                 last_action_input = inputs[:, 18:26]
@@ -123,7 +139,8 @@ class Shared(GaussianMixin, DeterministicMixin, Model):
             if self.arch_type == "cnn-rgb":
                 inputs = inputs.view(-1, *self.IMG_SHAPE).permute(0, 3, 1, 2)
                 inputs = inputs / inputs.max()
-            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state":
+            elif self.arch_type == "cnn-rgb-state" or self.arch_type == "large_model-rgb-state" or \
+                self.arch_type == "attention_gru_cnn-rgb-state":
                 joint_pos_input = inputs[:, :9]
                 joint_vel_input = inputs[:, 9:18]
                 last_action_input = inputs[:, 18:26]
