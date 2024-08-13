@@ -150,6 +150,8 @@ class EventManager(ManagerBase):
 
         Raises:
             ValueError: If the mode is ``"interval"`` and the time step is not provided.
+            ValueError: If the mode is ``"interval"`` and the environment indices are provided. This is an undefined
+                behavior as the environment indices are computed based on the time left for each environment.
             ValueError: If the mode is ``"reset"`` and the total number of environment steps that have happened
                 is not provided.
         """
@@ -160,6 +162,11 @@ class EventManager(ManagerBase):
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
+        if mode == "interval" and env_ids is not None:
+            raise ValueError(
+                f"Event mode '{mode}' does not require environment indices. This is an undefined behavior"
+                " as the environment indices are computed based on the time left for each environment."
+            )
         # check if mode is reset and env step count is not provided
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
@@ -195,8 +202,18 @@ class EventManager(ManagerBase):
             elif mode == "reset":
                 # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
-                # check if it zero to bypass the check
+                # resolve the environment indices
+                if env_ids is None:
+                    env_ids = slice(None)
+
+                # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
+                # Additionally, we want to ensure that the term is applied at least once at the start of the
+                # environment. Hence, we trigger the term at the start of the environment if global_env_step_count is 0.
                 if min_step_count == 0:
+                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
+                elif global_env_step_count == 0:
+                    # trigger the term at the start of the environment
+                    # this is to ensure that the term is applied at least once
                     self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                 else:
                     # extract last reset step for this term
@@ -204,9 +221,6 @@ class EventManager(ManagerBase):
                     # compute the steps since last reset
                     steps_since_triggered = global_env_step_count - last_triggered_step
 
-                    # resolve the environment indices
-                    if env_ids is None:
-                        env_ids = slice(None)
                     # check if the term can be applied
                     valid_trigger = steps_since_triggered[env_ids] == min_step_count
                     # select the valid environment indices based on the trigger

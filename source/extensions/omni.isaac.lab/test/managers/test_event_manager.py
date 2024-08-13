@@ -284,9 +284,7 @@ class TestEventManager(unittest.TestCase):
 
             # we increment the dummy1 by 1 every call to reset mode
             # every 10th call, we reset the dummy1 to 0
-            if count < 10:
-                expected_dummy1_value = torch.full_like(self.env.dummy1, count + 1)
-            elif count % 10 != 0:
+            if count % 10 != 0:
                 expected_dummy1_value = torch.full_like(self.env.dummy1, count % 10)
             else:
                 expected_dummy1_value = torch.zeros_like(self.env.dummy1)
@@ -326,8 +324,9 @@ class TestEventManager(unittest.TestCase):
 
             # we increment the dummy1 by 1 every call to reset mode
             # every 10th call, we reset the dummy1 to 0
-            expected_dummy1_value[env_ids] += 1  # effect of term 1
-            expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
+            if count > 0:
+                expected_dummy1_value[env_ids] += 1  # effect of term 1
+                expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
 
             torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
 
