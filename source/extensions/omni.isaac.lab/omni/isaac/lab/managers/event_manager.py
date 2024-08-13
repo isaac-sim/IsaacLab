@@ -197,17 +197,24 @@ class EventManager(ManagerBase):
                 min_step_count = term_cfg.min_step_count_between_reset
                 # check if it zero to bypass the check
                 if min_step_count == 0:
-                    self._reset_term_last_triggered_step_id[index][:] = global_env_step_count
+                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                 else:
+                    # extract last reset step for this term
+                    last_triggered_step = self._reset_term_last_triggered_step_id[index]
+                    # compute the steps since last reset
+                    steps_since_triggered = global_env_step_count - last_triggered_step
+
                     # resolve the environment indices
                     if env_ids is None:
                         env_ids = slice(None)
-                    # extract last reset step for this term
-                    last_reset_step = self._reset_term_last_triggered_step_id[index]
-                    # compute the steps since last reset
-                    steps_since_reset = global_env_step_count - last_reset_step
                     # check if the term can be applied
-                    env_ids = (steps_since_reset[env_ids] >= min_step_count).nonzero().flatten()
+                    valid_trigger = steps_since_triggered[env_ids] == min_step_count
+                    # select the valid environment indices based on the trigger
+                    if env_ids == slice(None):
+                        env_ids = valid_trigger.nonzero().flatten()
+                    else:
+                        env_ids = env_ids[valid_trigger]
+
                     # reset the last reset step for each environment to the current env step count
                     if len(env_ids) > 0:
                         self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count

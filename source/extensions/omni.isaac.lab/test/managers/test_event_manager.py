@@ -259,6 +259,78 @@ class TestEventManager(unittest.TestCase):
             if term_2_interval_time < 1e-6:
                 term_2_interval_time = self.event_man._interval_term_time_left[1].clone()
 
+    def test_apply_reset_mode(self):
+        """Test the application of event terms that are in reset mode."""
+        cfg = {
+            "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
+            "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
+        }
+
+        self.event_man = EventManager(cfg, self.env)
+
+        for count in range(50):
+            # apply the event terms for all the env ids
+            self.event_man.apply("reset", global_env_step_count=count)
+
+            # check the values
+            # -- term 1
+            expected_trigger_count = torch.full((self.env.num_envs,), count, dtype=torch.int32, device=self.env.device)
+            torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
+            # -- term 2
+            expected_trigger_count = torch.full(
+                (self.env.num_envs,), 10 * (count // 10), dtype=torch.int32, device=self.env.device
+            )
+            torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], expected_trigger_count)
+
+            # we increment the dummy1 by 1 every call to reset mode
+            # every 10th call, we reset the dummy1 to 0
+            if count < 10:
+                expected_dummy1_value = torch.full_like(self.env.dummy1, count + 1)
+            elif count % 10 != 0:
+                expected_dummy1_value = torch.full_like(self.env.dummy1, count % 10)
+            else:
+                expected_dummy1_value = torch.zeros_like(self.env.dummy1)
+            torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
+
+    def test_apply_reset_mode_subset_env_ids(self):
+        """Test the application of event terms that are in reset mode over a subset of environment ids."""
+        cfg = {
+            "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
+            "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
+        }
+
+        self.event_man = EventManager(cfg, self.env)
+
+        # since we are applying the event terms over a subset of env ids, we need to keep track of the trigger count
+        # manually for the sake of testing
+        term_2_trigger_step_id = torch.zeros((self.env.num_envs,), dtype=torch.int32, device=self.env.device)
+        expected_dummy1_value = torch.zeros_like(self.env.dummy1)
+
+        for count in range(50):
+            # randomly select a subset of environment ids
+            env_ids = (torch.rand(self.env.num_envs, device=self.env.device) < 0.5).nonzero().flatten()
+            # apply the event terms for the selected env ids
+            self.event_man.apply("reset", env_ids=env_ids.clone(), global_env_step_count=count)
+            # modify the trigger count for term 2
+            trigger_ids = (count - term_2_trigger_step_id[env_ids]) == 10
+            term_2_trigger_step_id[env_ids[trigger_ids]] = count
+
+            # check the values
+            # -- term 1
+            expected_trigger_count = torch.full((len(env_ids),), count, dtype=torch.int32, device=self.env.device)
+            torch.testing.assert_close(
+                self.event_man._reset_term_last_triggered_step_id[0][env_ids], expected_trigger_count
+            )
+            # -- term 2
+            torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
+
+            # we increment the dummy1 by 1 every call to reset mode
+            # every 10th call, we reset the dummy1 to 0
+            expected_dummy1_value[env_ids] += 1  # effect of term 1
+            expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
+
+            torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
+
 
 if __name__ == "__main__":
     run_tests()
