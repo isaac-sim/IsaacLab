@@ -131,10 +131,6 @@ class Imu(SensorBase):
                 "The update function must be called before the data buffers are accessed the first time."
             )
         # obtain the poses of the sensors
-        # if isinstance(self._view, physx.RigidBodyView):
-        #     pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
-        # else:
-        #     pos_w, quat_w = self._view.get_link_transforms()[env_ids].split([3, 4], dim=-1)
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
         # store the poses
