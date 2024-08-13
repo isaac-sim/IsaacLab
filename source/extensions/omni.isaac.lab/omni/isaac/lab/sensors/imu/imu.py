@@ -145,7 +145,7 @@ class Imu(SensorBase):
         lin_acc_w, ang_acc_w = self._view.get_accelerations()[env_ids].split([3, 3], dim=-1)
         # if an offset is present, the linear acceleration has to be transformed taking the angular velocity and acceleration into account
         lin_acc_w += torch.cross(ang_acc_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1) + torch.cross(
-            ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b)), dim=-1
+            ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1), dim=-1
         )
         # store the velocities
         self._data.lin_vel_w[env_ids] = lin_vel_w
@@ -160,10 +160,10 @@ class Imu(SensorBase):
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w = torch.zeros(self._view.count, 4, device=self._device)
         self._data.quat_w[:, 0] = 1.0
-        self._data.lin_acc_b = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.ang_vel_b = torch.zeros(self._view.count, 3, device=self._device)
-        # internal buffers
-        self._last_lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.lin_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.ang_vel_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.lin_acc_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.ang_acc_w = torch.zeros(self._view.count, 3, device=self._device)
         # store sensor offset transformation
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
