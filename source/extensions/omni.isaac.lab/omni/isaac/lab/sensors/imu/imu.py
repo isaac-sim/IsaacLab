@@ -81,8 +81,10 @@ class Imu(SensorBase):
             env_ids = slice(None)
         # reset accumulative data buffers
         self._data.quat_w[env_ids] = 0.0
-        self._data.ang_vel_b[env_ids] = 0.0
-        self._data.lin_acc_b[env_ids] = 0.0
+        self._data.lin_vel_w[env_ids] = 0.0
+        self._data.ang_vel_w[env_ids] = 0.0
+        self._data.lin_acc_w[env_ids] = 0.0
+        self._data.ang_acc_w[env_ids] = 0.0
 
     def update(self, dt: float, force_recompute: bool = False):
         # save timestamp
@@ -115,9 +117,6 @@ class Imu(SensorBase):
         # check if it is a RigidBody Prim
         if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             self._view = self._physics_sim_view.create_rigid_body_view(self.cfg.prim_path.replace(".*", "*"))
-        # elif prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-        # else:
-        #     self._view = self._physics_sim_view.create_articulation_view(self.cfg.prim_path.replace(".*", "*"))
         else:
             raise RuntimeError(f"Failed to find a RigidBodyAPI for the prim paths: {self.cfg.prim_path}")
 
@@ -145,14 +144,19 @@ class Imu(SensorBase):
         # obtain the velocities of the sensors
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
         # if an offset is present, the linear velocity has to be transformed taking the angular velocity into account
-        lin_vel_w = lin_vel_w + torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)
-        # store the velocities
-        self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
-        self._data.lin_acc_b[env_ids] = math_utils.quat_rotate_inverse(
-            self._data.quat_w[env_ids],
-            (lin_vel_w - self._last_lin_vel_w[env_ids]) / max(self._dt, self.cfg.update_period),
+        lin_vel_w += torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)
+        # obtain the acceleration of the sensors
+        lin_acc_w, ang_acc_w = self._view.get_accelerations()[env_ids].split([3, 3], dim=-1)
+        # if an offset is present, the linear acceleration has to be transformed taking the angular velocity and acceleration into account
+        lin_acc_w += torch.cross(ang_acc_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1) + torch.cross(
+            ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b)), dim=-1
         )
-        self._last_lin_vel_w[env_ids] = lin_vel_w.clone()
+        # store the velocities
+        self._data.lin_vel_w[env_ids] = lin_vel_w
+        self._data.ang_vel_w[env_ids] = ang_vel_w
+        # store the accelerations
+        self._data.lin_acc_w[env_ids] = lin_acc_w
+        self._data.ang_acc_w[env_ids] = ang_acc_w
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
