@@ -336,11 +336,15 @@ class EventManager(ManagerBase):
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(1) * (upper - lower) + lower
                     self._interval_mode_time_global.append(time_left)
+                    # add an empty tensor for time left per environment to maintain the same length
+                    self._interval_mode_time_left.append(torch.empty(0, device=self.device))
                 else:
                     # sample the time left for each environment
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_mode_time_left.append(time_left)
+                    # add an empty tensor for global time left to maintain the same length
+                    self._interval_mode_time_global.append(torch.empty(0, device=self.device))
             # -- reset mode
             elif term_cfg.mode == "reset":
                 if term_cfg.min_step_count_between_reset < 0:
