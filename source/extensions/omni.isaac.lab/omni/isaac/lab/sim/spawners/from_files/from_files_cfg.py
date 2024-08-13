@@ -10,7 +10,7 @@ from dataclasses import MISSING
 
 from omni.isaac.lab.sim import converters, schemas
 from omni.isaac.lab.sim.spawners import materials
-from omni.isaac.lab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
+from omni.isaac.lab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -18,12 +18,19 @@ from . import from_files
 
 
 @configclass
-class FileCfg(RigidObjectSpawnerCfg):
+class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Configuration parameters for spawning an asset from a file.
+
+    This class is a base class for spawning assets from files. It includes the common parameters
+    for spawning assets from files, such as the path to the file and the function to use for spawning
+    the asset.
 
     Note:
         By default, all properties are set to None. This means that no properties will be added or modified
         to the prim outside of the properties available by default when spawning the prim.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
     """
 
     scale: tuple[float, float, float] | None = None
@@ -57,11 +64,27 @@ class FileCfg(RigidObjectSpawnerCfg):
 class UsdFileCfg(FileCfg):
     """USD file to spawn asset from.
 
+    USD files are imported directly into the scene. However, given their complexity, there are various different
+    operations that can be performed on them. For example, selecting variants, applying materials, or modifying
+    existing properties.
+
+    To prevent the explosion of configuration parameters, the available operations are limited to the most common
+    ones. These include:
+
+    - **Selecting variants**: This is done by specifying the :attr:`variants` parameter.
+    - **Creating and applying materials**: This is done by specifying the :attr:`visual_material` and
+      :attr:`physics_material` parameters.
+    - **Modifying existing properties**: This is done by specifying the respective properties in the configuration
+      class. For instance, to modify the scale of the imported prim, set the :attr:`scale` parameter.
+
     See :meth:`spawn_from_usd` for more information.
 
     .. note::
         The configuration parameters include various properties. If not `None`, these properties
         are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
     """
 
     func: Callable = from_files.spawn_from_usd
@@ -83,11 +106,18 @@ class UrdfFileCfg(FileCfg, converters.UrdfConverterCfg):
     """URDF file to spawn asset from.
 
     It uses the :class:`UrdfConverter` class to create a USD file from URDF and spawns the imported
-    USD file. See :meth:`spawn_from_urdf` for more information.
+    USD file. Similar to the :class:`UsdFileCfg`, the generated USD file can be modified by specifying
+    the respective properties in the configuration class.
+
+    See :meth:`spawn_from_urdf` for more information.
 
     .. note::
         The configuration parameters include various properties. If not `None`, these properties
         are modified on the spawned prim in a nested manner.
+
+        If they are set to a value, then the properties are modified on the spawned prim in a nested manner.
+        This is done by calling the respective function with the specified properties.
+
     """
 
     func: Callable = from_files.spawn_from_urdf

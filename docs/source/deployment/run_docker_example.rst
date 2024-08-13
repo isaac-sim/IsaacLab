@@ -131,7 +131,7 @@ the build process when we next run ``./container.sh start``, we may enter the fo
 
   docker image rm isaaclab
 
-A subsequent run of ``docker image ls``` will show that the image tagged **isaaclab** is now gone. We can repeat the process for the
+A subsequent run of ``docker image ls`` will show that the image tagged **isaaclab** is now gone. We can repeat the process for the
 underlying NVIDIA container if we wish to free up more space. If a more powerful method of freeing resources from Docker is desired,
 please consult the documentation for the `docker prune`_ commands.
 

@@ -26,6 +26,7 @@ html[data-theme="light"] {
     --pst-color-link: var(--pst-color-primary);
     --pst-color-link-hover: #789841;
     --pst-color-table-row-hover-bg: #daedb9;
+    --pst-color-accent: var(--pst-color-primary);
 }
 
 /* anything related to the dark theme */
@@ -51,6 +52,7 @@ html[data-theme="dark"] {
     --pst-color-link: var(--pst-color-primary);
     --pst-color-link-hover: #aee354;
     --pst-color-table-row-hover-bg: #3a550b;
+    --pst-color-accent: var(--pst-color-primary);
 }
 
 a {

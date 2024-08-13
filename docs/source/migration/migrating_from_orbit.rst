@@ -8,6 +8,12 @@ From Orbit
 Since `Orbit`_ was used as basis for Isaac Lab, migrating from Orbit to Isaac Lab is straightforward.
 The following sections describe the changes that need to be made to your code to migrate from Orbit to Isaac Lab.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
+
+
 Renaming of the launch script
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -84,6 +90,17 @@ should now be:
 Other Breaking changes
 ~~~~~~~~~~~~~~~~~~~~~~
 
+Setting the device
+------------------
+
+The argument ``--cpu`` has been removed in favor of ``--device device_name``. Valid options for ``device_name`` are:
+
+- ``cpu``: Use CPU.
+- ``cuda``: Use GPU with device ID ``0``.
+- ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
+The default value is ``cuda:0``.
+
+
 Offscreen rendering
 -------------------
 
@@ -129,3 +146,4 @@ should now be:
 
 
 .. _Orbit: https://isaac-orbit.github.io/
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases

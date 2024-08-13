@@ -25,7 +25,7 @@ fi
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [run] [start] [stop] -- Utility for handling docker in Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [...] -- Utility for handling Docker in Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help                  Display the help content."
     echo -e "\tstart [profile]             Build the docker image and create the container in detached mode."
@@ -36,8 +36,9 @@ print_help () {
     echo -e "\tjob [profile] [job_args]    Submit a job to the cluster."
     echo -e "\tconfig [profile]            Parse, resolve and render compose file in canonical format."
     echo -e "\n"
-    echo -e "[profile] is the optional container profile specification and [job_args] optional arguments specific"
-    echo -e "to the executed script"
+    echo -e "where: "
+    echo -e "\t[profile] is the optional container profile specification. Example: 'isaaclab', 'base', 'ros2'."
+    echo -e "\t[job_args] are optional arguments specific to the executed script."
     echo -e "\n" >&2
 }
 
@@ -56,8 +57,8 @@ install_apptainer() {
 
 install_yq() {
     # Installing yq to handle file parsing
-    # Installation procedure from here: https://github.com/mikefarah/yq
-    read -p "[INFO] Required 'yq' package could not be found. Would you like to install it via wget? (y/N)" yq_answer
+    # Installation procedure from here: https://github.com/mikefarah/yq?tab=readme-ov-file#linux-via-snap
+    read -p "[INFO] Required 'yq' package could not be found. Would you like to install it via snap? (y/N)" yq_answer
     if [ "$yq_answer" != "${yq_answer#[Yy]}" ]; then
         sudo snap install yq
     else
@@ -67,17 +68,29 @@ install_yq() {
 }
 
 set_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Stores key $1 with value $2 in yaml $STATEFILE
     yq -i '.["'"$1"'"] = "'"$2"'"' $STATEFILE
 }
 
 load_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Loads key $1 from yaml $STATEFILE as an envvar
     # If key does not exist, the loaded var will equal "null"
     eval $1="$(yq ".$1" $STATEFILE)"
 }
 
 delete_statefile_variable() {
+    # Check if yq is installed
+    if ! command -v yq &> /dev/null; then
+        install_yq
+    fi
     # Deletes key $1 from yaml $STATEFILE
     yq -i "del(.$1)" $STATEFILE
 }
@@ -179,16 +192,19 @@ configure_x11() {
         install_xauth
     fi
     load_statefile_variable __ISAACLAB_TMP_XAUTH
+    __ISAACLAB_TMP_DIR=/tmp/isaaclab_tmp_xauth/
     # Create temp .xauth file to be mounted in the container
     if [ "$__ISAACLAB_TMP_XAUTH" = "null" ] || [ ! -f "$__ISAACLAB_TMP_XAUTH" ]; then
-        __ISAACLAB_TMP_XAUTH=$(mktemp --suffix=".xauth")
+        mkdir -p "${__ISAACLAB_TMP_DIR}"
+        __ISAACLAB_TMP_XAUTH=$(mktemp --suffix=".xauth" --tmpdir="${__ISAACLAB_TMP_DIR}")
         set_statefile_variable __ISAACLAB_TMP_XAUTH $__ISAACLAB_TMP_XAUTH
         # Extract MIT-MAGIC-COOKIE for current display | Change the 'connection family' to FamilyWild (ffff) | merge into tmp .xauth file
         # https://www.x.org/archive/X11R6.8.1/doc/Xsecurity.7.html#toc3
-        xauth_cookie= xauth nlist ${DISPLAY} | sed -e s/^..../ffff/ | xauth -f $__ISAACLAB_TMP_XAUTH nmerge -
+        xauth nlist ${DISPLAY} | sed -e s/^..../ffff/ | xauth -f $__ISAACLAB_TMP_XAUTH nmerge -
     fi
     # Export here so it's an envvar for the called Docker commands
     export __ISAACLAB_TMP_XAUTH
+    export __ISAACLAB_TMP_DIR
     add_yamls="$add_yamls --file x11.yaml "
     # TODO: Add check to make sure Xauth file is correct
 }
@@ -211,14 +227,32 @@ x11_check() {
     else
         echo "[INFO] X11 Forwarding is configured as $__ISAACLAB_X11_FORWARDING_ENABLED in .container.yaml"
         if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
-            echo "[INFO] To disable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=0 in .container.yaml"
+            echo "[INFO] To disable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 0\` in .container.yaml"
         else
-            echo "[INFO] To enable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=1 in .container.yaml"
+            echo "[INFO] To enable X11 forwarding, set \`__ISAACLAB_X11_FORWARDING_ENABLED: 1\` in .container.yaml"
         fi
     fi
 
     if [ "$__ISAACLAB_X11_FORWARDING_ENABLED" = "1" ]; then
         configure_x11
+    fi
+}
+
+x11_update() {
+    # Check if the MIT-MAGIC-COOKIE-1 in __ISAACLAB_TMP_XAUTH
+    # is the same as the current DISPLAY's. If not, generate
+    # a new .xauth file with the current MIT-MAGIC-COOKIE-1,
+    # using the same filename so that the bind-mount and
+    # XAUTHORITY var from build-time still work
+    load_statefile_variable __ISAACLAB_TMP_XAUTH
+    if ! [ "$__ISAACLAB_TMP_XAUTH" = "null" ] && [ -f "$__ISAACLAB_TMP_XAUTH" ]; then
+        tmp_cookie=$(xauth -f "$__ISAACLAB_TMP_XAUTH" list | awk '$2 == "MIT-MAGIC-COOKIE-1" {print $3; exit}')
+        current_cookie=$(xauth list "${DISPLAY}" | awk '$2 == "MIT-MAGIC-COOKIE-1" {print $3; exit}')
+        if ! [ "${tmp_cookie}" = "{$current_cookie}" ]; then
+            rm "$__ISAACLAB_TMP_XAUTH"
+            touch "$__ISAACLAB_TMP_XAUTH"
+            xauth nlist ${DISPLAY} | sed -e s/^..../ffff/ | xauth -f $__ISAACLAB_TMP_XAUTH nmerge -
+        fi
     fi
 }
 
@@ -229,6 +263,28 @@ x11_cleanup() {
         rm $__ISAACLAB_TMP_XAUTH
         delete_statefile_variable __ISAACLAB_TMP_XAUTH
     fi
+}
+
+submit_job() {
+
+    echo "[INFO] Arguments passed to job script ${@}"
+
+    case $CLUSTER_JOB_SCHEDULER in
+        "SLURM")
+            CMD=sbatch
+            job_script_file=submit_job_slurm.sh
+            ;;
+        "PBS")
+            CMD=bash
+            job_script_file=submit_job_pbs.sh
+            ;;
+        *)
+            echo "[ERROR] Unsupported job scheduler specified: '$CLUSTER_JOB_SCHEDULER'. Supported options are: ['SLURM', 'PBS']"
+            exit 1
+            ;;
+    esac
+
+    ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && $CMD $CLUSTER_ISAACLAB_DIR/docker/cluster/$job_script_file \"$CLUSTER_ISAACLAB_DIR\" \"isaac-lab-$container_profile\" ${@}"
 }
 
 #==
@@ -246,10 +302,6 @@ fi
 if ! command -v docker &> /dev/null; then
     echo "[Error] Docker is not installed! Please check the 'Docker Guide' for instruction." >&2;
     exit 1
-fi
-
-if ! command -v yq &> /dev/null; then
-    install_yq
 fi
 
 # parse arguments
@@ -292,9 +344,10 @@ case $mode in
     enter)
         # Check that desired container is running, exit if it isn't
         is_container_running isaac-lab-$container_profile
+        x11_update
         echo "[INFO] Entering the existing 'isaac-lab-$container_profile' container in a bash session..."
         pushd ${SCRIPT_DIR} > /dev/null 2>&1
-        docker exec --interactive --tty isaac-lab-$container_profile bash
+        docker exec --interactive --tty -e DISPLAY=$DISPLAY isaac-lab-$container_profile bash
         popd > /dev/null 2>&1
         ;;
     copy)
@@ -372,12 +425,10 @@ case $mode in
         # check whether the second argument is a profile or a job argument
         if [ "$profile_arg" == "$container_profile" ] ; then
             # if the second argument is a profile, we have to shift the arguments
-            echo "[INFO] Arguments passed to job script ${@:3}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:3}"
+            submit_job "${@:3}"
         else
             # if the second argument is a job argument, we have to shift only one argument
-            echo "[INFO] Arguments passed to job script ${@:2}"
-            ssh $CLUSTER_LOGIN "cd $CLUSTER_ISAACLAB_DIR && sbatch $CLUSTER_ISAACLAB_DIR/docker/cluster/submit_job.sh" "$CLUSTER_ISAACLAB_DIR" "isaac-lab-$container_profile" "${@:2}"
+            submit_job "${@:2}"
         fi
         ;;
     config)

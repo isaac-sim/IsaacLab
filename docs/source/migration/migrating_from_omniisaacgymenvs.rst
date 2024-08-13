@@ -12,6 +12,10 @@ We have updated OmniIsaacGymEnvs to Isaac Sim version 4.0.0 to support the migra
 to Isaac Lab. Moving forward, OmniIsaacGymEnvs will be deprecated and future development
 will continue in Isaac Lab.
 
+.. note::
+
+  The following changes are with respect to Isaac Lab 1.0 release. Please refer to the `release notes`_ for any changes
+  in the future releases.
 
 Task Config Setup
 ~~~~~~~~~~~~~~~~~
@@ -72,8 +76,9 @@ for setting the GPU buffer dimensions.
 |                                                              |                                                                   |
 |  # OmniIsaacGymEnvs                                          | # IsaacLab                                                        |
 |  sim:                                                        | sim: SimulationCfg = SimulationCfg(                               |
+|                                                              |    device = "cuda:0" # can be "cpu", "cuda", "cuda:<device_id>"   |
 |    dt: 0.0083 # 1/120 s                                      |    dt=1 / 120,                                                    |
-|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    use_gpu_pipeline=True,                                         |
+|    use_gpu_pipeline: ${eq:${...pipeline},"gpu"}              |    # use_gpu_pipeline is deduced from the device                  |
 |    use_fabric: True                                          |    use_fabric=True,                                               |
 |    enable_scene_query_support: False                         |    enable_scene_query_support=False,                              |
 |    disable_contact_processing: False                         |    disable_contact_processing=False,                              |
@@ -87,7 +92,7 @@ for setting the GPU buffer dimensions.
 |    physx:                                                    |    physx: PhysxCfg = PhysxCfg(                                    |
 |      worker_thread_count: ${....num_threads}                 |        # worker_thread_count is no longer needed                  |
 |      solver_type: ${....solver_type}                         |        solver_type=1,                                             |
-|      use_gpu: ${contains:"cuda",${....sim_device}}           |        use_gpu=True,                                              |
+|      use_gpu: ${contains:"cuda",${....sim_device}}           |        # use_gpu is deduced from the device                       |
 |      solver_position_iteration_count: 4                      |        max_position_iteration_count=4,                            |
 |      solver_velocity_iteration_count: 0                      |        max_velocity_iteration_count=0,                            |
 |      contact_offset: 0.02                                    |        # moved to actor config                                    |
@@ -706,7 +711,7 @@ reset the ``episode_length_buf`` buffer.
 |   resets = torch.where(                                          |                                                                          |
 |     torch.abs(self.pole_pos) > math.pi / 2, 1, resets)           |     time_out = self.episode_length_buf >= self.max_episode_length - 1    |
 |   resets = torch.where(                                          |     out_of_bounds = torch.any(torch.abs(                                 |
-|     self.progress_buf >= self._max_episode_length, 1, resets)    |         self.joint_pos[:, self._pole_dof_idx] > self.cfg.max_cart_pos),  |
+|     self.progress_buf >= self._max_episode_length, 1, resets)    |         self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos,  |
 |   self.reset_buf[:] = resets                                     |         dim=1)                                                           |
 |                                                                  |     out_of_bounds = out_of_bounds | torch.any(                           |
 |                                                                  |         torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2,  |
@@ -992,3 +997,4 @@ To launch inferencing in Isaac Lab, use the command:
 
 
 .. _`OmniIsaacGymEnvs`: https://github.com/isaac-sim/OmniIsaacGymEnvs
+.. _release notes: https://github.com/isaac-sim/IsaacLab/releases

@@ -155,14 +155,26 @@ class AppLauncher:
         * ``headless`` (bool): If True, the app will be launched in headless (no-gui) mode. The values map the same
           as that for the ``HEADLESS`` environment variable. If False, then headless mode is determined by the
           ``HEADLESS`` environment variable.
-        * ``livestream`` (int): If one of {0, 1, 2}, then livestreaming and headless mode is enabled. The values
+        * ``livestream`` (int): If one of {1, 2}, then livestreaming and headless mode is enabled. The values
           map the same as that for the ``LIVESTREAM`` environment variable. If :obj:`-1`, then livestreaming is
           determined by the ``LIVESTREAM`` environment variable.
+          Valid options are:
+
+          - ``0``: Disabled
+          - ``1``: `Native <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/native.html>`_
+          - ``2``: `WebRTC <https://docs.omniverse.nvidia.com/extensions/latest/ext_livestream/webrtc.html>`_
+
         * ``enable_cameras`` (bool): If True, the app will enable camera sensors and render them, even when in
           headless mode. This flag must be set to True if the environments contains any camera sensors.
           The values map the same as that for the ``ENABLE_CAMERAS`` environment variable.
           If False, then enable_cameras mode is determined by the ``ENABLE_CAMERAS`` environment variable.
-        * ``device_id`` (int): If specified, simulation will run on the specified GPU device.
+        * ``device`` (str): The device to run the simulation on.
+          Valid options are:
+
+          - ``cpu``: Use CPU.
+          - ``cuda``: Use GPU with device ID ``0``.
+          - ``cuda:N``: Use GPU, where N is the device ID. For example, "cuda:0".
+
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
@@ -232,11 +244,13 @@ class AppLauncher:
             help="Enable camera sensors and relevant extension dependencies.",
         )
         arg_group.add_argument(
-            "--device_id",
-            type=int,
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1],
-            help="GPU device ID used for running simulation.",
+            "--device",
+            type=str,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
+            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
+        # Add the deprecated cpu flag to raise an error if it is used
+        arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
             action="store_true",
@@ -267,7 +281,7 @@ class AppLauncher:
         "headless": ([bool], False),
         "livestream": ([int], -1),
         "enable_cameras": ([bool], False),
-        "device_id": ([int], 0),
+        "device": ([str], "cuda:0"),
         "experience": ([str], ""),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -454,7 +468,20 @@ class AppLauncher:
             launcher_args["hide_ui"] = True
 
         # --simulation GPU device logic --
-        self.device_id = launcher_args.pop("device_id", AppLauncher._APPLAUNCHER_CFG_INFO["device_id"][1])
+        self.device_id = 0
+        device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
+        if "cuda" not in device and "cpu" not in device:
+            raise ValueError(
+                f"Invalid value for input keyword argument `device`: {device}."
+                " Expected: a string with the format 'cuda', 'cuda:<device_id>', or 'cpu'."
+            )
+        if "cuda:" in device:
+            self.device_id = int(device.split(":")[-1])
+
+        # Raise an error for the deprecated cpu flag
+        if launcher_args.get("cpu", False):
+            raise ValueError("The `--cpu` flag is deprecated. Please use `--device cpu` instead.")
+
         if "distributed" in launcher_args:
             distributed_train = launcher_args["distributed"]
             # local rank (GPU id) in a current multi-gpu mode
@@ -464,6 +491,16 @@ class AppLauncher:
             if distributed_train:
                 self.device_id = self.local_rank
                 launcher_args["multi_gpu"] = False
+            # limit CPU threads to minimize thread context switching
+            # this ensures processes do not take up all available threads and fight for resources
+            num_cpu_cores = os.cpu_count()
+            num_threads_per_process = num_cpu_cores // int(os.getenv("WORLD_SIZE", 1))
+            # set environment variables to limit CPU threads
+            os.environ["PXR_WORK_THREAD_LIMIT"] = str(num_threads_per_process)
+            os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads_per_process)
+            # pass command line variable to kit
+            sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
+
         # set physics and rendering device
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
@@ -564,8 +601,8 @@ class AppLauncher:
             if self._livestream == 1:
                 # Enable Native Livestream extension
                 # Default App: Streaming Client from the Omniverse Launcher
-                enable_extension("omni.kit.streamsdk.plugins-3.2.1")
-                enable_extension("omni.kit.livestream.core-3.2.0")
+                enable_extension("omni.kit.streamsdk.plugins-4.5.1")
+                enable_extension("omni.kit.livestream.core-4.3.6")
                 enable_extension("omni.kit.livestream.native-4.1.0")
             elif self._livestream == 2:
                 # Enable WebRTC Livestream extension
@@ -591,7 +628,7 @@ class AppLauncher:
 
         # set the nucleus directory manually to the latest published Nucleus
         # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
-        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.0"
+        assets_path = "http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.1"
         carb_settings_iface.set_string("/persistent/isaac/asset_root/default", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/cloud", assets_path)
         carb_settings_iface.set_string("/persistent/isaac/asset_root/nvidia", assets_path)

@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python Headless"
 description = "An app for running Isaac Lab headlessly"
-version = "1.0.0"
+version = "1.1.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "isaaclab", "python", "headless"]
@@ -14,20 +14,17 @@ keywords = ["experience", "app", "isaaclab", "python", "headless"]
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "Isaac-Sim"
-app.version = "4.0.0"
+app.version = "4.1.0"
 
 ##################################
 # Omniverse related dependencies #
 ##################################
 [dependencies]
-"omni.kit.window.title" = {}
 "omni.physx" = {}
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
 "omni.warp.core" = {}
 "usdrt.scenegraph" = {}
-"omni.kit.primitive.mesh" = {}
-"omni.kit.mainwindow" = {}
 "omni.kit.telemetry" = {}
 
 
@@ -108,7 +105,7 @@ app.vulkan = true
 ################################
 app.versionFile = "${app}/../VERSION"
 app.name = "Isaac-Sim"
-app.version = "4.0.0"
+app.version = "4.1.0"
 
 # hide NonToggleable Exts
 exts."omni.kit.window.extensions".hideNonToggleableExts = true
