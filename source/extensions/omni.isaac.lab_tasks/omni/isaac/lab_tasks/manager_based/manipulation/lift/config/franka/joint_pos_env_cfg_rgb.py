@@ -82,7 +82,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         roll, pitch, yaw = torch.tensor([-180]), torch.tensor([90]), torch.tensor([0])
         rot = quat_from_euler_xyz(roll=roll, pitch=pitch, yaw=yaw).numpy() + 0.0
         rot = np.around(rot, decimals=4).flatten()
-        rot = (rot[0], rot[1], rot[2], rot[3]) # (0.5, -0.5, 0.5, -0.5) (orig)
+        rot = (rot[0], rot[1], rot[2], rot[3])
         # NOTE: The above fails with a C++ mismatch issue
         coord_sys = "world" # "ros"
         RESOLUTION = (480, 640)
@@ -140,6 +140,9 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         self.rewards.grasp_object.params["asset_cfg"].joint_names = ["panda_finger_.*"]
         # NOTE: EXPERIMENTAL
         #self.rewards.joint_vel_ee_stationary.params["prev_joint_vel"] = torch.zeros((32, 6)) # TODO: Fix the num_envs
+        # NOTE: EXPERIMENTAL
+        self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["end"]
+        self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["end_effector"]
 
 
 @configclass

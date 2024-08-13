@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from omni.isaac.lab.assets import RigidObject
 from omni.isaac.lab.managers import SceneEntityCfg
 from omni.isaac.lab.sensors import FrameTransformer
-from omni.isaac.lab.utils.math import combine_frame_transforms
+from omni.isaac.lab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
     from omni.isaac.lab.envs import ManagerBasedRLEnv
@@ -52,7 +52,7 @@ def align_grasp_around_object(
     return is_graspable
 
 
-def approach_gripper_object(
+def approach_gripper_object_to_grasp(
     env: ManagerBasedRLEnv, 
     offset: float = 0.04,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
@@ -81,9 +81,9 @@ def approach_gripper_object(
 
     # Check if hand is in a graspable pose
     is_graspable = (rfinger_pos[:, 2] < object_pos[:, 2]) & (lfinger_pos[:, 2] > object_pos[:, 2])
-    is_approached_in_right_pose = is_graspable * ((offset - lfinger_dist) + (offset - rfinger_dist))
+    #is_approached_in_right_pose = is_graspable * ((offset - lfinger_dist) + (offset - rfinger_dist))
 
-    return is_approached_in_right_pose
+    return is_graspable #is_approached_in_right_pose
 
 
 def grasp_object(
@@ -118,6 +118,44 @@ def grasp_object(
 
     return is_grasped
 
+def position_command_error(
+    env: ManagerBasedRLEnv, 
+    command_name: str, 
+    asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalize tracking orientation error using shortest path.
+
+    The function computes the orientation error between the desired orientation (from the command) and the
+    current orientation of the asset's body (in world frame). The orientation error is computed as the shortest
+    path between the desired and current orientations.
+    """
+    # extract the asset (to enable type hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+
+    # obtain the desired and current orientations
+    des_quat_b = command[:, 3:7]
+    des_quat_w = quat_mul(asset.data.root_state_w[:, 3:7], des_quat_b)
+    curr_quat_w = asset.data.body_state_w[:, asset_cfg.body_ids[0], 3:7]  # type: ignore
+    
+    return quat_error_magnitude(curr_quat_w, des_quat_w)
+
+def orientation_command_error(
+    env: ManagerBasedRLEnv, 
+    command_name: str, 
+    asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    # extract the asset (to enable type hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+
+    # obtain the desired and current positions
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(asset.data.root_state_w[:, :3], asset.data.root_state_w[:, 3:7], des_pos_b)
+    curr_pos_w = asset.data.body_state_w[:, asset_cfg.body_ids[0], :3]  # type: ignore
+    
+    return torch.norm(curr_pos_w - des_pos_w, dim=1)
+
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
@@ -131,13 +169,14 @@ def object_ee_distance(
 
     # Target object position: (num_envs, 3)
     cube_pos_w = object.data.root_pos_w
+
     # End-effector position: (num_envs, 3)
     ee_w = ee_frame.data.target_pos_w[..., 0, :]
+    
     # Distance of the end-effector to the object: (num_envs,)
     object_ee_distance = torch.norm(cube_pos_w - ee_w, dim=1)
 
     return 1 - torch.tanh(object_ee_distance / std)
-
 
 def object_goal_distance(
     env: ManagerBasedRLEnv,
@@ -153,11 +192,14 @@ def object_goal_distance(
     object: RigidObject = env.scene[object_cfg.name]
 
     command = env.command_manager.get_command(command_name)
+    
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(robot.data.root_state_w[:, :3], robot.data.root_state_w[:, 3:7], des_pos_b)
+
     # distance of the end-effector to the object: (num_envs,)
     distance = torch.norm(des_pos_w - object.data.root_pos_w[:, :3], dim=1)
+    
     # rewarded if the object is lifted above the threshold
     return (object.data.root_pos_w[:, 2] > minimal_height) * (1 - torch.tanh(distance / std))
 
