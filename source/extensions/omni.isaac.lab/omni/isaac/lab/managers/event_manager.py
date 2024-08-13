@@ -168,25 +168,20 @@ class EventManager(ManagerBase):
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # resample interval if needed
             if mode == "interval":
+                # extract time left for this term
+                time_left = self._interval_mode_time_left[index]
+                # update the time left for each environment
+                time_left -= dt
+                # check if the interval has passed and sample a new interval
                 if term_cfg.is_global_time:
-                    # extract time left for this term
-                    time_left = self._interval_mode_time_global[index]
-                    # update the time left for each environment
-                    time_left -= dt
-                    # check if the interval has passed and sample a new interval
                     if time_left <= 0.0:
                         lower, upper = term_cfg.interval_range_s
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
-                        self._interval_mode_time_global[index] = sampled_interval
+                        self._interval_mode_time_left[index] = sampled_interval
                     else:
                         # no need to call func to apply term
                         continue
                 else:
-                    # extract time left for this term
-                    time_left = self._interval_mode_time_left[index]
-                    # update the time left for each environment
-                    time_left -= dt
-                    # check if the interval has passed and sample a new interval per environment index
                     env_ids = (time_left <= 0.0).nonzero().flatten()
                     if len(env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
@@ -277,10 +272,9 @@ class EventManager(ManagerBase):
         self._mode_term_names: dict[str, list[str]] = dict()
         self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
         self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
-        # buffer to store the time left for each environment for "interval" mode
+        # buffer to store the time left for "interval" mode
+        # if interval is global, then it is a single value, otherwise it is per environment
         self._interval_mode_time_left: list[torch.Tensor] = list()
-        # global timer for "interval" mode for global properties
-        self._interval_mode_time_global: list[torch.Tensor] = list()
         # buffer to store the step count when the term was last triggered for each environment for "reset" mode
         self._reset_mode_last_triggered_step_id: list[torch.Tensor] = list()
 
@@ -335,16 +329,12 @@ class EventManager(ManagerBase):
                 if term_cfg.is_global_time:
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(1) * (upper - lower) + lower
-                    self._interval_mode_time_global.append(time_left)
-                    # add an empty tensor for time left per environment to maintain the same length
-                    self._interval_mode_time_left.append(torch.empty(0, device=self.device))
+                    self._interval_mode_time_left.append(time_left)
                 else:
                     # sample the time left for each environment
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_mode_time_left.append(time_left)
-                    # add an empty tensor for global time left to maintain the same length
-                    self._interval_mode_time_global.append(torch.empty(0, device=self.device))
             # -- reset mode
             elif term_cfg.mode == "reset":
                 if term_cfg.min_step_count_between_reset < 0:
