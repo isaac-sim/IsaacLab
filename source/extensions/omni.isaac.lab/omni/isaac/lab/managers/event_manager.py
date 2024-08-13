@@ -173,16 +173,17 @@ class EventManager(ManagerBase):
                 # update the time left for each environment
                 time_left -= dt
                 # check if the interval has passed and sample a new interval
+                # note: we compare with a small value to handle floating point errors
                 if term_cfg.is_global_time:
-                    if time_left <= 0.0:
+                    if time_left < 1e-6:
                         lower, upper = term_cfg.interval_range_s
                         sampled_interval = torch.rand(1) * (upper - lower) + lower
-                        self._interval_term_time_left[index] = sampled_interval
+                        self._interval_term_time_left[index][:] = sampled_interval
                     else:
                         # no need to call func to apply term
                         continue
                 else:
-                    env_ids = (time_left <= 0.0).nonzero().flatten()
+                    env_ids = (time_left < 1e-6).nonzero().flatten()
                     if len(env_ids) > 0:
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(env_ids), device=self.device) * (upper - lower) + lower
