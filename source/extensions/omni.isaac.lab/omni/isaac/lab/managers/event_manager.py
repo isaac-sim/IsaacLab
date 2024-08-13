@@ -136,7 +136,7 @@ class EventManager(ManagerBase):
         specifying the time step of the environment.
 
         For the "reset" mode, the function is called when the mode is "reset" and the total number of environment
-        steps that have happened since the last trigger of the function is greater than its configured parameter for
+        steps that have happened since the last trigger of the function is equal to its configured parameter for
         the number of environment steps between resets.
 
         Args:
@@ -210,6 +210,7 @@ class EventManager(ManagerBase):
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
                     self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
+                    self._reset_term_last_triggered_once[index][env_ids] = True
                 else:
                     # extract last reset step for this term
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
