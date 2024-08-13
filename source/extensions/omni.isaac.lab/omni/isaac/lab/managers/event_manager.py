@@ -128,9 +128,16 @@ class EventManager(ManagerBase):
     ):
         """Calls each event term in the specified mode.
 
-        Note:
-            For interval mode, the time step of the environment is used to determine if the event
-            should be applied.
+        This function iterates over all the event terms in the specified mode and calls the function
+        corresponding to the term. The function is called with the environment instance and the environment
+        indices to apply the event to.
+
+        For the "interval" mode, the function is called when the time interval has passed. This requires
+        specifying the time step of the environment.
+
+        For the "reset" mode, the function is called when the mode is "reset" and the total number of environment
+        steps that have happened since the last trigger of the function is greater than its configured parameter for
+        the number of environment steps between resets.
 
         Args:
             mode: The mode of event.
@@ -138,12 +145,13 @@ class EventManager(ManagerBase):
                 Defaults to None, in which case the event is applied to all environments.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
-            global_env_step_count: The environment step count of the task. This is only used for the "reset" mode.
-                Defaults to None to simplify the call for other modes.
+            global_env_step_count: The total number of environment steps that have happened. This is only used
+                for the "reset" mode. Defaults to None to simplify the call for other modes.
 
         Raises:
             ValueError: If the mode is ``"interval"`` and the time step is not provided.
-            ValueError: If the mode is ``"reset"`` and the global environment step count is not provided.
+            ValueError: If the mode is ``"reset"`` and the total number of environment steps that have happened
+                is not provided.
         """
         # check if mode is valid
         if mode not in self._mode_term_names:
@@ -151,14 +159,10 @@ class EventManager(ManagerBase):
             return
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
-            raise ValueError(
-                f"Event mode '{mode}' requires the time step of the environment to be passed to the event manager."
-            )
-        # check if mode is reset and global_env_step_count is not provided
+            raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
+        # check if mode is reset and env step count is not provided
         if mode == "reset" and global_env_step_count is None:
-            raise ValueError(
-                f"Event mode '{mode}' requires the step count of the environment to be passed to the event manager."
-            )
+            raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
@@ -197,20 +201,20 @@ class EventManager(ManagerBase):
                 min_step_count = term_cfg.min_step_count_between_reset
                 # check if it zero to bypass the check
                 if min_step_count == 0:
-                    self._reset_mode_last_applied_step_count[index][:] = global_env_step_count
+                    self._reset_mode_last_triggered_step_id[index][:] = global_env_step_count
                 else:
                     # resolve the environment indices
                     if env_ids is None:
                         env_ids = slice(None)
                     # extract last reset step for this term
-                    last_reset_step = self._reset_mode_last_applied_step_count[index]
+                    last_reset_step = self._reset_mode_last_triggered_step_id[index]
                     # compute the steps since last reset
                     steps_since_reset = global_env_step_count - last_reset_step
                     # check if the term can be applied
                     env_ids = (steps_since_reset[env_ids] >= min_step_count).nonzero().flatten()
                     # reset the last reset step for each environment to the current env step count
                     if len(env_ids) > 0:
-                        self._reset_mode_last_applied_step_count[index][env_ids] = global_env_step_count
+                        self._reset_mode_last_triggered_step_id[index][env_ids] = global_env_step_count
                     else:
                         # no need to call func to apply term
                         continue
@@ -277,8 +281,8 @@ class EventManager(ManagerBase):
         self._interval_mode_time_left: list[torch.Tensor] = list()
         # global timer for "interval" mode for global properties
         self._interval_mode_time_global: list[torch.Tensor] = list()
-        # buffer to store the step count when the term was last applied for each environment for "reset" mode
-        self._reset_mode_last_applied_step_count: list[torch.Tensor] = list()
+        # buffer to store the step count when the term was last triggered for each environment for "reset" mode
+        self._reset_mode_last_triggered_step_id: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -347,4 +351,4 @@ class EventManager(ManagerBase):
 
                 # initialize the current step count for each environment to zero
                 step_count = torch.zeros(self.num_envs, device=self.device, dtype=torch.int32)
-                self._reset_mode_last_applied_step_count.append(step_count)
+                self._reset_mode_last_triggered_step_id.append(step_count)
