@@ -302,16 +302,19 @@ class TestEventManager(unittest.TestCase):
         # since we are applying the event terms over a subset of env ids, we need to keep track of the trigger count
         # manually for the sake of testing
         term_2_trigger_step_id = torch.zeros((self.env.num_envs,), dtype=torch.int32, device=self.env.device)
+        term_2_trigger_once = torch.zeros((self.env.num_envs,), dtype=torch.bool, device=self.env.device)
         expected_dummy1_value = torch.zeros_like(self.env.dummy1)
 
         for count in range(50):
             # randomly select a subset of environment ids
             env_ids = (torch.rand(self.env.num_envs, device=self.env.device) < 0.5).nonzero().flatten()
             # apply the event terms for the selected env ids
-            self.event_man.apply("reset", env_ids=env_ids.clone(), global_env_step_count=count)
+            self.event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
             # modify the trigger count for term 2
             trigger_ids = (count - term_2_trigger_step_id[env_ids]) == 10
+            trigger_ids |= (term_2_trigger_step_id[env_ids] == 0) & ~term_2_trigger_once[env_ids]
             term_2_trigger_step_id[env_ids[trigger_ids]] = count
+            term_2_trigger_once[env_ids[trigger_ids]] = True
 
             # check the values
             # -- term 1

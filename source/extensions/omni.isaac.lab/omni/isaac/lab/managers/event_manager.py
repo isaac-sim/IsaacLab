@@ -207,22 +207,22 @@ class EventManager(ManagerBase):
                     env_ids = slice(None)
 
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
-                # Additionally, we want to ensure that the term is applied at least once at the start of the
-                # environment. Hence, we trigger the term at the start of the environment if global_env_step_count is 0.
+                # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
-                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
-                elif global_env_step_count == 0:
-                    # trigger the term at the start of the environment
-                    # this is to ensure that the term is applied at least once
                     self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                 else:
                     # extract last reset step for this term
-                    last_triggered_step = self._reset_term_last_triggered_step_id[index]
+                    last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
+                    triggered_at_least_once = self._reset_term_last_triggered_once[index][env_ids]
                     # compute the steps since last reset
                     steps_since_triggered = global_env_step_count - last_triggered_step
 
-                    # check if the term can be applied
-                    valid_trigger = steps_since_triggered[env_ids] == min_step_count
+                    # check if the term can be applied after the minimum step count between triggers has passed
+                    valid_trigger = steps_since_triggered == min_step_count
+                    # check if the term has not been triggered yet (in that case, we trigger it at least once)
+                    # this is usually only needed at the start of the environment
+                    valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
+
                     # select the valid environment indices based on the trigger
                     if env_ids == slice(None):
                         env_ids = valid_trigger.nonzero().flatten()
@@ -231,6 +231,7 @@ class EventManager(ManagerBase):
 
                     # reset the last reset step for each environment to the current env step count
                     if len(env_ids) > 0:
+                        self._reset_term_last_triggered_once[index][env_ids] = True
                         self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                     else:
                         # no need to call func to apply term
@@ -299,6 +300,7 @@ class EventManager(ManagerBase):
         self._interval_term_time_left: list[torch.Tensor] = list()
         # buffer to store the step count when the term was last triggered for each environment for "reset" mode
         self._reset_term_last_triggered_step_id: list[torch.Tensor] = list()
+        self._reset_term_last_triggered_once: list[torch.Tensor] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -368,3 +370,6 @@ class EventManager(ManagerBase):
                 # initialize the current step count for each environment to zero
                 step_count = torch.zeros(self.num_envs, device=self.device, dtype=torch.int32)
                 self._reset_term_last_triggered_step_id.append(step_count)
+                # initialize the trigger flag for each environment to zero
+                no_trigger = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+                self._reset_term_last_triggered_once.append(no_trigger)
