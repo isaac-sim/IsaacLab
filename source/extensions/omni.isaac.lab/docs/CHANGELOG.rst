@@ -9,6 +9,9 @@ Fixed
 
 * Moved event mode-based checks in the :meth:`omni.isaac.lab.managers.EventManager.apply` method outside
   the loop that iterates over the event terms. This prevents unnecessary checks and improves readability.
+* Fixed the logic for global and per environment interval times when using the "interval" mode inside the
+  event manager. Earlier, the internal lists for these times were of unequal lengths which led to wrong indexing
+  inside the loop that iterates over the event terms.
 
 
 0.21.1 (2024-08-06)
