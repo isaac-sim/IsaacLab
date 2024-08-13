@@ -142,6 +142,10 @@ methods of the entities in the scene.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_creating_a_scene.png
+    :align: center
+
+
 Let's run the script to simulate 32 cartpoles in the scene. We can do this by passing
 the ``--num_envs`` argument to the script.
 

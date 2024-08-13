@@ -201,6 +201,10 @@ for each physics step.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_create_direct_workflow.png
+    :align: center
+
+
 To run training for the direct workflow Cartpole environment, we can use the following command:
 
 .. code-block:: bash

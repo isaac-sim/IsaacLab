@@ -169,6 +169,10 @@ to access the data for the different sensors created in this tutorial:
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_add_sensors.png
+    :align: center
+
+
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash

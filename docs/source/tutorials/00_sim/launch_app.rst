@@ -132,6 +132,9 @@ For more information on this flag, please see the :class:`~app.AppLauncher` API 
 The Code Execution
 ------------------
 
+.. figure:: ../../_static/tutorials/tutorial_launch_app.png
+    :align: center
+
 We will now run the example script:
 
 .. code-block:: console

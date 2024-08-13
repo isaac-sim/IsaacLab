@@ -140,6 +140,10 @@ previous tutorials.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_task_space_controller.png
+    :align: center
+
+
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash

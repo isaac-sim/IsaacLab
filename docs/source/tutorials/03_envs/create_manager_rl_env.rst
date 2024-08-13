@@ -168,6 +168,10 @@ such as the reward contribution from individual terms, the termination status of
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.png
+    :align: center
+
+
 Similar to the previous tutorial, we can run the environment by executing the ``run_cartpole_rl_env.py`` script.
 
 .. code-block:: bash

@@ -186,6 +186,10 @@ operations.
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_create_manager_base.png
+    :align: center
+
+
 To run the base environment made in this tutorial, you can use the following command:
 
 .. code-block:: bash

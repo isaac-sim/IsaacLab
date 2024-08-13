@@ -114,6 +114,10 @@ articulation. To update the state inside the buffer, we call the :meth:`assets.A
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_run_articulation.png
+    :align: center
+
+
 To run the code and see the results, let's run the script from the terminal:
 
 .. code-block:: bash

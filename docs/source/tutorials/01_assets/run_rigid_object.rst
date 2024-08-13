@@ -131,6 +131,9 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.png
+    :align: center
+
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash

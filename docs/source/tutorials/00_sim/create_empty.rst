@@ -135,6 +135,11 @@ Lastly, the simulation application is stopped and its window is closed by callin
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_create_empty.png
+    :align: center
+
+
+
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash

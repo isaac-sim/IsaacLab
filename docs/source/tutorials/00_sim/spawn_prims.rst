@@ -167,6 +167,9 @@ actually modifying the underlying file for the table asset directly. Only the ch
 Executing the Script
 ~~~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_spawn_prims.png
+    :align: center
+
 Similar to the tutorial before, to run the script, execute the following command:
 
 .. code-block:: bash

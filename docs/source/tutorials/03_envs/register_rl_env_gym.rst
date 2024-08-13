@@ -142,6 +142,10 @@ Once creating the environment, the rest of the execution follows the standard re
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
+.. figure:: ../../_static/tutorials/tutorial_register_environment.png
+    :align: center
+
+
 Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
