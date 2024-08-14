@@ -271,6 +271,7 @@ class TestEventManager(unittest.TestCase):
 
         self.event_man = EventManager(cfg, self.env)
 
+        # manually keep track of the expected values for dummy1 and trigger count
         expected_dummy1_value = torch.zeros_like(self.env.dummy1)
         term_2_trigger_step_id = torch.zeros((self.env.num_envs,), dtype=torch.int32, device=self.env.device)
 
