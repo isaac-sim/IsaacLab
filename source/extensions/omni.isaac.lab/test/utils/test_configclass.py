@@ -330,6 +330,17 @@ basic_demo_cfg_change_correct = {
     "device_id": 0,
 }
 
+basic_demo_cfg_change_with_none_correct = {
+    "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
+    "robot_default_state": {
+        "pos": (0.0, 0.0, 0.0),
+        "rot": (1.0, 0.0, 0.0, 0.0),
+        "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+    },
+    "device_id": 0,
+}
+
 basic_demo_cfg_nested_dict = {
     "dict_1": {
         "dict_2": {"func": dummy_function2},
@@ -444,6 +455,13 @@ class TestConfigClass(unittest.TestCase):
         cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
         update_class_from_dict(cfg, cfg_dict)
         self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_correct)
+
+    def test_config_update_dict_with_none(self):
+        """Test updating configclass using a dictionary that contains None."""
+        cfg = BasicDemoCfg()
+        cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
+        update_class_from_dict(cfg, cfg_dict)
+        self.assertDictEqual(asdict(cfg), basic_demo_cfg_change_with_none_correct)
 
     def test_config_update_nested_dict(self):
         """Test updating configclass with sub-dictionnaries."""
