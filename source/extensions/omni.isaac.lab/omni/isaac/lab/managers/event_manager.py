@@ -219,7 +219,7 @@ class EventManager(ManagerBase):
                     steps_since_triggered = global_env_step_count - last_triggered_step
 
                     # check if the term can be applied after the minimum step count between triggers has passed
-                    valid_trigger = steps_since_triggered == min_step_count
+                    valid_trigger = steps_since_triggered >= min_step_count
                     # check if the term has not been triggered yet (in that case, we trigger it at least once)
                     # this is usually only needed at the start of the environment
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once

@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
+
 """Launch Isaac Sim Simulator first."""
 
 from omni.isaac.lab.app import AppLauncher, run_tests
@@ -268,26 +271,29 @@ class TestEventManager(unittest.TestCase):
 
         self.event_man = EventManager(cfg, self.env)
 
+        expected_dummy1_value = torch.zeros_like(self.env.dummy1)
+        term_2_trigger_step_id = torch.zeros((self.env.num_envs,), dtype=torch.int32, device=self.env.device)
+
         for count in range(50):
             # apply the event terms for all the env ids
-            self.event_man.apply("reset", global_env_step_count=count)
+            if count % 3 == 0:
+                self.event_man.apply("reset", global_env_step_count=count)
 
-            # check the values
+                # we increment the dummy1 by 1 every call to reset mode due to term 1
+                expected_dummy1_value[:] += 1
+                # manually update the expected value for term 2
+                if (count - term_2_trigger_step_id[0]) >= 10 or count == 0:
+                    expected_dummy1_value = torch.zeros_like(self.env.dummy1)
+                    term_2_trigger_step_id[:] = count
+
+            # check the values of trigger count
             # -- term 1
-            expected_trigger_count = torch.full((self.env.num_envs,), count, dtype=torch.int32, device=self.env.device)
+            expected_trigger_count = torch.full((self.env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=self.env.device)
             torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
             # -- term 2
-            expected_trigger_count = torch.full(
-                (self.env.num_envs,), 10 * (count // 10), dtype=torch.int32, device=self.env.device
-            )
-            torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], expected_trigger_count)
+            torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
 
-            # we increment the dummy1 by 1 every call to reset mode
-            # every 10th call, we reset the dummy1 to 0
-            if count % 10 != 0:
-                expected_dummy1_value = torch.full_like(self.env.dummy1, count % 10)
-            else:
-                expected_dummy1_value = torch.zeros_like(self.env.dummy1)
+            # check the values of dummy1
             torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
 
     def test_apply_reset_mode_subset_env_ids(self):
@@ -310,13 +316,18 @@ class TestEventManager(unittest.TestCase):
             env_ids = (torch.rand(self.env.num_envs, device=self.env.device) < 0.5).nonzero().flatten()
             # apply the event terms for the selected env ids
             self.event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
+
             # modify the trigger count for term 2
-            trigger_ids = (count - term_2_trigger_step_id[env_ids]) == 10
+            trigger_ids = (count - term_2_trigger_step_id[env_ids]) >= 10
             trigger_ids |= (term_2_trigger_step_id[env_ids] == 0) & ~term_2_trigger_once[env_ids]
             term_2_trigger_step_id[env_ids[trigger_ids]] = count
             term_2_trigger_once[env_ids[trigger_ids]] = True
+            # we increment the dummy1 by 1 every call to reset mode
+            # every 10th call, we reset the dummy1 to 0
+            expected_dummy1_value[env_ids] += 1  # effect of term 1
+            expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
 
-            # check the values
+            # check the values of trigger count
             # -- term 1
             expected_trigger_count = torch.full((len(env_ids),), count, dtype=torch.int32, device=self.env.device)
             torch.testing.assert_close(
@@ -325,11 +336,7 @@ class TestEventManager(unittest.TestCase):
             # -- term 2
             torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
 
-            # we increment the dummy1 by 1 every call to reset mode
-            # every 10th call, we reset the dummy1 to 0
-            expected_dummy1_value[env_ids] += 1  # effect of term 1
-            expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
-
+            # check the values of dummy1
             torch.testing.assert_close(self.env.dummy1, expected_dummy1_value)
 
 
