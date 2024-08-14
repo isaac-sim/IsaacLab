@@ -95,7 +95,7 @@ class ContainerInterface:
 
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
-        print(f"[INFO] Building the docker image and starting the container {self.container_name} in the background...\n")
+        print(f"[INFO] Building the docker image and starting the container '{self.container_name}' in the background...\n")
 
         # build the image for the base profile
         subprocess.run(
@@ -133,7 +133,7 @@ class ContainerInterface:
             RuntimeError: If the container is not running.
         """
         if self.is_container_running():
-            print(f"[INFO] Entering the existing {self.container_name} container in a bash session...\n")
+            print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
             subprocess.run([
                 "docker",
                 "exec",
@@ -154,7 +154,7 @@ class ContainerInterface:
             RuntimeError: If the container is not running.
         """
         if self.is_container_running():
-            print(f"[INFO] Stopping the launched docker container {self.container_name}...\n")
+            print(f"[INFO] Stopping the launched docker container '{self.container_name}'...\n")
             subprocess.run(
                 ["docker", "compose"] + self.add_yamls + self.add_profiles + self.add_env_files + ["down"],
                 check=False,
@@ -175,7 +175,7 @@ class ContainerInterface:
             RuntimeError: If the container is not running.
         """
         if self.is_container_running():
-            print(f"[INFO] Copying artifacts from the 'isaac-lab-{self.container_name}' container...\n")
+            print(f"[INFO] Copying artifacts from the '{self.container_name}' container...\n")
             if output_dir is None:
                 output_dir = self.context_dir
 

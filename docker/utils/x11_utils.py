@@ -188,10 +188,15 @@ def x11_refresh(statefile: StateFile):
 
     Args:
         statefile: An instance of the configuration file class.
+
+    Raises:
+        RuntimeError: If X11 forwarding is enabled but the temporary .xauth file does not exist.
     """
     # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
 
+    # check if X11 forwarding is enabled
+    is_x11_forwarding_enabled = statefile.get_variable("__ISAACLAB_X11_FORWARDING_ENABLED")
     # load the value of the temporary xauth file
     tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
 
@@ -202,3 +207,10 @@ def x11_refresh(statefile: StateFile):
         create_x11_tmpfile(tmpfile=Path(tmp_xauth_value))
         # update the statefile with the new path
         statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
+    elif tmp_xauth_value is None:
+        if is_x11_forwarding_enabled is not None and is_x11_forwarding_enabled == "1":
+            raise RuntimeError(
+                "X11 forwarding is enabled but the temporary .xauth file does not exist. Please rebuild the container."
+            )
+        else:
+            print("[INFO] X11 forwarding is disabled. No action taken.")

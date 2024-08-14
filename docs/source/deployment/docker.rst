@@ -147,13 +147,19 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
 X11 forwarding
 ~~~~~~~~~~~~~~
 
-The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
-on the host machine.
+The container supports X11 forwarding, which allows the user to run GUI applications from the container
+and display them on the host machine.
 
 The first time a container is started with ``./docker/container.py start``, the script prompts
-the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg`` to store
-the user's choice for future runs. Subsequently, X11 forwarding can be toggled by changing
-the parameter ``__ISAACLAB_X11_FORWARDING_ENABLED`` to '0' or '1' in the ``docker/.container.cfg`` file.
+the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg``
+to store the user's choice for future runs.
+
+If you want to change the choice, you can set the parameter ``__ISAACLAB_X11_FORWARDING_ENABLED`` to '0' or '1'
+in the ``docker/.container.cfg`` file to disable or enable X11 forwarding, respectively. After that, you need to
+restart the container by running ``./docker/container.py start``.
+
+After the container is started, you can enter the container and run GUI applications from it with X11 forwarding enabled.
+The display will be forwarded to the host machine.
 
 
 Python Interpreter

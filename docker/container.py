@@ -95,21 +95,28 @@ def main(args: argparse.Namespace):
 
     print(f"[INFO] Using container profile: {ci.profile}")
     if args.command == "start":
+        # check if x11 forwarding is enabled
         x11_outputs = x11_utils.x11_check(ci.statefile)
+        # if x11 forwarding is enabled, add the x11 yaml and environment variables
         if x11_outputs is not None:
             (x11_yaml, x11_envar) = x11_outputs
             ci.add_yamls += x11_yaml
             ci.environ.update(x11_envar)
+        # start the container
         ci.start()
     elif args.command == "enter":
+        # refresh the x11 forwarding
         x11_utils.x11_refresh(ci.statefile)
+        # enter the container
         ci.enter()
     elif args.command == "config":
         ci.config(args.output_yaml)
     elif args.command == "copy":
         ci.copy()
     elif args.command == "stop":
+        # stop the container
         ci.stop()
+        # cleanup the x11 forwarding
         x11_utils.x11_cleanup(ci.statefile)
     else:
         raise RuntimeError(f"Invalid command provided: {args.command}. Please check the help message.")
