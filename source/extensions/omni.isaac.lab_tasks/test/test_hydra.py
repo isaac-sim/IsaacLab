@@ -35,6 +35,7 @@ class TestHydra(unittest.TestCase):
             "env.decimation=42",  # test simple env modification
             "env.events.physics_material.params.asset_cfg.joint_ids='slice(0 ,1, 2)'",  # test slice setting
             "env.scene.robot.init_state.joint_vel={.*: 4.0}",  # test regex setting
+            "env.rewards.feet_air_time=null",  # test setting to none
             "agent.max_iterations=3",  # test simple agent modification
         ]
 
@@ -44,6 +45,7 @@ class TestHydra(unittest.TestCase):
             self.assertEqual(env_cfg.decimation, 42)
             self.assertEqual(env_cfg.events.physics_material.params["asset_cfg"].joint_ids, slice(0, 1, 2))
             self.assertEqual(env_cfg.scene.robot.init_state.joint_vel, {".*": 4.0})
+            self.assertIsNone(env_cfg.rewards.feet_air_time)
             # agent
             self.assertEqual(agent_cfg.max_iterations, 3)
 
