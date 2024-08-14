@@ -95,7 +95,10 @@ class ContainerInterface:
 
     def start(self):
         """Build and start the Docker container using the Docker compose command."""
-        print(f"[INFO] Building the docker image and starting the container '{self.container_name}' in the background...\n")
+        print(
+            f"[INFO] Building the docker image and starting the container '{self.container_name}' in the"
+            " background...\n"
+        )
 
         # build the image for the base profile
         subprocess.run(

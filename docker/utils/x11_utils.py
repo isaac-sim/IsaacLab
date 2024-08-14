@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from .state_file import StateFile
@@ -186,11 +187,11 @@ def x11_refresh(statefile: StateFile):
 
     The var ``DISPLAY`` will also need to be updated in the container environment command.
 
+    The function exits if X11 forwarding is enabled but the temporary .xauth file does not exist. In this case,
+    the user must rebuild the container.
+
     Args:
         statefile: An instance of the configuration file class.
-
-    Raises:
-        RuntimeError: If X11 forwarding is enabled but the temporary .xauth file does not exist.
     """
     # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
@@ -209,9 +210,10 @@ def x11_refresh(statefile: StateFile):
         statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
     elif tmp_xauth_value is None:
         if is_x11_forwarding_enabled is not None and is_x11_forwarding_enabled == "1":
-            raise RuntimeError(
-                "X11 forwarding is enabled but the temporary .xauth file does not exist."
+            print(
+                "[ERROR] X11 forwarding is enabled but the temporary .xauth file does not exist."
                 " Please rebuild the container by running: './docker/container.py start'"
             )
+            sys.exit(1)
         else:
             print("[INFO] X11 forwarding is disabled. No action taken.")
