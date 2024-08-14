@@ -199,6 +199,6 @@ def x11_refresh(statefile: StateFile):
     if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
         # remove the file and create a new one
         Path(tmp_xauth_value).unlink()
-        create_x11_tmpfile(tmpfile=tmp_xauth_value)
+        create_x11_tmpfile(tmpfile=Path(tmp_xauth_value))
         # update the statefile with the new path
         statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
