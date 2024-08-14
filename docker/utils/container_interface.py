@@ -148,7 +148,7 @@ class ContainerInterface:
                 "bash",
             ])
         else:
-            raise RuntimeError(f"The container '{self.container_name}' is not running")
+            raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
     def stop(self):
         """Stop the running container using the Docker compose command.
@@ -214,7 +214,7 @@ class ContainerInterface:
                 )
             print("\n[INFO] Finished copying the artifacts from the container.")
         else:
-            raise RuntimeError(f"The container '{self.container_name}' is not running")
+            raise RuntimeError(f"The container '{self.container_name}' is not running.")
 
     def config(self, output_yaml: Path | None = None):
         """Process the Docker compose configuration based on the passed yamls and environment files.
