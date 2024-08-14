@@ -7,10 +7,13 @@
 
 from __future__ import annotations
 
+import inspect
 import torch
 from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+from omni.isaac.lab.utils.modifiers import ModifierCfg
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -166,6 +169,11 @@ class ObservationManager(ManagerBase):
         for group_cfg in self._group_obs_class_term_cfgs.values():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
+                # reset modifiers if they are callable classes
+                if term_cfg.modifiers is not None:
+                    for mod in term_cfg.modifiers:
+                        if inspect.isclass(mod.func):
+                            mod.func.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -238,7 +246,9 @@ class ObservationManager(ManagerBase):
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
-            # TODO: Introduce delay and filtering models.
+            if term_cfg.modifiers is not None:
+                for modifier in term_cfg.modifiers:
+                    obs = modifier.func(obs, **modifier.params)
             # Ref: https://robosuite.ai/docs/modules/sensors.html#observables
             # add value to list
             group_obs[name] = obs
@@ -285,7 +295,6 @@ class ObservationManager(ManagerBase):
             self._group_obs_class_term_cfgs[group_name] = list()
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
-
             # check if config is dict already
             if isinstance(group_cfg, dict):
                 group_cfg_items = group_cfg.items()
@@ -315,6 +324,20 @@ class ObservationManager(ManagerBase):
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape[1:])
                 self._group_obs_term_dim[group_name].append(obs_dims)
+                # prepare modifiers for each observation
+                if term_cfg.modifiers is not None:
+                    # initialize list of modifiers for term
+                    for mod in term_cfg.modifiers:
+                        if isinstance(mod, ModifierCfg):
+                            # check if class modifier and initialize with observation size when adding to list of modifiers
+                            if inspect.isclass(term_cfg.func):
+                                mod.func = mod.func(cfg=mod, obs_dim=obs_dims)
+                        else:
+                            raise TypeError(
+                                f"Configuration of modifier '{mod}' of observation term '{term_name}' is not of"
+                                f" required type ModifierCfg, Received: '{type(mod)}'"
+                            )
+
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)

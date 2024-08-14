@@ -13,6 +13,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.modifiers import ModifierCfg
 from omni.isaac.lab.utils.noise import NoiseCfg
 
 from .scene_entity_cfg import SceneEntityCfg
@@ -143,6 +144,10 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     scale: float | None = None
     """The scale to apply to the observation after clipping. Defaults to None,
     in which case no scaling is applied (same as setting scale to :obj:`1`)."""
+
+    modifiers: list[ModifierCfg] | None = None
+    """The list of data modifiers to apply to the observation in order. Defaults to None,
+    in which case no modifications will be applied."""
 
 
 @configclass

@@ -20,7 +20,7 @@ import unittest
 from collections import namedtuple
 
 from omni.isaac.lab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils import configclass, modifiers
 
 
 def grilled_chicken(env):
@@ -376,6 +376,54 @@ class TestObservationManager(unittest.TestCase):
         # create observation manager
         with self.assertRaises(NotImplementedError):
             self.obs_man = ObservationManager(cfg, self.env)
+
+    def test_modifier_integration(self):
+
+        modifier_1 = modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})
+        modifier_2 = modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 2.0})
+        modifier_3 = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (-0.5, 0.5)})
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
+                term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
+
+            @configclass
+            class CriticCfg(ObservationGroupCfg):
+                """Test config class for critic observation group"""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
+                term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
+                term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2])
+                term_4 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3])
+
+            policy: ObservationGroupCfg = PolicyCfg()
+            critic: ObservationGroupCfg = CriticCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+        self.obs_man = ObservationManager(cfg, self.env)
+        # compute observation using manager
+        observations = self.obs_man.compute()
+
+        # obtain the group observations
+        obs_policy: dict[str, torch.Tensor] = observations["policy"]
+        obs_critic: dict[str, torch.Tensor] = observations["critic"]
+
+        # check correct application of modifications
+        torch.testing.assert_close(obs_policy["term_1"] + 1.0, obs_policy["term_2"])
+        torch.testing.assert_close(obs_critic["term_1"] + 1.0, obs_critic["term_2"])
+        torch.testing.assert_close(2.0 * (obs_critic["term_1"] + 1.0), obs_critic["term_3"])
+        self.assertTrue(torch.min(obs_critic["term_4"]) >= -0.5)
+        self.assertTrue(torch.max(obs_critic["term_4"]) <= 0.5)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.22.0 (2024-08-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^^^
+
+* Added :mod:`~omni.isaac.lab.utils.modifiers.` module to provide framework for configurable and custom observation data modifiers.
+
 0.21.2 (2024-08-13)
 ~~~~~~~~~~~~~~~~~~~
 
