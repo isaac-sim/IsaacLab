@@ -23,6 +23,8 @@ parser.add_argument("--seed", type=int, default=None, help="Seed used for the en
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
+parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 
 # append AppLauncher cli args
@@ -52,6 +54,7 @@ from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from omni.isaac.lab.utils.assets import retrieve_file_path
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab.utils.io import dump_pickle, dump_yaml
 
@@ -69,6 +72,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     agent_cfg["params"]["config"]["max_epochs"] = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg["params"]["config"]["max_epochs"]
     )
+    if args_cli.checkpoint is not None:
+        resume_path = retrieve_file_path(args_cli.checkpoint)
+        agent_cfg["params"]["load_checkpoint"] = True
+        agent_cfg["params"]["load_path"] = resume_path
+        print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+    train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None
+
     # multi-gpu training config
     if args_cli.distributed:
         agent_cfg["params"]["seed"] += app_launcher.global_rank
@@ -134,7 +144,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg, agent_cfg: dict):
     # reset the agent and env
     runner.reset()
     # train the agent
-    runner.run({"train": True, "play": False, "sigma": None})
+    if args_cli.checkpoint is not None:
+        runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+    else:
+        runner.run({"train": True, "play": False, "sigma": train_sigma})
 
     # close the simulator
     env.close()
