@@ -288,7 +288,9 @@ class TestEventManager(unittest.TestCase):
 
             # check the values of trigger count
             # -- term 1
-            expected_trigger_count = torch.full((self.env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=self.env.device)
+            expected_trigger_count = torch.full(
+                (self.env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=self.env.device
+            )
             torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
             # -- term 2
             torch.testing.assert_close(self.event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
