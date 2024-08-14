@@ -60,34 +60,27 @@ Configuring the cluster parameters
 
 First, you need to configure the cluster-specific parameters in ``docker/cluster/.env.cluster`` file.
 The following describes the parameters that need to be configured:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Parameter
-     - Description
-   * - CLUSTER_JOB_SCHEDULER
-     - The job scheduler/workload manager used by your cluster. Currently, we support 'SLURM' and
-       'PBS' workload managers.
-   * - CLUSTER_ISAAC_SIM_CACHE_DIR
-     - The directory on the cluster where the Isaac Sim cache is stored. This directory
-       has to end on ``docker-isaac-sim``. It will be copied to the compute node
-       and mounted into the singularity container. This should increase the speed of starting
-       the simulation.
-   * - CLUSTER_ISAACLAB_DIR
-     - The directory on the cluster where the Isaac Lab code is stored. This directory has to
-       end on ``isaaclab``. It will be copied to the compute node and mounted into
-       the singularity container. When a job is submitted, the latest local changes will
-       be copied to the cluster.
-   * - CLUSTER_LOGIN
-     - The login to the cluster. Typically, this is the user and cluster names,
-       e.g., ``your_user@euler.ethz.ch``.
-   * - CLUSTER_SIF_PATH
-     - The path on the cluster where the singularity image will be stored. The image will be
-       copied to the compute node but not uploaded again to the cluster when a job is submitted.
-   * - CLUSTER_PYTHON_EXECUTABLE
-     - The path within Isaac Lab to the Python executable that should be executed in the submitted job.
+- ``CLUSTER_JOB_SCHEDULER``:
+  The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
+  PBS workload managers [SLURM | PBS].
+- ``CLUSTER_ISAAC_SIM_CACHE_DIR``:
+  The directory on the cluster where the Isaac Sim cache is stored. This directory
+  has to end on ``docker-isaac-sim``. This directory will be copied to the compute node
+  and mounted into the singularity container. It should increase the speed of starting
+  the simulation.
+- ``CLUSTER_ISAACLAB_DIR``:
+  The directory on the cluster where the Isaac Lab code is stored. This directory has to
+  end on ``isaaclab``. This directory will be copied to the compute node and mounted into
+  the singularity container. When a job is submitted, the latest local changes will
+  be copied to the cluster.
+- ``CLUSTER_LOGIN``:
+  The login to the cluster. Typically, this is the user and cluster names,
+  e.g., ``your_user@euler.ethz.ch``.
+- ``CLUSTER_SIF_PATH``:
+  The path on the cluster where the singularity image will be stored. The image will be
+  copied to the compute node but not uploaded again to the cluster when a job is submitted.
+- ``CLUSTER_PYTHON_EXECUTABLE``:
+  The path within Isaac Lab to the Python executable that should be executed in the submitted job.
 
 When a ``job`` is submitted, it will also use variables defined in ``docker/.env.base``, though these
 should be correct by default.
