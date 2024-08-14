@@ -2106,25 +2106,34 @@ Defaults None, which logs data for all environments.</p>
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.EventManager.apply">
 <span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">env_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Sequence" title="(in Python v3.12)"><span class="pre">Sequence</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_env_step_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/managers/event_manager.html#EventManager.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.managers.EventManager.apply" title="Permalink to this definition">#</a></dt>
 <dd><p>Calls each event term in the specified mode.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>For interval mode, the time step of the environment is used to determine if the event
-should be applied.</p>
-</div>
+<p>This function iterates over all the event terms in the specified mode and calls the function
+corresponding to the term. The function is called with the environment instance and the environment
+indices to apply the event to.</p>
+<p>For the “interval” mode, the function is called when the time interval has passed. This requires
+specifying the time step of the environment.</p>
+<p>For the “reset” mode, the function is called when the mode is “reset” and the total number of environment
+steps that have happened since the last trigger of the function is equal to its configured parameter for
+the number of environment steps between resets.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>mode</strong> – The mode of event.</p></li>
 <li><p><strong>env_ids</strong> – The indices of the environments to apply the event to.
-Defaults to None, in which case the event is applied to all environments.</p></li>
+Defaults to None, in which case the event is applied to all environments when applicable.</p></li>
 <li><p><strong>dt</strong> – The time step of the environment. This is only used for the “interval” mode.
 Defaults to None to simplify the call for other modes.</p></li>
-<li><p><strong>global_env_step_count</strong> – The environment step count of the task. This is only used for the “reset” mode.
-Defaults to None to simplify the call for other modes.</p></li>
+<li><p><strong>global_env_step_count</strong> – The total number of environment steps that have happened. This is only used
+for the “reset” mode. Defaults to None to simplify the call for other modes.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the mode is <code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code> and the time step is not provided.</p>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the mode is <code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code> and the time step is not provided.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the mode is <code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code> and the environment indices are provided. This is an undefined
+    behavior as the environment indices are computed based on the time left for each environment.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – If the mode is <code class="docutils literal notranslate"><span class="pre">&quot;reset&quot;</span></code> and the total number of environment steps that have happened
+    is not provided.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -2220,7 +2229,7 @@ information on the name matching.</p>
 <td><p>Whether randomization should be tracked on a per-environment basis.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset" title="omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset"><code class="xref py py-obj docutils literal notranslate"><span class="pre">min_step_count_between_reset</span></code></a></p></td>
-<td><p>The minimum number of environment steps between when term is applied.</p></td>
+<td><p>The number of environment steps after which the term is applied since its last application.</p></td>
 </tr>
 </tbody>
 </table>
@@ -2259,7 +2268,7 @@ manager Hence, its name is reserved and cannot be used for other modes.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.EventTermCfg.interval_range_s">
 <span class="sig-name descname"><span class="pre">interval_range_s</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.12)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><span class="pre">None</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.EventTermCfg.interval_range_s" title="Permalink to this definition">#</a></dt>
-<dd><p>The range of time in seconds at which the term is applied.</p>
+<dd><p>The range of time in seconds at which the term is applied. Defaults to None.</p>
 <p>Based on this, the interval is sampled uniformly between the specified
 range for each environment instance. The term is applied on the environment
 instances where the current time hits the interval time.</p>
@@ -2272,9 +2281,10 @@ instances where the current time hits the interval time.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.EventTermCfg.is_global_time">
 <span class="sig-name descname"><span class="pre">is_global_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><span class="pre">bool</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.EventTermCfg.is_global_time" title="Permalink to this definition">#</a></dt>
-<dd><p>Whether randomization should be tracked on a per-environment basis.</p>
-<p>If True, the same time for the interval is tracked for all the environments instead of
-tracking the time per-environment.</p>
+<dd><p>Whether randomization should be tracked on a per-environment basis. Defaults to False.</p>
+<p>If True, the same interval time is used for all the environment instances.
+If False, the interval time is sampled independently for each environment instance
+and the term is applied when the current time hits the interval time for that instance.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This is only used if the mode is <code class="docutils literal notranslate"><span class="pre">&quot;interval&quot;</span></code>.</p>
@@ -2284,10 +2294,11 @@ tracking the time per-environment.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset">
 <span class="sig-name descname"><span class="pre">min_step_count_between_reset</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><span class="pre">int</span></a></em><a class="headerlink" href="#omni.isaac.lab.managers.EventTermCfg.min_step_count_between_reset" title="Permalink to this definition">#</a></dt>
-<dd><p>The minimum number of environment steps between when term is applied.</p>
-<p>When mode is “reset”, the term will not be applied on the next reset unless
-the number of steps since the last application of the term has exceeded this.
-This is useful to avoid calling this term too often and improve performance.</p>
+<dd><p>The number of environment steps after which the term is applied since its last application. Defaults to 0.</p>
+<p>When the mode is “reset”, the term is only applied if the number of environment steps since
+its last application exceeds this quantity. This helps to avoid calling the term too often,
+thereby improving performance.</p>
+<p>If the value is zero, the term is applied on every call to the manager with the mode “reset”.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This is only used if the mode is <code class="docutils literal notranslate"><span class="pre">&quot;reset&quot;</span></code>.</p>

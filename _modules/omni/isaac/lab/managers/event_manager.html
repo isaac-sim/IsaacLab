@@ -614,73 +614,114 @@ document.write(`
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Calls each event term in the specified mode.</span>
 
-<span class="sd">        Note:</span>
-<span class="sd">            For interval mode, the time step of the environment is used to determine if the event</span>
-<span class="sd">            should be applied.</span>
+<span class="sd">        This function iterates over all the event terms in the specified mode and calls the function</span>
+<span class="sd">        corresponding to the term. The function is called with the environment instance and the environment</span>
+<span class="sd">        indices to apply the event to.</span>
+
+<span class="sd">        For the &quot;interval&quot; mode, the function is called when the time interval has passed. This requires</span>
+<span class="sd">        specifying the time step of the environment.</span>
+
+<span class="sd">        For the &quot;reset&quot; mode, the function is called when the mode is &quot;reset&quot; and the total number of environment</span>
+<span class="sd">        steps that have happened since the last trigger of the function is equal to its configured parameter for</span>
+<span class="sd">        the number of environment steps between resets.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            mode: The mode of event.</span>
 <span class="sd">            env_ids: The indices of the environments to apply the event to.</span>
-<span class="sd">                Defaults to None, in which case the event is applied to all environments.</span>
+<span class="sd">                Defaults to None, in which case the event is applied to all environments when applicable.</span>
 <span class="sd">            dt: The time step of the environment. This is only used for the &quot;interval&quot; mode.</span>
 <span class="sd">                Defaults to None to simplify the call for other modes.</span>
-<span class="sd">            global_env_step_count: The environment step count of the task. This is only used for the &quot;reset&quot; mode.</span>
-<span class="sd">                Defaults to None to simplify the call for other modes.</span>
+<span class="sd">            global_env_step_count: The total number of environment steps that have happened. This is only used</span>
+<span class="sd">                for the &quot;reset&quot; mode. Defaults to None to simplify the call for other modes.</span>
 
 <span class="sd">        Raises:</span>
 <span class="sd">            ValueError: If the mode is ``&quot;interval&quot;`` and the time step is not provided.</span>
+<span class="sd">            ValueError: If the mode is ``&quot;interval&quot;`` and the environment indices are provided. This is an undefined</span>
+<span class="sd">                behavior as the environment indices are computed based on the time left for each environment.</span>
+<span class="sd">            ValueError: If the mode is ``&quot;reset&quot;`` and the total number of environment steps that have happened</span>
+<span class="sd">                is not provided.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># check if mode is valid</span>
         <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span>
             <span class="n">carb</span><span class="o">.</span><span class="n">log_warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; is not defined. Skipping event.&quot;</span><span class="p">)</span>
             <span class="k">return</span>
+        <span class="c1"># check if mode is interval and dt is not provided</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">and</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; requires the time-step of the environment.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span> <span class="ow">and</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; does not require environment indices. This is an undefined behavior&quot;</span>
+                <span class="s2">&quot; as the environment indices are computed based on the time left for each environment.&quot;</span>
+            <span class="p">)</span>
+        <span class="c1"># check if mode is reset and env step count is not provided</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;reset&quot;</span> <span class="ow">and</span> <span class="n">global_env_step_count</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; requires the total number of environment steps to be provided.&quot;</span><span class="p">)</span>
+
         <span class="c1"># iterate over all the event terms</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">[</span><span class="n">mode</span><span class="p">]):</span>
             <span class="c1"># resample interval if needed</span>
             <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; requires the time step of the environment&quot;</span>
-                        <span class="s2">&quot; to be passed to the event manager.&quot;</span>
-                    <span class="p">)</span>
+                <span class="c1"># extract time left for this term</span>
+                <span class="n">time_left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                <span class="c1"># update the time left for each environment</span>
+                <span class="n">time_left</span> <span class="o">-=</span> <span class="n">dt</span>
+                <span class="c1"># check if the interval has passed and sample a new interval</span>
+                <span class="c1"># note: we compare with a small value to handle floating point errors</span>
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">is_global_time</span><span class="p">:</span>
-                    <span class="c1"># extract time left for this term</span>
-                    <span class="n">time_left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_global</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
-                    <span class="c1"># update the time left for each environment</span>
-                    <span class="n">time_left</span> <span class="o">-=</span> <span class="n">dt</span>
-                    <span class="c1"># check if the interval has passed</span>
-                    <span class="k">if</span> <span class="n">time_left</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">time_left</span> <span class="o">&lt;</span> <span class="mf">1e-6</span><span class="p">:</span>
                         <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_global</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                        <span class="n">sampled_interval</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">sampled_interval</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># no need to call func to sample</span>
+                        <span class="c1"># no need to call func to apply term</span>
                         <span class="k">continue</span>
                 <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># extract time left for this term</span>
-                    <span class="n">time_left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
-                    <span class="c1"># update the time left for each environment</span>
-                    <span class="n">time_left</span> <span class="o">-=</span> <span class="n">dt</span>
-                    <span class="c1"># check if the interval has passed</span>
-                    <span class="n">env_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_left</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+                    <span class="n">env_ids</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_left</span> <span class="o">&lt;</span> <span class="mf">1e-6</span><span class="p">)</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
                     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                         <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
-                        <span class="n">time_left</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                        <span class="n">sampled_time</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_time</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># no need to call func to apply term</span>
+                        <span class="k">continue</span>
             <span class="c1"># check for minimum frequency for reset</span>
             <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;reset&quot;</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">global_env_step_count</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;Event mode &#39;</span><span class="si">{</span><span class="n">mode</span><span class="si">}</span><span class="s2">&#39; requires the step count of the environment&quot;</span>
-                        <span class="s2">&quot; to be passed to the event manager.&quot;</span>
-                    <span class="p">)</span>
+                <span class="c1"># obtain the minimum step count between resets</span>
+                <span class="n">min_step_count</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span>
+                <span class="c1"># resolve the environment indices</span>
+                <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">env_ids</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
 
-                <span class="k">if</span> <span class="n">env_ids</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                    <span class="n">last_reset_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reset_mode_last_reset_step_count</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
-                    <span class="n">steps_since_last_reset</span> <span class="o">=</span> <span class="n">global_env_step_count</span> <span class="o">-</span> <span class="n">last_reset_step</span>
-                    <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[</span><span class="n">steps_since_last_reset</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-                        <span class="n">last_reset_step</span><span class="p">[</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_env_step_count</span>
+                <span class="c1"># We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.</span>
+                <span class="c1"># This should avoid the overhead of checking the trigger condition.</span>
+                <span class="k">if</span> <span class="n">min_step_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_env_step_count</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># extract last reset step for this term</span>
+                    <span class="n">last_triggered_step</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span>
+                    <span class="n">triggered_at_least_once</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span>
+                    <span class="c1"># compute the steps since last reset</span>
+                    <span class="n">steps_since_triggered</span> <span class="o">=</span> <span class="n">global_env_step_count</span> <span class="o">-</span> <span class="n">last_triggered_step</span>
+
+                    <span class="c1"># check if the term can be applied after the minimum step count between triggers has passed</span>
+                    <span class="n">valid_trigger</span> <span class="o">=</span> <span class="n">steps_since_triggered</span> <span class="o">&gt;=</span> <span class="n">min_step_count</span>
+                    <span class="c1"># check if the term has not been triggered yet (in that case, we trigger it at least once)</span>
+                    <span class="c1"># this is usually only needed at the start of the environment</span>
+                    <span class="n">valid_trigger</span> <span class="o">|=</span> <span class="p">(</span><span class="n">last_triggered_step</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">triggered_at_least_once</span>
+
+                    <span class="c1"># select the valid environment indices based on the trigger</span>
+                    <span class="k">if</span> <span class="n">env_ids</span> <span class="o">==</span> <span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">valid_trigger</span><span class="o">.</span><span class="n">nonzero</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># no need to call func to sample</span>
+                        <span class="n">env_ids</span> <span class="o">=</span> <span class="n">env_ids</span><span class="p">[</span><span class="n">valid_trigger</span><span class="p">]</span>
+
+                    <span class="c1"># reset the last reset step for each environment to the current env step count</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">env_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">env_ids</span><span class="p">]</span> <span class="o">=</span> <span class="n">global_env_step_count</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># no need to call func to apply term</span>
                         <span class="k">continue</span>
             <span class="c1"># call the event term</span>
             <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_env</span><span class="p">,</span> <span class="n">env_ids</span><span class="p">,</span> <span class="o">**</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">params</span><span class="p">)</span></div>
@@ -741,12 +782,12 @@ document.write(`
         <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_names</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mode_term_cfgs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">EventTermCfg</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">EventTermCfg</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-        <span class="c1"># buffer to store the time left for each environment for &quot;interval&quot; mode</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_left</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-        <span class="c1"># global timer for &quot;interval&quot; mode for global properties</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_global</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
-        <span class="c1"># buffer to store the step count when reset was last performed for each environment for &quot;reset&quot; mode</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_mode_last_reset_step_count</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="c1"># buffer to store the time left for &quot;interval&quot; mode</span>
+        <span class="c1"># if interval is global, then it is a single value, otherwise it is per environment</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="c1"># buffer to store the step count when the term was last triggered for each environment for &quot;reset&quot; mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
 
         <span class="c1"># check if config is dict already</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -788,6 +829,7 @@ document.write(`
                 <span class="bp">self</span><span class="o">.</span><span class="n">_mode_class_term_cfgs</span><span class="p">[</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term_cfg</span><span class="p">)</span>
 
             <span class="c1"># resolve the mode of the events</span>
+            <span class="c1"># -- interval mode</span>
             <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;interval&quot;</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
@@ -798,16 +840,26 @@ document.write(`
                 <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">is_global_time</span><span class="p">:</span>
                     <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
                     <span class="n">time_left</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_global</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_left</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_left</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="c1"># sample the time left for each environment</span>
                     <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">interval_range_s</span>
                     <span class="n">time_left</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">_interval_mode_time_left</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_left</span><span class="p">)</span>
-
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_interval_term_time_left</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_left</span><span class="p">)</span>
+            <span class="c1"># -- reset mode</span>
             <span class="k">elif</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;reset&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Event term &#39;</span><span class="si">{</span><span class="n">term_name</span><span class="si">}</span><span class="s2">&#39; has mode &#39;reset&#39; but &#39;min_step_count_between_reset&#39; is&quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot; negative: </span><span class="si">{</span><span class="n">term_cfg</span><span class="o">.</span><span class="n">min_step_count_between_reset</span><span class="si">}</span><span class="s2">. Please provide a non-negative value.&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="c1"># initialize the current step count for each environment to zero</span>
                 <span class="n">step_count</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_reset_mode_last_reset_step_count</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step_count</span><span class="p">)</span></div>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_step_id</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step_count</span><span class="p">)</span>
+                <span class="c1"># initialize the trigger flag for each environment to zero</span>
+                <span class="n">no_trigger</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_reset_term_last_triggered_once</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">no_trigger</span><span class="p">)</span></div>
 </pre></div>
 
                 </article>
