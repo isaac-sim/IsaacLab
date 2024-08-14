@@ -210,7 +210,8 @@ def x11_refresh(statefile: StateFile):
     elif tmp_xauth_value is None:
         if is_x11_forwarding_enabled is not None and is_x11_forwarding_enabled == "1":
             raise RuntimeError(
-                "X11 forwarding is enabled but the temporary .xauth file does not exist. Please rebuild the container."
+                "X11 forwarding is enabled but the temporary .xauth file does not exist."
+                " Please rebuild the container by running: './docker/container.py start'"
             )
         else:
             print("[INFO] X11 forwarding is disabled. No action taken.")
