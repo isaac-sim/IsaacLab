@@ -619,32 +619,48 @@ The latest versions (<code class="docutils literal notranslate"><span class="pre
 <section id="configuring-the-cluster-parameters">
 <h3>Configuring the cluster parameters<a class="headerlink" href="#configuring-the-cluster-parameters" title="Permalink to this heading">#</a></h3>
 <p>First, you need to configure the cluster-specific parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/.env.cluster</span></code> file.
-The following describes the parameters that need to be configured:
-- <code class="docutils literal notranslate"><span class="pre">CLUSTER_JOB_SCHEDULER</span></code>:</p>
-<blockquote>
-<div><p>The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
-PBS workload managers [SLURM | PBS].</p>
-</div></blockquote>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAAC_SIM_CACHE_DIR</span></code>:
-The directory on the cluster where the Isaac Sim cache is stored. This directory
-has to end on <code class="docutils literal notranslate"><span class="pre">docker-isaac-sim</span></code>. This directory will be copied to the compute node
-and mounted into the singularity container. It should increase the speed of starting
-the simulation.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code>:
-The directory on the cluster where the Isaac Lab code is stored. This directory has to
-end on <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code>. This directory will be copied to the compute node and mounted into
+The following describes the parameters that need to be configured:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>CLUSTER_JOB_SCHEDULER</p></td>
+<td><p>The job scheduler/workload manager used by your cluster. Currently, we support ‘SLURM’ and
+‘PBS’ workload managers.</p></td>
+</tr>
+<tr class="row-odd"><td><p>CLUSTER_ISAAC_SIM_CACHE_DIR</p></td>
+<td><p>The directory on the cluster where the Isaac Sim cache is stored. This directory
+has to end on <code class="docutils literal notranslate"><span class="pre">docker-isaac-sim</span></code>. It will be copied to the compute node
+and mounted into the singularity container. This should increase the speed of starting
+the simulation.</p></td>
+</tr>
+<tr class="row-even"><td><p>CLUSTER_ISAACLAB_DIR</p></td>
+<td><p>The directory on the cluster where the Isaac Lab code is stored. This directory has to
+end on <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code>. It will be copied to the compute node and mounted into
 the singularity container. When a job is submitted, the latest local changes will
-be copied to the cluster.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_LOGIN</span></code>:
-The login to the cluster. Typically, this is the user and cluster names,
-e.g., <code class="docutils literal notranslate"><span class="pre">your_user&#64;euler.ethz.ch</span></code>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_SIF_PATH</span></code>:
-The path on the cluster where the singularity image will be stored. The image will be
-copied to the compute node but not uploaded again to the cluster when a job is submitted.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_PYTHON_EXECUTABLE</span></code>:
-The path within Isaac Lab to the Python executable that should be executed in the submitted job.</p></li>
-</ul>
+be copied to the cluster.</p></td>
+</tr>
+<tr class="row-odd"><td><p>CLUSTER_LOGIN</p></td>
+<td><p>The login to the cluster. Typically, this is the user and cluster names,
+e.g., <code class="docutils literal notranslate"><span class="pre">your_user&#64;euler.ethz.ch</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>CLUSTER_SIF_PATH</p></td>
+<td><p>The path on the cluster where the singularity image will be stored. The image will be
+copied to the compute node but not uploaded again to the cluster when a job is submitted.</p></td>
+</tr>
+<tr class="row-odd"><td><p>CLUSTER_PYTHON_EXECUTABLE</p></td>
+<td><p>The path within Isaac Lab to the Python executable that should be executed in the submitted job.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p>When a <code class="docutils literal notranslate"><span class="pre">job</span></code> is submitted, it will also use variables defined in <code class="docutils literal notranslate"><span class="pre">docker/.env.base</span></code>, though these
 should be correct by default.</p>
 </section>
