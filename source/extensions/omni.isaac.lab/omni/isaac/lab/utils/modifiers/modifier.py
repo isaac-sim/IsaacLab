@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import torch
 from abc import ABC, abstractmethod
-from collections.abs import Sequence
+from collections.abc import Sequence
 
 from .modifier_cfg import ModifierCfg
 
