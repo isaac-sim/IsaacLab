@@ -3,10 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
+"""Sub-module for deformable object assets."""
 
 from .deformable_object import DeformableObject
 from .deformable_object_cfg import DeformableObjectCfg
 from .deformable_object_data import DeformableObjectData
-
-__all__ = ["DeformableObject", "DeformableObjectCfg", "DeformableObjectData"]

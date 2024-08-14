@@ -14,7 +14,15 @@ from omni.isaac.core.prims import XFormPrimView
 from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObject, DeformableObjectCfg, RigidObject, RigidObjectCfg
+from omni.isaac.lab.assets import (
+    Articulation,
+    ArticulationCfg,
+    AssetBaseCfg,
+    DeformableObject,
+    DeformableObjectCfg,
+    RigidObject,
+    RigidObjectCfg,
+)
 from omni.isaac.lab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from omni.isaac.lab.terrains import TerrainImporter, TerrainImporterCfg
 
@@ -372,7 +380,13 @@ class InteractiveScene:
             The keys of the scene entities.
         """
         all_keys = ["terrain"]
-        for asset_family in [self._articulations, self._deformable_objects, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             all_keys += list(asset_family.keys())
         return all_keys
 
@@ -391,7 +405,13 @@ class InteractiveScene:
 
         all_keys = ["terrain"]
         # check if it is in other dictionaries
-        for asset_family in [self._articulations, self._deformable_objects, self._rigid_objects, self._sensors, self._extras]:
+        for asset_family in [
+            self._articulations,
+            self._deformable_objects,
+            self._rigid_objects,
+            self._sensors,
+            self._extras,
+        ]:
             out = asset_family.get(key)
             # if found, return
             if out is not None:

@@ -64,34 +64,22 @@ class DeformableObject(AssetBase):
 
     @property
     def max_simulation_mesh_elements_per_body(self) -> int:
-        """
-        Returns:
-            int: maximum number of simulation mesh elements per deformable body.
-        """
+        """The maximum number of simulation mesh elements per deformable body."""
         return self.root_physx_view.max_sim_elements_per_body
 
     @property
     def max_simulation_mesh_vertices_per_body(self) -> int:
-        """
-        Returns:
-            int: maximum number of simulation mesh vertices per deformable body.
-        """
+        """The maximum number of simulation mesh vertices per deformable body."""
         return self.root_physx_view.max_sim_vertices_per_body
 
     @property
     def max_collision_mesh_elements_per_body(self) -> int:
-        """
-        Returns:
-            int: maximum number of collision mesh elements per deformable body.
-        """
+        """The maximum number of collision mesh elements per deformable body."""
         return self.root_physx_view.max_elements_per_body
 
     @property
     def max_collision_mesh_vertices_per_body(self) -> int:
-        """
-        Returns:
-            int: maximum number of collision mesh vertices per deformable body.
-        """
+        """The maximum number of collision mesh vertices per deformable body."""
         return self.root_physx_view.max_vertices_per_body
 
     """
@@ -119,20 +107,22 @@ class DeformableObject(AssetBase):
         The root state comprises of the nodal positions and velocities. All the quantities are in the simulation frame.
 
         Args:
-            root_state: Root state in simulation frame. Shape is ``(len(env_ids), 2*max_simulation_mesh_vertices_per_body, 3)``.
+            root_state: Root state in simulation frame.
+                Shape is (len(env_ids), 2 * max_simulation_mesh_vertices_per_body, 3).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # set into simulation
-        self.write_root_pos_to_sim(root_state[:, :self.max_simulation_mesh_vertices_per_body, :], env_ids=env_ids)
-        self.write_root_velocity_to_sim(root_state[:, self.max_simulation_mesh_vertices_per_body:, :], env_ids=env_ids)
+        self.write_root_pos_to_sim(root_state[:, : self.max_simulation_mesh_vertices_per_body, :], env_ids=env_ids)
+        self.write_root_velocity_to_sim(root_state[:, self.max_simulation_mesh_vertices_per_body :, :], env_ids=env_ids)
 
     def write_root_pos_to_sim(self, root_pos: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root pos over selected environment indices into the simulation.
 
-        The root pos comprises of the nodal positions of the simulation mesh for the deformable body.
+        The root position comprises of individual nodal positions of the simulation mesh for the deformable body.
+        The positions are in the simulation frame.
 
         Args:
-            root_pos: Root poses in simulation frame. Shape is ``(len(env_ids), max_simulation_mesh_vertices_per_body, 3)``.
+            root_pos: Nodal positions in simulation frame. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 3).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -142,17 +132,17 @@ class DeformableObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.nodal_state_w[env_ids, :self.max_simulation_mesh_vertices_per_body, :] = root_pos.clone()
+        self._data.nodal_pos_w[env_ids] = root_pos.clone()
         # set into simulation
-        self.root_physx_view.set_sim_nodal_positions(self._data.nodal_state_w[:, :self.max_simulation_mesh_vertices_per_body, :], indices=physx_env_ids)
+        self.root_physx_view.set_sim_nodal_positions(self._data.nodal_pos_w, indices=physx_env_ids)
 
     def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root velocity over selected environment indices into the simulation.
 
-        The root velocity comprises of the nodal velocities of the simulation mesh for the deformable body.
+        The root velocity comprises of individual nodal velocities of the simulation mesh for the deformable body.
 
         Args:
-            root_velocity: Root velocities in simulation frame. Shape is ``(len(env_ids), max_simulation_mesh_vertices_per_body, 3)``.
+            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 3).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -162,18 +152,18 @@ class DeformableObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.nodal_state_w[env_ids, self.max_simulation_mesh_vertices_per_body:, :] = root_velocity.clone()
+        self._data.nodal_vel_w[env_ids] = root_velocity.clone()
         # set into simulation
-        self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_state_w[:, self.max_simulation_mesh_vertices_per_body:, :], indices=physx_env_ids)
+        self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
-    def write_simulation_mesh_kinematic_targets(self, positions: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_simulation_mesh_kinematic_targets(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
-        The positions comprises of the kinematic targets tensor, with shape (len(env_ids), max_simulation_mesh_vertices_per_body, 4),
-        the first three components are the position targets and the last value (0 or 1) indicate whether the node is kinematically driven or not.
+        The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
+        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
 
         Args:
-            positions: kinematic targets. Shape is ``(len(env_ids), max_simulation_mesh_vertices_per_body, 4)``.
+            targets: The kinematic targets comprising of nodal positions and flags. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 4).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -182,7 +172,7 @@ class DeformableObject(AssetBase):
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
         # set into simulation
-        self.root_physx_view.set_sim_kinematic_targets(positions, indices=physx_env_ids)
+        self.root_physx_view.set_sim_kinematic_targets(targets, indices=physx_env_ids)
 
     """
     Internal helper.
@@ -229,7 +219,8 @@ class DeformableObject(AssetBase):
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
-        # -- nodal state
+        # we use the initial nodal positions at spawn time as the default state
+        # note: these are all in the simulation frame
         nodal_positions = self.root_physx_view.get_sim_nodal_positions()
         nodal_velocities = torch.zeros_like(nodal_positions)
         self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=1)

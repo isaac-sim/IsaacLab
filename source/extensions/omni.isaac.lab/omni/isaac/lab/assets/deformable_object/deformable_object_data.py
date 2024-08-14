@@ -22,14 +22,6 @@ class DeformableObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
-    _root_physx_view: physx.SoftBodyView
-    """The root deformable body view of the object.
-
-    Note:
-        Internally, this is stored as a weak reference to avoid circular references between the asset class
-        and the data container. This is important to avoid memory leaks.
-    """
-
     def __init__(self, root_physx_view: physx.SoftBodyView, device: str):
         """Initializes the deformable object data.
 
@@ -39,16 +31,26 @@ class DeformableObjectData:
         """
         # Set the parameters
         self.device = device
-        self._root_physx_view = weakref.proxy(root_physx_view)  # weak reference to avoid circular references
+        # Set the root deformable body view
+        # note: this is stored as a weak reference to avoid circular references between the asset class
+        #  and the data container. This is important to avoid memory leaks.
+        self._root_physx_view: physx.SoftBodyView = weakref.proxy(root_physx_view)
+
         # Set initial time stamp
         self._sim_timestamp = 0.0
 
         # Initialize the lazy buffers.
+        # -- node state in simulation world frame
+        self._nodal_pos_w = TimestampedBuffer()
+        self._nodal_vel_w = TimestampedBuffer()
         self._nodal_state_w = TimestampedBuffer()
+        # -- mesh element-wise rotations
         self._sim_element_rotations = TimestampedBuffer()
         self._collision_element_rotations = TimestampedBuffer()
+        # -- mesh element-wise deformation gradients
         self._sim_element_deformation_gradients = TimestampedBuffer()
         self._collision_element_deformation_gradients = TimestampedBuffer()
+        # -- mesh element-wise stresses
         self._sim_element_stresses = TimestampedBuffer()
         self._collision_element_stresses = TimestampedBuffer()
 
@@ -58,6 +60,7 @@ class DeformableObjectData:
         Args:
             dt: The time step for the update. This must be a positive value.
         """
+        # update the simulation timestamp
         self._sim_timestamp += dt
 
     ##
@@ -66,7 +69,7 @@ class DeformableObjectData:
 
     default_nodal_state_w: torch.Tensor = None
     """Default nodal state ``[nodal_pos, nodal_vel]`` in simulation world frame.
-    Shape is ``(num_instances, 2 * max_simulation_mesh_vertices_per_body, 3)``.
+    Shape is (num_instances, 2 * max_simulation_mesh_vertices_per_body, 3).
     """
 
     ##
@@ -74,17 +77,29 @@ class DeformableObjectData:
     ##
 
     @property
-    def num_instances(self) -> int:
-        return self._root_physx_view.count
+    def nodal_pos_w(self):
+        """Nodal positions in simulation world frame. Shape is (num_instances, max_simulation_mesh_vertices_per_body, 3)."""
+        if self._nodal_pos_w.timestamp < self._sim_timestamp:
+            self._nodal_pos_w.data = self._root_physx_view.get_sim_nodal_positions()
+            self._nodal_pos_w.timestamp = self._sim_timestamp
+        return self._nodal_pos_w.data
+
+    @property
+    def nodal_vel_w(self):
+        """Nodal velocities in simulation world frame. Shape is (num_instances, max_simulation_mesh_vertices_per_body, 3)."""
+        if self._nodal_vel_w.timestamp < self._sim_timestamp:
+            self._nodal_vel_w.data = self._root_physx_view.get_sim_nodal_velocities()
+            self._nodal_vel_w.timestamp = self._sim_timestamp
+        return self._nodal_pos_w.data
 
     @property
     def nodal_state_w(self):
         """Nodal state ``[nodal_pos, nodal_vel]`` in simulation world frame.
-        Shape is ``(num_instances, 2 * max_simulation_mesh_vertices_per_body, 3)``.
+        Shape is (num_instances, 2 * max_simulation_mesh_vertices_per_body, 3).
         """
         if self._nodal_state_w.timestamp < self._sim_timestamp:
-            nodal_positions = self._root_physx_view.get_sim_nodal_positions()
-            nodal_velocities = self._root_physx_view.get_sim_nodal_velocities()
+            nodal_positions = self.nodal_pos_w
+            nodal_velocities = self.nodal_vel_w
             # set the buffer data and timestamp
             self._nodal_state_w.data = torch.cat((nodal_positions, nodal_velocities), dim=1)
             self._nodal_state_w.timestamp = self._sim_timestamp
@@ -93,93 +108,101 @@ class DeformableObjectData:
     @property
     def sim_element_rotations(self):
         """Simulation mesh element-wise rotations as quaternions for the deformable bodies.
-        Shape is ``(num_instances, max_simulation_mesh_elements_per_body, 4)``.
+        Shape is (num_instances, max_simulation_mesh_elements_per_body, 4).
         """
         if self._sim_element_rotations.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._sim_element_rotations.data = self._root_physx_view.get_sim_element_rotations().reshape(self.num_instances, -1, 4)
+            self._sim_element_rotations.data = self._root_physx_view.get_sim_element_rotations().view(
+                self._root_physx_view.count, -1, 4
+            )
             self._sim_element_rotations.timestamp = self._sim_timestamp
         return self._sim_element_rotations.data
 
     @property
     def collision_element_rotations(self):
         """Collision mesh element-wise rotations as quaternions for the deformable bodies.
-        Shape is ``(num_instances, max_collision_mesh_elements_per_body, 4)``.
+        Shape is (num_instances, max_collision_mesh_elements_per_body, 4).
         """
         if self._collision_element_rotations.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._collision_element_rotations.data = self._root_physx_view.get_element_rotations().reshape(self.num_instances, -1, 4)
+            self._collision_element_rotations.data = self._root_physx_view.get_element_rotations().view(
+                self._root_physx_view.count, -1, 4
+            )
             self._collision_element_rotations.timestamp = self._sim_timestamp
         return self._collision_element_rotations.data
 
     @property
     def sim_element_deformation_gradients(self):
         """Simulation mesh element-wise second-order deformation gradient tensors for the deformable bodies.
-        Shape is ``(num_instances, max_simulation_mesh_elements_per_body, 3, 3)``.
+        Shape is (num_instances, max_simulation_mesh_elements_per_body, 3, 3).
         """
         if self._sim_element_deformation_gradients.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._sim_element_deformation_gradients.data = self._root_physx_view.get_sim_element_deformation_gradients().reshape(self.num_instances, -1, 3, 3)
+            self._sim_element_deformation_gradients.data = (
+                self._root_physx_view.get_sim_element_deformation_gradients().view(
+                    self._root_physx_view.count, -1, 3, 3
+                )
+            )
             self._sim_element_deformation_gradients.timestamp = self._sim_timestamp
         return self._sim_element_deformation_gradients.data
 
     @property
     def collision_element_deformation_gradients(self):
         """Collision mesh element-wise second-order deformation gradient tensors for the deformable bodies.
-        Shape is ``(num_instances, max_collision_mesh_elements_per_body, 3, 3)``.
+        Shape is (num_instances, max_collision_mesh_elements_per_body, 3, 3).
         """
         if self._collision_element_deformation_gradients.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._collision_element_deformation_gradients.data = self._root_physx_view.get_element_deformation_gradients().reshape(self.num_instances, -1, 3, 3)
+            self._collision_element_deformation_gradients.data = (
+                self._root_physx_view.get_element_deformation_gradients().view(self._root_physx_view.count, -1, 3, 3)
+            )
             self._collision_element_deformation_gradients.timestamp = self._sim_timestamp
         return self._collision_element_deformation_gradients.data
 
     @property
     def sim_element_stresses(self):
         """Simulation mesh element-wise second-order stress tensors for the deformable bodies.
-        Shape is ``(num_instances, max_simulation_mesh_elements_per_body, 3, 3)``.
+        Shape is (num_instances, max_simulation_mesh_elements_per_body, 3, 3).
         """
         if self._sim_element_stresses.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._sim_element_stresses.data = self._root_physx_view.get_sim_element_stresses().reshape(self.num_instances, -1, 3, 3)
+            self._sim_element_stresses.data = self._root_physx_view.get_sim_element_stresses().view(
+                self._root_physx_view.count, -1, 3, 3
+            )
             self._sim_element_stresses.timestamp = self._sim_timestamp
         return self._sim_element_stresses.data
 
     @property
     def collision_element_stresses(self):
         """Collision mesh element-wise second-order stress tensors for the deformable bodies.
-        Shape is ``(num_instances, max_collision_mesh_elements_per_body, 3, 3)``.
+        Shape is (num_instances, max_collision_mesh_elements_per_body, 3, 3).
         """
         if self._collision_element_stresses.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
-            self._collision_element_stresses.data = self._root_physx_view.get_element_stresses().reshape(self.num_instances, -1, 3, 3)
+            self._collision_element_stresses.data = self._root_physx_view.get_element_stresses().view(
+                self._root_physx_view.count, -1, 3, 3
+            )
             self._collision_element_stresses.timestamp = self._sim_timestamp
         return self._collision_element_stresses.data
 
-    @property
-    def nodal_pos_w(self) -> torch.Tensor:
-        """Nodal positions of the simulation mesh for the deformable bodies in simulation world frame.
-        Shape is ``(num_instances, max_simulation_mesh_vertices_per_body, 3)``.
-        """
-        return self.nodal_state_w[:, :self.nodal_state_w.size(1) // 2, :]
-
-    @property
-    def nodal_vel_w(self) -> torch.Tensor:
-        """Vertex velocities for the deformable bodies in simulation world frame.
-        Shape is ``(num_instances, max_simulation_mesh_vertices_per_body, 3)``.
-        """
-        return self.nodal_state_w[:, self.nodal_state_w.size(1) // 2:, :]
+    ##
+    # Derived properties.
+    ##
 
     @property
     def root_pos_w(self) -> torch.Tensor:
         """Root position from nodal positions of the simulation mesh for the deformable bodies in simulation world frame.
-        Shape is ``(num_instances, 3)``.
+        Shape is (num_instances, 3).
+
+        This quantity is computed as the mean of the nodal positions.
         """
         return self.nodal_pos_w.mean(dim=1)
 
     @property
     def root_vel_w(self) -> torch.Tensor:
         """Root velocity from vertex velocities for the deformable bodies in simulation world frame.
-        Shape is ``(num_instances, 3)``.
+        Shape is (num_instances, 3).
+
+        This quantity is computed as the mean of the nodal velocities.
         """
         return self.nodal_vel_w.mean(dim=1)

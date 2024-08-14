@@ -134,9 +134,7 @@ class TestDeformableObject(unittest.TestCase):
             with self.subTest(num_cubes=num_cubes):
                 with build_simulation_context(auto_add_lighting=True) as sim:
                     # Generate cubes scene
-                    cube_object = generate_cubes_scene(
-                        num_cubes=num_cubes, kinematic_enabled=True
-                    )
+                    cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
 
                     # Check that boundedness of deformable object is correct
                     self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
@@ -212,10 +210,7 @@ class TestDeformableObject(unittest.TestCase):
 
                             # Set random state
                             state_dict[state_type_to_randomize] = torch.randn(
-                                num_cubes,
-                                cube_object.max_simulation_mesh_vertices_per_body,
-                                3,
-                                device=sim.device
+                                num_cubes, cube_object.max_simulation_mesh_vertices_per_body, 3, device=sim.device
                             )
 
                             # perform simulation
