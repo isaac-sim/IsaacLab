@@ -98,7 +98,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             elif callable(obj_mem):
                 # update function name
                 value = string_to_callable(value)
-            elif isinstance(value, type(obj_mem)):
+            elif isinstance(value, type(obj_mem)) or value is None:
                 pass
             else:
                 raise ValueError(
