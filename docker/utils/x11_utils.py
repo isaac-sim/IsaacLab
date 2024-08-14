@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""Utility functions for managing X11 forwarding in the docker container."""
+
 from __future__ import annotations
 
 import os
@@ -9,114 +12,145 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from utils.statefile import Statefile
+from .state_file import StateFile
 
 
 # This method of x11 enabling forwarding was inspired by osrf/rocker
 # https://github.com/osrf/rocker
-def configure_x11(statefile: Statefile) -> dict[str, str]:
-    """
-    Configure X11 forwarding by creating and managing a temporary .xauth file.
+def configure_x11(statefile: StateFile) -> dict[str, str]:
+    """Configure X11 forwarding by creating and managing a temporary .xauth file.
 
-    If xauth is not installed, prompt the user to install it. If the .xauth file
-    does not exist, create it and configure it with the necessary xauth cookie.
+    If xauth is not installed, the function prints an error message and exits. The message
+    instructs the user to install xauth with 'apt install xauth'.
+
+    If the .xauth file does not exist, the function creates it and configures it with the necessary
+    xauth cookie.
 
     Args:
-        statefile: An instance of the Statefile class to manage state variables.
+        statefile: An instance of the configuration file class.
 
     Returns:
-        dict: A dictionary where the key is __ISAACLAB_TMP_XAUTH (referenced in x11.yaml)
-              and the value is the corresponding tmp file which has been created.
+        A dictionary with two key-value pairs:
+
+        - "__ISAACLAB_TMP_XAUTH": The path to the temporary .xauth file.
+        - "__ISAACLAB_TMP_DIR": The path to the directory where the temporary .xauth file is stored.
+
     """
+    # check if xauth is installed
     if not shutil.which("xauth"):
         print("[INFO] xauth is not installed.")
         print("[INFO] Please install it with 'apt install xauth'")
         exit(1)
+
+    # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
-    __ISAACLAB_TMP_XAUTH = statefile.load_variable("__ISAACLAB_TMP_XAUTH")
-    if __ISAACLAB_TMP_XAUTH is None or not Path(__ISAACLAB_TMP_XAUTH).exists():
-        __ISAACLAB_TMP_DIR = subprocess.run(["mktemp", "-d"], capture_output=True, text=True, check=True).stdout.strip()
-        __ISAACLAB_TMP_XAUTH = create_x11_tmpfile(tmpdir=Path(__ISAACLAB_TMP_DIR))
-        statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(__ISAACLAB_TMP_XAUTH))
+    # load the value of the temporary xauth file
+    tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
+
+    if tmp_xauth_value is None or not Path(tmp_xauth_value).exists():
+        # create a temporary directory to store the .xauth file
+        tmp_dir = subprocess.run(["mktemp", "-d"], capture_output=True, text=True, check=True).stdout.strip()
+        # create the .xauth file
+        tmp_xauth_value = create_x11_tmpfile(tmpdir=Path(tmp_dir))
+        # set the statefile variable
+        statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
     else:
-        __ISAACLAB_TMP_DIR = Path(__ISAACLAB_TMP_XAUTH).parent
-    return {"__ISAACLAB_TMP_XAUTH": str(__ISAACLAB_TMP_XAUTH), "__ISAACLAB_TMP_DIR": str(__ISAACLAB_TMP_DIR)}
+        tmp_dir = Path(tmp_xauth_value).parent
+
+    return {"__ISAACLAB_TMP_XAUTH": str(tmp_xauth_value), "__ISAACLAB_TMP_DIR": str(tmp_dir)}
 
 
-def x11_check(statefile: Statefile) -> tuple[list[str], dict[str, str]] | None:
-    """
-    Check and configure X11 forwarding based on user input and existing state.
+def x11_check(statefile: StateFile) -> tuple[list[str], dict[str, str]] | None:
+    """Check and configure X11 forwarding based on user input and existing state.
 
-    Prompt the user to enable or disable X11 forwarding if not already configured.
-    Configure X11 forwarding if enabled.
+    This function checks if X11 forwarding is enabled in the configuration file. If it is not configured,
+    the function prompts the user to enable or disable X11 forwarding. If X11 forwarding is enabled, the function
+    configures X11 forwarding by creating a temporary .xauth file.
 
     Args:
-        statefile: An instance of the Statefile class to manage state variables.
+        statefile: An instance of the configuration file class.
 
     Returns:
-        list or str: A list containing the x11.yaml file configuration option if X11 forwarding is enabled,
-                     otherwise None
+        If X11 forwarding is enabled, the function returns a tuple containing the following:
+
+        - A list containing the x11.yaml file configuration option for docker-compose.
+        - A dictionary containing the environment variables for the container.
+
+        If X11 forwarding is disabled, the function returns None.
     """
+    # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
-    __ISAACLAB_X11_FORWARDING_ENABLED = statefile.load_variable("__ISAACLAB_X11_FORWARDING_ENABLED")
-    if __ISAACLAB_X11_FORWARDING_ENABLED is None:
-        print("[INFO] X11 forwarding from the Isaac Lab container is off by default.")
+    # check if X11 forwarding is enabled
+    is_x11_forwarding_enabled = statefile.get_variable("__ISAACLAB_X11_FORWARDING_ENABLED")
+
+    if is_x11_forwarding_enabled is None:
+        print("[INFO] X11 forwarding from the Isaac Lab container is disabled by default.")
         print(
             "[INFO] It will fail if there is no display, or this script is being run via ssh without proper"
             " configuration."
         )
         x11_answer = input("Would you like to enable it? (y/N) ")
+
+        # parse the user's input
         if x11_answer.lower() == "y":
-            __ISAACLAB_X11_FORWARDING_ENABLED = "1"
-            statefile.set_variable("__ISAACLAB_X11_FORWARDING_ENABLED", "1")
+            is_x11_forwarding_enabled = "1"
             print("[INFO] X11 forwarding is enabled from the container.")
         else:
-            __ISAACLAB_X11_FORWARDING_ENABLED = "0"
-            statefile.set_variable("__ISAACLAB_X11_FORWARDING_ENABLED", "0")
+            is_x11_forwarding_enabled = "0"
             print("[INFO] X11 forwarding is disabled from the container.")
-    else:
-        print(f"[INFO] X11 Forwarding is configured as {__ISAACLAB_X11_FORWARDING_ENABLED} in .container.cfg")
-        if __ISAACLAB_X11_FORWARDING_ENABLED == "1":
-            print("[INFO] To disable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=0 in .container.cfg")
-        else:
-            print("[INFO] To enable X11 forwarding, set __ISAACLAB_X11_FORWARDING_ENABLED=1 in .container.cfg")
 
-    if __ISAACLAB_X11_FORWARDING_ENABLED == "1":
-        x11_envar = configure_x11(statefile)
+        # remember the user's choice and set the statefile variable
+        statefile.set_variable("__ISAACLAB_X11_FORWARDING_ENABLED", is_x11_forwarding_enabled)
+    else:
+        # print the current configuration
+        print(f"[INFO] X11 Forwarding is configured as '{is_x11_forwarding_enabled}' in '.container.cfg'.")
+
+        # print help message to enable/disable X11 forwarding
+        if is_x11_forwarding_enabled == "1":
+            print("[INFO] To disable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=0' in '.container.cfg'.")
+        else:
+            print("[INFO] To enable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=1' in '.container.cfg'.")
+
+    if is_x11_forwarding_enabled == "1":
+        x11_envars = configure_x11(statefile)
         # If X11 forwarding is enabled, return the proper args to
         # compose the x11.yaml file. Else, return an empty string.
-        return (["--file", "x11.yaml"], x11_envar)
+        return ["--file", "x11.yaml"], x11_envars
 
     return None
 
 
-def x11_cleanup(statefile: Statefile):
-    """
-    Clean up the temporary .xauth file used for X11 forwarding.
+def x11_cleanup(statefile: StateFile):
+    """Clean up the temporary .xauth file used for X11 forwarding.
 
-    If the .xauth file exists, delete it and remove the corresponding state variable.
+    If the .xauth file exists, this function deletes it and remove the corresponding state variable.
 
     Args:
-        statefile: An instance of the Statefile class to manage state variables.
+        statefile: An instance of the configuration file class.
     """
+    # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
-    __ISAACLAB_TMP_XAUTH = statefile.load_variable("__ISAACLAB_TMP_XAUTH")
-    if __ISAACLAB_TMP_XAUTH is not None and Path(__ISAACLAB_TMP_XAUTH).exists():
-        print(f"[INFO] Removing temporary Isaac Lab .xauth file {__ISAACLAB_TMP_XAUTH}.")
-        Path(__ISAACLAB_TMP_XAUTH).unlink()
+
+    # load the value of the temporary xauth file
+    tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
+
+    # if the file exists, delete it and remove the state variable
+    if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
+        print(f"[INFO] Removing temporary Isaac Lab '.xauth' file: {tmp_xauth_value}.")
+        Path(tmp_xauth_value).unlink()
         statefile.delete_variable("__ISAACLAB_TMP_XAUTH")
 
 
 def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) -> Path:
-    """
-    Creates an .xauth file with an MIT-MAGIC-COOKIE derived from the current DISPLAY,
-    returns its location as a Path.
+    """Creates an .xauth file with an MIT-MAGIC-COOKIE derived from the current ``DISPLAY`` environment variable.
 
     Args:
-        tmpfile: A Path to a file which will be filled with the correct .xauth info
-        tmpdir: A Path to the directory where a random tmp file will be made,
-                used as an --tmpdir arg to mktemp
+        tmpfile: A Path to a file which will be filled with the correct .xauth info.
+        tmpdir: A Path to the directory where a random tmp file will be made.
+            This is used as an ``--tmpdir arg`` to ``mktemp`` bash command.
 
+    Returns:
+        The Path to the .xauth file.
     """
     if tmpfile is None:
         if tmpdir is None:
@@ -132,28 +166,39 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
     else:
         tmpfile.touch()
         tmp_xauth = tmpfile
+
     # Derive current MIT-MAGIC-COOKIE and make it universally addressable
     xauth_cookie = subprocess.run(
         ["xauth", "nlist", os.environ["DISPLAY"]], capture_output=True, text=True, check=True
     ).stdout.replace("ffff", "")
+
     # Merge the new cookie into the create .tmp file
     subprocess.run(["xauth", "-f", tmp_xauth, "nmerge", "-"], input=xauth_cookie, text=True, check=True)
+
     return tmp_xauth
 
 
-def x11_refresh(statefile: Statefile):
-    """
-    If x11 is enabled, generates a new .xauth file with the current MIT-MAGIC-COOKIE-1,
-    using the same filename so that the bind-mount and
-    XAUTHORITY var from build-time still work. DISPLAY will also
-    need to be updated in the container environment command.
+def x11_refresh(statefile: StateFile):
+    """Refresh the temporary .xauth file used for X11 forwarding.
+
+    If x11 is enabled, this function generates a new .xauth file with the current MIT-MAGIC-COOKIE-1.
+    The new file uses the same filename so that the bind-mount and ``XAUTHORITY`` var from build-time still work.
+
+    The var ``DISPLAY`` will also need to be updated in the container environment command.
 
     Args:
-        statefile: An instance of the Statefile class to manage state variables.
+        statefile: An instance of the configuration file class.
     """
+    # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
-    __ISAACLAB_TMP_XAUTH = Path(statefile.load_variable("__ISAACLAB_TMP_XAUTH"))
-    if __ISAACLAB_TMP_XAUTH is not None and __ISAACLAB_TMP_XAUTH.exists():
-        __ISAACLAB_TMP_XAUTH.unlink()
-        create_x11_tmpfile(tmpfile=__ISAACLAB_TMP_XAUTH)
-        statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(__ISAACLAB_TMP_XAUTH))
+
+    # load the value of the temporary xauth file
+    tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
+
+    # if the file exists, delete it and create a new one
+    if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
+        # remove the file and create a new one
+        Path(tmp_xauth_value).unlink()
+        create_x11_tmpfile(tmpfile=tmp_xauth_value)
+        # update the statefile with the new path
+        statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
