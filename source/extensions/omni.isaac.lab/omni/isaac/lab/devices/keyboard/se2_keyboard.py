@@ -35,7 +35,7 @@ class Se2Keyboard(DeviceBase):
 
     .. seealso::
 
-        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Keyboard>`__.
+        The official documentation for the keyboard interface: `Carb Keyboard Interface <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
 
     """
 
@@ -98,7 +98,7 @@ class Se2Keyboard(DeviceBase):
         """Add additional functions to bind keyboard.
 
         A list of available keys are present in the
-        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput>`__.
+        `carb documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html>`__.
 
         Args:
             key: The keyboard button to check against.
@@ -123,7 +123,7 @@ class Se2Keyboard(DeviceBase):
         """Subscriber callback to when kit is updated.
 
         Reference:
-            https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput
+            https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html
         """
         # apply the command when pressed
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:

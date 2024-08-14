@@ -29,7 +29,9 @@ project = "Isaac Lab"
 copyright = "2022-2024, The Isaac Lab Project Developers."
 author = "The Isaac Lab Project Developers."
 
-version = "0.3.0"
+# Read version from the package
+with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
+    version = f.read().strip()
 
 # -- General configuration ---------------------------------------------------
 
@@ -49,9 +51,9 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinxcontrib.bibtex",
+    "sphinxcontrib.icon",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_tabs.tabs",
 ]
 
 # mathjax hacks
@@ -224,7 +226,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-4.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-4.1-silver.svg",
             "type": "url",
         },
         {

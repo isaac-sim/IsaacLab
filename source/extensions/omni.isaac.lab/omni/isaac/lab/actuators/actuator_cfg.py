@@ -162,18 +162,11 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
 
     class_type: type = actuator_pd.DelayedPDActuator
 
-    min_num_time_lags: int = 0
-    """Minimum number of physics time-steps that the actuator command may be delayed."""
+    min_delay: int = 0
+    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
-    max_num_time_lags: int = 0
-    """Maximum number of physics time-steps that the actuator command may be delayed."""
-
-    num_time_lags: int = 0
-    """The number of physics time-steps that the actuator command will be delayed.
-
-    Note:
-        This values cannot be greater than `max_num_time_lags`.
-    """
+    max_delay: int = 0
+    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
 
 @configclass
@@ -182,7 +175,8 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     Note:
         The torque output limits for this actuator is derived from a linear interpolation of a lookup table
-        in :attr:`joint_parameter_lookup` describing the relationship between joint angles and the output torques.
+        in :attr:`joint_parameter_lookup`. This table describes the relationship between joint angles and
+        the output torques.
     """
 
     class_type: type = actuator_pd.RemotizedPDActuator
@@ -190,6 +184,6 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
     joint_parameter_lookup: torch.Tensor = MISSING
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).
 
-    The tensor describes relationship between the joint angle (rad), the transmission ratio (in/out),
-    and the output torque (N*m).
+    This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
+    and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
     """

@@ -4,7 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates how to simulate a bipedal robot.
+This script demonstrates how to simulate bipedal robots.
+
+.. code-block:: bash
+
+    # Usage
+    ./isaaclab.sh -p source/standalone/demos/bipeds.py
 
 """
 
@@ -16,7 +21,7 @@ import torch
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a bipedal robot.")
+parser = argparse.ArgumentParser(description="This script demonstrates how to simulate bipedal robots.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -44,9 +49,7 @@ def main():
     """Main function."""
 
     # Load kit helper
-    sim = SimulationContext(
-        sim_utils.SimulationCfg(device="cpu", use_gpu_pipeline=False, dt=0.01, physx=sim_utils.PhysxCfg(use_gpu=False))
-    )
+    sim = SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=0.01))
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
 

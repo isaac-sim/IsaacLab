@@ -54,7 +54,7 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from .physics_materials import spawn_rigid_body_material
-from .physics_materials_cfg import PhysicsMaterialCfg, RigidBodyMaterialCfg
+from .physics_materials import spawn_deformable_body_material, spawn_rigid_body_material
+from .physics_materials_cfg import DeformableBodyMaterialCfg, PhysicsMaterialCfg, RigidBodyMaterialCfg
 from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
 from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg

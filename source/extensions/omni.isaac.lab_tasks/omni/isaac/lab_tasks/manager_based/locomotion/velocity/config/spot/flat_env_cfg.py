@@ -286,8 +286,8 @@ class SpotTerminationsCfg:
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["body", ".*leg"]), "threshold": 1.0},
     )
-    out_of_bounds = DoneTerm(
-        func=spot_mdp.terminations.terrain_out_of_bounds,
+    terrain_out_of_bounds = DoneTerm(
+        func=mdp.terrain_out_of_bounds,
         params={"asset_cfg": SceneEntityCfg("robot"), "distance_buffer": 3.0},
         time_out=True,
     )
@@ -326,7 +326,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.episode_length_s = 20.0
         # simulation settings
         self.sim.dt = 0.002  # 500 Hz
-        self.sim.substeps = 1
+        self.sim.render_interval = self.decimation
         self.sim.disable_contact_processing = True
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0

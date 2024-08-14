@@ -1,6 +1,352 @@
 Changelog
 ---------
 
+0.21.1 (2024-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+* Added a flag to preserve joint ordering inside the :class:`omni.isaac.lab.envs.mdp.JointAction` action term.
+
+
+0.21.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the command line argument ``--device`` in :class:`~omni.isaac.lab.app.AppLauncher`. Valid options are:
+
+  * ``cpu``: Use CPU.
+  * ``cuda``: Use GPU with device ID ``0``.
+  * ``cuda:N``: Use GPU, where N is the device ID. For example, ``cuda:0``.
+  The default value is ``cuda:0``.
+
+Changed
+^^^^^^^
+
+* Simplified setting the device throughout the code by relying on :attr:`omni.isaac.lab.sim.SimulationCfg.device`
+  to activate gpu/cpu pipelines.
+
+Removed
+^^^^^^^
+
+* Removed the parameter :attr:`omni.isaac.lab.sim.SimulationCfg.use_gpu_pipeline`. This is now directly inferred from
+  :attr:`omni.isaac.lab.sim.SimulationCfg.device`.
+* Removed the command line input argument ``--device_id`` in :class:`~omni.isaac.lab.app.AppLauncher`. The device id can
+  now be set using the ``--device`` argument, for example with ``--device cuda:0``.
+
+
+0.20.8 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the handling of observation terms with different shapes in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class. Earlier, the constructor would throw an error if the
+  shapes of the observation terms were different. Now, this operation only happens when the terms in an observation
+  group are being concatenated. Otherwise, the terms are stored as a dictionary of tensors.
+* Improved the error message when the observation terms are not of the same shape in the
+  :class:`~omni.isaac.lab.managers.ObservationManager` class and the terms are being concatenated.
+
+
+0.20.7 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Performance improvements for material randomization in events.
+
+Added
+^^^^^
+
+* Added minimum randomization frequency for reset mode randomizations.
+
+
+0.20.6 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the hierarchy from :class:`~omni.isaac.lab.assets.RigidObject` class to
+  :class:`~omni.isaac.lab.assets.Articulation` class. Previously, the articulation class overrode  almost
+  all the functions of the rigid object class making the hierarchy redundant. Now, the articulation class
+  is a standalone class that does not inherit from the rigid object class. This does add some code
+  duplication but the simplicity and clarity of the code is improved.
+
+
+0.20.5 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`omni.isaac.lab.terrain.TerrainGeneratorCfg.border_height` to set the height of the border
+  around the terrain.
+
+
+0.20.4 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the caching of terrains when using the :class:`omni.isaac.lab.terrains.TerrainGenerator` class.
+  Earlier, the random sampling of the difficulty levels led to different hash values for the same terrain
+  configuration. This caused the terrains to be re-generated even when the same configuration was used.
+  Now, the numpy random generator is seeded with the same seed to ensure that the difficulty levels are
+  sampled in the same order between different runs.
+
+
+0.20.3 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the setting of translation and orientation when spawning a mesh prim. Earlier, the translation
+  and orientation was being applied both on the parent Xform and the mesh prim. This was causing the
+  mesh prim to be offset by the translation and orientation of the parent Xform, which is not the intended
+  behavior.
+
+
+0.20.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the computation of body acceleration for rigid body data to use PhysX APIs instead of
+  numerical finite-differencing. This removes the need for computation of body acceleration at
+  every update call of the data buffer.
+
+
+0.20.1 (2024-07-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the :meth:`omni.isaac.lab.utils.math.wrap_to_pi` method to handle the wrapping of angles correctly.
+  Earlier, the method was not wrapping the angles to the range [-pi, pi] correctly when the angles were outside
+  the range [-2*pi, 2*pi].
+
+
+0.20.0 (2024-07-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Support for the Isaac Sim 4.1.0 release.
+
+Removed
+^^^^^^^
+
+* The ``mdp.add_body_mass`` method in the events. Please use the
+  :meth:`omni.isaac.lab.envs.mdp.randomize_rigid_body_mass` method instead.
+* The classes ``managers.RandomizationManager`` and ``managers.RandomizationTermCfg`` are replaced with
+  :class:`omni.isaac.lab.managers.EventManager` and :class:`omni.isaac.lab.managers.EventTermCfg` classes.
+* The following properties in :class:`omni.isaac.lab.sensors.FrameTransformerData`:
+
+  * ``target_rot_source`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_w`
+  * ``target_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.target_quat_source`
+  * ``source_rot_w`` --> :attr:`~omni.isaac.lab.sensors.FrameTransformerData.source_quat_w`
+
+* The kit experience file ``isaaclab.backwards.compatible.kit``. This is followed by dropping the support for
+  Isaac Sim 2023.1.1 completely.
+
+
+0.19.4 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the call to "startup" events when using the :class:`~omni.isaac.lab.envs.ManagerBasedEnv` class.
+  Earlier, the "startup" events were not being called when the environment was initialized. This issue
+  did not occur when using the :class:`~omni.isaac.lab.envs.ManagerBasedRLEnv` class since the "startup"
+  events were called in the constructor.
+
+
+0.19.3 (2024-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added schemas for setting and modifying deformable body properties on a USD prim.
+* Added API to spawn a deformable body material in the simulation.
+* Added APIs to spawn rigid and deformable meshes of primitive shapes (cone, cylinder, sphere, box, capsule)
+  in the simulation. This is possible through the :mod:`omni.isaac.lab.sim.spawners.meshes` module.
+
+
+0.19.2 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified cloning scheme based on the attribute :attr:`~omni.isaac.lab.scene.InteractiveSceneCfg.replicate_physics`
+  to determine whether environment is homogeneous or heterogeneous.
+
+
+0.19.1 (2024-07-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a lidar pattern function :func:`~omni.isaac.lab.sensors.ray_caster.patterns.patterns.lidar_pattern` with
+  corresponding config :class:`~omni.isaac.lab.sensors.ray_caster.patterns_cfg.LidarPatternCfg`.
+
+
+0.19.0 (2024-07-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed parsing of articulations with nested rigid links while using the :class:`omni.isaac.lab.assets.Articulation`
+  class. Earlier, the class initialization failed when the articulation had nested rigid links since the rigid
+  links were not being parsed correctly by the PhysX view.
+
+Removed
+^^^^^^^
+
+* Removed the attribute :attr:`body_physx_view` from the :class:`omni.isaac.lab.assets.Articulation` and
+  :class:`omni.isaac.lab.assets.RigidObject` classes. These were causing confusions when used with articulation
+  view since the body names were not following the same ordering.
+* Dropped support for Isaac Sim 2023.1.1. The minimum supported version is now Isaac Sim 4.0.0.
+
+
+0.18.6 (2024-07-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the environment stepping logic. Earlier, the environments' rendering logic was updating the kit app which
+  would in turn step the physics :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval` times. Now, a render
+  call only does rendering and does not step the physics.
+
+
+0.18.5 (2024-06-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the gravity vector direction used inside the :class:`omni.isaac.lab.assets.RigidObjectData` class.
+  Earlier, the gravity direction was hard-coded as (0, 0, -1) which may be different from the actual
+  gravity direction in the simulation. Now, the gravity direction is obtained from the simulation context
+  and used to compute the projection of the gravity vector on the object.
+
+
+0.18.4 (2024-06-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed double reference count of the physics sim view inside the asset classes. This was causing issues
+  when destroying the asset class instance since the physics sim view was not being properly released.
+
+Added
+^^^^^
+
+* Added the attribute :attr:`~omni.isaac.lab.assets.AssetBase.is_initialized` to check if the asset and sensor
+  has been initialized properly. This can be used to ensure that the asset or sensor is ready to use in the simulation.
+
+
+0.18.3 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the docstrings at multiple places related to the different buffer implementations inside the
+  :mod:`omni.isaac.lab.utils.buffers` module. The docstrings were not clear and did not provide enough
+  information about the classes and their methods.
+
+Added
+^^^^^
+
+* Added the field for fixed tendom names in the :class:`omni.isaac.lab.assets.ArticulationData` class.
+  Earlier, this information was not exposed which was inconsistent with other name related information
+  such as joint or body names.
+
+Changed
+^^^^^^^
+
+* Renamed the fields ``min_num_time_lags`` and ``max_num_time_lags`` to ``min_delay`` and
+  ``max_delay`` in the :class:`omni.isaac.lab.actuators.DelayedPDActuatorCfg` class. This is to make
+  the naming simpler to understand.
+
+
+0.18.2 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved the configuration for tile-rendered camera into its own file named ``tiled_camera_cfg.py``.
+  This makes it easier to follow where the configuration is located and how it is related to the class.
+
+
+0.18.1 (2024-06-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Ensured that a parity between class and its configuration class is explicitly visible in the
+  :mod:`omni.isaac.lab.envs` module. This makes it easier to follow where definitions are located and how
+  they are related. This should not be a breaking change as the classes are still accessible through the same module.
+
+
+0.18.0 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the rendering logic to render at the specified interval. Earlier, the substep parameter had no effect and rendering
+  would happen once every env.step() when active.
+
+Changed
+^^^^^^^
+
+* Renamed :attr:`omni.isaac.lab.sim.SimulationCfg.substeps` to :attr:`omni.isaac.lab.sim.SimulationCfg.render_interval`.
+  The render logic is now integrated in the decimation loop of the environment.
+
+
+0.17.13 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the orientation reset logic in :func:`omni.isaac.lab.envs.mdp.events.reset_root_state_uniform` to make it relative to
+  the default orientation. Earlier, the position was sampled relative to the default and the orientation not.
+
+
+0.17.12 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the class :class:`omni.isaac.lab.utils.buffers.TimestampedBuffer` to store timestamped data.
+
+Changed
+^^^^^^^
+
+* Added time-stamped buffers in the classes :class:`omni.isaac.lab.assets.RigidObjectData` and :class:`omni.isaac.lab.assets.ArticulationData`
+  to update some values lazily and avoid unnecessary computations between physics updates. Before, all the data was always
+  updated at every step, even if it was not used by the task.
+
 
 0.17.11 (2024-05-30)
 ~~~~~~~~~~~~~~~~~~~~

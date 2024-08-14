@@ -77,7 +77,7 @@ The camera's pose and image resolution can be configured through the
 .. dropdown:: Default parameters of the ViewerCfg class:
     :icon: code
 
-    .. literalinclude:: ../../../source/extensions/omni.isaac.lab/omni/isaac/lab/envs/base_env_cfg.py
+    .. literalinclude:: ../../../source/extensions/omni.isaac.lab/omni/isaac/lab/envs/common.py
         :language: python
         :pyobject: ViewerCfg
 
@@ -113,7 +113,7 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
     # wrap for video recording
     video_kwargs = {
-        "video_folder": "videos",
+        "video_folder": "videos/train",
         "step_trigger": lambda step: step % 1500 == 0,
         "video_length": 200,
     }

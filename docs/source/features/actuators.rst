@@ -59,10 +59,17 @@ actuator model, such as a DC motor, would require configuring a different actuat
 
 The following figure shows the actuator groups for a legged mobile manipulator:
 
-.. image:: ../_static/actuator_groups.svg
-    :width: 600
+.. image:: ../_static/actuator-group/actuator-light.svg
+    :class: only-light
     :align: center
-    :alt: Actuator groups for a legged mobile manipulator
+    :alt: Actuator models for a legged mobile manipulator
+    :width: 80%
+
+.. image:: ../_static/actuator-group/actuator-dark.svg
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Actuator models for a legged mobile manipulator
 
 .. seealso::
 

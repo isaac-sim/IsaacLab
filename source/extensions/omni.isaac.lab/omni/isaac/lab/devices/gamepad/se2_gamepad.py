@@ -35,7 +35,7 @@ class Se2Gamepad(DeviceBase):
 
     .. seealso::
 
-        The official documentation for the gamepad interface: `Carb Gamepad Interface <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.Gamepad>`__.
+        The official documentation for the gamepad interface: `Carb Gamepad Interface <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/gamepad.html>`__.
 
     """
 
@@ -111,7 +111,7 @@ class Se2Gamepad(DeviceBase):
         """Add additional functions to bind gamepad.
 
         A list of available gamepad keys are present in the
-        `carb documentation <https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html#carb.input.GamepadInput>`__.
+        `carb documentation <https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/gamepad.html>`__.
 
         Args:
             key: The gamepad button to check against.
@@ -136,7 +136,7 @@ class Se2Gamepad(DeviceBase):
         """Subscriber callback to when kit is updated.
 
         Reference:
-            https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=gamepadeventtype#carb.input.GamepadInput
+            https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/gamepad.html
         """
 
         # check if the event is a button press

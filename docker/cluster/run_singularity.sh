@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 echo "(run_singularity.py): Called on compute node from current isaaclab directory $1 with container profile $2 and arguments ${@:3}"
 
@@ -34,6 +34,7 @@ setup_directories() {
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # load variables to set the Isaac Lab path on the cluster
+source $SCRIPT_DIR/.env.cluster
 source $SCRIPT_DIR/../.env.base
 
 # make sure that all directories exists in cache directory

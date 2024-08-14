@@ -65,12 +65,14 @@ simulation_app = app_launcher.app
 import numpy as np
 
 import omni.isaac.core.utils.prims as prim_utils
+import omni.kit
 import omni.kit.commands
 from omni.isaac.cloner import GridCloner
 from omni.isaac.core.materials import PhysicsMaterial, PreviewSurface
 from omni.isaac.core.objects import DynamicSphere
 from omni.isaac.core.prims import GeometryPrim, RigidPrim, RigidPrimView
 from omni.isaac.core.simulation_context import SimulationContext
+from omni.isaac.core.utils.extensions import enable_extension
 from omni.isaac.core.utils.viewports import set_camera_view
 
 import omni.isaac.lab.sim as sim_utils
@@ -78,6 +80,8 @@ import omni.isaac.lab.terrains as terrain_gen
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from omni.isaac.lab.terrains.terrain_importer import TerrainImporter
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
+
+enable_extension("omni.kit.primitive.mesh")
 
 
 def main():
