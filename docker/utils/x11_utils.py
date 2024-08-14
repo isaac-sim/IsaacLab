@@ -107,9 +107,9 @@ def x11_check(statefile: StateFile) -> tuple[list[str], dict[str, str]] | None:
 
         # print help message to enable/disable X11 forwarding
         if is_x11_forwarding_enabled == "1":
-            print("[INFO] To disable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=0' in '.container.cfg'.")
+            print("\tTo disable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=0' in '.container.cfg'.")
         else:
-            print("[INFO] To enable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=1' in '.container.cfg'.")
+            print("\tTo enable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=1' in '.container.cfg'.")
 
     if is_x11_forwarding_enabled == "1":
         x11_envars = configure_x11(statefile)
