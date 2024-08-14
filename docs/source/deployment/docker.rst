@@ -73,14 +73,14 @@ Directory Organization
 The root of the Isaac Lab repository contains the ``docker`` directory that has various files and scripts
 needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:
 
-* ``Dockerfile.base``: Defines the isaaclab image by overlaying Isaac Lab dependencies onto the Isaac Sim Docker image.
+* **Dockerfile.base**: Defines the base Isaac Lab image by overlaying its dependencies onto the Isaac Sim Docker image.
   Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
-* ``docker-compose.yaml``: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
+* **docker-compose.yaml**: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
-* ``.env.base``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
+* **.env.base**: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
   files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
-* ``container.py``: A script that interfaces with tools in ``utils`` to configure and build the image,
+* **container.py**: A utility script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
 Running the Container
@@ -95,22 +95,22 @@ Running the Container
     For a faster development cycle, we mount the following directories in the Isaac Lab repository into the container
     so that you can edit their files from the host machine:
 
-    * ``source``: This is the directory that contains the Isaac Lab source code.
-    * ``docs``: This is the directory that contains the source code for Isaac Lab documentation. This is overlaid except
+    * **IsaacLab/source**: This is the directory that contains the Isaac Lab source code.
+    * **IsaacLab/docs**: This is the directory that contains the source code for Isaac Lab documentation. This is overlaid except
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.py`` parallels three basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
-or else they will default to image extension ``base``:
+The script ``container.py`` parallels basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
+or else they will default to the ``base`` image extension. These commands are:
 
-1. **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
-2. **enter**: This begins a new bash process in an existing isaaclab container, and which can be exited
-   without bringing down the container.
-3. **config**: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
-   for debugging a compose configuration.
-4. **copy**: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
-   volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
-5. **stop**: This brings down the container and removes it.
+* **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
+* **enter**: This begins a new bash process in an existing Isaac Lab container, and which can be exited
+  without bringing down the container.
+* **config**: This outputs the compose.yaml which would be result from the inputs given to ``container.py start``. This command is useful
+  for debugging a compose configuration.
+* **copy**: This copies the ``logs``, ``data_storage`` and ``docs/_build`` artifacts, from the ``isaac-lab-logs``, ``isaac-lab-data`` and ``isaac-lab-docs``
+  volumes respectively, to the ``docker/artifacts`` directory. These artifacts persist between docker container instances and are shared between image extensions.
+* **stop**: This brings down the container and removes it.
 
 The following shows how to launch the container in a detached state and enter it:
 
@@ -267,8 +267,17 @@ ROS2 Image Extension
 In ``Dockerfile.ros2``, the container installs ROS2 Humble via an `apt package`_, and it is sourced in the ``.bashrc``.
 The exact version is specified by the variable ``ROS_APT_PACKAGE`` in the ``.env.ros2`` file,
 defaulting to ``ros-base``. Other relevant ROS2 variables are also specified in the ``.env.ros2`` file,
-including variables defining the `various middleware`_ options. The container defaults to ``FastRTPS``, but ``CylconeDDS``
-is also supported. Each of these middlewares can be `tuned`_ using their corresponding ``.xml`` files under ``docker/.ros``.
+including variables defining the `various middleware`_ options.
+
+The container defaults to ``FastRTPS``, but ``CylconeDDS`` is also supported. Each of these middlewares can be
+`tuned`_ using their corresponding ``.xml`` files under ``docker/.ros``.
+
+
+.. dropdown:: Parameters for ROS2 Image Extension
+   :icon: code
+
+   .. literalinclude:: ../../../docker/.env.ros2
+      :language: bash
 
 
 Known Issues
