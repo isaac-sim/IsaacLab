@@ -619,13 +619,11 @@ The latest versions (<code class="docutils literal notranslate"><span class="pre
 <section id="configuring-the-cluster-parameters">
 <h3>Configuring the cluster parameters<a class="headerlink" href="#configuring-the-cluster-parameters" title="Permalink to this heading">#</a></h3>
 <p>First, you need to configure the cluster-specific parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/.env.cluster</span></code> file.
-The following describes the parameters that need to be configured:
-- <code class="docutils literal notranslate"><span class="pre">CLUSTER_JOB_SCHEDULER</span></code>:</p>
-<blockquote>
-<div><p>The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
-PBS workload managers [SLURM | PBS].</p>
-</div></blockquote>
+The following describes the parameters that need to be configured:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_JOB_SCHEDULER</span></code>:
+The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
+PBS workload managers [SLURM | PBS].</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAAC_SIM_CACHE_DIR</span></code>:
 The directory on the cluster where the Isaac Sim cache is stored. This directory
 has to end on <code class="docutils literal notranslate"><span class="pre">docker-isaac-sim</span></code>. This directory will be copied to the compute node

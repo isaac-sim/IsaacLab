@@ -60,6 +60,7 @@ Configuring the cluster parameters
 
 First, you need to configure the cluster-specific parameters in ``docker/cluster/.env.cluster`` file.
 The following describes the parameters that need to be configured:
+
 - ``CLUSTER_JOB_SCHEDULER``:
   The job scheduler/workload manager used by your cluster. Currently, we support SLURM and
   PBS workload managers [SLURM | PBS].
