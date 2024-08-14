@@ -90,7 +90,7 @@ class DeformableObjectData:
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
             self._nodal_vel_w.data = self._root_physx_view.get_sim_nodal_velocities()
             self._nodal_vel_w.timestamp = self._sim_timestamp
-        return self._nodal_pos_w.data
+        return self._nodal_vel_w.data
 
     @property
     def nodal_state_w(self):

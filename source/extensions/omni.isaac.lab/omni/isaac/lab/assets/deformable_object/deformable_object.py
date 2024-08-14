@@ -10,8 +10,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import carb
-import omni.isaac.core.utils.prims as prim_utils
 import omni.physics.tensors.impl.api as physx
+from pxr import PhysxSchema
 
 import omni.isaac.lab.sim as sim_utils
 
@@ -187,16 +187,28 @@ class DeformableObject(AssetBase):
         if template_prim is None:
             raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
         template_prim_path = template_prim.GetPath().pathString
-        # find first mesh path
-        mesh_path = prim_utils.get_prim_path(
-            prim_utils.get_first_matching_child_prim(
-                template_prim_path, lambda p: prim_utils.get_prim_type_name(p) == "Mesh"
-            )
+
+        # find deformable root prims
+        root_prims = sim_utils.get_all_matching_child_prims(
+            template_prim_path, predicate=lambda prim: prim.HasAPI(PhysxSchema.PhysxDeformableBodyAPI)
         )
-        # resolve mesh path back into regex expression
-        mesh_path_expr = self.cfg.prim_path + mesh_path[len(template_prim_path) :]
+        if len(root_prims) == 0:
+            raise RuntimeError(
+                f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
+                " Please ensure that the prim has 'PhysxSchema.PhysxDeformableBodyAPI' applied."
+            )
+        if len(root_prims) > 1:
+            raise RuntimeError(
+                f"Failed to find a single deformable body when resolving '{self.cfg.prim_path}'."
+                f" Found multiple '{root_prims}' under '{template_prim_path}'."
+                " Please ensure that there is only one deformable body in the prim path tree."
+            )
+
+        # resolve root path back into regex expression
+        root_prim_path = root_prims[0].GetPath().pathString
+        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- object views
-        self._root_physx_view = self._physics_sim_view.create_soft_body_view(mesh_path_expr.replace(".*", "*"))
+        self._root_physx_view = self._physics_sim_view.create_soft_body_view(root_prim_path_expr.replace(".*", "*"))
 
         # log information about the deformable body
         carb.log_info(f"Deformable body initialized at: {self.cfg.prim_path}")

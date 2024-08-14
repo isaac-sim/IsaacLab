@@ -97,6 +97,9 @@ class TestDeformableObject(unittest.TestCase):
                     # Play sim
                     sim.reset()
 
+                    # Check that boundedness of deformable object is correct
+                    self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+
                     # Check if object is initialized
                     self.assertTrue(cube_object.is_initialized)
 
@@ -113,20 +116,18 @@ class TestDeformableObject(unittest.TestCase):
 
     def test_initialization_on_device_cpu(self):
         """Test that initialization fails with deformable body API on the CPU."""
-        for num_cubes in (1, 2):
-            with self.subTest(num_cubes=num_cubes):
-                with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
-                    # Generate cubes scene
-                    cube_object = generate_cubes_scene(num_cubes=num_cubes, device="cpu")
+        with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
+            # Generate cubes scene
+            cube_object = generate_cubes_scene(num_cubes=5, device="cpu")
 
-                    # Check that boundedness of deformable object is correct
-                    self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+            # Check that boundedness of deformable object is correct
+            self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
 
-                    # Play sim
-                    sim.reset()
+            # Play sim
+            sim.reset()
 
-                    # Check if object is initialized
-                    self.assertFalse(cube_object.is_initialized)
+            # Check if object is initialized
+            self.assertFalse(cube_object.is_initialized)
 
     def test_initialization_with_kinematic_enabled(self):
         """Test that initialization for prim with kinematic flag enabled."""
@@ -199,8 +200,8 @@ class TestDeformableObject(unittest.TestCase):
                     # Set each state type individually as they are dependent on each other
                     for state_type_to_randomize in state_types:
                         state_dict = {
-                            "nodal_pos_w": torch.zeros_like(cube_object.data.nodal_pos_w, device=sim.device),
-                            "nodal_vel_w": torch.zeros_like(cube_object.data.nodal_vel_w, device=sim.device),
+                            "nodal_pos_w": torch.zeros_like(cube_object.data.nodal_pos_w),
+                            "nodal_vel_w": torch.zeros_like(cube_object.data.nodal_vel_w),
                         }
 
                         # Now we are ready!
@@ -220,14 +221,15 @@ class TestDeformableObject(unittest.TestCase):
                                         state_dict["nodal_pos_w"],
                                         state_dict["nodal_vel_w"],
                                     ],
-                                    dim=-2,
+                                    dim=1,
                                 )
                                 # reset root state
                                 cube_object.write_root_state_to_sim(root_state=root_state)
 
+                                # perform step
                                 sim.step()
 
-                                # assert that set root quantities are equal to the ones set in the state_dict
+                                # assert that set node quantities are equal to the ones set in the state_dict
                                 for key, expected_value in state_dict.items():
                                     value = getattr(cube_object.data, key)
                                     torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
