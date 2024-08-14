@@ -113,7 +113,7 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
     # wrap for video recording
     video_kwargs = {
-        "video_folder": "videos",
+        "video_folder": "videos/train",
         "step_trigger": lambda step: step % 1500 == 0,
         "video_length": 200,
     }

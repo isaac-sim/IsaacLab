@@ -120,6 +120,10 @@ class RigidObject(AssetBase):
     def update(self, dt: float):
         self._data.update(dt)
 
+    """
+    Operations - Finders.
+    """
+
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the articulation based on the name keys.
 
@@ -191,7 +195,6 @@ class RigidObject(AssetBase):
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
         self._data.root_state_w[env_ids, 7:] = root_velocity.clone()
-        self._data._previous_body_vel_w[env_ids, 0] = root_velocity.clone()
         self._data.body_acc_w[env_ids] = 0.0
         # set into simulation
         self.root_physx_view.set_velocities(self._data.root_state_w[:, 7:], indices=physx_env_ids)
