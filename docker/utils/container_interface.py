@@ -36,7 +36,7 @@ class ContainerInterface:
                 they are provided.
             statefile: An instance of the :class:`Statefile` class to manage state variables. Defaults to None, in
                 which case a new configuration object is created by reading the configuration file at the path
-                ``context_dir/.container.yaml``.
+                ``context_dir/.container.cfg``.
         """
         # set the context directory
         self.context_dir = context_dir
