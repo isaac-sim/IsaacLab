@@ -2,3 +2,5 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+from .inhand_manipulation_env import InHandManipulationEnv

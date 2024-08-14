@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.9.0 (2024-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced the command line input ``--cpu`` with ``--device`` in the train and play scripts. Running on cpu is
+  supported by passing ``--device cpu``. Running on a specific gpu is now supported by passing ``--device cuda:<device_id>``,
+  where ``<device_id>`` is the id of the GPU to use, for example ``--device cuda:0``.
+
+
+0.8.2 (2024-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Repose-Cube-Allegro-Direct-v0`` environment
+
+Changed
+^^^^^^^
+
+* Renamed ``Isaac-Shadow-Hand-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-FF-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0``.
+* Renamed ``Isaac-Shadow-Hand-OpenAI-LSTM-Direct-v0`` environments to ``Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0``.
+
+
 0.8.1 (2024-08-02)
 ~~~~~~~~~~~~~~~~~~
 
@@ -354,7 +381,7 @@ Added
 * Added a new flag ``viewport`` to the :class:`IsaacEnv` class to enable/disable rendering of the viewport.
   If the flag is set to ``True``, the viewport is enabled and the environment is rendered in the background.
 * Updated the training scripts in the ``source/standalone/workflows`` directory to use the new flag ``viewport``.
-  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos`` directory using the
+  If the CLI argument ``--video`` is passed, videos are recorded in the ``videos/train`` directory using the
   :class:`gym.wrappers.RecordVideo` wrapper.
 
 Changed

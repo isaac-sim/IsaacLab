@@ -154,6 +154,8 @@ class ObservationGroupCfg:
 
     If true, the observation terms in the group are concatenated along the last dimension.
     Otherwise, they are kept separate and returned as a dictionary.
+
+    If the observation group contains terms of different dimensions, it must be set to False.
     """
 
     enable_corruption: bool = False
@@ -207,6 +209,17 @@ class EventTermCfg(ManagerTermBaseCfg):
 
     Note:
         This is only used if the mode is ``"interval"``.
+    """
+
+    min_step_count_between_reset: int = 0
+    """The minimum number of environment steps between when term is applied.
+
+    When mode is "reset", the term will not be applied on the next reset unless
+    the number of steps since the last application of the term has exceeded this.
+    This is useful to avoid calling this term too often and improve performance.
+
+    Note:
+        This is only used if the mode is ``"reset"``.
     """
 
 

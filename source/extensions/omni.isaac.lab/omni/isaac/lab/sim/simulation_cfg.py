@@ -24,20 +24,14 @@ class PhysxCfg:
     documentation`_.
 
     PhysX 5 supports GPU-accelerated physics simulation. This is enabled by default, but can be disabled
-    through the flag `use_gpu`. Unlike CPU PhysX, the GPU simulation feature is not able to dynamically
-    grow all the buffers. Therefore, it is necessary to provide a reasonable estimate of the buffer sizes
-    for GPU features. If insufficient buffer sizes are provided, the simulation will fail with errors and
-    lead to adverse behaviors. The buffer sizes can be adjusted through the `gpu_*` parameters.
+    by setting the :attr:`~SimulationCfg.device` to ``cpu`` in :class:`SimulationCfg`. Unlike CPU PhysX, the GPU
+    simulation feature is unable to dynamically grow all the buffers. Therefore, it is necessary to provide
+    a reasonable estimate of the buffer sizes for GPU features. If insufficient buffer sizes are provided, the
+    simulation will fail with errors and lead to adverse behaviors. The buffer sizes can be adjusted through the
+    ``gpu_*`` parameters.
 
     .. _PhysX 5 SDK documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.3.1/_api_build/class_px_scene_desc.html
 
-    """
-
-    use_gpu: bool = True
-    """Enable/disable GPU accelerated dynamics simulation. Default is True.
-
-    This enables GPU-accelerated implementations for broad-phase collision checks, contact generation,
-    shape and body management, and constrained solver.
     """
 
     solver_type: Literal[0, 1] = 1
@@ -165,6 +159,16 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
+    device: str = "cuda:0"
+    """The device to run the simulation on. Default is ``"cuda:0"``.
+
+    Valid options are:
+
+    - ``"cpu"``: Use CPU.
+    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~omni.isaac.lab.app.AppLauncher`'s config.
+    - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
+    """
+
     dt: float = 1.0 / 60.0
     """The physics simulation time-step (in seconds). Default is 0.0167 seconds."""
 
@@ -218,15 +222,6 @@ class SimulationCfg:
 
         It is required to set this flag to :obj:`True` when using the TensorAPIs for contact reporting.
     """
-
-    use_gpu_pipeline: bool = True
-    """Enable/disable GPU pipeline. Default is True.
-
-    If set to False, the physics data will be read as CPU buffers.
-    """
-
-    device: str = "cuda:0"
-    """The device for running the simulation/environment. Default is ``"cuda:0"``."""
 
     physx: PhysxCfg = PhysxCfg()
     """PhysX solver settings. Default is PhysxCfg()."""

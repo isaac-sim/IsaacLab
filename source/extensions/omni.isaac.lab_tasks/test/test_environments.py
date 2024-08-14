@@ -49,13 +49,13 @@ class TestEnvironments(unittest.TestCase):
         """Run all environments with multiple instances and check environments return valid signals."""
         # common parameters
         num_envs = 32
-        use_gpu = True
+        device = "cuda"
         # iterate over all registered environments
         for task_name in self.registered_tasks:
             with self.subTest(task_name=task_name):
                 print(f">>> Running test for environment: {task_name}")
                 # check environment
-                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                self._check_random_actions(task_name, device, num_envs, num_steps=100)
                 # close the environment
                 print(f">>> Closing environment: {task_name}")
                 print("-" * 80)
@@ -64,13 +64,13 @@ class TestEnvironments(unittest.TestCase):
         """Run all environments with single instance and check environments return valid signals."""
         # common parameters
         num_envs = 1
-        use_gpu = True
+        device = "cuda"
         # iterate over all registered environments
         for task_name in self.registered_tasks:
             with self.subTest(task_name=task_name):
                 print(f">>> Running test for environment: {task_name}")
                 # check environment
-                self._check_random_actions(task_name, use_gpu, num_envs, num_steps=100)
+                self._check_random_actions(task_name, device, num_envs, num_steps=100)
                 # close the environment
                 print(f">>> Closing environment: {task_name}")
                 print("-" * 80)
@@ -79,14 +79,17 @@ class TestEnvironments(unittest.TestCase):
     Helper functions.
     """
 
-    def _check_random_actions(self, task_name: str, use_gpu: bool, num_envs: int, num_steps: int = 1000):
+    def _check_random_actions(self, task_name: str, device: str, num_envs: int, num_steps: int = 1000):
         """Run random actions and check environments return valid signals."""
         # create a new stage
         omni.usd.get_context().new_stage()
         # parse configuration
-        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, use_gpu=use_gpu, num_envs=num_envs)
+        env_cfg: ManagerBasedRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         # create environment
         env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)
+        # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
+        # test on many environments.
+        env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
 
         # reset environment
         obs, _ = env.reset()
