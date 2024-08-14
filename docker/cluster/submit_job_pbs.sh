@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # in the case you need to load specific modules on the cluster, add them here
 # e.g., `module load eth_proxy`
