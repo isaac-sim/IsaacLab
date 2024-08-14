@@ -31,7 +31,7 @@ class IsaacLabContainerInterface:
 
         Args:
             context_dir : The context directory for Docker operations.
-            statefile : An instance of the Statefile class to manage state variables. If not provided, initializes a Statefile(path=self.context_dir/.container.yaml).
+            statefile : An instance of the Statefile class to manage state variables. If not provided, initializes a Statefile(path=self.context_dir/.container.cfg).
             profile : The profile name for the container. Defaults to "base".
             yamls : A list of yamls to extend docker-compose.yaml. They will be extended in the order they are provided.
             envs : A list of envs to extend .env.base. They will be extended in the order they are provided.
