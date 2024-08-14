@@ -118,15 +118,15 @@ The following shows how to launch the container in a detached state and enter it
 
     # Launch the container in detached mode
     # We don't pass an image extension arg, so it defaults to 'base'
-    python docker/container.py start
+    ./docker/container.py start
 
     # If we want to add .env or .yaml files to customize our compose config,
     # we can simply specify them in the same manner as the compose cli
-    # python docker/container.py start --file my-compose.yaml --env-file .env.my-vars
+    # ./docker/container.py start --file my-compose.yaml --env-file .env.my-vars
 
     # Enter the container
     # We pass 'base' explicitly, but if we hadn't it would default to 'base'
-    python docker/container.py enter base
+    ./docker/container.py enter base
 
 To copy files from the base container to the host machine, you can use the following command:
 
@@ -141,7 +141,7 @@ directories to the ``docker/artifacts`` directory. This is useful for copying th
 .. code:: bash
 
     # stop the container
-    python docker/container.py stop
+    ./docker/container.py stop
 
 
 X11 forwarding
@@ -150,9 +150,10 @@ X11 forwarding
 The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
 on the host machine.
 
-The first time a container is started with ``python docker/container.py start``, the script prompts
-the user whether to activate X11 forwarding. This will create a file ``docker/.container.cfg`` to store the user's choice.
-Subsequently, X11 forwarding can be toggled by changing ``__ISAACLAB_X11_FORWARDING_ENABLED`` to 0 or 1 in ``docker/.container.cfg``.
+The first time a container is started with ``./docker/container.py start``, the script prompts
+the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg`` to store
+the user's choice for future runs. Subsequently, X11 forwarding can be toggled by changing
+the parameter ``__ISAACLAB_X11_FORWARDING_ENABLED`` to '0' or '1' in the ``docker/.container.cfg`` file.
 
 
 Python Interpreter
@@ -209,13 +210,13 @@ Only one ``image_extension`` can be passed at a time, and the produced container
 .. code:: bash
 
     # start base by default
-    python docker/container.py start
+    ./docker/container.py start
     # stop base explicitly
-    python docker/container.py stop base
+    ./docker/container.py stop base
     # start ros2 container
-    python docker/container.py start ros2
+    ./docker/container.py start ros2
     # stop ros2 container
-    python docker/container.py stop ros2
+    ./docker/container.py stop ros2
 
 The passed ``image_extension`` argument will build the image defined in ``Dockerfile.${image_extension}``,
 with the corresponding `profile`_ in the ``docker-compose.yaml`` and the envars from ``.env.${image_extension}``
