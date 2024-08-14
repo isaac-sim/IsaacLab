@@ -156,7 +156,8 @@ to store the user's choice for future runs.
 
 If you want to change the choice, you can set the parameter ``__ISAACLAB_X11_FORWARDING_ENABLED`` to '0' or '1'
 in the ``docker/.container.cfg`` file to disable or enable X11 forwarding, respectively. After that, you need to
-restart the container by running ``./docker/container.py start``.
+re-build the container by running ``./docker/container.py start``. The rebuilding process ensures that the changes
+are applied to the container. Otherwise, the changes will not take effect.
 
 After the container is started, you can enter the container and run GUI applications from it with X11 forwarding enabled.
 The display will be forwarded to the host machine.
