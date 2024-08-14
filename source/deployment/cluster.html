@@ -57,7 +57,7 @@
     <link rel="prev" title="Docker Guide" href="docker.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 12, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 14, 2024"/>
   </head>
   
   
@@ -618,7 +618,7 @@ The latest versions (<code class="docutils literal notranslate"><span class="pre
 </div>
 <section id="configuring-the-cluster-parameters">
 <h3>Configuring the cluster parameters<a class="headerlink" href="#configuring-the-cluster-parameters" title="Permalink to this heading">#</a></h3>
-<p>First, you need to configure the cluster-specific parameters in <code class="docutils literal notranslate"><span class="pre">docker/.env.base</span></code> file.
+<p>First, you need to configure the cluster-specific parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/.env.cluster</span></code> file.
 The following describes the parameters that need to be configured:
 - <code class="docutils literal notranslate"><span class="pre">CLUSTER_JOB_SCHEDULER</span></code>:</p>
 <blockquote>
@@ -645,6 +645,8 @@ copied to the compute node but not uploaded again to the cluster when a job is s
 <li><p><code class="docutils literal notranslate"><span class="pre">CLUSTER_PYTHON_EXECUTABLE</span></code>:
 The path within Isaac Lab to the Python executable that should be executed in the submitted job.</p></li>
 </ul>
+<p>When a <code class="docutils literal notranslate"><span class="pre">job</span></code> is submitted, it will also use variables defined in <code class="docutils literal notranslate"><span class="pre">docker/.env.base</span></code>, though these
+should be correct by default.</p>
 </section>
 <section id="exporting-to-singularity-image">
 <h3>Exporting to singularity image<a class="headerlink" href="#exporting-to-singularity-image" title="Permalink to this heading">#</a></h3>
@@ -653,11 +655,12 @@ it to the cluster. This step is only required once when the first job is submitt
 or when the Docker image is updated. For instance, due to an upgrade of the Isaac Sim
 version, or additional requirements for your project.</p>
 <p>To export to a singularity image, execute the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/container.sh<span class="w"> </span>push<span class="w"> </span><span class="o">[</span>profile<span class="o">]</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/cluster/cluster_interface.sh<span class="w"> </span>push<span class="w"> </span><span class="o">[</span>profile<span class="o">]</span>
 </pre></div>
 </div>
 <p>This command will create a singularity image under <code class="docutils literal notranslate"><span class="pre">docker/exports</span></code> directory and
-upload it to the defined location on the cluster. Be aware that creating the singularity
+upload it to the defined location on the cluster. It requires that you have previously
+built the image with the <code class="docutils literal notranslate"><span class="pre">container.py</span></code> interface. Be aware that creating the singularity
 image can take a while.
 <code class="docutils literal notranslate"><span class="pre">[profile]</span></code> is an optional argument that specifies the container profile to be used. If no profile is
 specified, the default profile <code class="docutils literal notranslate"><span class="pre">base</span></code> will be used.</p>
@@ -665,7 +668,7 @@ specified, the default profile <code class="docutils literal notranslate"><span 
 <p class="admonition-title">Note</p>
 <p>By default, the singularity image is created without root access by providing the <code class="docutils literal notranslate"><span class="pre">--fakeroot</span></code> flag to
 the <code class="docutils literal notranslate"><span class="pre">apptainer</span> <span class="pre">build</span></code> command. In case the image creation fails, you can try to create it with root
-access by removing the flag in <code class="docutils literal notranslate"><span class="pre">docker/container.sh</span></code>.</p>
+access by removing the flag in <code class="docutils literal notranslate"><span class="pre">docker/cluster/cluster_interface.sh</span></code>.</p>
 </div>
 </section>
 </section>
@@ -720,7 +723,7 @@ information, please check the <a class="reference external" href="https://openpb
 <section id="submitting-a-job">
 <h2>Submitting a job<a class="headerlink" href="#submitting-a-job" title="Permalink to this heading">#</a></h2>
 <p>To submit a job on the cluster, the following command can be used:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/container.sh<span class="w"> </span>job<span class="w"> </span><span class="o">[</span>profile<span class="o">]</span><span class="w"> </span><span class="s2">&quot;argument1&quot;</span><span class="w"> </span><span class="s2">&quot;argument2&quot;</span><span class="w"> </span>...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/cluster/cluster_interface.sh<span class="w"> </span>job<span class="w"> </span><span class="o">[</span>profile<span class="o">]</span><span class="w"> </span><span class="s2">&quot;argument1&quot;</span><span class="w"> </span><span class="s2">&quot;argument2&quot;</span><span class="w"> </span>...
 </pre></div>
 </div>
 <p>This command will copy the latest changes in your code to the cluster and submit a job. Please ensure that
@@ -732,13 +735,13 @@ directlty after the <code class="docutils literal notranslate"><span class="pre"
 defined, all arguments are passed to the Python executable.</p>
 <p>The training arguments are passed to the Python executable. As an example, the standard
 ANYmal rough terrain locomotion training can be executed with the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/container.sh<span class="w"> </span>job<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--enable_cameras
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./docker/cluster/cluster_interface.sh<span class="w"> </span>job<span class="w"> </span>--task<span class="w"> </span>Isaac-Velocity-Rough-Anymal-C-v0<span class="w"> </span>--headless<span class="w"> </span>--video<span class="w"> </span>--enable_cameras
 </pre></div>
 </div>
 <p>The above will, in addition, also render videos of the training progress and store them under <code class="docutils literal notranslate"><span class="pre">isaaclab/logs</span></code> directory.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">./docker/container.sh</span> <span class="pre">job</span></code> command will copy the latest changes in your code to the cluster. However,
+<p>The <code class="docutils literal notranslate"><span class="pre">./docker/cluster/cluster_interface.sh</span> <span class="pre">job</span></code> command will copy the latest changes in your code to the cluster. However,
 it will not delete any files that have been deleted locally. These files will still exist on the cluster
 which can lead to issues. In this case, we recommend removing the <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code> directory on
 the cluster and re-run the command.</p>
@@ -835,7 +838,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 12, 2024.
+  Last updated on Aug 14, 2024.
   <br/>
 </p>
   </div>

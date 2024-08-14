@@ -57,7 +57,7 @@
     <link rel="prev" title="Container Deployment" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 12, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 14, 2024"/>
   </head>
   
   
@@ -656,7 +656,8 @@ the container. It also creates several named volumes such as <code class="docuti
 store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">base.env</span></code>: Stores environment variables required for the <code class="docutils literal notranslate"><span class="pre">base</span></code> build process and the container itself. <code class="docutils literal notranslate"><span class="pre">.env</span></code>
 files which end with something else (i.e. <code class="docutils literal notranslate"><span class="pre">.env.ros2</span></code>) define these for <a class="reference external" href="#isaac-lab-image-extensions">image_extension</a>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">container.sh</span></code>: A script that wraps the <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">compose</span></code> command to build the image and run the container.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">container.py</span></code>: A script that interfaces with tools in <code class="docutils literal notranslate"><span class="pre">utils</span></code> to configure and build the image,
+and run and interact with the container.</p></li>
 </ul>
 </section>
 <section id="running-the-container">
@@ -665,7 +666,7 @@ files which end with something else (i.e. <code class="docutils literal notransl
 <p class="admonition-title">Note</p>
 <p>The docker container copies all the files from the repository into the container at the
 location <code class="docutils literal notranslate"><span class="pre">/workspace/isaaclab</span></code> at build time. This means that any changes made to the files in the container would not
-normally be reflected in the repository after the image has been built, i.e. after <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">start</span></code> is run.</p>
+normally be reflected in the repository after the image has been built, i.e. after <code class="docutils literal notranslate"><span class="pre">./container.py</span> <span class="pre">start</span></code> is run.</p>
 <p>For a faster development cycle, we mount the following directories in the Isaac Lab repository into the container
 so that you can edit their files from the host machine:</p>
 <ul class="simple">
@@ -674,24 +675,30 @@ so that you can edit their files from the host machine:</p>
 for the <code class="docutils literal notranslate"><span class="pre">_build</span></code> subdirectory where build artifacts are stored.</p></li>
 </ul>
 </div>
-<p>The script <code class="docutils literal notranslate"><span class="pre">container.sh</span></code> wraps around three basic <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">compose</span></code> commands. Each can accept an <a class="reference external" href="#isaac-lab-image-extensions">image_extension argument</a>,
+<p>The script <code class="docutils literal notranslate"><span class="pre">container.py</span></code> parallels three basic <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">compose</span></code> commands. Each can accept an <a class="reference external" href="#isaac-lab-image-extensions">image_extension argument</a>,
 or else they will default to image_extension <code class="docutils literal notranslate"><span class="pre">base</span></code>:</p>
 <ol class="arabic simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">start</span></code>: This builds the image and brings up the container in detached mode (i.e. in the background).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">enter</span></code>: This begins a new bash process in an existing isaaclab container, and which can be exited
 without bringing down the container.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">config</span></code>: This outputs the compose.yaml which would be result from the inputs given to <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">start</span></code>. This command is useful
+for debugging a compose configuration.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">copy</span></code>: This copies the <code class="docutils literal notranslate"><span class="pre">logs</span></code>, <code class="docutils literal notranslate"><span class="pre">data_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">docs/_build</span></code> artifacts, from the <code class="docutils literal notranslate"><span class="pre">isaac-lab-logs</span></code>, <code class="docutils literal notranslate"><span class="pre">isaac-lab-data</span></code> and <code class="docutils literal notranslate"><span class="pre">isaac-lab-docs</span></code>
-volumes respectively, to the <code class="docutils literal notranslate"><span class="pre">docker/artifacts</span></code> directory. These artifacts persist between docker
-container instances and are shared between image extensions.</p></li>
+volumes respectively, to the <code class="docutils literal notranslate"><span class="pre">docker/artifacts</span></code> directory. These artifacts persist between docker container instances and are shared between image extensions.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">stop</span></code>: This brings down the container and removes it.</p></li>
 </ol>
 <p>The following shows how to launch the container in a detached state and enter it:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Launch the container in detached mode</span>
 <span class="c1"># We don&#39;t pass an image extension arg, so it defaults to &#39;base&#39;</span>
-./docker/container.sh<span class="w"> </span>start
+python<span class="w"> </span>docker/container.py<span class="w"> </span>start
+
+<span class="c1"># If we want to add .env or .yaml files to customize our compose config,</span>
+<span class="c1"># we can simply specify them in the same manner as the compose cli</span>
+<span class="c1"># python docker/container.py start --file my-compose.yaml --env-file .env.my-vars</span>
+
 <span class="c1"># Enter the container</span>
 <span class="c1"># We pass &#39;base&#39; explicitly, but if we hadn&#39;t it would default to &#39;base&#39;</span>
-./docker/container.sh<span class="w"> </span>enter<span class="w"> </span>base
+python<span class="w"> </span>docker/container.py<span class="w"> </span>enter<span class="w"> </span>base
 </pre></div>
 </div>
 <p>To copy files from the base container to the host machine, you can use the following command:</p>
@@ -699,19 +706,19 @@ container instances and are shared between image extensions.</p></li>
 docker<span class="w"> </span>cp<span class="w"> </span>isaac-lab-base:/workspace/isaaclab/logs<span class="w"> </span>.
 </pre></div>
 </div>
-<p>The script <code class="docutils literal notranslate"><span class="pre">container.sh</span></code> provides a wrapper around this command to copy the <code class="docutils literal notranslate"><span class="pre">logs</span></code> , <code class="docutils literal notranslate"><span class="pre">data_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">docs/_build</span></code>
+<p>The script <code class="docutils literal notranslate"><span class="pre">container.py</span></code> provides a wrapper around this command to copy the <code class="docutils literal notranslate"><span class="pre">logs</span></code> , <code class="docutils literal notranslate"><span class="pre">data_storage</span></code> and <code class="docutils literal notranslate"><span class="pre">docs/_build</span></code>
 directories to the <code class="docutils literal notranslate"><span class="pre">docker/artifacts</span></code> directory. This is useful for copying the logs, data and documentation:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># stop the container</span>
-<span class="o">./</span><span class="n">docker</span><span class="o">/</span><span class="n">container</span><span class="o">.</span><span class="n">sh</span> <span class="n">stop</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># stop the container</span>
+python<span class="w"> </span>docker/container.py<span class="w"> </span>stop
 </pre></div>
 </div>
 <section id="x11-forwarding">
 <h3>X11 forwarding<a class="headerlink" href="#x11-forwarding" title="Permalink to this heading">#</a></h3>
 <p>The container supports X11 forwarding, which allows the user to run GUI applications from the container and display them
 on the host machine.</p>
-<p>The first time a container is started with <code class="docutils literal notranslate"><span class="pre">./docker/container.sh</span> <span class="pre">start</span></code>, the script prompts
-the user whether to activate X11 forwarding. This will create a file <code class="docutils literal notranslate"><span class="pre">docker/.container.yaml</span></code> to store the user’s choice.
-Subsequently, X11 forwarding can be toggled by changing <code class="docutils literal notranslate"><span class="pre">__ISAACLAB_X11_FORWARDING_ENABLED</span></code> to 0 or 1 in <code class="docutils literal notranslate"><span class="pre">docker/.container.yaml</span></code>.</p>
+<p>The first time a container is started with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">docker/container.py</span> <span class="pre">start</span></code>, the script prompts
+the user whether to activate X11 forwarding. This will create a file <code class="docutils literal notranslate"><span class="pre">docker/.container.cfg</span></code> to store the user’s choice.
+Subsequently, X11 forwarding can be toggled by changing <code class="docutils literal notranslate"><span class="pre">__ISAACLAB_X11_FORWARDING_ENABLED</span></code> to 0 or 1 in <code class="docutils literal notranslate"><span class="pre">docker/.container.cfg</span></code>.</p>
 </section>
 <section id="python-interpreter">
 <h3>Python Interpreter<a class="headerlink" href="#python-interpreter" title="Permalink to this heading">#</a></h3>
@@ -752,18 +759,18 @@ docker<span class="w"> </span>volume<span class="w"> </span>inspect<span class="
 </section>
 <section id="isaac-lab-image-extensions">
 <h2>Isaac Lab Image Extensions<a class="headerlink" href="#isaac-lab-image-extensions" title="Permalink to this heading">#</a></h2>
-<p>The produced image depends upon the arguments passed to <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">stop</span></code>. These
+<p>The produced image depends upon the arguments passed to <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">start</span></code> and <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">stop</span></code>. These
 commands accept an <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> as an additional argument. If no argument is passed, then these
 commands default to <code class="docutils literal notranslate"><span class="pre">base</span></code>. Currently, the only valid <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> arguments are (<code class="docutils literal notranslate"><span class="pre">base</span></code>, <code class="docutils literal notranslate"><span class="pre">ros2</span></code>).
-Only one <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> can be passed at a time, and the produced container will be named <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code>.</p>
+Only one <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> can be passed at a time, and the produced container will be named <code class="docutils literal notranslate"><span class="pre">isaac-lab-${profile}</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># start base by default</span>
-./container.sh<span class="w"> </span>start
+python<span class="w"> </span>docker/container.py<span class="w"> </span>start
 <span class="c1"># stop base explicitly</span>
-./container.sh<span class="w"> </span>stop<span class="w"> </span>base
+python<span class="w"> </span>docker/container.py<span class="w"> </span>stop<span class="w"> </span>base
 <span class="c1"># start ros2 container</span>
-./container.sh<span class="w"> </span>start<span class="w"> </span>ros2
+python<span class="w"> </span>docker/container.py<span class="w"> </span>start<span class="w"> </span>ros2
 <span class="c1"># stop ros2 container</span>
-./container.sh<span class="w"> </span>stop<span class="w"> </span>ros2
+python<span class="w"> </span>docker/container.py<span class="w"> </span>stop<span class="w"> </span>ros2
 </pre></div>
 </div>
 <p>The passed <code class="docutils literal notranslate"><span class="pre">image_extension</span></code> argument will build the image defined in <code class="docutils literal notranslate"><span class="pre">Dockerfile.${image_extension}</span></code>,
@@ -928,7 +935,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 12, 2024.
+  Last updated on Aug 14, 2024.
   <br/>
 </p>
   </div>

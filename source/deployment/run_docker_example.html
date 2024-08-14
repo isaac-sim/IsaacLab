@@ -57,7 +57,7 @@
     <link rel="prev" title="Cluster Guide" href="cluster.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 12, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 14, 2024"/>
   </head>
   
   
@@ -566,26 +566,26 @@ document.write(`
 <h1>Running an example with Docker<a class="headerlink" href="#running-an-example-with-docker" title="Permalink to this heading">#</a></h1>
 <p>From the root of the <code class="docutils literal notranslate"><span class="pre">Isaac</span> <span class="pre">Lab</span></code> repository,  the <code class="docutils literal notranslate"><span class="pre">docker</span></code> directory contains all the Docker relevant files. These include the three files
 (<strong>Dockerfile</strong>, <strong>docker-compose.yaml</strong>, <strong>.env</strong>) which are used by Docker, and an additional script that we use to interface with them,
-<strong>container.sh</strong>.</p>
+<strong>container.py</strong>.</p>
 <p>In this tutorial, we will learn how to use the Isaac Lab Docker container for development. For a detailed description of the Docker setup,
 including installation and obtaining access to an Isaac Sim image, please reference the <a class="reference internal" href="docker.html#deployment-docker"><span class="std std-ref">Docker Guide</span></a>. For a description
 of Docker in general, please refer to <a class="reference external" href="https://docs.docker.com/get-started/overview/">their official documentation</a>.</p>
 <section id="building-the-container">
 <h2>Building the Container<a class="headerlink" href="#building-the-container" title="Permalink to this heading">#</a></h2>
 <p>To build the Isaac Lab container from the root of the Isaac Lab repository, we will run the following:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./docker/container.sh start</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python docker/container.py start</span>
 </pre></div>
 </div>
 <p>The terminal will first pull the base IsaacSim image, build the Isaac Lab image’s additional layers on top of it, and run the Isaac Lab container.
 This should take several minutes upon the first build but will be shorter in subsequent runs as Docker’s caching prevents repeated work.
 If we run the command <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">container</span> <span class="pre">ls</span></code> on the terminal, the output will list the containers that are running on the system. If
-everything has been set up correctly, a container with the <code class="docutils literal notranslate"><span class="pre">NAME</span></code> <strong>isaaclab</strong> should appear, similar to below:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">CONTAINER ID   IMAGE         COMMAND   CREATED           STATUS         PORTS     NAMES</span>
-<span class="go">483d1d5e2def   isaaclab      &quot;bash&quot;    30 seconds ago   Up 30 seconds             isaaclab</span>
+everything has been set up correctly, a container with the <code class="docutils literal notranslate"><span class="pre">NAME</span></code> <strong>isaac-lab-base</strong> should appear, similar to below:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">CONTAINER ID   IMAGE               COMMAND   CREATED           STATUS         PORTS     NAMES</span>
+<span class="go">483d1d5e2def   isaac-lab-base      &quot;bash&quot;    30 seconds ago   Up 30 seconds             isaac-lab-base</span>
 </pre></div>
 </div>
 <p>Once the container is up and running, we can enter it from our terminal.</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./docker/container.sh enter</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python docker/container.py enter</span>
 </pre></div>
 </div>
 <p>On entering the Isaac Lab container, we are in the terminal as the superuser, <code class="docutils literal notranslate"><span class="pre">root</span></code>. This environment contains a copy of the
@@ -734,26 +734,26 @@ The output will be a file, <code class="docutils literal notranslate"><span clas
 <p>Now <code class="docutils literal notranslate"><span class="pre">log.txt</span></code> will have been produced at <code class="docutils literal notranslate"><span class="pre">/workspace/isaaclab/logs/docker_tutorial</span></code>. If we exit the container
 by typing <code class="docutils literal notranslate"><span class="pre">exit</span></code>, we will return to <code class="docutils literal notranslate"><span class="pre">IsaacLab/docker</span></code> in our host terminal environment. We can then enter
 the following command to retrieve our logs from the Docker container and put them on our host machine:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./container.sh copy</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python container.py copy</span>
 </pre></div>
 </div>
 <p>We will see a terminal readout reporting the artifacts we have retrieved from the container. If we navigate to
 <code class="docutils literal notranslate"><span class="pre">/isaaclab/docker/artifacts/logs/docker_tutorial</span></code>, we will see a copy of the <code class="docutils literal notranslate"><span class="pre">log.txt</span></code> file which was produced
 by the script above.</p>
 <p>Each of the directories under <code class="docutils literal notranslate"><span class="pre">artifacts</span></code> corresponds to Docker <a class="reference external" href="https://docs.docker.com/storage/volumes/">volumes</a> mapped to directories
-within the container and the <code class="docutils literal notranslate"><span class="pre">container.sh</span> <span class="pre">copy</span></code> command copies them from those <a class="reference external" href="https://docs.docker.com/storage/volumes/">volumes</a> to these directories.</p>
-<p>We could return to the Isaac Lab Docker terminal environment by running <code class="docutils literal notranslate"><span class="pre">container.sh</span> <span class="pre">enter</span></code> again,
+within the container and the <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">copy</span></code> command copies them from those <a class="reference external" href="https://docs.docker.com/storage/volumes/">volumes</a> to these directories.</p>
+<p>We could return to the Isaac Lab Docker terminal environment by running <code class="docutils literal notranslate"><span class="pre">container.py</span> <span class="pre">enter</span></code> again,
 but we have retrieved our logs and wish to go inspect them. We can stop the Isaac Lab Docker container with the following command:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">./container.sh stop</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">python container.py stop</span>
 </pre></div>
 </div>
 <p>This will bring down the Docker Isaac Lab container. The image will persist and remain available for further use, as will
 the contents of any <a class="reference external" href="https://docs.docker.com/storage/volumes/">volumes</a>. If we wish to free up the disk space taken by the image, (~20.1GB), and do not mind repeating
-the build process when we next run <code class="docutils literal notranslate"><span class="pre">./container.sh</span> <span class="pre">start</span></code>, we may enter the following command to delete the <strong>isaaclab</strong> image:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">docker image rm isaaclab</span>
+the build process when we next run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">container.py</span> <span class="pre">start</span></code>, we may enter the following command to delete the <strong>isaac-lab-base</strong> image:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">docker image rm isaac-lab-base</span>
 </pre></div>
 </div>
-<p>A subsequent run of <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">image</span> <span class="pre">ls</span></code> will show that the image tagged <strong>isaaclab</strong> is now gone. We can repeat the process for the
+<p>A subsequent run of <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">image</span> <span class="pre">ls</span></code> will show that the image tagged <strong>isaac-lab-base</strong> is now gone. We can repeat the process for the
 underlying NVIDIA container if we wish to free up more space. If a more powerful method of freeing resources from Docker is desired,
 please consult the documentation for the <a class="reference external" href="https://docs.docker.com/config/pruning/">docker prune</a> commands.</p>
 </section>
@@ -841,7 +841,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 12, 2024.
+  Last updated on Aug 14, 2024.
   <br/>
 </p>
   </div>
