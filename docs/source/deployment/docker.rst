@@ -74,12 +74,12 @@ The root of the Isaac Lab repository contains the ``docker`` directory that has 
 needed to run Isaac Lab inside a Docker container. A subset of these are summarized below:
 
 * ``Dockerfile.base``: Defines the isaaclab image by overlaying Isaac Lab dependencies onto the Isaac Sim Docker image.
-  Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image_extension <#isaac-lab-image-extensions>`_.
+  Dockerfiles which end with something else, (i.e. ``Dockerfile.ros2``) build an `image extension <#isaac-lab-image-extensions>`_.
 * ``docker-compose.yaml``: Creates mounts to allow direct editing of Isaac Lab code from the host machine that runs
   the container. It also creates several named volumes such as ``isaac-cache-kit`` to
   store frequently re-used resources compiled by Isaac Sim, such as shaders, and to retain logs, data, and documents.
 * ``.env.base``: Stores environment variables required for the ``base`` build process and the container itself. ``.env``
-  files which end with something else (i.e. ``.env.ros2``) define these for `image_extension <#isaac-lab-image-extensions>`_.
+  files which end with something else (i.e. ``.env.ros2``) define these for `image extension <#isaac-lab-image-extensions>`_.
 * ``container.py``: A script that interfaces with tools in ``utils`` to configure and build the image,
   and run and interact with the container.
 
@@ -100,8 +100,8 @@ Running the Container
       for the ``_build`` subdirectory where build artifacts are stored.
 
 
-The script ``container.py`` parallels three basic ``docker compose`` commands. Each can accept an `image_extension argument <#isaac-lab-image-extensions>`_,
-or else they will default to image_extension ``base``:
+The script ``container.py`` parallels three basic ``docker compose`` commands. Each can accept an `image extension argument <#isaac-lab-image-extensions>`_,
+or else they will default to image extension ``base``:
 
 1. **start**: This builds the image and brings up the container in detached mode (i.e. in the background).
 2. **enter**: This begins a new bash process in an existing isaaclab container, and which can be exited
