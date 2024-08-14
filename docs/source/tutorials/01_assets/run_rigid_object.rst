@@ -142,7 +142,7 @@ This should open a stage with a ground plane, lights, and several green cones. T
 a random height and settling on to the ground. To stop the simulation, you can either close the window, or press
 the ``STOP`` button in the UI, or press ``Ctrl+C`` in the terminal
 
-.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.png
+.. figure:: ../../_static/tutorials/tutorial_run_rigid_object.jpg
     :align: center
 
 

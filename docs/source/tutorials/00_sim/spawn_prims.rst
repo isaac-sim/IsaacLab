@@ -178,7 +178,7 @@ The green cone, which has rigid body physics enabled, should fall and collide wi
 plane. The other cones are visual elements and should not move. To stop the simulation, you can close the window,
 or press ``Ctrl+C`` in the terminal.
 
-.. figure:: ../../_static/tutorials/tutorial_spawn_prims.png
+.. figure:: ../../_static/tutorials/tutorial_spawn_prims.jpg
     :align: center
 
 This tutorial provided a foundation for spawning various prims into the scene in Isaac Lab. Although simple, it

@@ -151,7 +151,7 @@ The script will start a simulation with 128 robots. The robots will be controlle
 The current and desired end-effector poses should be displayed using frame markers. When the robot reaches
 the desired pose, the command should cycle through to the next pose specified in the script.
 
-.. figure:: ../../_static/tutorials/tutorial_task_space_controller.png
+.. figure:: ../../_static/tutorials/tutorial_task_space_controller.jpg
     :align: center
 
 To stop the simulation, you can either close the window, or press the ``STOP`` button in the UI, or

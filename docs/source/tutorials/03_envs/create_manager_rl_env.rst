@@ -181,7 +181,7 @@ returns more signals that specify the reward and termination status. Additionall
 environments reset themselves when they terminate based on the termination criteria specified in the
 configuration.
 
-.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.png
+.. figure:: ../../_static/tutorials/tutorial_create_manager_rl_env.jpg
     :align: center
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal

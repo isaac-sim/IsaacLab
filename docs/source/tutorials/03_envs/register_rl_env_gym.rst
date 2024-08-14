@@ -153,7 +153,7 @@ This should open a stage with everything similar to the :ref:`tutorial-create-ma
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
 
 
-.. figure:: ../../_static/tutorials/tutorial_register_environment.png
+.. figure:: ../../_static/tutorials/tutorial_register_environment.jpg
     :align: center
 
 

@@ -200,7 +200,7 @@ right corner of the screen named ``"Isaac Lab"``. This window contains different
 can be used for debugging and visualization.
 
 
-.. figure:: ../../_static/tutorials/tutorial_create_manager_base.png
+.. figure:: ../../_static/tutorials/tutorial_create_manager_base.jpg
     :align: center
 
 

@@ -126,7 +126,7 @@ This command should open a stage with a ground plane, lights, and two cart-poles
 To stop the simulation, you can either close the window, press the ``STOP`` button in the UI, or press ``Ctrl+C``
 in the terminal.
 
-.. figure:: ../../_static/tutorials/tutorial_run_articulation.png
+.. figure:: ../../_static/tutorials/tutorial_run_articulation.jpg
     :align: center
 
 In this tutorial, we learned how to create and interact with a simple articulation. We saw how to set the state

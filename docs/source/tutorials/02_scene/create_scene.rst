@@ -155,7 +155,7 @@ This should open a stage with 32 cartpoles swinging around randomly. You can use
 mouse to rotate the camera and the arrow keys to move around the scene.
 
 
-.. figure:: ../../_static/tutorials/tutorial_creating_a_scene.png
+.. figure:: ../../_static/tutorials/tutorial_creating_a_scene.jpg
     :align: center
 
 In this tutorial, we saw how to use :class:`scene.InteractiveScene` to create a

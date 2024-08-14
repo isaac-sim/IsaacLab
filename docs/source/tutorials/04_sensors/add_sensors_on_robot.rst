@@ -183,7 +183,7 @@ Additionally, you can switch the viewport to the camera view to see the RGB imag
 camera sensor. Please check `here <https://youtu.be/htPbcKkNMPs?feature=shared>`_ for more information
 on how to switch the viewport to the camera view.
 
-.. figure:: ../../_static/tutorials/tutorial_add_sensors.png
+.. figure:: ../../_static/tutorials/tutorial_add_sensors. jpg
     :align: center
 
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal.
