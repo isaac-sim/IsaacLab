@@ -154,6 +154,8 @@ class ObservationGroupCfg:
 
     If true, the observation terms in the group are concatenated along the last dimension.
     Otherwise, they are kept separate and returned as a dictionary.
+
+    If the observation group contains terms of different dimensions, it must be set to False.
     """
 
     enable_corruption: bool = False
@@ -189,7 +191,7 @@ class EventTermCfg(ManagerTermBaseCfg):
     """
 
     interval_range_s: tuple[float, float] | None = None
-    """The range of time in seconds at which the term is applied.
+    """The range of time in seconds at which the term is applied. Defaults to None.
 
     Based on this, the interval is sampled uniformly between the specified
     range for each environment instance. The term is applied on the environment
@@ -200,13 +202,27 @@ class EventTermCfg(ManagerTermBaseCfg):
     """
 
     is_global_time: bool = False
-    """ Whether randomization should be tracked on a per-environment basis.
+    """Whether randomization should be tracked on a per-environment basis. Defaults to False.
 
-    If True, the same time for the interval is tracked for all the environments instead of
-    tracking the time per-environment.
+    If True, the same interval time is used for all the environment instances.
+    If False, the interval time is sampled independently for each environment instance
+    and the term is applied when the current time hits the interval time for that instance.
 
     Note:
         This is only used if the mode is ``"interval"``.
+    """
+
+    min_step_count_between_reset: int = 0
+    """The number of environment steps after which the term is applied since its last application. Defaults to 0.
+
+    When the mode is "reset", the term is only applied if the number of environment steps since
+    its last application exceeds this quantity. This helps to avoid calling the term too often,
+    thereby improving performance.
+
+    If the value is zero, the term is applied on every call to the manager with the mode "reset".
+
+    Note:
+        This is only used if the mode is ``"reset"``.
     """
 
 

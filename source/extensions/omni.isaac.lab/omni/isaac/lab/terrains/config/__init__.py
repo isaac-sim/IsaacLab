@@ -3,4 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from . import rsl_rl_cfg  # noqa: F401, F403
+"""Pre-defined terrain configurations for the terrain generator."""
+
+from .rough import *  # noqa: F401

@@ -106,7 +106,7 @@ To play inverse kinematics (IK) control with a keyboard device:
 
 .. code:: bash
 
-   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
 
 The script prints the teleoperation events configured. For keyboard,
 these are as follows:
@@ -139,7 +139,7 @@ format.
    .. code:: bash
 
       # step a: collect data with keyboard
-      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --device keyboard
+      ./isaaclab.sh -p source/standalone/workflows/robomimic/collect_demonstrations.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --num_demos 10 --teleop_device keyboard
       # step b: inspect the collected dataset
       ./isaaclab.sh -p source/standalone/workflows/robomimic/tools/inspect_demonstrations.py logs/robomimic/Isaac-Lift-Cube-Franka-IK-Rel-v0/hdf_dataset.hdf5
 
@@ -182,10 +182,12 @@ from the environments into the respective libraries function argument and return
       # install python module (for stable-baselines3)
       ./isaaclab.sh -i sb3
       # run script for training
-      # note: we enable cpu flag since SB3 doesn't optimize for GPU anyway
-      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+      # note: we set the device to cpu since SB3 doesn't optimize for GPU anyway
+      ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+      # run script for recording video of a trained agent (requires installing `ffmpeg`)
+      ./isaaclab.sh -p source/standalone/workflows/sb3/play.py --task Isaac-Cartpole-v0 --headless --video --video_length 200
 
 -  Training an agent with
    `SKRL <https://skrl.readthedocs.io>`__ on ``Isaac-Reach-Franka-v0``:
@@ -202,6 +204,8 @@ from the environments into the respective libraries function argument and return
             ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+            # run script for recording video of a trained agent (requires installing `ffmpeg`)
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
       .. tab-item:: JAX
 
@@ -215,6 +219,8 @@ from the environments into the respective libraries function argument and return
             ./isaaclab.sh -p source/standalone/workflows/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for playing with 32 environments
             ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+            # run script for recording video of a trained agent (requires installing `ffmpeg`)
+            ./isaaclab.sh -p source/standalone/workflows/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
 -  Training an agent with
    `RL-Games <https://github.com/Denys88/rl_games>`__ on ``Isaac-Ant-v0``:
@@ -227,6 +233,8 @@ from the environments into the respective libraries function argument and return
       ./isaaclab.sh -p source/standalone/workflows/rl_games/train.py --task Isaac-Ant-v0 --headless
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+      # run script for recording video of a trained agent (requires installing `ffmpeg`)
+      ./isaaclab.sh -p source/standalone/workflows/rl_games/play.py --task Isaac-Ant-v0 --headless --video --video_length 200
 
 -  Training an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Reach-Franka-v0``:
@@ -239,6 +247,8 @@ from the environments into the respective libraries function argument and return
       ./isaaclab.sh -p source/standalone/workflows/rsl_rl/train.py --task Isaac-Reach-Franka-v0 --headless
       # run script for playing with 32 environments
       ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint model.pt
+      # run script for recording video of a trained agent (requires installing `ffmpeg`)
+      ./isaaclab.sh -p source/standalone/workflows/rsl_rl/play.py --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
 All the scripts above log the training progress to `Tensorboard`_ in the ``logs`` directory in the root of
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``

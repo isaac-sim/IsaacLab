@@ -47,7 +47,7 @@ Here we run the state-machine example and record the animation of the simulation
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 8 --cpu --disable_fabric
+  ./isaaclab.sh -p source/standalone/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric
 
 
 On running the script, the Isaac Lab UI window opens with the button "Record Animation" in the toolbar.

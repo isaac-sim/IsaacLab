@@ -27,7 +27,6 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the camera sensor.")
-parser.add_argument("--cpu", action="store_true", default=False, help="Use CPU device for camera output.")
 parser.add_argument(
     "--draw",
     action="store_true",
@@ -268,7 +267,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Load simulation context
-    sim_cfg = sim_utils.SimulationCfg(device="cpu" if args_cli.cpu else "cuda")
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])

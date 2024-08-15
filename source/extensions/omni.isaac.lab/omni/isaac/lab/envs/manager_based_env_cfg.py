@@ -87,12 +87,3 @@ class ManagerBasedEnvCfg:
 
     Please refer to the :class:`omni.isaac.lab.managers.EventManager` class for more details.
     """
-
-    randomization: object | None = None
-    """Randomization settings. Default is None.
-
-    .. deprecated:: 0.3.0
-        This attribute is deprecated and will be removed in v0.4.0. Please use the :attr:`events`
-        attribute to configure the randomization settings.
-
-    """
