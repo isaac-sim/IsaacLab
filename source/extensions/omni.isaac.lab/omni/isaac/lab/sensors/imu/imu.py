@@ -133,20 +133,25 @@ class Imu(SensorBase):
         # obtain the poses of the sensors
         pos_w, quat_w = self._view.get_transforms()[env_ids].split([3, 4], dim=-1)
         quat_w = math_utils.convert_quat(quat_w, to="wxyz")
+
         # store the poses
         self._data.pos_w[env_ids] = pos_w + math_utils.quat_rotate(quat_w, self._offset_pos_b)
         self._data.quat_w[env_ids] = math_utils.quat_mul(quat_w, self._offset_quat_b)
 
-        # obtain the velocities of the sensors
+        # obtain the velocities of the link COM
         lin_vel_w, ang_vel_w = self._view.get_velocities()[env_ids].split([3, 3], dim=-1)
-        # if an offset is present, the linear velocity has to be transformed taking the angular velocity into account
-        lin_vel_w += torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1)
-        # obtain the acceleration of the sensors
+        # if an offset is present or the COM does not agree with the link origin, the linear velocity has to be 
+        # transformed taking the angular velocity into account
+        lin_vel_w += torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1)
+
+        # obtain the acceleration of the link COM
         lin_acc_w, ang_acc_w = self._view.get_accelerations()[env_ids].split([3, 3], dim=-1)
-        # if an offset is present, the linear acceleration has to be transformed taking the angular velocity and acceleration into account
-        lin_acc_w += torch.cross(ang_acc_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1) + torch.cross(
-            ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b), dim=-1), dim=-1
+        # if an offset is present or the COM does not agree with the link origin, the linear acceleration has to
+        # be transformed taking the angular velocity and acceleration into account
+        lin_acc_w += torch.cross(ang_acc_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1) + torch.cross(
+            ang_vel_w, torch.cross(ang_vel_w, math_utils.quat_rotate(quat_w, self._offset_pos_b - self._com_pos_b[env_ids]), dim=-1), dim=-1
         )
+
         # store the velocities
         self._data.lin_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], lin_vel_w)
         self._data.ang_vel_b[env_ids] = math_utils.quat_rotate_inverse(self._data.quat_w[env_ids], ang_vel_w)
@@ -167,6 +172,8 @@ class Imu(SensorBase):
         # store sensor offset transformation
         self._offset_pos_b = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
         self._offset_quat_b = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        # get the offset from COM to link origin
+        self._com_pos_b = self._view.get_coms().to(self.device).split([3, 4], dim=-1)[0]
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
