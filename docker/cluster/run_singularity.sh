@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 echo "(run_singularity.py): Called on compute node with container profile $1 and arguments ${@:2}"
 

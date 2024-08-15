@@ -12,8 +12,8 @@ docs/
 **/videos/*
 *.tmp
 # ignore docker
-docker/exports/
-docker/.container.yaml
+docker/cluster/exports/
+docker/.container.cfg
 # ignore recordings
 recordings/
 # ignore __pycache__

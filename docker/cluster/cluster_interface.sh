@@ -174,7 +174,7 @@ case $command in
         ssh $CLUSTER_LOGIN "mkdir -p $CLUSTER_ISAACLAB_DIR"
         # Sync Isaac Lab code
         echo "[INFO] Syncing Isaac Lab code..."
-        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
+        rsync -rh  --exclude="*.git*" --filter=':- .dockerignore'  /$SCRIPT_DIR/../.. $CLUSTER_LOGIN:$CLUSTER_ISAACLAB_DIR
         # execute job script
         echo "[INFO] Executing job script..."
         # check whether the second argument is a profile or a job argument
