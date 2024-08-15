@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import carb
 import omni.physics.tensors.impl.api as physx
-from pxr import PhysxSchema
+from pxr import PhysxSchema, UsdShade
 
 import omni.isaac.lab.sim as sim_utils
 
@@ -61,6 +61,18 @@ class DeformableObject(AssetBase):
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._root_physx_view
+
+    @property
+    def material_physx_view(self) -> physx.SoftBodyMaterialView | None:
+        """Deformable material view for the asset (PhysX).
+
+        This view is optional and may not be available if the material is not bound to the deformable body.
+        If the material is not available, then the material properties will be set to default values.
+
+        Note:
+            Use this view with caution. It requires handling of tensors in a specific way.
+        """
+        return self._material_physx_view
 
     @property
     def max_simulation_mesh_elements_per_body(self) -> int:
@@ -203,17 +215,66 @@ class DeformableObject(AssetBase):
                 f" Found multiple '{root_prims}' under '{template_prim_path}'."
                 " Please ensure that there is only one deformable body in the prim path tree."
             )
+        # we only need the first one from the list
+        root_prim = root_prims[0]
+
+        # find deformable material prims
+        material_prim = None
+        # obtain material prim from the root prim
+        # note: here we assume that all the root prims have their material prims at similar paths
+        #   and we only need to find the first one. This may not be the case for all scenarios.
+        #   However, the checks in that case get cumbersome and are not included here.
+        if root_prim.HasAPI(UsdShade.MaterialBindingAPI):
+            # check the materials that are bound with the purpose 'physics'
+            material_paths = UsdShade.MaterialBindingAPI(root_prim).GetDirectBindingRel("physics").GetTargets()
+            # iterate through targets and find the deformable body material
+            if len(material_paths) > 0:
+                for mat_path in material_paths:
+                    mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
+                    if mat_prim.HasAPI(PhysxSchema.PhysxDeformableBodyMaterialAPI):
+                        material_prim = mat_prim
+                        break
+        if material_prim is None:
+            carb.log_warn(
+                f"Failed to find a deformable material binding for '{root_prim.GetPath().pathString}'."
+                " The material properties will be set to default values and are not modifiable at runtime."
+                " If you want to modify the material properties, please ensure that the material is bound"
+                " to the deformable body."
+            )
 
         # resolve root path back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
+        # -- root prim expression
+        root_prim_path = root_prim.GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
-        # -- object views
+        # -- object view
         self._root_physx_view = self._physics_sim_view.create_soft_body_view(root_prim_path_expr.replace(".*", "*"))
 
+        # resolve material path back into regex expression
+        if material_prim is not None:
+            # -- material prim expression
+            material_prim_path = material_prim.GetPath().pathString
+            # check if the material prim is under the template prim
+            # if not then we are assuming that the single material prim is used for all the deformable bodies
+            if template_prim_path in material_prim_path:
+                material_prim_path_expr = self.cfg.prim_path + material_prim_path[len(template_prim_path) :]
+            else:
+                material_prim_path_expr = material_prim_path
+            # -- material view
+            self._material_physx_view = self._physics_sim_view.create_soft_body_material_view(
+                material_prim_path_expr.replace(".*", "*")
+            )
+        else:
+            self._material_physx_view = None
+
         # log information about the deformable body
-        carb.log_info(f"Deformable body initialized at: {self.cfg.prim_path}")
+        carb.log_info(f"Deformable body initialized at: {root_prim_path_expr}")
         carb.log_info(f"Number of instances: {self.num_instances}")
         carb.log_info(f"Number of bodies: {self.num_bodies}")
+        if self._material_physx_view is not None:
+            carb.log_info(f"Deformable material initialized at: {material_prim_path_expr}")
+            carb.log_info(f"Number of instances: {self._material_physx_view.count}")
+        else:
+            carb.log_info("No deformable material found. Material properties will be set to default values.")
 
         # container for data access
         self._data = DeformableObjectData(self.root_physx_view, self.device)
