@@ -204,6 +204,10 @@ def x11_refresh(statefile: StateFile):
     # load the value of the temporary xauth file
     tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
 
+    if is_x11_forwarding_enabled is not None:
+        status = "enabled" if is_x11_forwarding_enabled == "1" else "disabled"
+        print(f"[INFO] X11 Forwarding is {status} from the settings in '.container.cfg'")
+
     # if the file exists, delete it and create a new one
     if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
         # remove the file and create a new one
