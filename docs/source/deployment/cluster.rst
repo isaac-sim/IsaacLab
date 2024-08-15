@@ -76,16 +76,22 @@ The following describes the parameters that need to be configured:
        and mounted into the singularity container. This should increase the speed of starting
        the simulation.
    * - CLUSTER_ISAACLAB_DIR
-     - The directory on the cluster where the Isaac Lab code is stored. This directory has to
+     - The directory on the cluster where the Isaac Lab logs are stored. This directory has to
        end on ``isaaclab``. It will be copied to the compute node and mounted into
        the singularity container. When a job is submitted, the latest local changes will
-       be copied to the cluster.
+       be copied to the cluster to a new directory in the format ``${CLUSTER_ISAACLAB_DIR}_${date}_${time}``
+       with the date and time of the job submission. This allows to run multiple jobs with different code versions at
+       the same time.
    * - CLUSTER_LOGIN
      - The login to the cluster. Typically, this is the user and cluster names,
        e.g., ``your_user@euler.ethz.ch``.
    * - CLUSTER_SIF_PATH
      - The path on the cluster where the singularity image will be stored. The image will be
        copied to the compute node but not uploaded again to the cluster when a job is submitted.
+   * - REMOVE_CODE_COPY_AFTER_JOB
+     - Decide if the code copy should be removed after the job is finished. The logs from the job will not be deleted
+       as these are saved under the permanent ``CLUSTER_ISAACLAB_DIR``. This feature is useful
+       to save disk space on the cluster. If set to ``true``, the code copy will be removed.
    * - CLUSTER_PYTHON_EXECUTABLE
      - The path within Isaac Lab to the Python executable that should be executed in the submitted job.
 
@@ -122,8 +128,8 @@ specified, the default profile ``base`` will be used.
 Defining the job parameters
 ---------------------------
 
-
-The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.
+The job parameters need to be defined based on the job scheduler used by your cluster.
+You only need to update the appropriate script for the scheduler available to you.
 
 - For SLURM, update the parameters in ``docker/cluster/submit_job_slurm.sh``.
 - For PBS, update the parameters in ``docker/cluster/submit_job_pbs.sh``.
@@ -182,8 +188,8 @@ To submit a job on the cluster, the following command can be used:
     ./docker/cluster/cluster_interface.sh job [profile] "argument1" "argument2" ...
 
 This command will copy the latest changes in your code to the cluster and submit a job. Please ensure that
-your Python executable's output is stored under ``isaaclab/logs`` as this directory will be copied again
-from the compute node to ``CLUSTER_ISAACLAB_DIR``.
+your Python executable's output is stored under ``isaaclab/logs`` as this directory is synced between the compute
+node and ``CLUSTER_ISAACLAB_DIR``.
 
 ``[profile]`` is an optional argument that specifies which singularity image corresponding to the  container profile
 will be used. If no profile is specified, the default profile ``base`` will be used. The profile has be defined
@@ -198,14 +204,6 @@ ANYmal rough terrain locomotion training can be executed with the following comm
     ./docker/cluster/cluster_interface.sh job --task Isaac-Velocity-Rough-Anymal-C-v0 --headless --video --enable_cameras
 
 The above will, in addition, also render videos of the training progress and store them under ``isaaclab/logs`` directory.
-
-.. note::
-
-    The ``./docker/cluster/cluster_interface.sh job`` command will copy the latest changes in your code to the cluster. However,
-    it will not delete any files that have been deleted locally. These files will still exist on the cluster
-    which can lead to issues. In this case, we recommend removing the ``CLUSTER_ISAACLAB_DIR`` directory on
-    the cluster and re-run the command.
-
 
 .. _Singularity: https://docs.sylabs.io/guides/2.6/user-guide/index.html
 .. _ETH Zurich Euler: https://scicomp.ethz.ch/wiki/Euler

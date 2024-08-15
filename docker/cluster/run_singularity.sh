@@ -75,7 +75,7 @@ singularity exec \
 rsync -azPv $TMPDIR/docker-isaac-sim $CLUSTER_ISAAC_SIM_CACHE_DIR/..
 
 # if defined, remove the temporary isaaclab directory pushed when the job was submitted
-if $REMOVE_ISAACLAB_CODE_COPY_AFTER_JOB; then
+if $REMOVE_CODE_COPY_AFTER_JOB; then
     rm -rf $1
 fi
 

@@ -169,7 +169,7 @@ case $command in
         [ -n "$job_args" ] && echo "Job arguments: $job_args"
         source $SCRIPT_DIR/.env.cluster
         # Get current date and time
-        current_datetime=$(date +"_%Y%m%d_%H%M%S")
+        current_datetime=$(date +"%Y%m%d_%H%M%S")
         # Append current date and time to CLUSTER_ISAACLAB_DIR
         CLUSTER_ISAACLAB_DIR="${CLUSTER_ISAACLAB_DIR}_${current_datetime}"
         # Check if singularity image exists on the remote host
