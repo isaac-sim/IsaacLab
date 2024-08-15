@@ -59,7 +59,7 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
 #
 
 
-class Modifier(ABC):
+class ModifierBase(ABC):
     """Base class for modifiers implemented as classes.
 
     Modifiers used in the :class:`ObservationCfg` can be functions or classes. If the modifier is a class
@@ -106,7 +106,7 @@ class Modifier(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __call__(self, data: torch):
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Abstract method for defining the modification function.
 
         Args:
@@ -118,7 +118,7 @@ class Modifier(ABC):
         raise NotImplementedError
 
 
-class DigitalFilter(Modifier):
+class DigitalFilter(ModifierBase):
     r"""Modifier used to apply digital filtering using the linear difference form of a discrete z-transform filter definition.
 
     **Z-transform:**
@@ -254,7 +254,7 @@ class DigitalFilter(Modifier):
         return y_i
 
 
-class Integrator(Modifier):
+class Integrator(ModifierBase):
     """Modifier that applies a numerical forward integration to input data using a middle reimann sum integrator.
 
     **Usage:**

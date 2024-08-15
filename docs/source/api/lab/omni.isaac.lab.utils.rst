@@ -89,7 +89,7 @@ Math operations
    :show-inheritance:
 
 Modifiers
-~~~~~~~~~~~~~~~
+~~~~~~~~~
 
 .. automodule:: omni.isaac.lab.utils.modifiers
    :members:

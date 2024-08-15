@@ -249,7 +249,6 @@ class ObservationManager(ManagerBase):
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     obs = modifier.func(obs, **modifier.params)
-            # Ref: https://robosuite.ai/docs/modules/sensors.html#observables
             # add value to list
             group_obs[name] = obs
         # concatenate all observations in the group together
