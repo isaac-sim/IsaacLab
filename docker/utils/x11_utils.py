@@ -82,7 +82,7 @@ def x11_check(statefile: StateFile) -> tuple[list[str], dict[str, str]] | None:
     # set the namespace to X11 for the statefile
     statefile.namespace = "X11"
     # check if X11 forwarding is enabled
-    is_x11_forwarding_enabled = statefile.get_variable("__ISAACLAB_X11_FORWARDING_ENABLED")
+    is_x11_forwarding_enabled = statefile.get_variable("X11_FORWARDING_ENABLED")
 
     if is_x11_forwarding_enabled is None:
         print("[INFO] X11 forwarding from the Isaac Lab container is disabled by default.")
@@ -101,16 +101,16 @@ def x11_check(statefile: StateFile) -> tuple[list[str], dict[str, str]] | None:
             print("[INFO] X11 forwarding is disabled from the container.")
 
         # remember the user's choice and set the statefile variable
-        statefile.set_variable("__ISAACLAB_X11_FORWARDING_ENABLED", is_x11_forwarding_enabled)
+        statefile.set_variable("X11_FORWARDING_ENABLED", is_x11_forwarding_enabled)
     else:
         # print the current configuration
         print(f"[INFO] X11 Forwarding is configured as '{is_x11_forwarding_enabled}' in '.container.cfg'.")
 
         # print help message to enable/disable X11 forwarding
         if is_x11_forwarding_enabled == "1":
-            print("\tTo disable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=0' in '.container.cfg'.")
+            print("\tTo disable X11 forwarding, set 'X11_FORWARDING_ENABLED=0' in '.container.cfg'.")
         else:
-            print("\tTo enable X11 forwarding, set '__ISAACLAB_X11_FORWARDING_ENABLED=1' in '.container.cfg'.")
+            print("\tTo enable X11 forwarding, set 'X11_FORWARDING_ENABLED=1' in '.container.cfg'.")
 
     if is_x11_forwarding_enabled == "1":
         x11_envars = configure_x11(statefile)
@@ -200,7 +200,7 @@ def x11_refresh(statefile: StateFile):
     statefile.namespace = "X11"
 
     # check if X11 forwarding is enabled
-    is_x11_forwarding_enabled = statefile.get_variable("__ISAACLAB_X11_FORWARDING_ENABLED")
+    is_x11_forwarding_enabled = statefile.get_variable("X11_FORWARDING_ENABLED")
     # load the value of the temporary xauth file
     tmp_xauth_value = statefile.get_variable("__ISAACLAB_TMP_XAUTH")
 

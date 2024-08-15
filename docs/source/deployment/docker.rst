@@ -154,7 +154,7 @@ The first time a container is started with ``./docker/container.py start``, the 
 the user whether to activate X11 forwarding. This will create a file at ``docker/.container.cfg``
 to store the user's choice for future runs.
 
-If you want to change the choice, you can set the parameter ``__ISAACLAB_X11_FORWARDING_ENABLED`` to '0' or '1'
+If you want to change the choice, you can set the parameter ``X11_FORWARDING_ENABLED`` to '0' or '1'
 in the ``docker/.container.cfg`` file to disable or enable X11 forwarding, respectively. After that, you need to
 re-build the container by running ``./docker/container.py start``. The rebuilding process ensures that the changes
 are applied to the container. Otherwise, the changes will not take effect.
