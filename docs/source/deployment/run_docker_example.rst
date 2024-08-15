@@ -105,7 +105,7 @@ the following command to retrieve our logs from the Docker container and put the
 
 .. code-block:: console
 
-  python container.py copy
+  ./container.py copy
 
 
 We will see a terminal readout reporting the artifacts we have retrieved from the container. If we navigate to
@@ -120,12 +120,12 @@ but we have retrieved our logs and wish to go inspect them. We can stop the Isaa
 
 .. code-block:: console
 
-  python container.py stop
+  ./container.py stop
 
 
 This will bring down the Docker Isaac Lab container. The image will persist and remain available for further use, as will
 the contents of any `volumes`_. If we wish to free up the disk space taken by the image, (~20.1GB), and do not mind repeating
-the build process when we next run ``python container.py start``, we may enter the following command to delete the **isaac-lab-base** image:
+the build process when we next run ``./container.py start``, we may enter the following command to delete the **isaac-lab-base** image:
 
 .. code-block:: console
 
