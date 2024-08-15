@@ -185,7 +185,7 @@ def x11_refresh(statefile: StateFile):
     If x11 is enabled, this function generates a new .xauth file with the current MIT-MAGIC-COOKIE-1.
     The new file uses the same filename so that the bind-mount and ``XAUTHORITY`` var from build-time still work.
 
-    The var ``DISPLAY`` will also need to be updated in the container environment command.
+   As the envar ``DISPLAY` informs the contents of the MIT-MAGIC-COOKIE-1, that value within the container will also need to be updated to the current value on the host. Currently, this done automatically in `ContainerInterface.enter()` 
 
     The function exits if X11 forwarding is enabled but the temporary .xauth file does not exist. In this case,
     the user must rebuild the container.
