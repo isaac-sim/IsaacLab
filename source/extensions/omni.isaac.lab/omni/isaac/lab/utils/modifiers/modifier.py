@@ -77,7 +77,6 @@ class ModifierBase(ABC):
         kwarg_dict = {"arg_1" : VAL_1,
                       "arg_2" : VAL_2}
 
-        #
         modifier_config = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params=kwarg_dict)
 
         # define modifier instance
