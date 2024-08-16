@@ -462,7 +462,7 @@ class TestWarpCamera(unittest.TestCase):
 
         # check the intrinsic matrices
         torch.testing.assert_close(
-            camera_usd.data.intrinsic_matrices, 
+            camera_usd.data.intrinsic_matrices,
             camera_warp.data.intrinsic_matrices,
         )
 
@@ -700,9 +700,7 @@ class TestWarpCamera(unittest.TestCase):
         cam_usd_output[torch.isinf(cam_usd_output)] = 0
 
         # check that both have the same intrinsic matrices
-        torch.testing.assert_close(
-            camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0]
-        )
+        torch.testing.assert_close(camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0])
 
         # check the apertures
         torch.testing.assert_close(
@@ -713,7 +711,7 @@ class TestWarpCamera(unittest.TestCase):
             camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
             camera_warp_cfg.pattern_cfg.vertical_aperture,
         )
-        
+
         # check image data
         torch.testing.assert_close(
             cam_warp_output,
