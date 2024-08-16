@@ -52,3 +52,4 @@ Usage with custom modifier configuration:
 from .modifier_cfg import ModifierCfg  # isort:skip
 from .modifier_base import ModifierBase  # isort:skip
 from .modifier import DigitalFilter, Integrator, bias, clip, scale
+from .modifier_cfg import DigitalFilterCfg, IntegratorCfg

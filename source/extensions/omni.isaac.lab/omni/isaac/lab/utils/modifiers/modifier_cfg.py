@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-from __future__ import annotations
 
 import torch
 from collections.abc import Callable
@@ -10,6 +9,8 @@ from dataclasses import MISSING
 from typing import Any
 
 from omni.isaac.lab.utils import configclass
+
+from . import modifier
 
 
 @configclass
@@ -28,5 +29,30 @@ class ModifierCfg:
     """
 
     params: dict[str, Any] = dict()
-    """The parameters to be passed to the function or Callable class as keyword arguments. Defaults to
+    """The parameters to be passed to the function or callable class as keyword arguments. Defaults to
     an empty dictionary."""
+
+
+@configclass
+class DigitalFilterCfg(ModifierCfg):
+    """Configuration parameters for a digital filter modifier"""
+
+    func: type[modifier.DigitalFilter] = modifier.DigitalFilter
+    """The digital filter function to be called for applying the filter."""
+
+    A: list[float] = MISSING
+    """The denominator coefficients of the digital filter."""
+
+    B: list[float] = MISSING
+    """The numerator coefficients of the digital filter."""
+
+
+@configclass
+class IntegratorCfg(ModifierCfg):
+    """Configuration parameters for an integrator modifier"""
+
+    func: type[modifier.Integrator] = modifier.Integrator
+    """The integrator function to be called for applying the integrator."""
+
+    dt: float = MISSING
+    """The time step of the integrator."""

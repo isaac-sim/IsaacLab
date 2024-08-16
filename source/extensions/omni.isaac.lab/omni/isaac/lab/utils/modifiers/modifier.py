@@ -3,11 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import torch
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from .modifier_base import ModifierBase
-from .modifier_cfg import ModifierCfg
+
+if TYPE_CHECKING:
+    from . import modifier_cfg
 
 ##
 # Modifiers as functions
@@ -104,16 +109,17 @@ class DigitalFilter(ModifierBase):
     .. code-block:: python
 
         import math
-        import torch
         from omni.isaac.lab.utils import modifiers
 
         # with sim.physics_step = 0.002
         fc_hz = 20 # desired cut-off frequency
-        alpha = fc_hz/(fc_hz + 1/(2.0*math.pi*0.002) # desired smoothing parameter
+        alpha = fc_hz / (fc_hz + 1 / (2.0 * math.pi * 0.002) # desired smoothing parameter
+
         # create filter and filter coefficients for first order IIR low-pass filter
-        my_modifier_cfg = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params={"A": torch.tensor([1.0-alpha]), "B": torch.tensor([alpha])})
-        # create class instance
-        my_filter = modifiers.Modifier(cfg=my_modifier_cfg)
+        my_modifier_cfg = modifiers.DigitalFilterCfg(A=[1.0 - alpha], B=[alpha])
+
+        # create class instance for data with shape (1024, 4)
+        my_filter = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
 
     **Example: Unit delay**
 
@@ -128,22 +134,19 @@ class DigitalFilter(ModifierBase):
 
     .. code-block:: python
 
-        import torch
         from omni.isaac.lab.utils import modifiers
 
-        # create single timestep unit delay config
-        my_modifier_cfg = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params={"A": torch.tensor([0.0]), "B": torch.tensor([0.0, 1.0])})
+        # create single time-step unit delay config
+        my_modifier_cfg = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
 
-        # create class instance
-        my_delay = modifiers.Modifier(cfg=my_modifier_cfg)
-
-    .. warning:: The filter coefficients :math:`A` and :math:`B` must not be None.
+        # create class instance for data with shape (1024, 4)
+        my_delay = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
 
 
     Extra explanation on digital filters and other filter types can be found at: https://en.wikipedia.org/wiki/Digital_filter
     """
 
-    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str) -> None:
         """Initializes digital filter.
 
         Args:
@@ -155,20 +158,16 @@ class DigitalFilter(ModifierBase):
         Raises:
             ValueError: If filter coefficients are None.
         """
+        # check that filter coefficients are not None
+        if cfg.A is None or cfg.B is None:
+            raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
+
         # initialize parent class
         super().__init__(cfg, data_dim, device)
 
-        # check if params has the required coefficients
-        if "A" not in self._cfg.params or "B" not in self._cfg.params:
-            raise ValueError("Digital filter configuration must have 'A' and 'B' keys in the params dictionary.")
-
         # assign filter coefficients and make sure they are column vectors
-        self.A = self._cfg.params["A"].to(self._device).unsqueeze(1)
-        self.B = self._cfg.params["B"].to(self._device).unsqueeze(1)
-
-        # check that filter coefficients are not None
-        if self.A is None or self.B is None:
-            raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
+        self.A = torch.tensor(self._cfg.A, device=self._device).unsqueeze(1)
+        self.B = torch.tensor(self._cfg.B, device=self._device).unsqueeze(1)
 
         # create buffer for input and output history
         self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
@@ -223,15 +222,15 @@ class Integrator(ModifierBase):
 
         dt = 0.001 # time step in seconds between data measurements
         # create Integrator config
-        my_modifier_cfg = modifiers.ModifierCfg(func=modifiers.Integrator, params={"dt":dt})
+        my_modifier_cfg = modifiers.IntegratorCfg(dt=dt)
 
-        # create class instance
-        my_integrator = modifiers.Modifier(cfg=my_modifier_cfg)
+        # create class instance for data with shape (1024, 4)
+        my_integrator = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
 
     Reference: https://en.wikipedia.org/wiki/Riemann_sum
     """
 
-    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
         """Initializes the integrator configuration and state.
 
         Args:
@@ -243,15 +242,9 @@ class Integrator(ModifierBase):
         # initialize parent class
         super().__init__(cfg, data_dim, device)
 
-        # check if params has the required dt key
-        if "dt" not in self._cfg.params:
-            raise ValueError("Integrator configuration must have a 'dt' key in the params dictionary.")
-
         # assign buffer for integral and previous value
         self.integral = torch.zeros(self._data_dim, device=self._device)
         self.y_prev = torch.zeros(self._data_dim, device=self._device)
-        # store time step
-        self.dt = self._cfg.params["dt"]
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets integrator state to zero.
@@ -277,7 +270,7 @@ class Integrator(ModifierBase):
             Integral of input signal. Shape is the same as data.
         """
         # integrate using middle Riemann sum
-        self.integral += (data + self.y_prev) / 2 * self.dt
+        self.integral += (data + self.y_prev) / 2 * self._cfg.dt
         # update previous value
         self.y_prev[:] = data
 

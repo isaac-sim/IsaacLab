@@ -23,6 +23,8 @@ from omni.isaac.lab.utils import configclass
 
 @configclass
 class ModifierTestCfg:
+    """Configuration for testing modifiers."""
+
     cfg: modifiers.ModifierCfg = MISSING
     init_data: torch.Tensor = MISSING
     result: torch.Tensor = MISSING
@@ -119,22 +121,20 @@ class TestModifiers(unittest.TestCase):
     def test_digital_filter(self):
         """Test for digital filter modifier."""
         # create a modifier configuration
-        digital_filter_cfg = modifiers.ModifierCfg(
-            func=modifiers.DigitalFilter, params={"A": torch.tensor([0.0, 0.1]), "B": torch.tensor([0.5, 0.5])}
-        )
+        modifier_cfg = modifiers.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5])
 
         for device in ["cpu", "cuda"]:
             with self.subTest(device=device):
                 # create a test configuration
                 test_cfg = ModifierTestCfg(
-                    cfg=digital_filter_cfg,
+                    cfg=modifier_cfg,
                     init_data=torch.tensor([0.0, 0.0, 0.0], device=device).unsqueeze(1),
                     result=torch.tensor([-0.45661893, -0.45661893, -0.45661893], device=device).unsqueeze(1),
                     num_iter=16,
                 )
 
                 # create a modifier instance
-                modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+                modifier_obj = modifier_cfg.func(modifier_cfg, test_cfg.init_data.shape, device=device)
 
                 # test the modifier
                 theta = torch.tensor([0.0], device=device)
@@ -149,7 +149,9 @@ class TestModifiers(unittest.TestCase):
                         data = torch.sin(theta + i * delta)
                         processed_data = modifier_obj(data)
 
-                        self.assertEqual(data.shape, processed_data.shape, msg="Modified data shape does not equal original")
+                        self.assertEqual(
+                            data.shape, processed_data.shape, msg="Modified data shape does not equal original"
+                        )
 
                     # check if the modified data is close to the expected result
                     torch.testing.assert_close(processed_data, test_cfg.result)
@@ -157,7 +159,7 @@ class TestModifiers(unittest.TestCase):
     def test_integral(self):
         """Test for integral modifier."""
         # create a modifier configuration
-        modifier_cfg = modifiers.ModifierCfg(func=modifiers.Integrator, params={"dt": 1.0})
+        modifier_cfg = modifiers.IntegratorCfg(dt=1.0)
 
         for device in ["cpu", "cuda"]:
             with self.subTest(device=device):
@@ -169,7 +171,7 @@ class TestModifiers(unittest.TestCase):
                 )
 
                 # create a modifier instance
-                modifier_obj = test_cfg.cfg.func(test_cfg.cfg, test_cfg.init_data.shape, device=device)
+                modifier_obj = modifier_cfg.func(modifier_cfg, test_cfg.init_data.shape, device=device)
 
                 # test the modifier
                 delta = torch.tensor(1.0, device=device)
@@ -185,7 +187,9 @@ class TestModifiers(unittest.TestCase):
                         processed_data = modifier_obj(data)
                         data = data + delta
 
-                        self.assertEqual(data.shape, processed_data.shape, msg="Modified data shape does not equal original")
+                        self.assertEqual(
+                            data.shape, processed_data.shape, msg="Modified data shape does not equal original"
+                        )
 
                     # check if the modified data is close to the expected result
                     torch.testing.assert_close(processed_data, test_cfg.result)
