@@ -378,7 +378,8 @@ class TestObservationManager(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             self.obs_man = ObservationManager(cfg, self.env)
 
-    def test_modifier_integration(self):
+    def test_modifier_compute(self):
+        """Test the observation computation with modifiers."""
 
         modifier_1 = modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})
         modifier_2 = modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 2.0})
@@ -427,6 +428,30 @@ class TestObservationManager(unittest.TestCase):
         torch.testing.assert_close(2.0 * (obs_critic["term_1"] + 1.0), obs_critic["term_3"])
         self.assertTrue(torch.min(obs_critic["term_4"]) >= -0.5)
         self.assertTrue(torch.max(obs_critic["term_4"]) <= 0.5)
+
+    def test_modifier_invalid_config(self):
+        """Test modifier initialization with invalid config."""
+
+        modifier = modifiers.ModifierCfg(func=modifiers.clip, params={"min": -0.5, "max": 0.5})
+
+        @configclass
+        class MyObservationManagerCfg:
+            """Test config class for observation manager."""
+
+            @configclass
+            class PolicyCfg(ObservationGroupCfg):
+                """Test config class for policy observation group."""
+
+                concatenate_terms = False
+                term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier])
+
+            policy: ObservationGroupCfg = PolicyCfg()
+
+        # create observation manager
+        cfg = MyObservationManagerCfg()
+
+        with self.assertRaises(ValueError):
+            self.obs_man = ObservationManager(cfg, self.env)
 
 
 if __name__ == "__main__":

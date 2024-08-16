@@ -325,6 +325,7 @@ class ObservationManager(ManagerBase):
                     )
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
+
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
@@ -333,15 +334,15 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
                 # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape[1:])
-                self._group_obs_term_dim[group_name].append(obs_dims)
+                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                self._group_obs_term_dim[group_name].append(obs_dims[1:])
 
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
                     for mod_cfg in term_cfg.modifiers:
+                        # check if class modifier and initialize with observation size when adding
                         if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # check if class modifier and initialize with observation size when adding
                             # to list of modifiers
                             if inspect.isclass(mod_cfg.func):
                                 if not issubclass(mod_cfg.func, modifiers.ModifierBase):
@@ -358,6 +359,29 @@ class ObservationManager(ManagerBase):
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
                                 f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
                             )
+
+                        # check if function is callable
+                        if not callable(mod_cfg.func):
+                            raise AttributeError(
+                                f"Modifier '{mod_cfg}' of observation term '{term_name}' is not callable."
+                                f" Received: {mod_cfg.func}"
+                            )
+
+                        # check if term's arguments are matched by params
+                        term_params = list(mod_cfg.params.keys())
+                        args = inspect.signature(mod_cfg.func).parameters
+                        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+                        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+                        args = args_without_defaults + args_with_defaults
+                        # ignore first two arguments for env and env_ids
+                        # Think: Check for cases when kwargs are set inside the function?
+                        if len(args) > 1:
+                            if set(args[1:]) != set(term_params + args_with_defaults):
+                                raise ValueError(
+                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
+                                    f" mandatory parameters: {args_without_defaults[1:]}"
+                                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                                )
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
