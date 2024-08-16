@@ -104,6 +104,9 @@ class TestDeformableObject(unittest.TestCase):
                     self.assertTrue(cube_object.is_initialized)
 
                     # Check buffers that exists and have correct shapes
+                    self.assertEqual(
+                        cube_object.data.nodal_state_w.shape, (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6)
+                    )
                     self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
                     self.assertEqual(cube_object.data.root_vel_w.shape, (num_cubes, 3))
 
@@ -211,20 +214,20 @@ class TestDeformableObject(unittest.TestCase):
 
                             # Set random state
                             state_dict[state_type_to_randomize] = torch.randn(
-                                num_cubes, cube_object.max_simulation_mesh_vertices_per_body, 3, device=sim.device
+                                num_cubes, cube_object.max_sim_mesh_vertices_per_body, 3, device=sim.device
                             )
 
                             # perform simulation
                             for _ in range(5):
-                                root_state = torch.cat(
+                                nodal_state = torch.cat(
                                     [
                                         state_dict["nodal_pos_w"],
                                         state_dict["nodal_vel_w"],
                                     ],
-                                    dim=1,
+                                    dim=-1,
                                 )
-                                # reset root state
-                                cube_object.write_root_state_to_sim(root_state=root_state)
+                                # reset nodal state
+                                cube_object.write_nodal_state_to_sim(nodal_state)
 
                                 # perform step
                                 sim.step()

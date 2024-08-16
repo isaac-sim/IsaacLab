@@ -105,9 +105,9 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = deformable_object.data.default_nodal_state_w.clone()
+            nodal_state = deformable_object.data.default_nodal_state_w.clone()
             # write root state to simulation
-            deformable_object.write_root_state_to_sim(root_state)
+            deformable_object.write_nodal_state_to_sim(nodal_state)
             # reset buffers
             deformable_object.reset()
             print("----------------------------------------")

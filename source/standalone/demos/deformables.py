@@ -159,8 +159,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # reset deformable object state
             for _, deform_body in enumerate(entities.values()):
                 # root state
-                root_state = deform_body.data.default_nodal_state_w.clone()
-                deform_body.write_root_state_to_sim(root_state)
+                nodal_state = deform_body.data.default_nodal_state_w.clone()
+                deform_body.write_nodal_state_to_sim(nodal_state)
                 # reset the internal state
                 deform_body.reset()
             print("[INFO]: Resetting deformable object state...")

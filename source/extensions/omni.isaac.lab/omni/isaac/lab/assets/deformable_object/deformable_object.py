@@ -23,7 +23,20 @@ if TYPE_CHECKING:
 
 
 class DeformableObject(AssetBase):
-    """Class for handling deformable objects."""
+    """A deformable object asset class.
+
+    Deformable objects are assets that can be deformed in the simulation. They are typically used for
+    soft bodies, such as stuffed animals and food items.
+
+    Unlike rigid object assets, deformable objects have a more complex structure and require additional
+    handling for simulation. The simulation of deformable objects follows a finite element approach, where
+    the object is discretized into a mesh of nodes and elements. The nodes are connected by elements, which
+    define the material properties of the object. The nodes can be moved and deformed, and the elements
+    respond to these changes.
+
+    The state of a deformable object comprises of its nodal positions and velocities, and not the object's root
+    position and orientation. The nodal positions and velocities are in the simulation frame.
+    """
 
     cfg: DeformableObjectCfg
     """Configuration instance for the deformable object."""
@@ -75,19 +88,19 @@ class DeformableObject(AssetBase):
         return self._material_physx_view
 
     @property
-    def max_simulation_mesh_elements_per_body(self) -> int:
+    def max_sim_mesh_elements_per_body(self) -> int:
         """The maximum number of simulation mesh elements per deformable body."""
         return self.root_physx_view.max_sim_elements_per_body
-
-    @property
-    def max_simulation_mesh_vertices_per_body(self) -> int:
-        """The maximum number of simulation mesh vertices per deformable body."""
-        return self.root_physx_view.max_sim_vertices_per_body
 
     @property
     def max_collision_mesh_elements_per_body(self) -> int:
         """The maximum number of collision mesh elements per deformable body."""
         return self.root_physx_view.max_elements_per_body
+
+    @property
+    def max_sim_mesh_vertices_per_body(self) -> int:
+        """The maximum number of simulation mesh vertices per deformable body."""
+        return self.root_physx_view.max_sim_vertices_per_body
 
     @property
     def max_collision_mesh_vertices_per_body(self) -> int:
@@ -113,28 +126,30 @@ class DeformableObject(AssetBase):
     Operations - Write to simulation.
     """
 
-    def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root state over selected environment indices into the simulation.
+    def write_nodal_state_to_sim(self, nodal_state: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the nodal state over selected environment indices into the simulation.
 
-        The root state comprises of the nodal positions and velocities. All the quantities are in the simulation frame.
+        The nodal state comprises of the nodal positions and velocities. Since these are nodes, the velocity only has
+        a translational component. All the quantities are in the simulation frame.
 
         Args:
-            root_state: Root state in simulation frame.
-                Shape is (len(env_ids), 2 * max_simulation_mesh_vertices_per_body, 3).
+            nodal_state: Nodal state in simulation frame.
+                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 6).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # set into simulation
-        self.write_root_pos_to_sim(root_state[:, : self.max_simulation_mesh_vertices_per_body, :], env_ids=env_ids)
-        self.write_root_velocity_to_sim(root_state[:, self.max_simulation_mesh_vertices_per_body :, :], env_ids=env_ids)
+        self.write_nodal_pos_to_sim(nodal_state[..., :3], env_ids=env_ids)
+        self.write_nodal_velocity_to_sim(nodal_state[..., 3:], env_ids=env_ids)
 
-    def write_root_pos_to_sim(self, root_pos: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root pos over selected environment indices into the simulation.
+    def write_nodal_pos_to_sim(self, nodal_pos: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the nodal positions over selected environment indices into the simulation.
 
-        The root position comprises of individual nodal positions of the simulation mesh for the deformable body.
+        The nodal position comprises of individual nodal positions of the simulation mesh for the deformable body.
         The positions are in the simulation frame.
 
         Args:
-            root_pos: Nodal positions in simulation frame. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 3).
+            nodal_pos: Nodal positions in simulation frame.
+                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -144,17 +159,20 @@ class DeformableObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.nodal_pos_w[env_ids] = root_pos.clone()
+        self._data.nodal_pos_w[env_ids] = nodal_pos.clone()
         # set into simulation
         self.root_physx_view.set_sim_nodal_positions(self._data.nodal_pos_w, indices=physx_env_ids)
 
-    def write_root_velocity_to_sim(self, root_velocity: torch.Tensor, env_ids: Sequence[int] | None = None):
-        """Set the root velocity over selected environment indices into the simulation.
+    def write_nodal_velocity_to_sim(self, nodal_vel: torch.Tensor, env_ids: Sequence[int] | None = None):
+        """Set the nodal velocity over selected environment indices into the simulation.
 
-        The root velocity comprises of individual nodal velocities of the simulation mesh for the deformable body.
+        The nodal velocity comprises of individual nodal velocities of the simulation mesh for the deformable
+        body. Since these are nodes, the velocity only has a translational component. The velocities are in the
+        simulation frame.
 
         Args:
-            root_velocity: Root velocities in simulation frame. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 3).
+            nodal_vel: Nodal velocities in simulation frame.
+                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -164,7 +182,7 @@ class DeformableObject(AssetBase):
             physx_env_ids = self._ALL_INDICES
         # note: we need to do this here since tensors are not set into simulation until step.
         # set into internal buffers
-        self._data.nodal_vel_w[env_ids] = root_velocity.clone()
+        self._data.nodal_vel_w[env_ids] = nodal_vel.clone()
         # set into simulation
         self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
@@ -175,7 +193,7 @@ class DeformableObject(AssetBase):
         and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
 
         Args:
-            targets: The kinematic targets comprising of nodal positions and flags. Shape is (len(env_ids), max_simulation_mesh_vertices_per_body, 4).
+            targets: The kinematic targets comprising of nodal positions and flags. Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 4).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -296,7 +314,7 @@ class DeformableObject(AssetBase):
         # note: these are all in the simulation frame
         nodal_positions = self.root_physx_view.get_sim_nodal_positions()
         nodal_velocities = torch.zeros_like(nodal_positions)
-        self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=1)
+        self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=-1)
 
     """
     Internal simulation callbacks.
