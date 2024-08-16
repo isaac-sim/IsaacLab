@@ -1,3 +1,9 @@
+Changelog
+---------
+
+0.21.3 (2024-08-16)
+~~~~~~~~~~~~~~~~~~~
+
 Added
 ^^^^^
 
@@ -5,9 +11,14 @@ Added
   :class:`omni.isaac.lab.sim.spawner.sensors.PinholeCameraCfg` class or respectively
   :class:`omni.isaac.lab.sensors.ray_caster.patterns_cfg.PinholeCameraPatternCfg`.
 
+Fixed
+^^^^^
 
-Changelog
----------
+* Fixed ray direction in :func:`omni.isaac.lab.sensors.ray_caster.patterns.patterns.pinhole_camera_pattern` to point to
+  the center of the pixel instead of the top-left corner.
+* Fixed clipping of the "distance_to_image_plane" depth image in :class:`omni.isaac.lab.sensors.ray_caster.RayCasterCamera`
+  to be applied after the depth image is generated. This makes the behavior equal to the USD Camera.
+
 
 0.21.2 (2024-08-13)
 ~~~~~~~~~~~~~~~~~~~
