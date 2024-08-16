@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from omni.isaac.lab_assets.allegro import ALLEGRO_HAND_CFG
+from omni.isaac.lab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.lab.assets import ArticulationCfg, RigidObjectCfg
