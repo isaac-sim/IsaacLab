@@ -13,18 +13,21 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import pathlib
 import torch
 import unittest
 
 import omni.isaac.core.utils.stage as stage_utils
 
 import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.assets import RigidObjectCfg
+import omni.isaac.lab.utils.math as math_utils
+from omni.isaac.lab.actuators import ImplicitActuatorCfg
+from omni.isaac.lab.assets import RigidObjectCfg, ArticulationCfg
 from omni.isaac.lab.scene import InteractiveScene, InteractiveSceneCfg
 from omni.isaac.lab.sensors.imu import ImuCfg
 from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
-
+from omni.isaac.lab.markers.config import RED_ARROW_X_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 ##
 # Pre-defined configs
 ##
@@ -35,6 +38,27 @@ from omni.isaac.lab.utils.assets import NUCLEUS_ASSET_ROOT_DIR  # isort: skip
 POS_OFFSET = (0.2488, 0.00835, 0.04628)
 ROT_OFFSET = (0.7071068, 0, 0, 0.7071068)
 
+# offset of imu_link from link_1 on simple_2_link
+PEND_POS_OFFSET = (0.4, 0.0, 0.1)
+PEND_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
+
+def vector_error(v1: torch.Tensor, v2: torch.Tensor):
+    """Returns the magnitude and direction error between two vectors"""
+    v1_mag = torch.linalg.vector_norm(v1,dim=-1)
+    v2_mag = torch.linalg.vector_norm(v2,dim=-1)
+
+    v1_dir = torch.nn.functional.normalize(v1,dim=-1)
+    v2_dir = torch.nn.functional.normalize(v2,dim=-1)
+    # v1_dir = torch.transpose(torch.div(torch.transpose(v1,0,-1),v1_mag),0,-1)
+    # v2_dir = torch.transpose(torch.div(torch.transpose(v2,0,-1),v2_mag),0,-1)
+
+    mag_abs_err = torch.abs(v1_mag-v2_mag)
+    mag_rel_err = mag_abs_err/v2_mag
+
+
+    dir_err= torch.acos(torch.sum(v1_dir*v2_dir,dim=-1))
+
+    return mag_abs_err, mag_rel_err, dir_err
 
 @configclass
 class MySceneCfg(InteractiveSceneCfg):
@@ -50,7 +74,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # rigid objects - balls
     balls = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/ball",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.126)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
         spawn=sim_utils.SphereCfg(
             radius=0.25,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
@@ -62,7 +86,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/cube",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.126)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, 0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.25, 0.25, 0.25),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
@@ -74,7 +98,28 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulations - robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
-
+    pendulum = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/pendulum",
+            spawn=sim_utils.UrdfFileCfg(
+                fix_base=True,
+                merge_fixed_joints=False,
+                make_instanceable=False,
+                asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
+                articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                    enabled_self_collisions=True, 
+                    solver_position_iteration_count=4, 
+                    solver_velocity_iteration_count=0
+                )
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(),
+            actuators={
+                "joint_1_act" : ImplicitActuatorCfg(joint_names_expr=["joint_.*"],
+                                          stiffness=0.0,
+                                          damping=0.3),
+            },
+            
+                
+    )
     # sensors - imu (filled inside unit test)
     imu_ball: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/ball",
@@ -93,15 +138,32 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
     )
 
+    imu_pendulum_imu_link: ImuCfg = ImuCfg(
+        prim_path="{ENV_REGEX_NS}/pendulum/imu_link",
+        debug_vis=False, #not app_launcher._headless,
+        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link")
+
+    )
+    imu_pendulum_base: ImuCfg = ImuCfg(
+        prim_path="{ENV_REGEX_NS}/pendulum/link_1",
+        offset=ImuCfg.OffsetCfg(
+            pos=PEND_POS_OFFSET,
+            rot=PEND_ROT_OFFSET,
+        ),
+        debug_vis=False, #not app_launcher._headless,
+        visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base")
+    )
     def __post_init__(self):
         """Post initialization."""
         # change position of the robot
         self.robot.init_state.pos = (0.0, 2.0, 1.0)
+        self.pendulum.init_state.pos = (-1.0, 1.0, 0.5)
+
         # change asset
         self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
         # change iterations
-        self.robot.spawn.articulation_props.solver_position_iteration_count = 32
-        self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
+        # self.robot.spawn.articulation_props.solver_position_iteration_count = 32
+        # self.robot.spawn.articulation_props.solver_velocity_iteration_count = 32
 
 
 class TestImu(unittest.TestCase):
@@ -112,7 +174,7 @@ class TestImu(unittest.TestCase):
         # Create a new stage
         stage_utils.create_new_stage()
         # Load simulation context
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005)
+        sim_cfg = sim_utils.SimulationCfg(dt=0.001)
         sim_cfg.physx.solver_type = 0  # 0: PGS, 1: TGS --> use PGS for more accurate results
         self.sim = sim_utils.SimulationContext(sim_cfg)
         # construct scene
@@ -141,7 +203,7 @@ class TestImu(unittest.TestCase):
         prev_lin_acc_cube = torch.zeros((self.scene.num_envs, 3), dtype=torch.float32, device=self.scene.device)
         prev_ang_acc_cube = torch.zeros((self.scene.num_envs, 3), dtype=torch.float32, device=self.scene.device)
 
-        for idx in range(1000):
+        for idx in range(200):
             # set velocity
             self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
                 torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
@@ -161,7 +223,7 @@ class TestImu(unittest.TestCase):
             # read data from sim
             self.scene.update(self.sim.get_physics_dt())
 
-            if idx < 1:
+            if idx > 1:
                 # check the imu accelerations
                 torch.testing.assert_close(
                     self.scene.sensors["imu_ball"].data.lin_acc_b,
@@ -175,6 +237,8 @@ class TestImu(unittest.TestCase):
                     rtol=1e-3,
                     atol=1e-3,
                 )
+
+
                 torch.testing.assert_close(
                     self.scene.sensors["imu_cube"].data.lin_acc_b,
                     prev_lin_acc_cube,
@@ -191,7 +255,7 @@ class TestImu(unittest.TestCase):
                 # check the imu velocities
                 torch.testing.assert_close(
                     self.scene.sensors["imu_ball"].data.lin_vel_b,
-                    torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    torch.tensor([[1.0, 0.0, -self.scene.physics_dt*9.81]], dtype=torch.float32, device=self.scene.device).repeat(
                         self.scene.num_envs, 1
                     ),
                     rtol=1e-4,
@@ -199,7 +263,7 @@ class TestImu(unittest.TestCase):
                 )
                 torch.testing.assert_close(
                     self.scene.sensors["imu_cube"].data.lin_vel_b,
-                    torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    torch.tensor([[1.0, 0.0, -self.scene.physics_dt*9.81]], dtype=torch.float32, device=self.scene.device).repeat(
                         self.scene.num_envs, 1
                     ),
                     rtol=1e-4,
@@ -212,52 +276,178 @@ class TestImu(unittest.TestCase):
             prev_lin_acc_cube = self.scene.sensors["imu_cube"].data.lin_acc_b.clone()
             prev_ang_acc_cube = self.scene.sensors["imu_cube"].data.ang_acc_b.clone()
 
-    # def test_constant_acceleration(self):
-    #     """Test the Imu sensor with a constant acceleration."""
-    #     for idx in range(10):
-    #         # set acceleration
-    #         self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
-    #             torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
-    #                 self.scene.num_envs, 1
-    #             )
-    #             * (idx + 1)
-    #         )
-    #         # write data to sim
-    #         self.scene.write_data_to_sim()
-    #         # perform step
-    #         self.sim.step()
-    #         # read data from sim
-    #         self.scene.update(self.sim.get_physics_dt())
+    def test_constant_acceleration(self):
+        """Test the Imu sensor with a constant acceleration."""
+        for idx in range(100):
+            # set acceleration
+            self.scene.rigid_objects["balls"].write_root_velocity_to_sim(
+                torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                    self.scene.num_envs, 1
+                )
+                * (idx + 1)
+            )
+            # write data to sim
+            self.scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            self.scene.update(self.sim.get_physics_dt())
 
-    #         # skip first step where initial velocity is zero
-    #         if idx < 1:
-    #             continue
+            # skip first step where initial velocity is zero
+            if idx < 1:
+                continue
 
-    #         # check the imu data
-    #         torch.testing.assert_close(
-    #             self.scene.sensors["imu_ball"].data.lin_acc_b,
-    #             math_utils.quat_rotate_inverse(
-    #                 self.scene.rigid_objects["balls"].data.root_quat_w,
-    #                 torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
-    #                     self.scene.num_envs, 1
-    #                 )
-    #                 / self.sim.get_physics_dt(),
-    #             ),
-    #             rtol=1e-4,
-    #             atol=1e-4,
-    #         )
+            # check the imu data
+            torch.testing.assert_close(
+                self.scene.sensors["imu_ball"].data.lin_acc_b,
+                math_utils.quat_rotate_inverse(
+                    self.scene.rigid_objects["balls"].data.root_quat_w,
+                    torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
+                        self.scene.num_envs, 1
+                    )
+                    / self.sim.get_physics_dt(),
+                ),
+                rtol=1e-4,
+                atol=1e-4,
+            )
 
-    #         # check the angular velocity
-    #         torch.testing.assert_close(
-    #             self.scene.sensors["imu_ball"].data.ang_vel_b,
-    #             self.scene.rigid_objects["balls"].data.root_ang_vel_b,
-    #             rtol=1e-4,
-    #             atol=1e-4,
-    #         )
+            # check the angular velocity
+            torch.testing.assert_close(
+                self.scene.sensors["imu_ball"].data.ang_vel_b,
+                self.scene.rigid_objects["balls"].data.root_ang_vel_b,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+
+    def test_single_dof_pendulum(self):
+
+        # should achieve same results between the two imu sensors on the robot
+        for idx in range(200):
+            
+            # write data to sim
+            self.scene.write_data_to_sim()
+            # perform step
+            self.sim.step()
+            # read data from sim
+            self.scene.update(self.sim.get_physics_dt())
+
+             # get pendulum joint state
+            joint_pos = self.scene.articulations["pendulum"].data.joint_pos
+            joint_vel = self.scene.articulations["pendulum"].data.joint_vel
+            joint_acc = self.scene.articulations["pendulum"].data.joint_acc
+
+
+
+            lin_vel_w_imu_link = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.lin_vel_b)
+            # lin_vel_w_base = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_base"].data.quat_w,self.scene.sensors["imu_pendulum_base"].data.lin_vel_b)
+            lin_acc_w_imu_link = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.lin_acc_b)
+            # lin_acc_w_base = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_base"].data.quat_w,self.scene.sensors["imu_pendulum_base"].data.lin_acc_b)
+
+
+            joint_vel_imu = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.ang_vel_b)[...,1].unsqueeze(-1)
+            joint_acc_imu = math_utils.quat_rotate(self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,self.scene.sensors["imu_pendulum_imu_link"].data.ang_acc_b)[...,1].unsqueeze(-1)
+            
+            vx = -joint_vel * PEND_POS_OFFSET[0]*torch.sin(joint_pos)
+            vy = torch.zeros(2,1,device=self.scene.device)
+            vz = -joint_vel * PEND_POS_OFFSET[0]*torch.cos(joint_pos)
+            gt_linear_vel_w = torch.cat([vx,vy,vz],dim=-1)
+
+            ax = -joint_acc * PEND_POS_OFFSET[0]*torch.sin(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[0] *torch.cos(joint_pos)
+            ay = torch.zeros(2,1,device=self.scene.device)
+            az = -joint_acc * PEND_POS_OFFSET[0]*torch.cos(joint_pos) - joint_vel**2 * PEND_POS_OFFSET[0] *torch.sin(joint_pos)
+            gt_linear_acc_w = torch.cat([ax,ay,az],dim=-1)
+            
+            # print("joint_vel_error: ", joint_vel_imu-joint_vel)
+            # print("joint_acc_error: ", joint_acc_imu-joint_acc)
+            # print("linear_vel_error:", gt_linear_vel_w - lin_vel_w_imu_link)
+            print("joint_pos:", joint_pos)
+            print("linear_acc:", gt_linear_acc_w )
+            print("linear_acc_error:", gt_linear_acc_w - lin_acc_w_imu_link)
+            # skip first step where initial velocity is zero
+            if idx < 2:
+                continue
+            
+            # compare imu angular velocity with joint velocity
+            torch.testing.assert_close(
+                joint_vel,
+                joint_vel_imu,
+                rtol=1e-1,
+                atol=1e-3,
+            )
+            # compare imu angular acceleration with joint acceleration
+            torch.testing.assert_close(
+                joint_acc,
+                joint_acc_imu,
+                rtol=1e-1,
+                atol=1e-3,
+            )
+            # compare imu linear velocituy with simple pendulum calculation
+            torch.testing.assert_close(
+                gt_linear_vel_w,
+                lin_vel_w_imu_link,
+                rtol=1e-1,
+                atol=1e-3,
+            )
+            # compare imu linear acceleration with simple pendulum calculation
+            torch.testing.assert_close(
+                gt_linear_acc_w,
+                lin_acc_w_imu_link,
+                rtol=2e-1,
+                atol=1e-1,
+            )
+
+            # check the position between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.pos_w,
+                self.scene.sensors["imu_pendulum_imu_link"].data.pos_w,
+                rtol=1e-5,
+                atol=1e-5,
+            )
+
+            # check the orientation between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.quat_w,
+                self.scene.sensors["imu_pendulum_imu_link"].data.quat_w,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+
+            # check the angular velocities of the imus between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.ang_vel_b,
+                self.scene.sensors["imu_pendulum_imu_link"].data.ang_vel_b,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+            # check the angular acceleration of the imus between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.ang_acc_b,
+                self.scene.sensors["imu_pendulum_imu_link"].data.ang_acc_b,
+                rtol=1e-4,
+                atol=1e-4,
+            )
+
+            # check the linear velocity of the imus between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.lin_vel_b,
+                self.scene.sensors["imu_pendulum_imu_link"].data.lin_vel_b,
+                rtol=1e-2,
+                atol=5e-3,
+            )
+
+            # check the linear acceleration of the imus between offset and imu definition
+            torch.testing.assert_close(
+                self.scene.sensors["imu_pendulum_base"].data.lin_acc_b,
+                self.scene.sensors["imu_pendulum_imu_link"].data.lin_acc_b,
+                rtol=1e-1,
+                atol=1e-1, 
+            )
+
+
 
     def test_offset_calculation(self):
         # should achieve same results between the two imu sensors on the robot
-        for idx in range(10):
+        for idx in range(500):
             # set acceleration
             self.scene.articulations["robot"].write_root_velocity_to_sim(
                 torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=self.scene.device).repeat(
