@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from omni.isaac.lab.utils.modifiers import ModifierCfg
+from omni.isaac.lab.utils import modifiers
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -335,21 +335,29 @@ class ObservationManager(ManagerBase):
                 # add term config to list to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+
                 # call function the first time to fill up dimensions
                 obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape[1:])
                 self._group_obs_term_dim[group_name].append(obs_dims)
+
                 # prepare modifiers for each observation
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
-                    for mod in term_cfg.modifiers:
-                        if isinstance(mod, ModifierCfg):
-                            # check if class modifier and initialize with observation size when adding to list of modifiers
-                            if inspect.isclass(term_cfg.func):
-                                mod.func = mod.func(cfg=mod, obs_dim=obs_dims)
+                    for mod_cfg in term_cfg.modifiers:
+                        if isinstance(mod_cfg, modifiers.ModifierCfg):
+                            # check if class modifier and initialize with observation size when adding
+                            # to list of modifiers
+                            if inspect.isclass(mod_cfg.func):
+                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                                    raise TypeError(
+                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
+                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                    )
+                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
                         else:
                             raise TypeError(
-                                f"Configuration of modifier '{mod}' of observation term '{term_name}' is not of"
-                                f" required type ModifierCfg, Received: '{type(mod)}'"
+                                f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
+                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
                             )
 
                 # add term in a separate list if term is a class
