@@ -33,10 +33,10 @@ class ModifierTestCfg:
 
 
 class TestModifiers(unittest.TestCase):
-    """Test stateless modifiers"""
+    """Test different modifiers implementations."""
 
     def test_scale_modifier(self):
-        """Test for Scale modifier"""
+        """Test for Scale modifier."""
         cfg = modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 2.0})
         data = torch.ones(3)
         processed_data = cfg.func(data, **cfg.params)
@@ -46,7 +46,7 @@ class TestModifiers(unittest.TestCase):
         )
 
     def test_bias_modifier(self):
-        """Test for Bias Modifier"""
+        """Test for Bias Modifier."""
         cfg = modifiers.ModifierCfg(func=modifiers.bias, params={"value": 0.5})
         data = torch.ones(3)
         processed_data = cfg.func(data, **cfg.params)
@@ -54,7 +54,7 @@ class TestModifiers(unittest.TestCase):
         self.assertTrue(torch.all(torch.isclose(processed_data - data, torch.ones_like(data) * cfg.params["value"])))
 
     def test_clip_modifier(self):
-        """Test for Clip Modifier"""
+        """Test for Clip Modifier."""
         cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.5, 2.5)})
         data = torch.ones(3)
         processed_data = cfg.func(data, **cfg.params)
@@ -62,8 +62,25 @@ class TestModifiers(unittest.TestCase):
         self.assertTrue(torch.min(processed_data) >= cfg.params["bounds"][0])
         self.assertTrue(torch.max(processed_data) <= cfg.params["bounds"][1])
 
+    def test_clip__no_upper_bound_modifier(self):
+        """Test for Clip Modifier with no upper bound."""
+        cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, None)})
+        data = torch.ones(3)
+        processed_data = cfg.func(data, **cfg.params)
+        self.assertEqual(data.shape, processed_data.shape, msg="modified data shape does not equal original")
+        self.assertTrue(torch.min(processed_data) >= cfg.params["bounds"][0])
+        # self.assertTrue(torch.max(processed_data) < cfg.params["bounds"][1])
+
+    def test_torch_relu_modifier(self):
+        """Test for Torch Relu Modifier."""
+        cfg = modifiers.ModifierCfg(func=torch.nn.functional.relu)
+        data = torch.rand(128, 128, device="cuda")
+        processed_data = cfg.func(data)
+        self.assertEqual(data.shape, processed_data.shape, msg="modified data shape does not equal original")
+        self.assertTrue(torch.all(processed_data >= 0.0))
+
     def test_digital_filter(self):
-        """Test for Digital Filter modifiers"""
+        """Test for Digital Filter modifiers."""
 
         test_cfg = ModifierTestCfg(
             cfg=modifiers.ModifierCfg(
@@ -86,7 +103,7 @@ class TestModifiers(unittest.TestCase):
         self.assertTrue(torch.all(torch.isclose(processed_data, test_cfg.result)))
 
     def test_integral(self):
-        """Test for Integral Modifier"""
+        """Test for Integral Modifier."""
         test_cfg = ModifierTestCfg(
             cfg=modifiers.ModifierCfg(func=modifiers.Integrator, params={"dt": 1.0}),
             init_data=torch.tensor(0.0),
