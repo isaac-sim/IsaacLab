@@ -203,19 +203,13 @@ class ObservationManager(ManagerBase):
         term in the group. The functions are called in the order of the terms in the group. The functions
         are expected to return a tensor with shape (num_envs, ...).
 
-        If a corruption/noise model is registered for a term, the function is called to corrupt
-        the observation. The corruption function is expected to return a tensor with the same
-        shape as the observation. The observations are clipped and scaled as per the configuration
-        settings. If a term contains modifiers (custom functions), they are applied in the order they
-        are specified in the configuration.
-
-        More specifically, the following steps are performed for each observation term:
+        The following steps are performed for each observation term:
 
         1. Compute observation term by calling the function
-        2. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
-        3. Apply clipping based on :attr:`ObservationTermCfg.clip`
-        4. Apply scaling based on :attr:`ObservationTermCfg.scale`
-        5. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        2. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
+        4. Apply clipping based on :attr:`ObservationTermCfg.clip`
+        5. Apply scaling based on :attr:`ObservationTermCfg.scale`
 
         We apply noise to the computed term first to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
@@ -252,15 +246,15 @@ class ObservationManager(ManagerBase):
             # compute term's value
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
             # apply post-processing
+            if term_cfg.modifiers is not None:
+                for modifier in term_cfg.modifiers:
+                    obs = modifier.func(obs, **modifier.params)
             if term_cfg.noise:
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale:
                 obs = obs.mul_(term_cfg.scale)
-            if term_cfg.modifiers is not None:
-                for modifier in term_cfg.modifiers:
-                    obs = modifier.func(obs, **modifier.params)
             # add value to list
             group_obs[name] = obs
 
