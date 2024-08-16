@@ -250,8 +250,9 @@ class Integrator(ModifierBase):
         Returns:
             Integral of input signal. Shape is the same as data.
         """
-
+        # integrate using middle Riemann sum
         self.integral += (data + self.y_prev) / 2 * self.dt
-        self.y_prev = data
+        # update previous value
+        self.y_prev[:] = data
 
         return self.integral
