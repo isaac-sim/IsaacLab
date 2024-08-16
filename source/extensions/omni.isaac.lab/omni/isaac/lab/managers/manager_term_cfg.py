@@ -147,7 +147,14 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 
     modifiers: list[ModifierCfg] | None = None
     """The list of data modifiers to apply to the observation in order. Defaults to None,
-    in which case no modifications will be applied."""
+    in which case no modifications will be applied.
+
+    Modifiers are applied in the order they are specified in the list. They can be stateless
+    or stateful, and can be used to apply transformations to the observation data. For example,
+    a modifier can be used to normalize the observation data or to apply a rolling average.
+
+    For more information on modifiers, see the :class:`~omni.isaac.lab.utils.modifiers.ModifierCfg` class.
+    """
 
 
 @configclass

@@ -48,7 +48,9 @@ class ObservationManager(ManagerBase):
     The observation manager can be used to compute observations for all the groups or for a specific group. The
     observations are computed by calling the registered functions for each term in the group. The functions are
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
-    (num_envs, ...). If a corruption/noise model is registered for a term, the function is called to corrupt
+    (num_envs, ...).
+
+    If a noise model or custom modifier is registered for a term, the function is called to corrupt
     the observation. The corruption function is expected to return a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
     """
@@ -206,10 +208,21 @@ class ObservationManager(ManagerBase):
         If a corruption/noise model is registered for a term, the function is called to corrupt
         the observation. The corruption function is expected to return a tensor with the same
         shape as the observation. The observations are clipped and scaled as per the configuration
-        settings.
+        settings. If a term contains modifiers (custom functions), they are applied in the order they
+        are specified in the configuration.
 
-        The operations are performed in the order: compute, add corruption/noise, clip, scale.
-        By default, no scaling or clipping is applied.
+        More specifically, the following steps are performed for each observation term:
+
+        1. Compute observation term by calling the function
+        2. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
+        3. Apply clipping based on :attr:`ObservationTermCfg.clip`
+        4. Apply scaling based on :attr:`ObservationTermCfg.scale`
+        5. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+
+        We apply noise to the computed term first to maintain the integrity of how noise affects the data
+        as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
+        could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
+        in the data.
 
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
@@ -235,7 +248,8 @@ class ObservationManager(ManagerBase):
         group_obs = dict.fromkeys(group_term_names, None)
         # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-        # evaluate terms: compute, add noise, clip, scale.
+
+        # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for name, term_cfg in obs_terms:
             # compute term's value
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
@@ -251,6 +265,7 @@ class ObservationManager(ManagerBase):
                     obs = modifier.func(obs, **modifier.params)
             # add value to list
             group_obs[name] = obs
+
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             return torch.cat(list(group_obs.values()), dim=-1)
