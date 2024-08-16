@@ -192,12 +192,12 @@ def main():
             project="isaaclab-lift-cube-RGB",
             sync_tensorboard=True,
             config={
-            "rollout": experiment_cfg["agent"]["rollouts"],
-            "learning_epochs": experiment_cfg["agent"]["learning_epochs"],
-            "learning_rate": experiment_cfg["agent"]["learning_rate"],
-            "architecture": ARCH_TYPE.title(),
-            "timesteps": experiment_cfg["trainer"]["timesteps"],
-            "num_envs": args_cli.num_envs,
+                "rollout": experiment_cfg["agent"]["rollouts"],
+                "learning_epochs": experiment_cfg["agent"]["learning_epochs"],
+                "learning_rate": experiment_cfg["agent"]["learning_rate"],
+                "architecture": args_cli.arch_type.title(),
+                "timesteps": experiment_cfg["trainer"]["timesteps"],
+                "num_envs": args_cli.num_envs,
             }
         )
 

@@ -29,12 +29,12 @@ models:
 # PPO agent configuration (field names are from PPO_DEFAULT_CONFIG)
 # https://skrl.readthedocs.io/en/latest/api/agents/ppo.html
 agent:
-  rollouts: 16
+  rollouts: 64 #16
   learning_epochs: 8
-  mini_batches: 8
+  mini_batches: 16 #8
   discount_factor: 0.99
   lambda: 0.95
-  learning_rate: 3.e-4
+  learning_rate: 3.e-3 #3.e-4
   learning_rate_scheduler: "KLAdaptiveLR"
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
@@ -63,5 +63,5 @@ agent:
 # Sequential trainer
 # https://skrl.readthedocs.io/en/latest/api/trainers/sequential.html
 trainer:
-  timesteps: 300000 # 24000
+  timesteps: 300 # 24000
   environment_info: "log"

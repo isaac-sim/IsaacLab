@@ -81,9 +81,9 @@ def approach_gripper_object_to_grasp(
 
     # Check if hand is in a graspable pose
     is_graspable = (rfinger_pos[:, 2] < object_pos[:, 2]) & (lfinger_pos[:, 2] > object_pos[:, 2])
-    #is_approached_in_right_pose = is_graspable * ((offset - lfinger_dist) + (offset - rfinger_dist))
+    is_approached_in_right_pose = is_graspable * ((offset - lfinger_dist) + (offset - rfinger_dist))
 
-    return is_graspable #is_approached_in_right_pose
+    return is_approached_in_right_pose
 
 
 def grasp_object(
@@ -118,7 +118,7 @@ def grasp_object(
 
     return is_grasped
 
-def position_command_error(
+def orientation_command_error(
     env: ManagerBasedRLEnv, 
     command_name: str, 
     asset_cfg: SceneEntityCfg
@@ -140,11 +140,17 @@ def position_command_error(
     
     return quat_error_magnitude(curr_quat_w, des_quat_w)
 
-def orientation_command_error(
+def position_command_error(
     env: ManagerBasedRLEnv, 
     command_name: str, 
     asset_cfg: SceneEntityCfg
 ) -> torch.Tensor:
+    """Penalize tracking of the position error using L2-norm.
+
+    The function computes the position error between the desired position (from the command) and the
+    current position of the asset's body (in world frame). The position error is computed as the L2-norm
+    of the difference between the desired and current positions.
+    """
     # extract the asset (to enable type hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)

@@ -29,6 +29,7 @@ from . import mdp
 # Scene definition
 ##
 
+MIN_HEIGHT_FOR_LIFT = 0.06 # 0.04 by default
 
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
@@ -90,8 +91,6 @@ class CommandsCfg:
             yaw=(0.0, 0.0)
         ),
     )
-
-    ee_pose: mdp.UniformPoseCommandCfg = MISSING
 
 
 @configclass
@@ -170,22 +169,22 @@ class RewardsCfg:
     )
     grasp_object = RewTerm(
         func=mdp.grasp_object,
-        weight=7.0,
+        weight=10.0,
         params={
-            "threshold": 0.03,
+            "threshold": 0.04,
             "open_joint_pos": MISSING,
             "asset_cfg": SceneEntityCfg("robot", joint_names=MISSING),
         },
     )
 
     # Lifting
-    lifting_object = RewTerm(
-        func=mdp.object_is_lifted, 
-        params={
-            "minimal_height": 0.04
-        }, 
-        weight=15.0,
-    )
+    # lifting_object = RewTerm(
+    #     func=mdp.object_is_lifted, 
+    #     params={
+    #         "minimal_height": MIN_HEIGHT_FOR_LIFT
+    #     }, 
+    #     weight=15.0,
+    # )
 
     # Lift object above a certain height
     object_goal_tracking = RewTerm(
@@ -207,11 +206,11 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "object_pose"},
     )
 
-    end_effector_orientation_tracking = RewTerm(
-        func=mdp.orientation_command_error,
-        weight=-0.05,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "object_pose"},
-    )
+    # end_effector_orientation_tracking = RewTerm(
+    #     func=mdp.orientation_command_error,
+    #     weight=-0.05,
+    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "object_pose"},
+    # )
 
     # action penalty
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
@@ -243,8 +242,12 @@ class TerminationsCfg:
         func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object")}
     )
 
+    # NOTE: EXPERIMENTAL
+    succes = DoneTerm(
+        func=mdp.is_object_is_lifted, params={"minimal_height": MIN_HEIGHT_FOR_LIFT}
+    )
 
-# TODO: Explore further
+
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
@@ -256,7 +259,7 @@ class CurriculumCfg:
         params={
             "term_name": "reaching_object", 
             "weight": 1.0,
-            "num_steps": 100 #10000
+            "num_steps": 1000 #10000
         })
     
     # (2) grasping the object
@@ -266,26 +269,26 @@ class CurriculumCfg:
         params={
             "term_name": "grasp_object", 
             "weight": 1.0,
-            "num_steps": 10000
+            "num_steps": 5000
         })
 
     # (3) lifting the object
     # NOTE: EXPERIMENTAL
-    lifting_object = CurrTerm(
-        func=mdp.modify_reward_weight, 
-        params={
-            "term_name": "lifting_object", 
-            "weight": 1.0,
-            "num_steps": 30000
-        })
-    
     object_goal_tracking = CurrTerm(
         func=mdp.modify_reward_weight, 
         params={
             "term_name": "object_goal_tracking", 
             "weight": 1.0,
-            "num_steps": 50000
+            "num_steps": 10000
         })
+    
+    # object_goal_tracking = CurrTerm(
+    #     func=mdp.modify_reward_weight, 
+    #     params={
+    #         "term_name": "object_goal_tracking", 
+    #         "weight": 1.0,
+    #         "num_steps": 50000
+    #     })
 
     action_rate = CurrTerm(
         func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -0.005, "num_steps": 4500}
@@ -323,8 +326,8 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 5.0
         # simulation settings
-        #self.sim.dt = 0.01  # 100Hz
-        self.sim.dt = 1.0 / 60.0
+        self.sim.dt = 0.01  # 100Hz
+        #self.sim.dt = 1.0 / 60.0
         self.sim.render_interval = self.decimation
 
         self.sim.physx.bounce_threshold_velocity = 0.2

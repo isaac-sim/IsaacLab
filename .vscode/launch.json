@@ -66,6 +66,26 @@
             
         },
 
+        {
+            "name": "Debug param search skrl (RGB)",
+            "type": "debugpy",
+            "request": "launch",
+            "preLaunchTask": "",
+            "program": "${workspaceFolder}/source/standalone/workflows/skrl/param_search_rgb.py",
+            "args": [
+                "--task", "Isaac-Lift-Cube-Franka-v0-RGB",
+                "--num_envs", "2", // Modify here
+                "--headless",
+                "--enable_cameras",
+                "--arch_type", "cnn-rgb-state", // Modify here
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {},
+            "python": "/home/filip-grigorov/.conda/envs/isaaclab/bin/python",
+            
+        },
+
 
         // SB3
         {

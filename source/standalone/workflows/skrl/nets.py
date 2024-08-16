@@ -180,16 +180,16 @@ class AttentionGRUCNNMixNet(nn.Module):
 
         self.cnn = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=8, stride=4),
-            nn.ReLU(),
+            nn.SiLU(),
             nn.BatchNorm2d(32),
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
+            nn.SiLU(),
             nn.BatchNorm2d(64),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU(),
+            nn.SiLU(),
             nn.BatchNorm2d(64),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU(),
+            nn.SiLU(),
             nn.BatchNorm2d(64),
             nn.AdaptiveAvgPool2d((2, 2)),
             nn.Flatten(),
@@ -222,22 +222,27 @@ class AttentionGRUCNNMixNet(nn.Module):
 
             self.fc = nn.Sequential(
                 nn.Linear(sample_linear_output.shape[-1] + sample_cnn_output.shape[-1], 512),
-                nn.ReLU(),
+                nn.ELU(),
                 nn.Linear(512, 16),
-                nn.Tanh(),
+                nn.ELU(),
                 nn.Linear(16, 64),
-                nn.Tanh(),
+                nn.ELU(),
                 nn.Linear(64, 64),
                 nn.Tanh(),
             )
 
     def forward(self, x):
         img = x["cam_data"].float()
-        if DEBUG:
-            print(f"{img.mean()}+-{img.std()}: [{img.min()}, {img.max()}]")
         joint_pos = x["joint_pos"]
         joint_vel = x["joint_vel"]
         last_action = x["last_action"]
+
+        if DEBUG:
+            print(f"{img.mean()}+-{img.std()}: [{img.min()}, {img.max()}]")
+            print(f"{joint_pos.mean()}+-{joint_pos.std()}: [{joint_pos.min()}, {joint_pos.max()}]")
+            print(f"{joint_vel.mean()}+-{joint_vel.std()}: [{joint_vel.min()}, {joint_vel.max()}]")
+            print(f"{last_action.mean()}+-{last_action.std()}: [{last_action.min()}, {last_action.max()}]")
+        
         states = torch.cat([joint_pos, joint_vel, last_action], dim=1)
         linear_out = self.linear(states)
 

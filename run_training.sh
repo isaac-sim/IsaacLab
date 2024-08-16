@@ -1,5 +1,5 @@
 MODE=$1
-NUM_ENVS=32
+NUM_ENVS=15 #32
 VIDEO_LEN=200
 VIDEO_INTERVAL=500
 PATH_TO_CHECKPOINT="./logs/skrl/franka_lift/2024-08-06_22-22-33/checkpoints/best_agent.pt"
@@ -9,11 +9,11 @@ if [ $MODE = "train_rgb_and_state" ]; then
     python source/standalone/workflows/skrl/train_rgb.py \
     --task Isaac-Lift-Cube-Franka-v0-RGB \
     --num_envs $NUM_ENVS \
-    --arch_type attention_gru_cnn-rgb-state \
+    --arch_type large_model-rgb-state \
     --headless \
     --enable_cameras \
-    --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL #\
-    --wandb \
+    --video --video_length $VIDEO_LEN --video_interval $VIDEO_INTERVAL \
+    #--wandb \
     #--checkpoint /PATH/TO/model.pt
 
 elif [ $MODE = "train_state" ]; then

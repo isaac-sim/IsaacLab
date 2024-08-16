@@ -72,6 +72,15 @@ def root_height_below_minimum(
     return asset.data.root_pos_w[:, 2] < minimum_height
 
 
+def is_object_is_lifted(
+    env: ManagerBasedRLEnv, minimal_height: float, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
+) -> torch.Tensor:
+    """Reward the agent for lifting the object above the minimal height."""
+    object: RigidObject = env.scene[object_cfg.name]
+    is_lifted = object.data.root_pos_w[:, 2] > minimal_height
+    return is_lifted
+
+
 """
 Joint terminations.
 """
