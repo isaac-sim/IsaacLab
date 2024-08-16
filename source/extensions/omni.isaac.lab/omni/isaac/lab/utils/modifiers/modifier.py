@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-from __future__ import annotations
 
 import torch
 from abc import ABC, abstractmethod
@@ -10,9 +9,9 @@ from collections.abc import Sequence
 
 from .modifier_cfg import ModifierCfg
 
-#
+##
 # Sample of common modifiers functions
-#
+##
 
 
 def scale(data: torch.Tensor, multiplier: float) -> torch.Tensor:
@@ -28,17 +27,18 @@ def scale(data: torch.Tensor, multiplier: float) -> torch.Tensor:
     return data * multiplier
 
 
-def clip(data: torch.Tensor, bounds: tuple[float, float]) -> torch.Tensor:
+def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch.Tensor:
     """Clips the data to a minimum and maximum value.
 
     Args:
         data: The data to apply the clip to.
-        bounds: Minimum and maximum values to clip by.
+        bounds: A tuple containing the minimum and maximum values to clip data to.
+            If the value is None, that bound is not applied.
 
     Returns:
         Clipped data. Shape is the same as data.
     """
-    return data.clip_(min=bounds[0], max=bounds[1])
+    return data.clip(min=bounds[0], max=bounds[1])
 
 
 def bias(data: torch.Tensor, value: float) -> torch.Tensor:
@@ -54,9 +54,9 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
     return data + value
 
 
-#
+##
 # Sample of class based modifiers
-#
+##
 
 
 class ModifierBase(ABC):
@@ -67,15 +67,15 @@ class ModifierBase(ABC):
 
     Modifiers can be used to apply custom data tensor modification/corruptions/augmentations to data in place.
 
-    Example pseudo-code to create and use a Modifier class:
+    Example pseudo-code to create and use the class:
+
     .. code-block:: python
 
         from omni.isaac.lab.utils import modifiers
 
         # define custom keyword arguments to pass to ModifierCfg
         # kwargs will be used by class in self._cfg
-        kwarg_dict = {"arg_1" : VAL_1,
-                      "arg_2" : VAL_2}
+        kwarg_dict = {"arg_1" : VAL_1, "arg_2" : VAL_2}
 
         modifier_config = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params=kwarg_dict)
 
@@ -112,7 +112,7 @@ class ModifierBase(ABC):
             data: The data to be modified.
 
         Returns:
-            Modified data. Shape is the same as data.
+            Modified data. Shape is the same as the input data.
         """
         raise NotImplementedError
 
@@ -190,7 +190,7 @@ class DigitalFilter(ModifierBase):
         # create class instance
         my_delay = modifiers.Modifier(cfg=my_modifier_cfg)
 
-    .. warning:: filter coefficients :math:`A` and :math:`B` must not be None.
+    .. warning:: The filter coefficients :math:`A` and :math:`B` must not be None.
 
 
     Extra explanation on digital filters and other filter types can be found at: https://en.wikipedia.org/wiki/Digital_filter
