@@ -12,7 +12,7 @@ from . import joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
 
 
 @configclass

@@ -16,7 +16,7 @@ from omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg imp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.cassie import CASSIE_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.cassie import CASSIE_CFG  # isort: skip
 
 
 @configclass

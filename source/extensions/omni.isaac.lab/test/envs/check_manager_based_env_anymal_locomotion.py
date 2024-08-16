@@ -54,7 +54,7 @@ from omni.isaac.lab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 # Pre-defined configs
 ##
 from omni.isaac.lab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 ##

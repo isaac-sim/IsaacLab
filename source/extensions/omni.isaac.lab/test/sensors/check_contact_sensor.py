@@ -49,7 +49,7 @@ from omni.isaac.lab.sensors.contact_sensor import ContactSensor, ContactSensorCf
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG  # isort:skip
+from omni.isaac.lab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
 
 """

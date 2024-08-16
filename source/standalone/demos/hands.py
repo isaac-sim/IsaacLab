@@ -44,7 +44,7 @@ from omni.isaac.lab.assets import Articulation
 # Pre-defined configs
 ##
 from omni.isaac.lab_assets.allegro import ALLEGRO_HAND_CFG  # isort:skip
-from omni.isaac.lab_assets.shadow_hand import SHADOW_HAND_CFG  # isort:skip
+from omni.isaac.lab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

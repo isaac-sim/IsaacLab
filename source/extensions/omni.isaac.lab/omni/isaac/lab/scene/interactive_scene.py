@@ -52,7 +52,7 @@ class InteractiveScene:
         from omni.isaac.lab.scene import InteractiveSceneCfg
         from omni.isaac.lab.utils import configclass
 
-        from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG
+        from omni.isaac.lab_assets.robots.anymal import ANYMAL_C_CFG
 
         @configclass
         class MySceneCfg(InteractiveSceneCfg):

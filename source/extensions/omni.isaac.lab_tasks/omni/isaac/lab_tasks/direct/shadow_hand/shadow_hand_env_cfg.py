@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from omni.isaac.lab_assets.shadow_hand import SHADOW_HAND_CFG
+from omni.isaac.lab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 import omni.isaac.lab.envs.mdp as mdp
 import omni.isaac.lab.sim as sim_utils

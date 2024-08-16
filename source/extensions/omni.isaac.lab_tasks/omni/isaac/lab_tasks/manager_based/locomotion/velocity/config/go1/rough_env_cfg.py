@@ -10,7 +10,7 @@ from omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg imp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.unitree import UNITREE_GO1_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.unitree import UNITREE_GO1_CFG  # isort: skip
 
 
 @configclass

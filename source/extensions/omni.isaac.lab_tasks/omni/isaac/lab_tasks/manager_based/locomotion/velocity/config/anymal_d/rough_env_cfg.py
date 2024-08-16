@@ -10,7 +10,7 @@ from omni.isaac.lab_tasks.manager_based.locomotion.velocity.velocity_env_cfg imp
 ##
 # Pre-defined configs
 ##
-from omni.isaac.lab_assets.anymal import ANYMAL_D_CFG  # isort: skip
+from omni.isaac.lab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 
 @configclass
