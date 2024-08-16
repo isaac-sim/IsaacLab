@@ -271,7 +271,7 @@ class RayCasterCamera(RayCaster):
             ray_starts_w,
             ray_directions_w,
             mesh=RayCasterCamera.meshes[self.cfg.mesh_prim_paths[0]],
-            max_dist=self.cfg.max_distance,
+            max_dist=1e6,
             return_distance=any(
                 [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
             ),
@@ -286,9 +286,11 @@ class RayCasterCamera(RayCaster):
                     (ray_depth[:, :, None] * ray_directions_w),
                 )
             )[:, :, 0]
+            # apply the maximum distance after the transformation
+            distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
             self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(-1, *self.image_shape)
         if "distance_to_camera" in self.cfg.data_types:
-            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape)
+            self._data.output["distance_to_camera"][env_ids] = torch.clip(ray_depth.view(-1, *self.image_shape), max=self.cfg.max_distance)
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
 

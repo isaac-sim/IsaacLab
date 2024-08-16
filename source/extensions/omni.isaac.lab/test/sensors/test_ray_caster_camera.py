@@ -84,7 +84,7 @@ class TestWarpCamera(unittest.TestCase):
         sim_cfg = sim_utils.SimulationCfg(dt=self.dt)
         self.sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
         # Ground-plane
-        mesh = make_plane(size=(2e1, 2e1), height=0.0, center_zero=True)
+        mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
         create_prim_from_mesh("/World/defaultGroundPlane", mesh)
         # load stage
         stage_utils.update_stage()
@@ -249,15 +249,11 @@ class TestWarpCamera(unittest.TestCase):
         torch.testing.assert_close(
             camera_1.data.output["distance_to_image_plane"],
             camera_2.data.output["distance_to_image_plane"],
-            rtol=5e-3,
-            atol=1e-4,
         )
         # check that both intrinsic matrices are the same
         torch.testing.assert_close(
             camera_1.data.intrinsic_matrices[0],
             camera_2.data.intrinsic_matrices[0],
-            rtol=5e-3,
-            atol=1e-4,
         )
 
     def test_multi_camera_init(self):
@@ -358,11 +354,7 @@ class TestWarpCamera(unittest.TestCase):
             # update camera
             camera.update(self.dt)
             # Check that matrix is correct
-            # TODO: This is not correctly setting all values in the matrix since the
-            #       vertical aperture and aperture offsets are not being set correctly
-            #       This is a bug in the simulator.
-            torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-            # torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
+            torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
 
     def test_throughput(self):
         """Checks that the single camera gets created properly with a rig."""
@@ -468,19 +460,36 @@ class TestWarpCamera(unittest.TestCase):
         camera_usd.update(self.dt)
         camera_warp.update(self.dt)
 
+        # check the intrinsic matrices
+        torch.testing.assert_close(
+            camera_usd.data.intrinsic_matrices, 
+            camera_warp.data.intrinsic_matrices,
+        )
+
+        # check the apertures
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+            camera_cfg_warp.pattern_cfg.horizontal_aperture,
+        )
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
+            camera_cfg_warp.pattern_cfg.vertical_aperture,
+        )
+
         # check image data
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_image_plane"],
             camera_warp.data.output["distance_to_image_plane"],
-            rtol=5e-3,
-            atol=1e-4,
         )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],
             camera_warp.data.output["distance_to_camera"],
-            rtol=5e-3,
-            atol=1e-4,
+            atol=5e-5,
+            rtol=5e-6,
         )
+
+        # check normals
+        # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
         torch.testing.assert_close(
             camera_usd.data.output["normals"][..., :3],
             camera_warp.data.output["normals"],
@@ -540,15 +549,14 @@ class TestWarpCamera(unittest.TestCase):
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_image_plane"],
             camera_warp.data.output["distance_to_image_plane"],
-            rtol=5e-3,
-            atol=1e-4,
         )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],
             camera_warp.data.output["distance_to_camera"],
-            rtol=5e-3,
-            atol=1e-4,
         )
+
+        # check normals
+        # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
         torch.testing.assert_close(
             camera_usd.data.output["normals"][..., :3],
             camera_warp.data.output["normals"],
@@ -627,15 +635,16 @@ class TestWarpCamera(unittest.TestCase):
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_image_plane"],
             camera_warp.data.output["distance_to_image_plane"],
-            rtol=5e-3,
-            atol=1e-4,
         )
         torch.testing.assert_close(
             camera_usd.data.output["distance_to_camera"],
             camera_warp.data.output["distance_to_camera"],
-            rtol=5e-3,
-            atol=1e-4,
+            rtol=4e-6,
+            atol=2e-5,
         )
+
+        # check normals
+        # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
         torch.testing.assert_close(
             camera_usd.data.output["normals"][..., :3],
             camera_warp.data.output["normals"],
@@ -655,6 +664,7 @@ class TestWarpCamera(unittest.TestCase):
             prim_path="/World/Camera_warp",
             mesh_prim_paths=["/World/defaultGroundPlane"],
             offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+            debug_vis=False,
         )
         camera_usd_cfg = ZED_X_NARROW_USD_CFG.replace(
             prim_path="/World/Camera_usd",
@@ -691,15 +701,25 @@ class TestWarpCamera(unittest.TestCase):
 
         # check that both have the same intrinsic matrices
         torch.testing.assert_close(
-            camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0], rtol=5e-3, atol=1e-4
+            camera_warp.data.intrinsic_matrices[0], camera_usd.data.intrinsic_matrices[0]
         )
 
+        # check the apertures
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetHorizontalApertureAttr().Get(),
+            camera_warp_cfg.pattern_cfg.horizontal_aperture,
+        )
+        torch.testing.assert_close(
+            camera_usd._sensor_prims[0].GetVerticalApertureAttr().Get(),
+            camera_warp_cfg.pattern_cfg.vertical_aperture,
+        )
+        
         # check image data
         torch.testing.assert_close(
             cam_warp_output,
             cam_usd_output,
-            rtol=5e-3,
-            atol=1e-4,
+            atol=5e-5,
+            rtol=5e-6,
         )
 
 
