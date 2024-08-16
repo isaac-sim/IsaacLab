@@ -26,7 +26,6 @@ __version__ = ISAACLAB_ASSETS_METADATA["package"]["version"]
 # Configuration for different assets.
 ##
 
-# robots
 from .allegro import *
 from .ant import *
 from .anymal import *
