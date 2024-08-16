@@ -36,11 +36,6 @@ from omni.isaac.lab.terrains.utils import create_prim_from_mesh
 from omni.isaac.lab.utils import convert_dict_to_backend
 from omni.isaac.lab.utils.timer import Timer
 
-##
-# Pre-defined configs
-##
-from omni.isaac.lab_assets import ZED_X_NARROW_RAYCASTER_CFG, ZED_X_NARROW_USD_CFG  # isort: skip
-
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [-0.17591989, 0.33985114, 0.82047325, -0.42470819]
@@ -658,18 +653,39 @@ class TestWarpCamera(unittest.TestCase):
 
         # create cameras
         offset_rot = [-0.1251, 0.3617, 0.8731, -0.3020]
+        offset_pos = (2.5, 2.5, 4.0)
+        intrinsics = [380.0831, 0.0, 467.7916, 0.0, 380.0831, 262.0532, 0.0, 0.0, 1.0]
         prim_utils.create_prim("/World/Camera_warp", "Xform")
         # get camera cfgs
-        camera_warp_cfg = ZED_X_NARROW_RAYCASTER_CFG.replace(
+        camera_warp_cfg = RayCasterCameraCfg(
             prim_path="/World/Camera_warp",
             mesh_prim_paths=["/World/defaultGroundPlane"],
-            offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+            offset=RayCasterCameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
             debug_vis=False,
+            pattern_cfg=patterns.PinholeCameraPatternCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+            ),
+            max_distance=20.0,
+            data_types=["distance_to_image_plane"],
         )
-        camera_usd_cfg = ZED_X_NARROW_USD_CFG.replace(
+        camera_usd_cfg = CameraCfg(
             prim_path="/World/Camera_usd",
-            offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
+            spawn=PinholeCameraCfg().from_intrinsic_matrix(
+                focal_length=38.0,
+                intrinsic_matrix=intrinsics,
+                height=540,
+                width=960,
+                clipping_range=(0.01, 20),
+            ),
+            height=540,
+            width=960,
+            data_types=["distance_to_image_plane"],
         )
+
         # set aperture offsets to 0, as currently not supported for usd camera
         camera_warp_cfg.pattern_cfg.horizontal_aperture_offset = 0
         camera_warp_cfg.pattern_cfg.vertical_aperture_offset = 0
