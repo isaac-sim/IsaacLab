@@ -36,15 +36,18 @@ class ModifierBase(ABC):
 
     """
 
-    def __init__(self, cfg: ModifierCfg, obs_dim: tuple[int]) -> None:
+    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
         """Initializes the modifier class.
 
         Args:
             cfg: Configuration parameters.
-            obs_dim: Observation shape.
+            data_dim: The dimensions of the data to be modified. First element is the batch size
+                which usually corresponds to number of environments in the simulation.
+            device: The device to run the modifier on.
         """
         self._cfg = cfg
-        self._obs_dim = obs_dim
+        self._data_dim = data_dim
+        self._device = device
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -61,7 +64,7 @@ class ModifierBase(ABC):
         """Abstract method for defining the modification function.
 
         Args:
-            data: The data to be modified.
+            data: The data to be modified. Shape should match the data_dim passed during initialization.
 
         Returns:
             Modified data. Shape is the same as the input data.

@@ -6,11 +6,11 @@
 import torch
 from collections.abc import Sequence
 
-from .modifier_cfg import ModifierCfg
 from .modifier_base import ModifierBase
+from .modifier_cfg import ModifierCfg
 
 ##
-# Sample of common modifiers functions
+# Modifiers as functions
 ##
 
 
@@ -64,7 +64,12 @@ class DigitalFilter(ModifierBase):
 
     **Z-transform:**
 
-    .. math::  \begin{equation}H(z)=\frac{Y(z)}{X(z)} = \frac{b_{0} + b_{1}z^{-1} + b_{2}z{^-2} ... b_{N}z^{-N}}{1 + a_{1}z^{-1} + a_{2}z^{-2} ... a_{M}z^{-M}}\end{equation}
+    .. math::
+        \begin{equation}
+            H(z)
+            = \frac{Y(z)}{X(z)}
+            = \frac{b_{0} + b_{1}z^{-1} + b_{2}z{^-2} ... b_{N}z^{-N}}{1 + a_{1}z^{-1} + a_{2}z^{-2} ... a_{M}z^{-M}}
+        \end{equation}
 
     **Linear difference form:**
 
@@ -79,7 +84,7 @@ class DigitalFilter(ModifierBase):
     is up to the user. Examples below will show how to setup filter coefficients for common filters like a first order IIR low-pass filter
     and a unit delay function.
 
-    **Example: First order IIR lowpass filter**
+    **Example: First order IIR low-pass filter**
 
     Because digital filters act on discrete signals, the timestep, :math:`\Delta t` is used to calculate desired cut-off frequencies
     of filters. For a first order IIR lowpass filter the transfer function equation simplifies to:
@@ -138,19 +143,36 @@ class DigitalFilter(ModifierBase):
     Extra explanation on digital filters and other filter types can be found at: https://en.wikipedia.org/wiki/Digital_filter
     """
 
-    def __init__(self, cfg: ModifierCfg, obs_dim: tuple[int]) -> None:
+    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
         """Initializes digital filter.
 
         Args:
             cfg: Configuration parameters.
-            obs_dim: Observation shape.
-        """
+            data_dim: The dimensions of the data to be modified. First element is the batch size
+                which usually corresponds to number of environments in the simulation.
+            device: The device to run the modifier on.
 
-        super().__init__(cfg, obs_dim)
+        Raises:
+            ValueError: If filter coefficients are None.
+        """
+        # initialize parent class
+        super().__init__(cfg, data_dim, device)
+
+        # check if params has the required coefficients
+        if "A" not in self._cfg.params or "B" not in self._cfg.params:
+            raise ValueError("Digital filter configuration must have 'A' and 'B' keys in the params dictionary.")
+
+        # assign filter coefficients
         self.A = self._cfg.params["A"]
         self.B = self._cfg.params["B"]
-        self.x_n = torch.zeros(self._obs_dim + (self.B.shape[0],))
-        self.y_n = torch.zeros(self._obs_dim + (self.A.shape[0],))
+
+        # check that filter coefficients are not None
+        if self.A is None or self.B is None:
+            raise ValueError("Digital filter coefficients A and B must not be None. Please provide valid coefficients.")
+
+        # create buffer for input and output history
+        self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
+        self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets digital filter history.
@@ -175,7 +197,6 @@ class DigitalFilter(ModifierBase):
         Returns:
             Filtered data. Shape is the same as data.
         """
-
         # move history window for input
         self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
         self.x_n[..., 0] = data
@@ -196,7 +217,7 @@ class DigitalFilter(ModifierBase):
 
 
 class Integrator(ModifierBase):
-    """Modifier that applies a numerical forward integration to input data using a middle reimann sum integrator.
+    """Modifier that applies a numerical forward integration based on a middle Reimann sum.
 
     **Usage:**
 
@@ -214,17 +235,26 @@ class Integrator(ModifierBase):
     Reference: https://en.wikipedia.org/wiki/Riemann_sum
     """
 
-    def __init__(self, cfg: ModifierCfg, obs_dim: tuple[int]):
+    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str):
         """Initializes the integrator configuration and state.
 
         Args:
             cfg: Integral parameters.
-            obs_dim: Observation shape.
+            data_dim: The dimensions of the data to be modified. First element is the batch size
+                which usually corresponds to number of environments in the simulation.
+            device: The device to run the modifier on.
         """
+        # initialize parent class
+        super().__init__(cfg, data_dim, device)
 
-        super().__init__(cfg, obs_dim)
-        self.integral = torch.zeros(self._obs_dim)
-        self.y_prev = torch.zeros(self._obs_dim)
+        # check if params has the required dt key
+        if "dt" not in self._cfg.params:
+            raise ValueError("Integrator configuration must have a 'dt' key in the params dictionary.")
+
+        # assign buffer for integral and previous value
+        self.integral = torch.zeros(self._data_dim, device=self._device)
+        self.y_prev = torch.zeros(self._data_dim, device=self._device)
+        # store time step
         self.dt = self._cfg.params["dt"]
 
     def reset(self, env_ids: Sequence[int] | None = None):
