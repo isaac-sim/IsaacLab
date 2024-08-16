@@ -171,11 +171,9 @@ class ObservationManager(ManagerBase):
         for group_cfg in self._group_obs_class_term_cfgs.values():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
-                # reset modifiers if they are callable classes
-                if term_cfg.modifiers is not None:
-                    for mod in term_cfg.modifiers:
-                        if inspect.isclass(mod.func):
-                            mod.func.reset(env_ids=env_ids)
+        # call all modifiers that are classes
+        for mod in self._group_obs_class_modifiers:
+            mod.reset(env_ids=env_ids)
         # nothing to log here
         return {}
 
@@ -286,6 +284,10 @@ class ObservationManager(ManagerBase):
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
         self._group_obs_concatenate: dict[str, bool] = dict()
 
+        # create a list to store modifiers that are classes
+        # we store it as a separate list to only call reset on them and prevent unnecessary calls
+        self._group_obs_class_modifiers: list[modifiers.ModifierBase] = list()
+
         # check if config is dict already
         if isinstance(self.cfg, dict):
             group_cfg_items = self.cfg.items()
@@ -354,6 +356,9 @@ class ObservationManager(ManagerBase):
                                         f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                     )
                                 mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+
+                                # add to list of class modifiers
+                                self._group_obs_class_modifiers.append(mod_cfg.func)
                         else:
                             raise TypeError(
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
