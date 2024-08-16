@@ -95,11 +95,12 @@ class TestObservationManager(unittest.TestCase):
 
     def setUp(self) -> None:
         # set up the environment
+        self.dt = 0.01
         self.num_envs = 20
         self.device = "cuda:0"
         # create dummy environment
-        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data"])(
-            self.num_envs, self.device, MyDataClass(self.num_envs, self.device)
+        self.env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt"])(
+            self.num_envs, self.device, MyDataClass(self.num_envs, self.device), self.dt
         )
 
     def test_str(self):
@@ -382,6 +383,7 @@ class TestObservationManager(unittest.TestCase):
         modifier_1 = modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})
         modifier_2 = modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 2.0})
         modifier_3 = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (-0.5, 0.5)})
+        modifier_4 = modifiers.IntegratorCfg(dt=self.env.dt)
 
         @configclass
         class MyObservationManagerCfg:
@@ -394,6 +396,7 @@ class TestObservationManager(unittest.TestCase):
                 concatenate_terms = False
                 term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
                 term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
+                term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
 
             @configclass
             class CriticCfg(ObservationGroupCfg):
