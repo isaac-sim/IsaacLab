@@ -96,7 +96,7 @@ class MySceneCfg(InteractiveSceneCfg):
     def __post_init__(self):
         """Post initialization."""
         # change position of the robot
-        self.robot.init_state.pos = (0.0, 2.0, 0.5)
+        self.robot.init_state.pos = (0.0, 2.0, 1.0)
         # change asset
         self.robot.spawn.usd_path = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac/Robots/ANYbotics/anymal_c.usd"
         # change iterations
