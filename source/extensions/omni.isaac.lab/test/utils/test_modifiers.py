@@ -120,11 +120,11 @@ class TestModifiers(unittest.TestCase):
 
     def test_digital_filter(self):
         """Test for digital filter modifier."""
-        # create a modifier configuration
-        modifier_cfg = modifiers.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5])
-
         for device in ["cpu", "cuda"]:
             with self.subTest(device=device):
+                # create a modifier configuration
+                modifier_cfg = modifiers.DigitalFilterCfg(A=[0.0, 0.1], B=[0.5, 0.5])
+
                 # create a test configuration
                 test_cfg = ModifierTestCfg(
                     cfg=modifier_cfg,
@@ -158,11 +158,12 @@ class TestModifiers(unittest.TestCase):
 
     def test_integral(self):
         """Test for integral modifier."""
-        # create a modifier configuration
-        modifier_cfg = modifiers.IntegratorCfg(dt=1.0)
-
         for device in ["cpu", "cuda"]:
             with self.subTest(device=device):
+                # create a modifier configuration
+                modifier_cfg = modifiers.IntegratorCfg(dt=1.0)
+
+                # create a test configuration
                 test_cfg = ModifierTestCfg(
                     cfg=modifier_cfg,
                     init_data=torch.tensor([0.0], device=device).unsqueeze(1),

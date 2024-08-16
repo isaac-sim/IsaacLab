@@ -49,6 +49,8 @@ class DigitalFilterCfg(ModifierCfg):
     These correspond to the weights of the past outputs of the filter. The first element is the coefficient
     for the output at the previous time step, the second element is the coefficient for the output at two
     time steps ago, and so on.
+
+    It is the denominator coefficients of the transfer function of the filter.
     """
 
     B: list[float] = MISSING
@@ -57,6 +59,8 @@ class DigitalFilterCfg(ModifierCfg):
     These correspond to the weights of the current and past inputs of the filter. The first element is the
     coefficient for the current input, the second element is the coefficient for the input at the previous
     time step, and so on.
+
+    It is the numerator coefficients of the transfer function of the filter.
     """
 
 
