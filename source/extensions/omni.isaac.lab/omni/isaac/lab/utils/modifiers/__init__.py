@@ -50,4 +50,5 @@ Usage with custom modifier configuration:
 """
 
 from .modifier import *
+from .modifier_base import ModifierBase  # noqa: F401
 from .modifier_cfg import *

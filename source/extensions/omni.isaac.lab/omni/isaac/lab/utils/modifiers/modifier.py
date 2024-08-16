@@ -4,10 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import torch
-from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from .modifier_cfg import ModifierCfg
+from .modifier_base import ModifierBase
 
 ##
 # Sample of common modifiers functions
@@ -57,64 +57,6 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
 ##
 # Sample of class based modifiers
 ##
-
-
-class ModifierBase(ABC):
-    """Base class for modifiers implemented as classes.
-
-    Modifiers used in the :class:`ObservationCfg` can be functions or classes. If the modifier is a class
-    it should inherit from this class and implement the required methods.
-
-    Modifiers can be used to apply custom data tensor modification/corruptions/augmentations to data in place.
-
-    Example pseudo-code to create and use the class:
-
-    .. code-block:: python
-
-        from omni.isaac.lab.utils import modifiers
-
-        # define custom keyword arguments to pass to ModifierCfg
-        # kwargs will be used by class in self._cfg
-        kwarg_dict = {"arg_1" : VAL_1, "arg_2" : VAL_2}
-
-        modifier_config = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params=kwarg_dict)
-
-        # define modifier instance
-        my_modifier = modifiers.Modifier(cfg=modifier_config)
-
-    """
-
-    def __init__(self, cfg: ModifierCfg, obs_dim: tuple[int]) -> None:
-        """Initializes the modifier class.
-
-        Args:
-            cfg: Configuration parameters.
-            obs_dim: Observation shape.
-        """
-        self._cfg = cfg
-        self._obs_dim = obs_dim
-
-    @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None):
-        """Resets the Modifier.
-
-        Args:
-            env_ids: The environment ids. Defaults to None, in which case
-                all environments are considered.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        """Abstract method for defining the modification function.
-
-        Args:
-            data: The data to be modified.
-
-        Returns:
-            Modified data. Shape is the same as the input data.
-        """
-        raise NotImplementedError
 
 
 class DigitalFilter(ModifierBase):
