@@ -162,11 +162,10 @@ class DigitalFilter(ModifierBase):
                 all environments are considered.
         """
         if env_ids is None:
-            self.x_n.zero_()
-            self.y_n.zero_()
-        else:
-            self.x_n[env_ids].zero_()
-            self.y_n[env_ids].zero_()
+            env_ids = slice(None)
+        # reset history buffers
+        self.x_n[env_ids] = 0.0
+        self.y_n[env_ids] = 0.0
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
@@ -238,11 +237,10 @@ class Integrator(ModifierBase):
                 all environments are considered.
         """
         if env_ids is None:
-            self.integral.zero_()
-            self.y_prev.zero_()
-        else:
-            self.integral[env_ids].zero_()
-            self.y_prev[env_ids].zero_()
+            env_ids = slice(None)
+        # reset history buffers
+        self.integral[env_ids] = 0.0
+        self.y_prev[env_ids] = 0.0
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.
