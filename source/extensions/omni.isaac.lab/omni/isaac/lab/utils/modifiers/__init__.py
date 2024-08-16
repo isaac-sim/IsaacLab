@@ -14,7 +14,7 @@ They are primarily used to apply custom operations in the :class:`~omni.isaac.la
 as an alternative to the built-in noise, clip and scale post-processing operations. For more details, see
 the :class:`~omni.isaac.lab.managers.ObservationTermCfg` class.
 
-Usage with a pre-existing modifier configuration:
+Usage with a function modifier:
 
 .. code-block:: python
 
@@ -22,7 +22,7 @@ Usage with a pre-existing modifier configuration:
     from omni.isaac.lab.utils import modifiers
 
     # create a random tensor
-    my_tensor = torch.rand(128, 128, device="cuda")
+    my_tensor = torch.rand(256, 128, device="cuda")
 
     # create a modifier configuration
     cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, torch.inf)})
@@ -30,8 +30,8 @@ Usage with a pre-existing modifier configuration:
     # apply the modifier
     my_modified_tensor = cfg.func(my_tensor, cfg)
 
-
-Usage with custom modifier configuration:
+    
+Usage with a class modifier:
 
 .. code-block:: python
 
@@ -39,17 +39,27 @@ Usage with custom modifier configuration:
     from omni.isaac.lab.utils import modifiers
 
     # create a random tensor
-    my_tensor = torch.rand(128, 128, device="cuda")
+    my_tensor = torch.rand(256, 128, device="cuda")
 
     # create a modifier configuration
-    cfg = modifiers.ModifierCfg(func=torch.nn.functional.relu)
+    # a digital filter with a simple delay of 1 timestep
+    cfg = modifiers.DigitalFilter(A=[0.0], B=[0.0, 1.0])
 
-    # apply the modifier
-    my_modified_tensor = cfg.func(my_tensor, cfg)
+    # create the modifier instance
+    my_modifier = modifiers.DigitalFilter(cfg, my_tensor.shape, "cuda")
+
+    # apply the modifier as a callable object
+    my_modified_tensor = my_modifier(my_tensor)
 
 """
 
-from .modifier_cfg import ModifierCfg  # isort:skip
-from .modifier_base import ModifierBase  # isort:skip
-from .modifier import DigitalFilter, Integrator, bias, clip, scale
-from .modifier_cfg import DigitalFilterCfg, IntegratorCfg
+# isort: off
+from .modifier_cfg import ModifierCfg
+from .modifier_base import ModifierBase
+from .modifier import DigitalFilter
+from .modifier_cfg import DigitalFilterCfg
+from .modifier import Integrator
+from .modifier_cfg import IntegratorCfg
+
+# isort: on
+from .modifier import bias, clip, scale

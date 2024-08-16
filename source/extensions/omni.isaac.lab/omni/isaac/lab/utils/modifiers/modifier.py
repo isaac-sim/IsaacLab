@@ -193,22 +193,25 @@ class DigitalFilter(ModifierBase):
 
 
 class Integrator(ModifierBase):
-    """Modifier that applies a numerical forward integration based on a middle Reimann sum.
+    r"""Modifier that applies a numerical forward integration based on a middle Reimann sum.
 
-    **Usage:**
+    An integrator is used to calculate the integral of a signal over time. The integral of a signal
+    is the area under the curve of the signal. The integral can be approximated using numerical methods
+    such as the `Riemann sum <https://en.wikipedia.org/wiki/Riemann_sum>`_.
 
-    .. code-block:: python
+    The middle Riemann sum is a method to approximate the integral of a function by dividing the area
+    under the curve into rectangles. The height of each rectangle is the value of the function at the
+    midpoint of the interval. The area of each rectangle is the width of the interval multiplied by the
+    height of the rectangle.
 
-        from omni.isaac.lab.utils import modifiers
+    This integral method is useful for signals that are sampled at regular intervals. The integral
+    can be written as:
 
-        dt = 0.001 # time step in seconds between data measurements
-        # create Integrator config
-        my_modifier_cfg = modifiers.IntegratorCfg(dt=dt)
+    .. math::
+        \int_{t_0}^{t_n} f(t) dt & \approx \int_{t_0}^{t_{n-1}} f(t) dt + \frac{f(t_{n-1}) + f(t_n)}{2} \Delta t
 
-        # create class instance for data with shape (1024, 4)
-        my_integrator = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
-
-    Reference: https://en.wikipedia.org/wiki/Riemann_sum
+    where :math:`f(t)` is the signal to integrate, :math:`t_i` is the time at the i-th sample, and
+    :math:`\Delta t` is the time step between samples.
     """
 
     def __init__(self, cfg: modifier_cfg.IntegratorCfg, data_dim: tuple[int, ...], device: str):
