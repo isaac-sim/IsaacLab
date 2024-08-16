@@ -65,85 +65,66 @@ def bias(data: torch.Tensor, value: float) -> torch.Tensor:
 
 
 class DigitalFilter(ModifierBase):
-    r"""Modifier used to apply digital filtering using the linear difference form of a discrete z-transform filter definition.
+    r"""Modifier used to apply digital filtering to the input data.
 
-    **Z-transform:**
+    `Digital filters <https://en.wikipedia.org/wiki/Digital_filter>`_ are used to process discrete-time
+    signals to extract useful parts of the signal, such as smoothing, noise reduction, or frequency separation.
 
-    .. math::
-        \begin{equation}
-            H(z)
-            = \frac{Y(z)}{X(z)}
-            = \frac{b_{0} + b_{1}z^{-1} + b_{2}z{^-2} ... b_{N}z^{-N}}{1 + a_{1}z^{-1} + a_{2}z^{-2} ... a_{M}z^{-M}}
-        \end{equation}
-
-    **Linear difference form:**
+    The filter can be implemented as a linear difference equation in the time domain. This equation
+    can be used to calculate the output at each time-step based on the current and previous inputs and outputs.
 
     .. math::
-         y_{i} &= XB - YA \\
-               &= \begin{bmatrix} x_{i}&x_{i-1}&...&x_{i-N} \end{bmatrix} \begin{bmatrix} b_{0} \\ b_{1} \\ ... \\ b_{N}\end{bmatrix}
-               - \begin{bmatrix} y_{i-1}&y_{i-2}&...&y_{i-M} \end{bmatrix} \begin{bmatrix} a_{1} \\ a_{2} \\ ... \\ a_{M}\end{bmatrix}
+         y_{i} = X B - Y A = \sum_{j=0}^{N} b_j x_{i-j} - \sum_{j=1}^{M} a_j y_{i-j}
 
-    where :math:`y_{i}` is the output of the filter. :math:`Y` is a tensor containing previous outputs of the filter :math:`y_{i-M}` for :math:`M` previous timesteps
-    and :math:`X` is a tensor containing current, :math:`x_{i}`, and previous inputs to the filter :math:`x_{i-N}` for :math:`N` previous timesteps.
-    :math:`A` and :math:`B`, with length :math:`M` and :math:`N` are vectors of denominator and numerator coefficients respectively. Choosing :math:`A` and :math:`B`
-    is up to the user. Examples below will show how to setup filter coefficients for common filters like a first order IIR low-pass filter
-    and a unit delay function.
+    where :math:`y_{i}` is the current output of the filter. The array :math:`Y` contains previous
+    outputs from the filter :math:`\{y_{i-j}\}_{j=1}^M` for :math:`M` previous time-steps. The array
+    :math:`X` contains current :math:`x_{i}` and previous inputs to the filter
+    :math:`\{x_{i-j}\}_{j=1}^N` for :math:`N` previous time-steps respectively.
+    The filter coefficients :math:`A` and :math:`B` are used to design the filter. They are column vectors of
+    length :math:`M` and :math:`N + 1` respectively.
 
-    **Example: First order IIR low-pass filter**
+    Different types of filters can be implemented by choosing different values for :math:`A` and :math:`B`.
+    We provide some examples below.
 
-    Because digital filters act on discrete signals, the timestep, :math:`\Delta t` is used to calculate desired cut-off frequencies
-    of filters. For a first order IIR lowpass filter the transfer function equation simplifies to:
+    Examples
+    ^^^^^^^^
 
-    .. math::   \begin{equation}H(z)=\frac{\alpha}{1-\alpha}\end{equation}
+    **Unit Delay Filter**
 
-    with accompanying linear difference formulation:
-
-    .. math:: y_{i} = \alpha x_{i} + (1-\alpha)y_{i-1}
-
-    where :math:`\alpha` is a smoothing parameter calculated from desired cut-off frequency, :math:`f_{c}` in Hz:
-
-    .. math::   \alpha = \frac{f_{c}}{f_{c} + \frac{1}{2\pi\Delta t}}
-
-    In order to implement this filter with the :class:`DigitalFilter` follow these steps in your :class:`ModifierCfg`:
-
-    .. code-block:: python
-
-        import math
-        from omni.isaac.lab.utils import modifiers
-
-        # with sim.physics_step = 0.002
-        fc_hz = 20 # desired cut-off frequency
-        alpha = fc_hz / (fc_hz + 1 / (2.0 * math.pi * 0.002) # desired smoothing parameter
-
-        # create filter and filter coefficients for first order IIR low-pass filter
-        my_modifier_cfg = modifiers.DigitalFilterCfg(A=[1.0 - alpha], B=[alpha])
-
-        # create class instance for data with shape (1024, 4)
-        my_filter = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
-
-    **Example: Unit delay**
-
-    The same digital filter implementation can be used to do a unit delay. In this case there is not filtering history that needs to be kept.
-    This will only utilize the previous measurements :math:`x_{i-n}`.
-
-    In the case of a single timestep unit delay the linear difference equation simplifies to:
+    A filter that delays the input signal by a single time-step simply outputs the previous input value.
 
     .. math:: y_{i} = x_{i-1}
 
-    Implementation looks like:
+    This can be implemented as a digital filter with the coefficients :math:`A = [0.0]` and :math:`B = [0.0, 1.0]`.
 
-    .. code-block:: python
+    **Moving Average Filter**
 
-        from omni.isaac.lab.utils import modifiers
+    A moving average filter is used to smooth out noise in a signal. It is similar to a low-pass filter
+    but has a finite impulse response (FIR) and is non-recursive.
 
-        # create single time-step unit delay config
-        my_modifier_cfg = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
+    The filter calculates the average of the input signal over a window of time-steps. The linear difference
+    equation for a moving average filter is:
 
-        # create class instance for data with shape (1024, 4)
-        my_delay = my_modifier_cfg.func(cfg=my_modifier_cfg, data_dim=(1024, 4), device="cpu")
+    .. math:: y_{i} = \frac{1}{N} \sum_{j=0}^{N} x_{i-j}
 
+    This can be implemented as a digital filter with the coefficients :math:`A = [0.0]` and
+    :math:`B = [1/N, 1/N, \cdots, 1/N]`.
 
-    Extra explanation on digital filters and other filter types can be found at: https://en.wikipedia.org/wiki/Digital_filter
+    **First-order recursive low-pass filter**
+
+    A recursive low-pass filter is used to smooth out high-frequency noise in a signal. It is a first-order
+    infinite impulse response (IIR) filter which means it has a recursive component (previous output) in the
+    linear difference equation.
+
+    A first-order low-pass IIR filter has the difference equation:
+
+    .. math:: y_{i} = \alpha y_{i-1} + (1-\alpha)x_{i}
+
+    where :math:`\alpha` is a smoothing parameter between 0 and 1. Typically, the value of :math:`\alpha` is
+    chosen based on the desired cut-off frequency of the filter.
+
+    This filter can be implemented as a digital filter with the coefficients :math:`A = [\alpha]` and
+    :math:`B = [1 - \alpha]`.
     """
 
     def __init__(self, cfg: modifier_cfg.DigitalFilterCfg, data_dim: tuple[int, ...], device: str) -> None:

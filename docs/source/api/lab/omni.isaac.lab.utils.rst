@@ -88,15 +88,16 @@ Math operations
    :inherited-members:
    :show-inheritance:
 
-Modifiers
-~~~~~~~~~
+Modifier operations
+~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: omni.isaac.lab.utils.modifiers
    :members:
    :imported-members:
+   :special-members: __call__
    :inherited-members:
    :show-inheritance:
-   :exclude-members: __init__, ABC, abstractmethod, configclass
+   :exclude-members: __init__, func
 
 Noise operations
 ~~~~~~~~~~~~~~~~

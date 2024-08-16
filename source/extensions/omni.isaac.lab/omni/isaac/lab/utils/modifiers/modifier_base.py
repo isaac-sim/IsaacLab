@@ -33,7 +33,9 @@ class ModifierBase(ABC):
         # define custom keyword arguments to pass to ModifierCfg
         kwarg_dict = {"arg_1" : VAL_1, "arg_2" : VAL_2}
 
-        modifier_config = modifiers.ModifierCfg(func=modifiers.DigitalFilter, params=kwarg_dict)
+        # create modifier configuration object
+        # func is the class name of the modifier and params is the dictionary of arguments
+        modifier_config = modifiers.ModifierCfg(func=modifiers.ModifierBase, params=kwarg_dict)
 
         # define modifier instance
         my_modifier = modifiers.ModifierBase(cfg=modifier_config)

@@ -35,21 +35,37 @@ class ModifierCfg:
 
 @configclass
 class DigitalFilterCfg(ModifierCfg):
-    """Configuration parameters for a digital filter modifier"""
+    """Configuration parameters for a digital filter modifier.
+
+    For more information, please check the :class:`DigitalFilter` class.
+    """
 
     func: type[modifier.DigitalFilter] = modifier.DigitalFilter
     """The digital filter function to be called for applying the filter."""
 
     A: list[float] = MISSING
-    """The denominator coefficients of the digital filter."""
+    """The coefficients corresponding the the filter's response to past outputs.
+
+    These correspond to the weights of the past outputs of the filter. The first element is the coefficient
+    for the output at the previous time step, the second element is the coefficient for the output at two
+    time steps ago, and so on.
+    """
 
     B: list[float] = MISSING
-    """The numerator coefficients of the digital filter."""
+    """The coefficients corresponding the the filter's response to current and past inputs.
+
+    These correspond to the weights of the current and past inputs of the filter. The first element is the
+    coefficient for the current input, the second element is the coefficient for the input at the previous
+    time step, and so on.
+    """
 
 
 @configclass
 class IntegratorCfg(ModifierCfg):
-    """Configuration parameters for an integrator modifier"""
+    """Configuration parameters for an integrator modifier.
+
+    For more information, please check the :class:`Integrator` class.
+    """
 
     func: type[modifier.Integrator] = modifier.Integrator
     """The integrator function to be called for applying the integrator."""
