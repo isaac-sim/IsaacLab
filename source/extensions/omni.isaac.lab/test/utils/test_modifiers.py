@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
-
 
 from omni.isaac.lab.app import AppLauncher, run_tests
 
@@ -62,14 +59,13 @@ class TestModifiers(unittest.TestCase):
         self.assertTrue(torch.min(processed_data) >= cfg.params["bounds"][0])
         self.assertTrue(torch.max(processed_data) <= cfg.params["bounds"][1])
 
-    def test_clip__no_upper_bound_modifier(self):
+    def test_clip_no_upper_bound_modifier(self):
         """Test for Clip Modifier with no upper bound."""
         cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, None)})
         data = torch.ones(3)
         processed_data = cfg.func(data, **cfg.params)
         self.assertEqual(data.shape, processed_data.shape, msg="modified data shape does not equal original")
         self.assertTrue(torch.min(processed_data) >= cfg.params["bounds"][0])
-        # self.assertTrue(torch.max(processed_data) < cfg.params["bounds"][1])
 
     def test_torch_relu_modifier(self):
         """Test for Torch Relu Modifier."""
