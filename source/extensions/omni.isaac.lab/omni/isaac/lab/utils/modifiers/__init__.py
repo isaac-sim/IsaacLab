@@ -30,7 +30,7 @@ Usage with a function modifier:
     # apply the modifier
     my_modified_tensor = cfg.func(my_tensor, cfg)
 
-    
+
 Usage with a class modifier:
 
 .. code-block:: python
