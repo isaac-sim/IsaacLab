@@ -79,7 +79,7 @@ The following describes the parameters that need to be configured:
      - The directory on the cluster where the Isaac Lab logs are stored. This directory has to
        end on ``isaaclab``. It will be copied to the compute node and mounted into
        the singularity container. When a job is submitted, the latest local changes will
-       be copied to the cluster to a new directory in the format ``${CLUSTER_ISAACLAB_DIR}_${date}_${time}``
+       be copied to the cluster to a new directory in the format ``${CLUSTER_ISAACLAB_DIR}_${datetime}``
        with the date and time of the job submission. This allows to run multiple jobs with different code versions at
        the same time.
    * - CLUSTER_LOGIN
@@ -89,7 +89,7 @@ The following describes the parameters that need to be configured:
      - The path on the cluster where the singularity image will be stored. The image will be
        copied to the compute node but not uploaded again to the cluster when a job is submitted.
    * - REMOVE_CODE_COPY_AFTER_JOB
-     - Decide if the code copy should be removed after the job is finished. The logs from the job will not be deleted
+     - Whether the copied code should be removed after the job is finished or not. The logs from the job will not be deleted
        as these are saved under the permanent ``CLUSTER_ISAACLAB_DIR``. This feature is useful
        to save disk space on the cluster. If set to ``true``, the code copy will be removed.
    * - CLUSTER_PYTHON_EXECUTABLE
