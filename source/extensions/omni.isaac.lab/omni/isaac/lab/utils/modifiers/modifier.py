@@ -162,9 +162,9 @@ class DigitalFilter(ModifierBase):
         if "A" not in self._cfg.params or "B" not in self._cfg.params:
             raise ValueError("Digital filter configuration must have 'A' and 'B' keys in the params dictionary.")
 
-        # assign filter coefficients
-        self.A = self._cfg.params["A"]
-        self.B = self._cfg.params["B"]
+        # assign filter coefficients and make sure they are column vectors
+        self.A = self._cfg.params["A"].to(self._device).unsqueeze(1)
+        self.B = self._cfg.params["B"].to(self._device).unsqueeze(1)
 
         # check that filter coefficients are not None
         if self.A is None or self.B is None:
@@ -201,12 +201,8 @@ class DigitalFilter(ModifierBase):
         self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
         self.x_n[..., 0] = data
 
-        # make coefficients column vectors
-        A = self.A.unsqueeze(1)
-        B = self.B.unsqueeze(1)
-
         # calculate current filter value: y[i] = Y*A - X*B
-        y_i = torch.matmul(self.x_n, B) - torch.matmul(self.y_n, A)
+        y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
         y_i.squeeze_(-1)
 
         # move history window for output and add current filter value to history
