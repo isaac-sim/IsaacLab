@@ -59,7 +59,7 @@
     <link rel="prev" title="omni.isaac.lab.terrains" href="omni.isaac.lab.terrains.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 15, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 17, 2024"/>
   </head>
   
   
@@ -229,6 +229,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../features/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../features/environments.html">Environments</a></li>
@@ -615,6 +616,8 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.dict_to_md5_hash"><code class="docutils literal notranslate"><span class="pre">dict_to_md5_hash()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.convert_dict_to_backend"><code class="docutils literal notranslate"><span class="pre">convert_dict_to_backend()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.update_dict"><code class="docutils literal notranslate"><span class="pre">update_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.replace_slices_with_strings"><code class="docutils literal notranslate"><span class="pre">replace_slices_with_strings()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.replace_strings_with_slices"><code class="docutils literal notranslate"><span class="pre">replace_strings_with_slices()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.print_dict"><code class="docutils literal notranslate"><span class="pre">print_dict()</span></code></a></li>
 </ul>
 </li>
@@ -724,6 +727,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.string">String operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.to_camel_case"><code class="docutils literal notranslate"><span class="pre">to_camel_case()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.to_snake_case"><code class="docutils literal notranslate"><span class="pre">to_snake_case()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.string_to_slice"><code class="docutils literal notranslate"><span class="pre">string_to_slice()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.is_lambda_expression"><code class="docutils literal notranslate"><span class="pre">is_lambda_expression()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.callable_to_string"><code class="docutils literal notranslate"><span class="pre">callable_to_string()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.string_to_callable"><code class="docutils literal notranslate"><span class="pre">string_to_callable()</span></code></a></li>
@@ -1567,6 +1571,12 @@ the <a class="reference internal" href="omni.isaac.lab.assets.html#module-omni.i
 <tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.dict.update_dict" title="omni.isaac.lab.utils.dict.update_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">update_dict</span></code></a>(orig_dict, new_dict)</p></td>
 <td><p>Updates existing dictionary with values from a new dictionary.</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.dict.replace_slices_with_strings" title="omni.isaac.lab.utils.dict.replace_slices_with_strings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replace_slices_with_strings</span></code></a>(data)</p></td>
+<td><p>Replace slice objects with their string representations in a dictionary.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.dict.replace_strings_with_slices" title="omni.isaac.lab.utils.dict.replace_strings_with_slices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">replace_strings_with_slices</span></code></a>(data)</p></td>
+<td><p>Replace string representations of slices with slice objects in a dictionary.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.dict.print_dict" title="omni.isaac.lab.utils.dict.print_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">print_dict</span></code></a>(val[, nesting, start])</p></td>
 <td><p>Outputs a nested dictionary.</p></td>
 </tr>
@@ -1679,6 +1689,34 @@ nested dictionaries as well.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The updated dictionary.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.dict.replace_slices_with_strings">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.dict.</span></span><span class="sig-name descname"><span class="pre">replace_slices_with_strings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/dict.html#replace_slices_with_strings"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.dict.replace_slices_with_strings" title="Permalink to this definition">#</a></dt>
+<dd><p>Replace slice objects with their string representations in a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The dictionary to process.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dictionary with slice objects replaced by their string representations.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.dict.replace_strings_with_slices">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.dict.</span></span><span class="sig-name descname"><span class="pre">replace_strings_with_slices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.12)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/dict.html#replace_strings_with_slices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.dict.replace_strings_with_slices" title="Permalink to this definition">#</a></dt>
+<dd><p>Replace string representations of slices with slice objects in a dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> – The dictionary to process.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The dictionary with string representations of slices replaced by slice objects.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3190,19 +3228,22 @@ This is useful when implementing temporal noise models such as random walk.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.to_snake_case" title="omni.isaac.lab.utils.string.to_snake_case"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_snake_case</span></code></a>(camel_str)</p></td>
 <td><p>Converts a string from camel case to snake case.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.is_lambda_expression" title="omni.isaac.lab.utils.string.is_lambda_expression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_lambda_expression</span></code></a>(name)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.string_to_slice" title="omni.isaac.lab.utils.string.string_to_slice"><code class="xref py py-obj docutils literal notranslate"><span class="pre">string_to_slice</span></code></a>(s)</p></td>
+<td><p>Convert a string representation of a slice to a slice object.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.is_lambda_expression" title="omni.isaac.lab.utils.string.is_lambda_expression"><code class="xref py py-obj docutils literal notranslate"><span class="pre">is_lambda_expression</span></code></a>(name)</p></td>
 <td><p>Checks if the input string is a lambda expression.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.callable_to_string" title="omni.isaac.lab.utils.string.callable_to_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">callable_to_string</span></code></a>(value)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.callable_to_string" title="omni.isaac.lab.utils.string.callable_to_string"><code class="xref py py-obj docutils literal notranslate"><span class="pre">callable_to_string</span></code></a>(value)</p></td>
 <td><p>Converts a callable object to a string.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.string_to_callable" title="omni.isaac.lab.utils.string.string_to_callable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">string_to_callable</span></code></a>(name)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.string_to_callable" title="omni.isaac.lab.utils.string.string_to_callable"><code class="xref py py-obj docutils literal notranslate"><span class="pre">string_to_callable</span></code></a>(name)</p></td>
 <td><p>Resolves the module and function names to return the function.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.resolve_matching_names" title="omni.isaac.lab.utils.string.resolve_matching_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_matching_names</span></code></a>(keys, list_of_strings)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.resolve_matching_names" title="omni.isaac.lab.utils.string.resolve_matching_names"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_matching_names</span></code></a>(keys, list_of_strings)</p></td>
 <td><p>Match a list of query regular expressions against a list of strings and return the matched indices and names.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.resolve_matching_names_values" title="omni.isaac.lab.utils.string.resolve_matching_names_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_matching_names_values</span></code></a>(data, ...[, ...])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#omni.isaac.lab.utils.string.resolve_matching_names_values" title="omni.isaac.lab.utils.string.resolve_matching_names_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">resolve_matching_names_values</span></code></a>(data, ...[, ...])</p></td>
 <td><p>Match a list of regular expressions in a dictionary against a list of strings and return the matched indices, names, and values.</p></td>
 </tr>
 </tbody>
@@ -3238,6 +3279,20 @@ This is useful when implementing temporal noise models such as random walk.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A string in snake case (i.e. with ‘_’)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="omni.isaac.lab.utils.string.string_to_slice">
+<span class="sig-prename descclassname"><span class="pre">omni.isaac.lab.utils.string.</span></span><span class="sig-name descname"><span class="pre">string_to_slice</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">s</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../_modules/omni/isaac/lab/utils/string.html#string_to_slice"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#omni.isaac.lab.utils.string.string_to_slice" title="Permalink to this definition">#</a></dt>
+<dd><p>Convert a string representation of a slice to a slice object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>s</strong> – The string representation of the slice.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The slice object.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3730,6 +3785,8 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.dict_to_md5_hash"><code class="docutils literal notranslate"><span class="pre">dict_to_md5_hash()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.convert_dict_to_backend"><code class="docutils literal notranslate"><span class="pre">convert_dict_to_backend()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.update_dict"><code class="docutils literal notranslate"><span class="pre">update_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.replace_slices_with_strings"><code class="docutils literal notranslate"><span class="pre">replace_slices_with_strings()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.replace_strings_with_slices"><code class="docutils literal notranslate"><span class="pre">replace_strings_with_slices()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.dict.print_dict"><code class="docutils literal notranslate"><span class="pre">print_dict()</span></code></a></li>
 </ul>
 </li>
@@ -3839,6 +3896,7 @@ The returned tensor contains <code class="xref py py-obj docutils literal notran
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#module-omni.isaac.lab.utils.string">String operations</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.to_camel_case"><code class="docutils literal notranslate"><span class="pre">to_camel_case()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.to_snake_case"><code class="docutils literal notranslate"><span class="pre">to_snake_case()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.string_to_slice"><code class="docutils literal notranslate"><span class="pre">string_to_slice()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.is_lambda_expression"><code class="docutils literal notranslate"><span class="pre">is_lambda_expression()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.callable_to_string"><code class="docutils literal notranslate"><span class="pre">callable_to_string()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#omni.isaac.lab.utils.string.string_to_callable"><code class="docutils literal notranslate"><span class="pre">string_to_callable()</span></code></a></li>
@@ -3898,7 +3956,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 15, 2024.
+  Last updated on Aug 17, 2024.
   <br/>
 </p>
   </div>

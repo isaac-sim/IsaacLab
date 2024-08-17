@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 15, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 17, 2024"/>
   </head>
   
   
@@ -226,6 +226,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
@@ -968,15 +969,14 @@ document.write(`
         <span class="k">if</span> <span class="n">launcher_args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The `--cpu` flag is deprecated. Please use `--device cpu` instead.&quot;</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="s2">&quot;distributed&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span><span class="p">:</span>
-            <span class="n">distributed_train</span> <span class="o">=</span> <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;distributed&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s2">&quot;distributed&quot;</span> <span class="ow">in</span> <span class="n">launcher_args</span> <span class="ow">and</span> <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;distributed&quot;</span><span class="p">]:</span>
             <span class="c1"># local rank (GPU id) in a current multi-gpu mode</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;LOCAL_RANK&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">))</span>
             <span class="c1"># global rank (GPU id) in multi-gpu multi-node mode</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">global_rank</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;RANK&quot;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">distributed_train</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span>
-                <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;multi_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">device_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_rank</span>
+            <span class="n">launcher_args</span><span class="p">[</span><span class="s2">&quot;multi_gpu&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="c1"># limit CPU threads to minimize thread context switching</span>
             <span class="c1"># this ensures processes do not take up all available threads and fight for resources</span>
             <span class="n">num_cpu_cores</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
@@ -1056,6 +1056,9 @@ document.write(`
         <span class="c1"># add Isaac Lab modules back to sys.modules</span>
         <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hacked_modules</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="c1"># remove the threadCount argument from sys.argv if it was added for distributed training</span>
+        <span class="n">pattern</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;--/plugins/carb\.tasking\.plugin/threadCount=\d+&quot;</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="o">=</span> <span class="p">[</span><span class="n">arg</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">arg</span><span class="p">)]</span>
 
     <span class="k">def</span> <span class="nf">_rendering_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Check if rendering is required by the app.&quot;&quot;&quot;</span>
@@ -1199,7 +1202,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 15, 2024.
+  Last updated on Aug 17, 2024.
   <br/>
 </p>
   </div>

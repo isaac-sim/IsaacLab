@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Multi-GPU and Multi-Node Training &#8212; Isaac Lab documentation</title>
+    <title>Hydra Configuration System &#8212; Isaac Lab documentation</title>
   
   
   
@@ -49,12 +49,12 @@
     <script src="../../_static/copybutton.js"></script>
     <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
     <script src="../../_static/design-tabs.js"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/multi_gpu';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'source/features/hydra';</script>
     <link rel="icon" href="../../_static/favicon.ico"/>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Tiled Rendering and Recording" href="tiled_rendering.html" />
-    <link rel="prev" title="Hydra Configuration System" href="hydra.html" />
+    <link rel="next" title="Multi-GPU and Multi-Node Training" href="multi_gpu.html" />
+    <link rel="prev" title="Task Design Workflows" href="task_workflows.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
     <meta name="docbuild:last-update" content="Aug 17, 2024"/>
@@ -227,8 +227,8 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="task_workflows.html">Task Design Workflows</a></li>
-<li class="toctree-l1"><a class="reference internal" href="hydra.html">Hydra Configuration System</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Multi-GPU and Multi-Node Training</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Hydra Configuration System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environments.html">Environments</a></li>
 <li class="toctree-l1"><a class="reference internal" href="actuators.html">Actuators</a></li>
@@ -407,7 +407,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/multi_gpu.rst" target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/edit/main/source/features/hydra.rst" target="_blank"
    class="btn btn-sm btn-source-edit-button dropdown-item"
    title="Suggest edit"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -424,7 +424,7 @@
       
       
       
-      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/multi_gpu.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/isaac-sim/IsaacLab/issues/new?title=Issue%20on%20page%20%2Fsource/features/hydra.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -454,7 +454,7 @@
       
       
       
-      <li><a href="../../_sources/source/features/multi_gpu.rst" target="_blank"
+      <li><a href="../../_sources/source/features/hydra.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -538,7 +538,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Multi-GPU and Multi-Node Training</h1>
+    <h1>Hydra Configuration System</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -548,8 +548,12 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-advanced-parameters">Modifying advanced parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#callables">Callables</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-parameters-to-none">Setting parameters to None</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
+</ul>
+</li>
 </ul>
             </nav>
         </div>
@@ -561,95 +565,184 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="multi-gpu-and-multi-node-training">
-<h1>Multi-GPU and Multi-Node Training<a class="headerlink" href="#multi-gpu-and-multi-node-training" title="Permalink to this heading">#</a></h1>
-<p>Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
-available for RL-Games and skrl libraries workflows. We are working on extending this feature to
-other workflows.</p>
-<div class="admonition attention">
-<p class="admonition-title">Attention</p>
-<p>Multi-GPU and multi-node training is only supported on Linux. Windows support is not available at this time.
-This is due to limitations of the NCCL library on Windows.</p>
+  <section id="hydra-configuration-system">
+<h1>Hydra Configuration System<a class="headerlink" href="#hydra-configuration-system" title="Permalink to this heading">#</a></h1>
+<p>Isaac Lab supports the <a class="reference external" href="https://hydra.cc/docs/intro/">Hydra</a> configuration system to modify the task’s
+configuration using command line arguments, which can be useful to automate experiments and perform hyperparameter tuning.</p>
+<p>Any parameter of the environment can be modified by adding one or multiple elements of the form <code class="docutils literal notranslate"><span class="pre">env.a.b.param1=value</span></code>
+to the command line input, where <code class="docutils literal notranslate"><span class="pre">a.b.param1</span></code> reflects the parameter’s hierarchy, for example <code class="docutils literal notranslate"><span class="pre">env.actions.joint_effort.scale=10.0</span></code>.
+Similarly, the agent’s parameters can be modified by using the <code class="docutils literal notranslate"><span class="pre">agent</span></code> prefix, for example <code class="docutils literal notranslate"><span class="pre">agent.seed=2024</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The way these command line arguments are set follow the exact structure of the configuration files. Since the different
+RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
+with <cite>rl_games</cite> the seed will be set with <code class="docutils literal notranslate"><span class="pre">agent.params.seed</span></code>, while with <cite>rsl_rl</cite> and <cite>skrl</cite> it will be set with
+<code class="docutils literal notranslate"><span class="pre">agent.seed</span></code>.</p>
 </div>
-<section id="multi-gpu-training">
-<h2>Multi-GPU Training<a class="headerlink" href="#multi-gpu-training" title="Permalink to this heading">#</a></h2>
-<p>For complex reinforcement learning environments, it may be desirable to scale up training across multiple GPUs.
-This is possible in Isaac Lab through the use of the
-<a class="reference external" href="https://pytorch.org/docs/stable/distributed.html">PyTorch distributed</a> framework.</p>
-<p>The <code class="xref py py-meth docutils literal notranslate"><span class="pre">torch.distributed()</span></code> API is used to launch multiple processes of training, where the number of
-processes must be equal to or less than the number of GPUs available. Each process runs on
-a dedicated GPU and launches its own instance of Isaac Sim and the Isaac Lab environment.
-Each process collects its own rollouts during the training process and has its own copy of the policy
-network. During training, gradients are aggregated across the processes and broadcasted back to the process
-at the end of the epoch.</p>
-<a class="only-light reference internal image-reference" href="../../_images/a3c-light.svg"><img alt="Multi-GPU training paradigm" class="only-light align-center" src="../../_images/a3c-light.svg" width="80%" /></a>
-<a class="only-dark reference internal image-reference" href="../../_images/a3c-dark.svg"><img alt="Multi-GPU training paradigm" class="only-dark align-center" src="../../_images/a3c-dark.svg" width="80%" /></a>
-<p>To train with multiple GPUs, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs:</p>
+<p>As a result, training with hydra arguments can be run with the following syntax:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-0">
-rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rsl_rl" for="sd-tab-item-0">
+rsl_rl</label><div class="sd-tab-content docutils">
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rsl_rl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
 </pre></div>
 </div>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-1">
-skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-</div>
-</section>
-<section id="multi-node-training">
-<h2>Multi-Node Training<a class="headerlink" href="#multi-node-training" title="Permalink to this heading">#</a></h2>
-<p>To scale up training beyond multiple GPUs on a single machine, it is also possible to train across multiple nodes.
-To train across multiple nodes/machines, it is required to launch an individual process on each node.</p>
-<p>For the master node, use the following command, where <code class="docutils literal notranslate"><span class="pre">--proc_per_node</span></code> represents the number of available GPUs, and
-<code class="docutils literal notranslate"><span class="pre">--nnodes</span></code> represents the number of nodes:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-2" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-2">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-1">
 rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.params.seed<span class="o">=</span><span class="m">2024</span>
 </pre></div>
 </div>
 </div>
-<input id="sd-tab-item-3" name="sd-tab-set-1" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-3">
+<input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
+<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-2">
 skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>localhost:5555<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>env.actions.joint_effort.scale<span class="o">=</span><span class="m">10</span>.0<span class="w"> </span>agent.seed<span class="o">=</span><span class="m">2024</span>
 </pre></div>
 </div>
 </div>
 </div>
-<p>Note that the port (<code class="docutils literal notranslate"><span class="pre">5555</span></code>) can be replaced with any other available port.</p>
-<p>For non-master nodes, use the following command, replacing <code class="docutils literal notranslate"><span class="pre">--node_rank</span></code> with the index of each machine:</p>
-<div class="sd-tab-set docutils">
-<input checked="checked" id="sd-tab-item-4" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="rl_games" for="sd-tab-item-4">
-rl_games</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>source/standalone/workflows/rl_games/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-<input id="sd-tab-item-5" name="sd-tab-set-2" type="radio">
-<label class="sd-tab-label" data-sync-group="rl-train" data-sync-id="skrl" for="sd-tab-item-5">
-skrl</label><div class="sd-tab-content docutils">
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>torch.distributed.run<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">2</span><span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--rdzv_id<span class="o">=</span><span class="m">123</span><span class="w"> </span>--rdzv_backend<span class="o">=</span>c10d<span class="w"> </span>--rdzv_endpoint<span class="o">=</span>ip_of_master_machine:5555<span class="w"> </span>source/standalone/workflows/skrl/train.py<span class="w"> </span>--task<span class="o">=</span>Isaac-Cartpole-v0<span class="w"> </span>--headless<span class="w"> </span>--distributed
-</pre></div>
-</div>
-</div>
-</div>
-<p>For more details on multi-node training with PyTorch, please visit the
-<a class="reference external" href="https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html">PyTorch documentation</a>.</p>
+<p>The above command will run the training script with the task <code class="docutils literal notranslate"><span class="pre">Isaac-Cartpole-v0</span></code> in headless mode, and set the
+<code class="docutils literal notranslate"><span class="pre">env.actions.joint_effort.scale</span></code> parameter to 10.0 and the <code class="docutils literal notranslate"><span class="pre">agent.seed</span></code> parameter to 2024.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>As mentioned in the PyTorch documentation, “multi-node training is bottlenecked by inter-node communication
-latencies”. When this latency is high, it is possible multi-node training will perform worse than running on
-a single node instance.</p>
+<p>To keep backwards compatibility, and to provide a more user-friendly experience, we have kept the old cli arguments
+of the form <code class="docutils literal notranslate"><span class="pre">--param</span></code>, for example <code class="docutils literal notranslate"><span class="pre">--num_envs</span></code>, <code class="docutils literal notranslate"><span class="pre">--seed</span></code>, <code class="docutils literal notranslate"><span class="pre">--max_iterations</span></code>. These arguments have precedence
+over the hydra arguments, and will overwrite the values set by the hydra arguments.</p>
 </div>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
+perform intermediate computations based on other parameters. These computations will not be updated when the parameters
+are modified.</p>
+<p>For example, for the configuration of the Cartpole camera depth environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CartpoleDepthCameraEnvCfg</span><span class="p">(</span><span class="n">CartpoleRGBCameraEnvCfg</span><span class="p">):</span>
+    <span class="c1"># camera</span>
+    <span class="n">tiled_camera</span><span class="p">:</span> <span class="n">TiledCameraCfg</span> <span class="o">=</span> <span class="n">TiledCameraCfg</span><span class="p">(</span>
+        <span class="n">prim_path</span><span class="o">=</span><span class="s2">&quot;/World/envs/env_.*/Camera&quot;</span><span class="p">,</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">TiledCameraCfg</span><span class="o">.</span><span class="n">OffsetCfg</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">7.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">),</span> <span class="n">rot</span><span class="o">=</span><span class="p">(</span><span class="mf">0.9945</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.1045</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">),</span> <span class="n">convention</span><span class="o">=</span><span class="s2">&quot;world&quot;</span><span class="p">),</span>
+        <span class="n">data_types</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;depth&quot;</span><span class="p">],</span>
+        <span class="n">spawn</span><span class="o">=</span><span class="n">sim_utils</span><span class="o">.</span><span class="n">PinholeCameraCfg</span><span class="p">(</span>
+            <span class="n">focal_length</span><span class="o">=</span><span class="mf">24.0</span><span class="p">,</span> <span class="n">focus_distance</span><span class="o">=</span><span class="mf">400.0</span><span class="p">,</span> <span class="n">horizontal_aperture</span><span class="o">=</span><span class="mf">20.955</span><span class="p">,</span> <span class="n">clipping_range</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">)</span>
+        <span class="p">),</span>
+        <span class="n">width</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mi">80</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># env</span>
+    <span class="n">num_channels</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="hll">    <span class="n">num_observations</span> <span class="o">=</span> <span class="n">num_channels</span> <span class="o">*</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">height</span> <span class="o">*</span> <span class="n">tiled_camera</span><span class="o">.</span><span class="n">width</span>
+</span></pre></div>
+</div>
+<p>If the user were to modify the width of the camera, i.e. <code class="docutils literal notranslate"><span class="pre">env.tiled_camera.width=128</span></code>, then the parameter
+<code class="docutils literal notranslate"><span class="pre">env.num_observations=10240</span></code> (1*80*128) must be updated and given as input as well.</p>
+<p>Similarly, the <code class="docutils literal notranslate"><span class="pre">__post_init__</span></code> method is not updated with the command line inputs. In the <code class="docutils literal notranslate"><span class="pre">LocomotionVelocityRoughEnvCfg</span></code>, for example,
+the post init update is as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LocomotionVelocityRoughEnvCfg</span><span class="p">(</span><span class="n">ManagerBasedRLEnvCfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for the locomotion velocity-tracking environment.&quot;&quot;&quot;</span>
+
+    <span class="c1"># Scene settings</span>
+    <span class="n">scene</span><span class="p">:</span> <span class="n">MySceneCfg</span> <span class="o">=</span> <span class="n">MySceneCfg</span><span class="p">(</span><span class="n">num_envs</span><span class="o">=</span><span class="mi">4096</span><span class="p">,</span> <span class="n">env_spacing</span><span class="o">=</span><span class="mf">2.5</span><span class="p">)</span>
+    <span class="c1"># Basic settings</span>
+    <span class="n">observations</span><span class="p">:</span> <span class="n">ObservationsCfg</span> <span class="o">=</span> <span class="n">ObservationsCfg</span><span class="p">()</span>
+    <span class="n">actions</span><span class="p">:</span> <span class="n">ActionsCfg</span> <span class="o">=</span> <span class="n">ActionsCfg</span><span class="p">()</span>
+    <span class="n">commands</span><span class="p">:</span> <span class="n">CommandsCfg</span> <span class="o">=</span> <span class="n">CommandsCfg</span><span class="p">()</span>
+    <span class="c1"># MDP settings</span>
+    <span class="n">rewards</span><span class="p">:</span> <span class="n">RewardsCfg</span> <span class="o">=</span> <span class="n">RewardsCfg</span><span class="p">()</span>
+    <span class="n">terminations</span><span class="p">:</span> <span class="n">TerminationsCfg</span> <span class="o">=</span> <span class="n">TerminationsCfg</span><span class="p">()</span>
+    <span class="n">events</span><span class="p">:</span> <span class="n">EventCfg</span> <span class="o">=</span> <span class="n">EventCfg</span><span class="p">()</span>
+    <span class="n">curriculum</span><span class="p">:</span> <span class="n">CurriculumCfg</span> <span class="o">=</span> <span class="n">CurriculumCfg</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Post initialization.&quot;&quot;&quot;</span>
+        <span class="c1"># general settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_length_s</span> <span class="o">=</span> <span class="mf">20.0</span>
+        <span class="c1"># simulation settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="mf">0.005</span>
+<span class="hll">        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">render_interval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span>
+</span>        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">disable_contact_processing</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">physics_material</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">physics_material</span>
+        <span class="c1"># update sensor update periods</span>
+        <span class="c1"># we tick all the sensors based on the smallest update period (physics update period)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height_scanner</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="hll">            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">height_scanner</span><span class="o">.</span><span class="n">update_period</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decimation</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span>
+</span>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">contact_forces</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<span class="hll">            <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">contact_forces</span><span class="o">.</span><span class="n">update_period</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim</span><span class="o">.</span><span class="n">dt</span>
+</span>
+        <span class="c1"># check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator</span>
+        <span class="c1"># this generates terrains with increasing difficulty and is useful for training</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">curriculum</span><span class="p">,</span> <span class="s2">&quot;terrain_levels&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scene</span><span class="o">.</span><span class="n">terrain</span><span class="o">.</span><span class="n">terrain_generator</span><span class="o">.</span><span class="n">curriculum</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>Here, when modifying <code class="docutils literal notranslate"><span class="pre">env.decimation</span></code> or <code class="docutils literal notranslate"><span class="pre">env.sim.dt</span></code>, the user would have to give the updated <code class="docutils literal notranslate"><span class="pre">env.sim.render_interval</span></code>,
+<code class="docutils literal notranslate"><span class="pre">env.scene.height_scanner.update_period</span></code>, and <code class="docutils literal notranslate"><span class="pre">env.scene.contact_forces.update_period</span></code> as input as well.</p>
+</div>
+<section id="modifying-advanced-parameters">
+<h2>Modifying advanced parameters<a class="headerlink" href="#modifying-advanced-parameters" title="Permalink to this heading">#</a></h2>
+<section id="callables">
+<h3>Callables<a class="headerlink" href="#callables" title="Permalink to this heading">#</a></h3>
+<p>It is possible to modify functions and classes in the configuration files by using the syntax <code class="docutils literal notranslate"><span class="pre">module:attribute_name</span></code>.
+For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ObservationsCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Observation specifications for the MDP.&quot;&quot;&quot;</span>
+
+    <span class="nd">@configclass</span>
+    <span class="k">class</span> <span class="nc">PolicyCfg</span><span class="p">(</span><span class="n">ObsGroup</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Observations for policy group.&quot;&quot;&quot;</span>
+
+        <span class="c1"># observation terms (order preserved)</span>
+<span class="hll">        <span class="n">joint_pos_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_pos_rel</span><span class="p">)</span>
+</span>        <span class="n">joint_vel_rel</span> <span class="o">=</span> <span class="n">ObsTerm</span><span class="p">(</span><span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">joint_vel_rel</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_corruption</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">concatenate_terms</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># observation groups</span>
+    <span class="n">policy</span><span class="p">:</span> <span class="n">PolicyCfg</span> <span class="o">=</span> <span class="n">PolicyCfg</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>we could modify <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> to compute absolute positions instead of relative positions with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel.func=omni.isaac.lab.envs.mdp:joint_pos</span></code>.</p>
+</section>
+<section id="setting-parameters-to-none">
+<h3>Setting parameters to None<a class="headerlink" href="#setting-parameters-to-none" title="Permalink to this heading">#</a></h3>
+<p>To set parameters to None, use the <code class="docutils literal notranslate"><span class="pre">null</span></code> keyword, which is a special keyword in Hydra that is automatically converted to None.
+In the above example, we could also disable the <code class="docutils literal notranslate"><span class="pre">joint_pos_rel</span></code> observation by setting it to None with
+<code class="docutils literal notranslate"><span class="pre">env.observations.policy.joint_pos_rel.func=null</span></code>.</p>
+</section>
+<section id="dictionaries">
+<h3>Dictionaries<a class="headerlink" href="#dictionaries" title="Permalink to this heading">#</a></h3>
+<p>Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">EventCfg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for events.&quot;&quot;&quot;</span>
+
+    <span class="c1"># reset</span>
+    <span class="n">reset_cart_position</span> <span class="o">=</span> <span class="n">EventTerm</span><span class="p">(</span>
+        <span class="n">func</span><span class="o">=</span><span class="n">mdp</span><span class="o">.</span><span class="n">reset_joints_by_offset</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;reset&quot;</span><span class="p">,</span>
+        <span class="n">params</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;asset_cfg&quot;</span><span class="p">:</span> <span class="n">SceneEntityCfg</span><span class="p">(</span><span class="s2">&quot;robot&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;slider_to_cart&quot;</span><span class="p">]),</span>
+<span class="hll">            <span class="s2">&quot;position_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+</span>            <span class="s2">&quot;velocity_range&quot;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>the <code class="docutils literal notranslate"><span class="pre">position_range</span></code> parameter can be modified with <code class="docutils literal notranslate"><span class="pre">env.events.reset_cart_position.params.position_range=&quot;[-2.0,</span> <span class="pre">2.0]&quot;</span></code>.
+This example shows two noteworthy points:</p>
+<ul class="simple">
+<li><p>The parameter we set has a space, so it must be enclosed in quotes.</p></li>
+<li><p>The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.</p></li>
+</ul>
+</section>
 </section>
 </section>
 
@@ -665,20 +758,20 @@ a single node instance.</p>
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="hydra.html"
+       href="task_workflows.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Hydra Configuration System</p>
+        <p class="prev-next-title">Task Design Workflows</p>
       </div>
     </a>
     <a class="right-next"
-       href="tiled_rendering.html"
+       href="multi_gpu.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Tiled Rendering and Recording</p>
+        <p class="prev-next-title">Multi-GPU and Multi-Node Training</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -698,8 +791,12 @@ a single node instance.</p>
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-gpu-training">Multi-GPU Training</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-node-training">Multi-Node Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-advanced-parameters">Modifying advanced parameters</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#callables">Callables</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#setting-parameters-to-none">Setting parameters to None</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dictionaries">Dictionaries</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

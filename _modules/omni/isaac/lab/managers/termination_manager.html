@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 15, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 17, 2024"/>
   </head>
   
   
@@ -226,6 +226,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
@@ -621,7 +622,7 @@ document.write(`
         <span class="n">extras</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
             <span class="c1"># store information</span>
-            <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;Episode Termination/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">env_ids</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+            <span class="n">extras</span><span class="p">[</span><span class="s2">&quot;Episode_Termination/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_term_dones</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">env_ids</span><span class="p">])</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
         <span class="c1"># reset all the reward terms</span>
         <span class="k">for</span> <span class="n">term_cfg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_class_term_cfgs</span><span class="p">:</span>
             <span class="n">term_cfg</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env_ids</span><span class="o">=</span><span class="n">env_ids</span><span class="p">)</span>
@@ -782,7 +783,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 15, 2024.
+  Last updated on Aug 17, 2024.
   <br/>
 </p>
   </div>

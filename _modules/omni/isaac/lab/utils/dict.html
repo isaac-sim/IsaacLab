@@ -54,7 +54,7 @@
     <link rel="search" title="Search" href="../../../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Aug 15, 2024"/>
+    <meta name="docbuild:last-update" content="Aug 17, 2024"/>
   </head>
   
   
@@ -226,6 +226,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Features</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/task_workflows.html">Task Design Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/hydra.html">Hydra Configuration System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/multi_gpu.html">Multi-GPU and Multi-Node Training</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/tiled_rendering.html">Tiled Rendering and Recording</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../../source/features/environments.html">Environments</a></li>
@@ -498,7 +499,7 @@ document.write(`
 <span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span> <span class="nn">.array</span> <span class="kn">import</span> <span class="n">TENSOR_TYPE_CONVERSIONS</span><span class="p">,</span> <span class="n">TENSOR_TYPES</span>
-<span class="kn">from</span> <span class="nn">.string</span> <span class="kn">import</span> <span class="n">callable_to_string</span><span class="p">,</span> <span class="n">string_to_callable</span>
+<span class="kn">from</span> <span class="nn">.string</span> <span class="kn">import</span> <span class="n">callable_to_string</span><span class="p">,</span> <span class="n">string_to_callable</span><span class="p">,</span> <span class="n">string_to_slice</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Dictionary &lt;-&gt; Class operations.</span>
@@ -528,6 +529,7 @@ document.write(`
         <span class="n">obj_dict</span> <span class="o">=</span> <span class="n">obj</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">obj_dict</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="vm">__dict__</span>
+
     <span class="c1"># convert to dictionary</span>
     <span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">obj_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -565,39 +567,36 @@ document.write(`
         <span class="c1"># key_ns is the full namespace of the key</span>
         <span class="n">key_ns</span> <span class="o">=</span> <span class="n">_ns</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span>
         <span class="c1"># check if key is present in the object</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
-            <span class="n">obj_mem</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
-                <span class="c1"># Note: We don&#39;t handle two-level nested dictionaries. Just use configclass if this is needed.</span>
-                <span class="c1"># iterate over the dictionary to look for callable values</span>
-                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">obj_mem</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
-                        <span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">string_to_callable</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">obj_mem</span> <span class="o">=</span> <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
                 <span class="c1"># recursively call if it is a dictionary</span>
                 <span class="n">update_class_from_dict</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">_ns</span><span class="o">=</span><span class="n">key_ns</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
                 <span class="c1"># check length of value to be safe</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">and</span> <span class="n">obj_mem</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s2">&quot;[Config]: Incorrect length under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span>
                         <span class="sa">f</span><span class="s2">&quot; Expected: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span><span class="si">}</span><span class="s2">, Received: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
                     <span class="p">)</span>
-                <span class="c1"># set value</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
             <span class="k">elif</span> <span class="nb">callable</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">):</span>
                 <span class="c1"># update function name</span>
                 <span class="n">value</span> <span class="o">=</span> <span class="n">string_to_callable</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)):</span>
-                <span class="c1"># check that they are type-safe</span>
-                <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">))</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">pass</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">&quot;[Config]: Incorrect type under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span>
                     <span class="sa">f</span><span class="s2">&quot; Expected: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">obj_mem</span><span class="p">)</span><span class="si">}</span><span class="s2">, Received: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
                 <span class="p">)</span>
+            <span class="c1"># set value</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[Config]: Key not found under namespace: </span><span class="si">{</span><span class="n">key_ns</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span></div>
 
@@ -723,6 +722,40 @@ document.write(`
     <span class="k">return</span> <span class="n">orig_dict</span></div>
 
 
+<div class="viewcode-block" id="replace_slices_with_strings"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_slices_with_strings">[docs]</a><span class="k">def</span> <span class="nf">replace_slices_with_strings</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Replace slice objects with their string representations in a dictionary.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The dictionary to process.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The dictionary with slice objects replaced by their string representations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">replace_slices_with_strings</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;slice(</span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">start</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">stop</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="n">data</span><span class="o">.</span><span class="n">step</span><span class="si">}</span><span class="s2">)&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+
+
+<div class="viewcode-block" id="replace_strings_with_slices"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.replace_strings_with_slices">[docs]</a><span class="k">def</span> <span class="nf">replace_strings_with_slices</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Replace string representations of slices with slice objects in a dictionary.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data: The dictionary to process.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The dictionary with string representations of slices replaced by slice objects.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">replace_strings_with_slices</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;slice(&quot;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">string_to_slice</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+
+
 <div class="viewcode-block" id="print_dict"><a class="viewcode-back" href="../../../../../source/api/lab/omni.isaac.lab.utils.html#omni.isaac.lab.utils.dict.print_dict">[docs]</a><span class="k">def</span> <span class="nf">print_dict</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">nesting</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">4</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Outputs a nested dictionary.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -786,7 +819,7 @@ By The Isaac Lab Project Developers.
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Aug 15, 2024.
+  Last updated on Aug 17, 2024.
   <br/>
 </p>
   </div>
