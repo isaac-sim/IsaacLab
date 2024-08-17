@@ -13,8 +13,6 @@ This script demonstrates how to work with the deformable object and interact wit
 
 """
 
-from __future__ import annotations
-
 """Launch Isaac Sim Simulator first."""
 
 
@@ -71,10 +69,10 @@ def design_scene():
         init_state=DeformableObjectCfg.InitialStateCfg(),
         debug_vis=True,
     )
-    deformable_object = DeformableObject(cfg=cfg)
+    cube_object = DeformableObject(cfg=cfg)
 
     # return the scene information
-    scene_entities = {"deformable_object": deformable_object}
+    scene_entities = {"cube_object": cube_object}
     return scene_entities, origins
 
 
@@ -83,14 +81,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     # Extract scene entities
     # note: we only do this here for readability. In general, it is better to access the entities directly from
     #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
-    deformable_object = entities["deformable_object"]
+    cube_object = entities["cube_object"]
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
 
     # Nodal kinematic targets of the deformable bodies
-    deformable_kinematic_target = deformable_object.data.sim_kinematic_target.clone()
+    nodal_kinematic_target = cube_object.data.sim_kinematic_target.clone()
 
     # Simulate physics
     while simulation_app.is_running():
@@ -99,37 +97,41 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # reset counters
             sim_time = 0.0
             count = 0
-            # reset root state
-            nodal_state = deformable_object.data.default_nodal_state_w.clone()
-            # write root state to simulation
-            deformable_object.write_nodal_state_to_sim(nodal_state)
-
-            # reset kinematic target
-            deformable_kinematic_target[..., :3] = nodal_state[..., :3]
-            deformable_kinematic_target[..., 3] = 1.0
-
+            # reset nodal state
+            nodal_state = cube_object.data.default_nodal_state_w.clone()
+            # write nodal state to simulation
+            cube_object.write_nodal_state_to_sim(nodal_state)
             # reset buffers
-            deformable_object.reset()
+            cube_object.reset()
+
+            # reset kinematic target to default nodal state and free all vertices
+            nodal_kinematic_target[..., :3] = nodal_state[..., :3]
+            nodal_kinematic_target[..., 3] = 1.0
+
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
 
-        # update the kinematic target
-        deformable_kinematic_target[[0, 3], 0, 2] += 0.001
-        # randomly sample instances to apply kinematic target
-        deformable_kinematic_target[[0, 3], 0, 3] = 0.0
+        # update the kinematic target for cubes at index 0 and 3
+        # we slightly move the cube in the z-direction by picking the vertex at index 0
+        nodal_kinematic_target[[0, 3], 0, 2] += 0.001
+        # set vertex at index 0 to be kinematically constrained
+        # 0: constrained, 1: free
+        nodal_kinematic_target[[0, 3], 0, 3] = 0.0
         # write kinematic target to simulation
-        deformable_object.write_kinematic_target_to_sim(deformable_kinematic_target)
+        cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
 
+        # write internal data to simulation
+        cube_object.write_data_to_sim()
         # perform step
         sim.step()
         # update sim-time
         sim_time += sim_dt
         count += 1
         # update buffers
-        deformable_object.update(sim_dt)
+        cube_object.update(sim_dt)
         # print the root position
         if count % 50 == 0:
-            print(f"Root position (in world): {deformable_object.data.root_pos_w[:, :3]}")
+            print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
 
 
 def main():
