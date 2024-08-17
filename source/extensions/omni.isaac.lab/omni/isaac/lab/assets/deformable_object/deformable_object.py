@@ -357,13 +357,12 @@ class DeformableObject(AssetBase):
         num_enabled = int(torch.sum(targets_enabled).item())
         # get positions if any targets are enabled
         if num_enabled == 0:
-            # hide target visualizer
-            self.target_visualizer.set_visibility(False)
+            # create a marker below the ground
+            positions = torch.tensor([[0.0, 0.0, -10.0]], device=self.device)
         else:
             positions = self.data.nodal_kinematic_target[targets_enabled][..., :3]
-            # show target visualizer
-            self.target_visualizer.set_visibility(True)
-            self.target_visualizer.visualize(positions.view(-1, 3), marker_indices=[0] * num_enabled)
+        # show target visualizer
+        self.target_visualizer.visualize(positions)
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
