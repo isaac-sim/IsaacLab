@@ -105,7 +105,7 @@ class DeformableObjectData:
     @property
     def nodal_state_w(self):
         """Nodal state ``[nodal_pos, nodal_vel]`` in simulation world frame.
-        Shape is (num_instances, 2 * max_sim_mesh_vertices_per_body, 3).
+        Shape is (num_instances, max_sim_mesh_vertices_per_body, 6).
         """
         if self._nodal_state_w.timestamp < self._sim_timestamp:
             nodal_positions = self.nodal_pos_w

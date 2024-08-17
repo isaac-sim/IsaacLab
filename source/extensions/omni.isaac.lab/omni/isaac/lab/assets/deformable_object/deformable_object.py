@@ -193,7 +193,8 @@ class DeformableObject(AssetBase):
         and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
 
         Args:
-            targets: The kinematic targets comprising of nodal positions and flags. Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 4).
+            targets: The kinematic targets comprising of nodal positions and flags.
+                Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 4).
             env_ids: Environment indices. If :obj:`None`, then all indices are used.
         """
         # resolve all indices
@@ -253,7 +254,7 @@ class DeformableObject(AssetBase):
                         material_prim = mat_prim
                         break
         if material_prim is None:
-            carb.log_warn(
+            carb.log_info(
                 f"Failed to find a deformable material binding for '{root_prim.GetPath().pathString}'."
                 " The material properties will be set to default values and are not modifiable at runtime."
                 " If you want to modify the material properties, please ensure that the material is bound"
