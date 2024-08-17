@@ -63,7 +63,7 @@ an instance of the :class:`assets.DeformableObject` class by passing the configu
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
-   :end-at: deformable_object = DeformableObject(cfg=cfg)
+   :end-at: cube_object = DeformableObject(cfg=cfg)
 
 Running the simulation loop
 ---------------------------
@@ -124,7 +124,7 @@ However, we keep this method for completeness and future extensions.
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # write internal data to simulation
-   :end-at: cone_object.write_data_to_sim()
+   :end-at: cube_object.write_data_to_sim()
 
 Updating the state
 """"""""""""""""""
