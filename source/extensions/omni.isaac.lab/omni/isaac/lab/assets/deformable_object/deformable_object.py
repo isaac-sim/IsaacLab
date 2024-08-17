@@ -242,7 +242,11 @@ class DeformableObject(AssetBase):
         Returns:
             The transformed nodal positions. Shape is (N, P, 3).
         """
-        return math_utils.transform_points(nodal_pos[..., :3], pos, quat)
+        # offset the nodal positions to center them around the origin
+        mean_nodal_pos = nodal_pos.mean(dim=1, keepdim=True)
+        nodal_pos = nodal_pos - mean_nodal_pos
+        # transform the nodal positions based on the pose around the origin
+        return math_utils.transform_points(nodal_pos, pos, quat) + mean_nodal_pos
 
     """
     Internal helper.
@@ -343,6 +347,8 @@ class DeformableObject(AssetBase):
 
         # create buffers
         self._create_buffers()
+        # update the deformable body data
+        self.update(0.0)
 
     def _create_buffers(self):
         """Create buffers for storing data."""

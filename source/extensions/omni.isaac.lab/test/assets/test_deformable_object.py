@@ -294,34 +294,54 @@ class TestDeformableObject(unittest.TestCase):
                     # Play the simulator
                     sim.reset()
 
-                    # Now we are ready!
-                    for _ in range(5):
-                        # reset the nodal state of the object
-                        nodal_state = cube_object.data.default_nodal_state_w.clone()
-                        # apply random pose to the object
-                        pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
-                        pos_w[:, 2] += 0.5
-                        quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
-                        nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
-                        # compute mean of initial nodal positions
-                        mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
+                    for randomize_pos in [True, False]:
+                        for randomize_rot in [True, False]:
+                            # Now we are ready!
+                            for _ in range(5):
+                                # reset the nodal state of the object
+                                nodal_state = cube_object.data.default_nodal_state_w.clone()
+                                mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
+                                # sample randomize position and rotation
+                                if randomize_pos:
+                                    pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
+                                    pos_w[:, 2] += 0.5
+                                else:
+                                    pos_w = None
+                                if randomize_rot:
+                                    quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
+                                else:
+                                    quat_w = None
+                                # apply random pose to the object
+                                nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+                                # compute mean of initial nodal positions
+                                mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
 
-                        # write nodal state to simulation
-                        cube_object.write_nodal_state_to_sim(nodal_state)
-                        # reset object
-                        cube_object.reset()
+                                # check computation is correct
+                                if pos_w is None:
+                                    torch.testing.assert_close(
+                                        mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5
+                                    )
+                                else:
+                                    torch.testing.assert_close(
+                                        mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5
+                                    )
 
-                        # perform simulation
-                        for _ in range(50):
-                            # perform step
-                            sim.step()
-                            # update object
-                            cube_object.update(sim.cfg.dt)
+                                # write nodal state to simulation
+                                cube_object.write_nodal_state_to_sim(nodal_state)
+                                # reset object
+                                cube_object.reset()
 
-                        # check that the mean of the nodal positions is equal to the applied pose
-                        torch.testing.assert_close(
-                            cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5
-                        )
+                                # perform simulation
+                                for _ in range(50):
+                                    # perform step
+                                    sim.step()
+                                    # update object
+                                    cube_object.update(sim.cfg.dt)
+
+                                # check that the mean of the nodal positions is equal to the applied pose
+                                torch.testing.assert_close(
+                                    cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5
+                                )
 
     def test_set_kinematic_targets(self):
         """Test setting kinematic targets for the deformable object.
