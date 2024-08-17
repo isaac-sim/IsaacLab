@@ -34,7 +34,8 @@ from omni.isaac.lab.sim import build_simulation_context
 
 def generate_cubes_scene(
     num_cubes: int = 1,
-    height=1.0,
+    height: float = 1.0,
+    initial_rot: tuple[float, ...] = (1.0, 0.0, 0.0, 0.0),
     has_api: bool = True,
     material_path: str | None = "material",
     kinematic_enabled: bool = False,
@@ -44,7 +45,8 @@ def generate_cubes_scene(
 
     Args:
         num_cubes: Number of cubes to generate.
-        height: Height of the cubes.
+        height: Height of the cubes. Default is 1.0.
+        initial_rot: Initial rotation of the cubes. Default is (1.0, 0.0, 0.0, 0.0).
         has_api: Whether the cubes have a deformable body API on them.
         material_path: Path to the material file. If None, no material is added. Default is "material",
             which is path relative to the spawned object prim path.
@@ -82,7 +84,7 @@ def generate_cubes_scene(
     cube_object_cfg = DeformableObjectCfg(
         prim_path="/World/Table_.*/Object",
         spawn=spawn_cfg,
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     cube_object = DeformableObject(cfg=cube_object_cfg)
 
@@ -230,10 +232,8 @@ class TestDeformableObject(unittest.TestCase):
                     # Play the simulator
                     sim.reset()
 
-                    state_types = ["nodal_pos_w", "nodal_vel_w"]
-
                     # Set each state type individually as they are dependent on each other
-                    for state_type_to_randomize in state_types:
+                    for state_type_to_randomize in ["nodal_pos_w", "nodal_vel_w"]:
                         state_dict = {
                             "nodal_pos_w": torch.zeros_like(cube_object.data.nodal_pos_w),
                             "nodal_vel_w": torch.zeros_like(cube_object.data.nodal_vel_w),
@@ -261,14 +261,14 @@ class TestDeformableObject(unittest.TestCase):
                                 # reset nodal state
                                 cube_object.write_nodal_state_to_sim(nodal_state)
 
+                                # assert that set node quantities are equal to the ones set in the state_dict
+                                torch.testing.assert_close(
+                                    cube_object.data.nodal_state_w, nodal_state, rtol=1e-5, atol=1e-5
+                                )
+
                                 # perform step
                                 sim.step()
-
-                                # assert that set node quantities are equal to the ones set in the state_dict
-                                for key, expected_value in state_dict.items():
-                                    value = getattr(cube_object.data, key)
-                                    torch.testing.assert_close(value, expected_value, rtol=1e-5, atol=1e-5)
-
+                                # update object
                                 cube_object.update(sim.cfg.dt)
 
 
