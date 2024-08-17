@@ -325,7 +325,7 @@ class TestDeformableObject(unittest.TestCase):
 
                             # assert that set node quantities are equal to the ones set in the state_dict
                             torch.testing.assert_close(
-                                cube_object.data.nodal_pos_w[0], sim_kinematic_targets[0, :, :3], rtol=1e-5, atol=1e-5
+                                cube_object.data.nodal_pos_w[0], nodal_kinematic_targets[0, :, :3], rtol=1e-5, atol=1e-5
                             )
                             # see other cubes are dropping
                             root_pos_w = cube_object.data.root_pos_w
