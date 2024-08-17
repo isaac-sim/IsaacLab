@@ -98,7 +98,7 @@ class TestDeformableObject(unittest.TestCase):
     Tests
     """
 
-    def test_initialization_with_individual_material(self):
+    def test_initialization(self):
         """Test initialization for prim with deformable body API at the provided prim path.
 
         This test checks that the deformable object is correctly initialized with deformable material at
@@ -140,6 +140,10 @@ class TestDeformableObject(unittest.TestCase):
                         self.assertEqual(
                             cube_object.data.nodal_state_w.shape,
                             (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6),
+                        )
+                        self.assertEqual(
+                            cube_object.data.sim_kinematic_target.shape,
+                            (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 4),
                         )
                         self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
                         self.assertEqual(cube_object.data.root_vel_w.shape, (num_cubes, 3))
@@ -214,7 +218,7 @@ class TestDeformableObject(unittest.TestCase):
                     # Check if object is initialized
                     self.assertFalse(cube_object.is_initialized)
 
-    def test_set_deformable_object_state(self):
+    def test_set_nodal_state(self):
         """Test setting the state of the deformable object.
 
         In this test, we set the state of the deformable object to a random state and check
@@ -270,6 +274,62 @@ class TestDeformableObject(unittest.TestCase):
                                 sim.step()
                                 # update object
                                 cube_object.update(sim.cfg.dt)
+
+    def test_set_kinematic_targets(self):
+        """Test setting kinematic targets for the deformable object.
+
+        In this test, we set one of the cubes with only kinematic targets for its nodal positions and check
+        that the object is in that state after simulation.
+        """
+        for num_cubes in (2, 4):
+            with self.subTest(num_cubes=num_cubes):
+                # Turn off gravity for this test as we don't want any external forces acting on the object
+                # to ensure state remains static
+                with build_simulation_context(auto_add_lighting=True) as sim:
+                    # Generate cubes scene
+                    cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
+
+                    # Play the simulator
+                    sim.reset()
+
+                    # Get sim kinematic targets
+                    sim_kinematic_targets = cube_object.root_physx_view.get_sim_kinematic_targets().clone()
+                    sim_kinematic_targets = sim_kinematic_targets.view(num_cubes, -1, 4)
+                    print("Setting kinematic targets: ", sim_kinematic_targets[:, :, -1])
+
+                    # Now we are ready!
+                    for _ in range(5):
+                        # reset nodal state
+                        cube_object.write_nodal_state_to_sim(cube_object.data.default_nodal_state_w)
+
+                        default_root_pos = cube_object.data.default_nodal_state_w.mean(dim=1)
+
+                        # reset object
+                        cube_object.reset()
+
+                        # write kinematic targets
+                        # -- enable kinematic targets for the first cube
+                        sim_kinematic_targets[1:, :, 3] = 1.0
+                        sim_kinematic_targets[0, :, 3] = 0.0
+                        # -- set kinematic targets for the first cube
+                        sim_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w[0, :, :3]
+                        # -- write kinematic targets to simulation
+                        cube_object.write_sim_mesh_kinematic_targets(sim_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device))
+
+                        # perform simulation
+                        for _ in range(20):
+                            # perform step
+                            sim.step()
+                            # update object
+                            cube_object.update(sim.cfg.dt)
+
+                            # assert that set node quantities are equal to the ones set in the state_dict
+                            torch.testing.assert_close(
+                                cube_object.data.nodal_pos_w[0], sim_kinematic_targets[0, :, :3], rtol=1e-5, atol=1e-5
+                            )
+                            # see other cubes are dropping
+                            root_pos_w = cube_object.data.root_pos_w
+                            self.assertTrue(torch.all(root_pos_w[1:, 2] < default_root_pos[1:, 2]))
 
 
 if __name__ == "__main__":
