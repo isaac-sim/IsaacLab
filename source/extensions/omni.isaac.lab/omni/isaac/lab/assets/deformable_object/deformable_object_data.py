@@ -83,6 +83,20 @@ class DeformableObjectData:
     """
 
     ##
+    # Kinematic commands
+    ##
+
+    sim_kinematic_target: torch.Tensor = None
+    """Simulation mesh kinematic targets for the deformable bodies.
+    Shape is (num_instances, max_sim_mesh_vertices_per_body, 4).
+
+    The kinematic targets are used to drive the simulation mesh vertices to the target positions.
+    The targets are stored as (x, y, z, is_not_kinematic) where "is_not_kinematic" is a binary
+    flag indicating whether the vertex is kinematic or not. The flag is set to 0 for kinematic vertices
+    and 1 for non-kinematic vertices.
+    """
+
+    ##
     # Properties.
     ##
 

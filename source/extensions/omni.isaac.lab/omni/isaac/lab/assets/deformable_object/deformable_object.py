@@ -36,6 +36,13 @@ class DeformableObject(AssetBase):
 
     The state of a deformable object comprises of its nodal positions and velocities, and not the object's root
     position and orientation. The nodal positions and velocities are in the simulation frame.
+
+    Soft bodies can be `partially kinematic`_, where some nodes are driven by kinematic targets, and the rest are
+    simulated. The kinematic targets are the desired positions of the nodes, and the simulation drives the nodes
+    towards these targets. This is useful for partial control of the object, such as moving a stuffed animal's
+    head while the rest of the body is simulated.
+
+    .. _partially kinematic: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies
     """
 
     cfg: DeformableObjectCfg
@@ -186,7 +193,7 @@ class DeformableObject(AssetBase):
         # set into simulation
         self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
-    def write_simulation_mesh_kinematic_targets(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_sim_mesh_kinematic_targets(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
@@ -202,8 +209,10 @@ class DeformableObject(AssetBase):
         if env_ids is None:
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
+        # store into internal buffers
+        self._data.sim_kinematic_target[env_ids] = targets.clone()
         # set into simulation
-        self.root_physx_view.set_sim_kinematic_targets(targets, indices=physx_env_ids)
+        self.root_physx_view.set_sim_kinematic_targets(self._data.sim_kinematic_target, indices=physx_env_ids)
 
     """
     Internal helper.
@@ -304,22 +313,23 @@ class DeformableObject(AssetBase):
 
         # create buffers
         self._create_buffers()
-        # process configuration
-        self._process_cfg()
 
     def _create_buffers(self):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = torch.arange(self.num_instances, dtype=torch.long, device=self.device)
 
-    def _process_cfg(self):
-        """Post processing of configuration parameters."""
         # default state
         # we use the initial nodal positions at spawn time as the default state
         # note: these are all in the simulation frame
         nodal_positions = self.root_physx_view.get_sim_nodal_positions()
         nodal_velocities = torch.zeros_like(nodal_positions)
         self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=-1)
+
+        # kinematic targets
+        self._data.sim_kinematic_target = self.root_physx_view.get_sim_kinematic_targets()
+        # set all nodes as non-kinematic targets by default
+        self._data.sim_kinematic_target[..., -1] = 1.0
 
     """
     Internal simulation callbacks.
