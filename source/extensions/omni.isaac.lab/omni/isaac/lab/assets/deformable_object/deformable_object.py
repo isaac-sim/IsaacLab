@@ -354,9 +354,16 @@ class DeformableObject(AssetBase):
     def _debug_vis_callback(self, event):
         # check where to visualize
         targets_enabled = self.data.nodal_kinematic_target[:, :, 3] == 0.0
-        positions = self.data.nodal_kinematic_target[targets_enabled][..., :3]
-        # show target visualizer
-        self.target_visualizer.visualize(positions.view(-1, 3))
+        num_enabled = int(torch.sum(targets_enabled).item())
+        # get positions if any targets are enabled
+        if num_enabled == 0:
+            # hide target visualizer
+            self.target_visualizer.set_visibility(False)
+        else:
+            positions = self.data.nodal_kinematic_target[targets_enabled][..., :3]
+            # show target visualizer
+            self.target_visualizer.set_visibility(True)
+            self.target_visualizer.visualize(positions.view(-1, 3), marker_indices=[0] * num_enabled)
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
