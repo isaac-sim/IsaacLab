@@ -233,14 +233,14 @@ class DeformableObject(AssetBase):
         Internally, it calls the :meth:`omni.isaac.lab.utils.math.transform_points` function.
 
         Args:
-            nodal_pos: The nodal positions in the simulation frame. Shape is (N, P, 3).
+            nodal_pos: The nodal positions in the simulation frame. Shape is (N, max_sim_mesh_vertices_per_body, 3).
             pos: The position transformation. Shape is (N, 3).
                 Defaults to None, in which case the position is assumed to be zero.
             quat: The orientation transformation as quaternion (w, x, y, z). Shape is (N, 4).
                 Defaults to None, in which case the orientation is assumed to be identity.
 
         Returns:
-            The transformed nodal positions. Shape is (N, P, 3).
+            The transformed nodal positions. Shape is (N, max_sim_mesh_vertices_per_body, 3).
         """
         # offset the nodal positions to center them around the origin
         mean_nodal_pos = nodal_pos.mean(dim=1, keepdim=True)
