@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.21.3 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added APIs to interact with the physics simulation of deformable objects. This includes setting the
+  material properties, setting kinematic targets, and getting the state of the deformable object.
+  For more information, please refer to the :mod:`omni.isaac.lab.assets.DeformableObject` class.
+
+
 0.21.2 (2024-08-13)
 ~~~~~~~~~~~~~~~~~~~
 
