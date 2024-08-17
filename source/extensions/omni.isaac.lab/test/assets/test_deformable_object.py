@@ -33,7 +33,12 @@ from omni.isaac.lab.sim import build_simulation_context
 
 
 def generate_cubes_scene(
-    num_cubes: int = 1, height=1.0, has_api: bool = True, kinematic_enabled: bool = False, device: str = "cuda:0"
+    num_cubes: int = 1,
+    height=1.0,
+    has_api: bool = True,
+    material_path: str | None = "material",
+    kinematic_enabled: bool = False,
+    device: str = "cuda:0",
 ) -> DeformableObject:
     """Generate a scene with the provided number of cubes.
 
@@ -41,6 +46,8 @@ def generate_cubes_scene(
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
         has_api: Whether the cubes have a deformable body API on them.
+        material_path: Path to the material file. If None, no material is added. Default is "material",
+            which is path relative to the spawned object prim path.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
 
@@ -59,6 +66,12 @@ def generate_cubes_scene(
             size=(0.2, 0.2, 0.2),
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
         )
+        # Add physics material if provided
+        if material_path is not None:
+            spawn_cfg.physics_material = sim_utils.DeformableBodyMaterialCfg()
+            spawn_cfg.physics_material_path = material_path
+        else:
+            spawn_cfg.physics_material = None
     else:
         # since no deformable body properties defined, this is just a static collider
         spawn_cfg = sim_utils.MeshCuboidCfg(
@@ -83,39 +96,58 @@ class TestDeformableObject(unittest.TestCase):
     Tests
     """
 
-    def test_initialization(self):
-        """Test initialization for prim with deformable body API at the provided prim path."""
-        for num_cubes in (1, 2):
-            with self.subTest(num_cubes=num_cubes):
-                with build_simulation_context(auto_add_lighting=True) as sim:
-                    # Generate cubes scene
-                    cube_object = generate_cubes_scene(num_cubes=num_cubes)
+    def test_initialization_with_individual_material(self):
+        """Test initialization for prim with deformable body API at the provided prim path.
 
-                    # Check that boundedness of deformable object is correct
-                    self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+        This test checks that the deformable object is correctly initialized with deformable material at
+        different paths.
+        """
+        for material_path in [None, "/World/SoftMaterial", "material"]:
+            for num_cubes in (1, 2):
+                with self.subTest(num_cubes=num_cubes, material_path=material_path):
+                    with build_simulation_context(auto_add_lighting=True) as sim:
+                        # Generate cubes scene
+                        cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
 
-                    # Play sim
-                    sim.reset()
+                        # Check that boundedness of deformable object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
 
-                    # Check that boundedness of deformable object is correct
-                    self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
+                        # Play sim
+                        sim.reset()
 
-                    # Check if object is initialized
-                    self.assertTrue(cube_object.is_initialized)
+                        # Check that boundedness of deformable object is correct
+                        self.assertEqual(ctypes.c_long.from_address(id(cube_object)).value, 1)
 
-                    # Check buffers that exists and have correct shapes
-                    self.assertEqual(
-                        cube_object.data.nodal_state_w.shape, (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6)
-                    )
-                    self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
-                    self.assertEqual(cube_object.data.root_vel_w.shape, (num_cubes, 3))
+                        # Check if object is initialized
+                        self.assertTrue(cube_object.is_initialized)
 
-                    # Simulate physics
-                    for _ in range(2):
-                        # perform rendering
-                        sim.step()
-                        # update object
-                        cube_object.update(sim.cfg.dt)
+                        # Check correct number of cubes
+                        self.assertEqual(cube_object.num_instances, num_cubes)
+                        self.assertEqual(cube_object.root_physx_view.count, num_cubes)
+
+                        # Check correct number of materials in the view
+                        if material_path:
+                            if material_path.startswith("/"):
+                                self.assertEqual(cube_object.material_physx_view.count, 1)
+                            else:
+                                self.assertEqual(cube_object.material_physx_view.count, num_cubes)
+                        else:
+                            self.assertIsNone(cube_object.material_physx_view)
+
+                        # Check buffers that exists and have correct shapes
+                        self.assertEqual(
+                            cube_object.data.nodal_state_w.shape,
+                            (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6),
+                        )
+                        self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
+                        self.assertEqual(cube_object.data.root_vel_w.shape, (num_cubes, 3))
+
+                        # Simulate physics
+                        for _ in range(2):
+                            # perform rendering
+                            sim.step()
+                            # update object
+                            cube_object.update(sim.cfg.dt)
 
     def test_initialization_on_device_cpu(self):
         """Test that initialization fails with deformable body API on the CPU."""
