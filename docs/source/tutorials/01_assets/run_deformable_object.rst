@@ -30,7 +30,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``sou
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 60-72, 74-76, 100-105, 114-121, 123-124, 130-131
+      :emphasize-lines: 61-73, 75-77, 102-108, 110-114, 123-130, 132-133, 139-140
       :linenos:
 
 
@@ -83,10 +83,17 @@ spawned object prims. This default state can be configured from the :attr:`asset
 attribute, which we left as identity in this tutorial.
 
 .. attention::
-   The initial state in the configuration specifies the pose of the deformable object at the time of spawning.
-   Based on this initial state, the default nodal state is obtained when the simulation is played for the
-   first time.
+   The initial state in the configuration :attr:`assets.DeformableObjectCfg` specifies the pose
+   of the deformable object at the time of spawning. Based on this initial state, the default nodal state is
+   obtained when the simulation is played for the first time.
 
+
+We apply transformations to the nodal positions to randomize the initial state of the deformable object.
+
+.. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
+   :language: python
+   :start-at: # reset the nodal state of the object
+   :end-at: nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
 To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim`
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
@@ -94,7 +101,7 @@ Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any i
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: # reset nodal state
+   :start-at: # write nodal state to simulation
    :end-at: cube_object.reset()
 
 Stepping the simulation
