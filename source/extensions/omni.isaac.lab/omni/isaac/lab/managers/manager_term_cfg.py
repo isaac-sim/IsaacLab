@@ -13,6 +13,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.modifiers import ModifierCfg
 from omni.isaac.lab.utils.noise import NoiseCfg
 
 from .scene_entity_cfg import SceneEntityCfg
@@ -131,6 +132,17 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     This function should take the environment object and any other parameters
     as input and return the observation signal as torch float tensors of
     shape (num_envs, obs_term_dim).
+    """
+
+    modifiers: list[ModifierCfg] | None = None
+    """The list of data modifiers to apply to the observation in order. Defaults to None,
+    in which case no modifications will be applied.
+
+    Modifiers are applied in the order they are specified in the list. They can be stateless
+    or stateful, and can be used to apply transformations to the observation data. For example,
+    a modifier can be used to normalize the observation data or to apply a rolling average.
+
+    For more information on modifiers, see the :class:`~omni.isaac.lab.utils.modifiers.ModifierCfg` class.
     """
 
     noise: NoiseCfg | None = None
