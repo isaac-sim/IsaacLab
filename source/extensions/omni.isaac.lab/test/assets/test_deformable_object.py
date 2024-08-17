@@ -312,7 +312,7 @@ class TestDeformableObject(unittest.TestCase):
                         # -- set kinematic targets for the first cube
                         sim_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w[0, :, :3]
                         # -- write kinematic targets to simulation
-                        cube_object.write_kinematic_target_to_sim(
+                        cube_object.write_nodal_kinematic_target_to_sim(
                             sim_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
                         )
 

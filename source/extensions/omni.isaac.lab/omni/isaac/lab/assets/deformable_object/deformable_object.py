@@ -120,6 +120,8 @@ class DeformableObject(AssetBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None):
+        # Think: Should we reset the kinematic targets when resetting the object?
+        #  This is not done in the current implementation. We assume users will reset the kinematic targets.
         pass
 
     def write_data_to_sim(self):
@@ -141,7 +143,7 @@ class DeformableObject(AssetBase):
         Args:
             nodal_state: Nodal state in simulation frame.
                 Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 6).
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # set into simulation
         self.write_nodal_pos_to_sim(nodal_state[..., :3], env_ids=env_ids)
@@ -156,7 +158,7 @@ class DeformableObject(AssetBase):
         Args:
             nodal_pos: Nodal positions in simulation frame.
                 Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         physx_env_ids = env_ids
@@ -179,7 +181,7 @@ class DeformableObject(AssetBase):
         Args:
             nodal_vel: Nodal velocities in simulation frame.
                 Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 3).
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         physx_env_ids = env_ids
@@ -192,16 +194,19 @@ class DeformableObject(AssetBase):
         # set into simulation
         self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
-    def write_kinematic_target_to_sim(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_nodal_kinematic_target_to_sim(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
         and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
 
+        Note:
+            The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.
+
         Args:
             targets: The kinematic targets comprising of nodal positions and flags.
                 Shape is (len(env_ids), max_sim_mesh_vertices_per_body, 4).
-            env_ids: Environment indices. If :obj:`None`, then all indices are used.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         physx_env_ids = env_ids
