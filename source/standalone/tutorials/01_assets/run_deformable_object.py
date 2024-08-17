@@ -54,7 +54,7 @@ def design_scene():
 
     # Create separate groups called "Origin1", "Origin2", "Origin3"
     # Each group will have a robot in it
-    origins = [[0.25, 0.25, 1.0], [-0.25, 0.25, 1.0], [0.25, -0.25, 1.0], [-0.25, -0.25, 1.0]]
+    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
         prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
 
@@ -67,7 +67,7 @@ def design_scene():
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 1.0, 0.0)),
             physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
         ),
-        init_state=DeformableObjectCfg.InitialStateCfg(),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         debug_vis=True,
     )
     cube_object = DeformableObject(cfg=cfg)
@@ -102,20 +102,20 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # reset the nodal state of the object
             nodal_state = cube_object.data.default_nodal_state_w.clone()
             # apply random pose to the object
-            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
-            pos_w[..., 2] += 0.5
+            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
             nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
             # write nodal state to simulation
             cube_object.write_nodal_state_to_sim(nodal_state)
 
-            # reset buffers
-            cube_object.reset()
-
-            # reset kinematic target to default nodal state and free all vertices
+            # write kinematic target to nodal state and free all vertices
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
+            cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+
+            # reset buffers
+            cube_object.reset()
 
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")

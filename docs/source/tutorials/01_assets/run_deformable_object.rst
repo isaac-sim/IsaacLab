@@ -30,7 +30,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``sou
 
    .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 61-73, 75-77, 102-108, 110-114, 123-130, 132-133, 139-140
+      :emphasize-lines: 61-73, 75-77, 102-110, 112-115, 117-118, 123-130, 132-133, 139-140
       :linenos:
 
 
@@ -87,7 +87,6 @@ attribute, which we left as identity in this tutorial.
    of the deformable object at the time of spawning. Based on this initial state, the default nodal state is
    obtained when the simulation is played for the first time.
 
-
 We apply transformations to the nodal positions to randomize the initial state of the deformable object.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
@@ -97,6 +96,10 @@ We apply transformations to the nodal positions to randomize the initial state o
 
 To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim`
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
+Additionally, we free all the kinematic targets set for the nodes in the previous simulation step by calling
+the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim` method. We explain the
+kinematic targets in the next section.
+
 Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any internal buffers and caches.
 
 .. literalinclude:: ../../../../source/standalone/tutorials/01_assets/run_deformable_object.py
