@@ -643,10 +643,12 @@ and mounted into the singularity container. This should increase the speed of st
 the simulation.</p></td>
 </tr>
 <tr class="row-even"><td><p>CLUSTER_ISAACLAB_DIR</p></td>
-<td><p>The directory on the cluster where the Isaac Lab code is stored. This directory has to
+<td><p>The directory on the cluster where the Isaac Lab logs are stored. This directory has to
 end on <code class="docutils literal notranslate"><span class="pre">isaaclab</span></code>. It will be copied to the compute node and mounted into
 the singularity container. When a job is submitted, the latest local changes will
-be copied to the cluster.</p></td>
+be copied to the cluster to a new directory in the format <code class="docutils literal notranslate"><span class="pre">${CLUSTER_ISAACLAB_DIR}_${datetime}</span></code>
+with the date and time of the job submission. This allows to run multiple jobs with different code versions at
+the same time.</p></td>
 </tr>
 <tr class="row-odd"><td><p>CLUSTER_LOGIN</p></td>
 <td><p>The login to the cluster. Typically, this is the user and cluster names,
@@ -656,7 +658,12 @@ e.g., <code class="docutils literal notranslate"><span class="pre">your_user&#64
 <td><p>The path on the cluster where the singularity image will be stored. The image will be
 copied to the compute node but not uploaded again to the cluster when a job is submitted.</p></td>
 </tr>
-<tr class="row-odd"><td><p>CLUSTER_PYTHON_EXECUTABLE</p></td>
+<tr class="row-odd"><td><p>REMOVE_CODE_COPY_AFTER_JOB</p></td>
+<td><p>Whether the copied code should be removed after the job is finished or not. The logs from the job will not be deleted
+as these are saved under the permanent <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code>. This feature is useful
+to save disk space on the cluster. If set to <code class="docutils literal notranslate"><span class="pre">true</span></code>, the code copy will be removed.</p></td>
+</tr>
+<tr class="row-even"><td><p>CLUSTER_PYTHON_EXECUTABLE</p></td>
 <td><p>The path within Isaac Lab to the Python executable that should be executed in the submitted job.</p></td>
 </tr>
 </tbody>
@@ -691,7 +698,8 @@ access by removing the flag in <code class="docutils literal notranslate"><span 
 </section>
 <section id="defining-the-job-parameters">
 <h2>Defining the job parameters<a class="headerlink" href="#defining-the-job-parameters" title="Permalink to this heading">#</a></h2>
-<p>The job parameters need to be defined based on the job scheduler used by your cluster. You only need to update the appropriate script for the scheduler available to you.</p>
+<p>The job parameters need to be defined based on the job scheduler used by your cluster.
+You only need to update the appropriate script for the scheduler available to you.</p>
 <ul class="simple">
 <li><p>For SLURM, update the parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_slurm.sh</span></code>.</p></li>
 <li><p>For PBS, update the parameters in <code class="docutils literal notranslate"><span class="pre">docker/cluster/submit_job_pbs.sh</span></code>.</p></li>
@@ -744,8 +752,8 @@ information, please check the <a class="reference external" href="https://openpb
 </pre></div>
 </div>
 <p>This command will copy the latest changes in your code to the cluster and submit a job. Please ensure that
-your Python executable’s output is stored under <code class="docutils literal notranslate"><span class="pre">isaaclab/logs</span></code> as this directory will be copied again
-from the compute node to <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code>.</p>
+your Python executable’s output is stored under <code class="docutils literal notranslate"><span class="pre">isaaclab/logs</span></code> as this directory is synced between the compute
+node and <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">[profile]</span></code> is an optional argument that specifies which singularity image corresponding to the  container profile
 will be used. If no profile is specified, the default profile <code class="docutils literal notranslate"><span class="pre">base</span></code> will be used. The profile has be defined
 directlty after the <code class="docutils literal notranslate"><span class="pre">job</span></code> command. All other arguments are passed to the Python executable. If no profile is
@@ -756,13 +764,6 @@ ANYmal rough terrain locomotion training can be executed with the following comm
 </pre></div>
 </div>
 <p>The above will, in addition, also render videos of the training progress and store them under <code class="docutils literal notranslate"><span class="pre">isaaclab/logs</span></code> directory.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">./docker/cluster/cluster_interface.sh</span> <span class="pre">job</span></code> command will copy the latest changes in your code to the cluster. However,
-it will not delete any files that have been deleted locally. These files will still exist on the cluster
-which can lead to issues. In this case, we recommend removing the <code class="docutils literal notranslate"><span class="pre">CLUSTER_ISAACLAB_DIR</span></code> directory on
-the cluster and re-run the command.</p>
-</div>
 </section>
 </section>
 
