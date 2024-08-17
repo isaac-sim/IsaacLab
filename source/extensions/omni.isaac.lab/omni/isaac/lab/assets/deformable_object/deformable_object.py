@@ -14,6 +14,7 @@ import omni.physics.tensors.impl.api as physx
 from pxr import PhysxSchema, UsdShade
 
 import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.markers import VisualizationMarkers
 
 from ..asset_base import AssetBase
 from .deformable_object_data import DeformableObjectData
@@ -119,9 +120,7 @@ class DeformableObject(AssetBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        # resolve all indices
-        if env_ids is None:
-            env_ids = slice(None)
+        pass
 
     def write_data_to_sim(self):
         pass
@@ -193,7 +192,7 @@ class DeformableObject(AssetBase):
         # set into simulation
         self.root_physx_view.set_sim_nodal_velocities(self._data.nodal_vel_w, indices=physx_env_ids)
 
-    def write_sim_mesh_kinematic_targets(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
+    def write_kinematic_target_to_sim(self, targets: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
@@ -334,6 +333,25 @@ class DeformableObject(AssetBase):
     """
     Internal simulation callbacks.
     """
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            if not hasattr(self, "target_visualizer"):
+                self.target_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+            # set their visibility to true
+            self.target_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "target_visualizer"):
+                self.target_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        # check where to visualize
+        targets_enabled = self.data.sim_kinematic_target[:, :, 3] == 0.0
+        positions = self.data.sim_kinematic_target[targets_enabled][..., :3]
+        # show target visualizer
+        self.target_visualizer.visualize(positions.view(-1, 3))
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
