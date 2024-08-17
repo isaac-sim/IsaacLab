@@ -65,10 +65,11 @@ def design_scene():
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
             deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-            physics_material=sim_utils.DeformableBodyMaterialCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 1.0, 0.0)),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(),
+        debug_vis=True,
     )
     deformable_object = DeformableObject(cfg=cfg)
 
@@ -87,16 +88,10 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
-    # Update buffers
-    deformable_object.update(sim_dt)
-    # Initial nodal positions for the deformable bodies
-    target_values = deformable_object.data.nodal_pos_w.clone()
-    # Nodal position targets of the deformable bodies
-    targets = torch.ones((target_values.shape[0], target_values.shape[1], 4), device=deformable_object.device)
-    targets[..., :3] = target_values
-    # Set the kinematic targets for a deformable body
-    targets[0, :, -1] = torch.zeros(targets.shape[1], device=deformable_object.device)
-    deformable_object.write_simulation_mesh_kinematic_targets(targets)
+
+    # Nodal kinematic targets of the deformable bodies
+    deformable_kinematic_target = deformable_object.data.sim_kinematic_target.clone()
+
     # Simulate physics
     while simulation_app.is_running():
         # reset
@@ -108,10 +103,23 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             nodal_state = deformable_object.data.default_nodal_state_w.clone()
             # write root state to simulation
             deformable_object.write_nodal_state_to_sim(nodal_state)
+
+            # reset kinematic target
+            deformable_kinematic_target[..., :3] = nodal_state[..., :3]
+            deformable_kinematic_target[..., 3] = 1.0
+
             # reset buffers
             deformable_object.reset()
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
+
+        # update the kinematic target
+        deformable_kinematic_target[[0, 3], 0, 2] += 0.001
+        # randomly sample instances to apply kinematic target
+        deformable_kinematic_target[[0, 3], 0, 3] = 0.0
+        # write kinematic target to simulation
+        deformable_object.write_kinematic_target_to_sim(deformable_kinematic_target)
+
         # perform step
         sim.step()
         # update sim-time

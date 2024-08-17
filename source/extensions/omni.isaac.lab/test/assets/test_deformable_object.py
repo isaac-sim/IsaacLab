@@ -294,8 +294,6 @@ class TestDeformableObject(unittest.TestCase):
 
                     # Get sim kinematic targets
                     sim_kinematic_targets = cube_object.root_physx_view.get_sim_kinematic_targets().clone()
-                    sim_kinematic_targets = sim_kinematic_targets.view(num_cubes, -1, 4)
-                    print("Setting kinematic targets: ", sim_kinematic_targets[:, :, -1])
 
                     # Now we are ready!
                     for _ in range(5):
@@ -314,7 +312,9 @@ class TestDeformableObject(unittest.TestCase):
                         # -- set kinematic targets for the first cube
                         sim_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w[0, :, :3]
                         # -- write kinematic targets to simulation
-                        cube_object.write_sim_mesh_kinematic_targets(sim_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device))
+                        cube_object.write_kinematic_target_to_sim(
+                            sim_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
+                        )
 
                         # perform simulation
                         for _ in range(20):
