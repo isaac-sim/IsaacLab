@@ -45,7 +45,7 @@ and a light source. In addition, we add a deformable object to the scene using t
 class. This class is responsible for spawning the prims at the input path and initializes their corresponding
 deformable body physics handles.
 
-In this tutorial, we create a cubical soft objects using the spawn configuration similar to the deformable cube
+In this tutorial, we create a cubical soft object using the spawn configuration similar to the deformable cube
 in the :ref:`Spawn Objects <tutorial-spawn-prims>` tutorial. The only difference is that now we wrap
 the spawning configuration into the :class:`assets.DeformableObjectCfg` class. This class contains information about
 the asset's spawning strategy and default initial state. When this class is passed to
