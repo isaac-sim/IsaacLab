@@ -44,6 +44,11 @@ class DeformableObject(AssetBase):
     towards these targets. This is useful for partial control of the object, such as moving a stuffed animal's
     head while the rest of the body is simulated.
 
+    .. attention::
+        This class is experimental and subject to change due to changes on the underlying PhysX API on which
+        it depends. We will try to maintain backward compatibility as much as possible but some changes may be
+        necessary.
+
     .. _partially kinematic: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies
     """
 
