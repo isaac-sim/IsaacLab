@@ -38,6 +38,7 @@ import torch
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import DeformableObject, DeformableObjectCfg
 from omni.isaac.lab.sim import SimulationContext
 
@@ -62,7 +63,7 @@ def design_scene():
         prim_path="/World/Origin.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 1.0, 0.0)),
             physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
         ),
@@ -97,10 +98,18 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
             # reset counters
             sim_time = 0.0
             count = 0
-            # reset nodal state
+
+            # reset the nodal state of the object
             nodal_state = cube_object.data.default_nodal_state_w.clone()
+            # apply random pose to the object
+            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
+            pos_w[..., 2] += 0.5
+            quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
+            nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+
             # write nodal state to simulation
             cube_object.write_nodal_state_to_sim(nodal_state)
+
             # reset buffers
             cube_object.reset()
 

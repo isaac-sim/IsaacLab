@@ -28,6 +28,7 @@ import unittest
 import omni.isaac.core.utils.prims as prim_utils
 
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.assets import DeformableObject, DeformableObjectCfg
 from omni.isaac.lab.sim import build_simulation_context
 
@@ -274,6 +275,53 @@ class TestDeformableObject(unittest.TestCase):
                                 sim.step()
                                 # update object
                                 cube_object.update(sim.cfg.dt)
+
+    def test_set_nodal_state_with_applied_transform(self):
+        """Test setting the state of the deformable object with applied transform.
+
+        In this test, we apply a random pose to the object and check that the mean of the nodal positions
+        is equal to the applied pose after simulation. We set gravity to zero as we don't want any external
+        forces acting on the object to ensure state remains static.
+        """
+        for num_cubes in (1, 2):
+            with self.subTest(num_cubes=num_cubes):
+                # Turn off gravity for this test as we don't want any external forces acting on the object
+                # to ensure state remains static
+                with build_simulation_context(gravity_enabled=False, auto_add_lighting=True) as sim:
+                    # Generate cubes scene
+                    cube_object = generate_cubes_scene(num_cubes=num_cubes)
+
+                    # Play the simulator
+                    sim.reset()
+
+                    # Now we are ready!
+                    for _ in range(5):
+                        # reset the nodal state of the object
+                        nodal_state = cube_object.data.default_nodal_state_w.clone()
+                        # apply random pose to the object
+                        pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
+                        pos_w[:, 2] += 0.5
+                        quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
+                        nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+                        # compute mean of initial nodal positions
+                        mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
+
+                        # write nodal state to simulation
+                        cube_object.write_nodal_state_to_sim(nodal_state)
+                        # reset object
+                        cube_object.reset()
+
+                        # perform simulation
+                        for _ in range(50):
+                            # perform step
+                            sim.step()
+                            # update object
+                            cube_object.update(sim.cfg.dt)
+
+                        # check that the mean of the nodal positions is equal to the applied pose
+                        torch.testing.assert_close(
+                            cube_object.data.root_pos_w, mean_nodal_pos_init, rtol=1e-5, atol=1e-5
+                        )
 
     def test_set_kinematic_targets(self):
         """Test setting kinematic targets for the deformable object.

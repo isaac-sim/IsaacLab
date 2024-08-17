@@ -14,6 +14,7 @@ import omni.physics.tensors.impl.api as physx
 from pxr import PhysxSchema, UsdShade
 
 import omni.isaac.lab.sim as sim_utils
+import omni.isaac.lab.utils.math as math_utils
 from omni.isaac.lab.markers import VisualizationMarkers
 
 from ..asset_base import AssetBase
@@ -217,6 +218,31 @@ class DeformableObject(AssetBase):
         self._data.nodal_kinematic_target[env_ids] = targets.clone()
         # set into simulation
         self.root_physx_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target, indices=physx_env_ids)
+
+    """
+    Operations - Helper.
+    """
+
+    def transform_nodal_pos(
+        self, nodal_pos: torch.tensor, pos: torch.Tensor | None = None, quat: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Transform the nodal positions based on the pose transformation.
+
+        This function computes the transformation of the nodal positions based on the pose transformation.
+        It multiplies the nodal positions with the rotation matrix of the pose and adds the translation.
+        Internally, it calls the :meth:`omni.isaac.lab.utils.math.transform_points` function.
+
+        Args:
+            nodal_pos: The nodal positions in the simulation frame. Shape is (N, P, 3).
+            pos: The position transformation. Shape is (N, 3).
+                Defaults to None, in which case the position is assumed to be zero.
+            quat: The orientation transformation as quaternion (w, x, y, z). Shape is (N, 4).
+                Defaults to None, in which case the orientation is assumed to be identity.
+
+        Returns:
+            The transformed nodal positions. Shape is (N, P, 3).
+        """
+        return math_utils.transform_points(nodal_pos[..., :3], pos, quat)
 
     """
     Internal helper.
