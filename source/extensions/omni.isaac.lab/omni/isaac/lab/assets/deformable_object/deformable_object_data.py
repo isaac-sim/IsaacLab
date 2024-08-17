@@ -86,7 +86,7 @@ class DeformableObjectData:
     # Kinematic commands
     ##
 
-    sim_kinematic_target: torch.Tensor = None
+    nodal_kinematic_target: torch.Tensor = None
     """Simulation mesh kinematic targets for the deformable bodies.
     Shape is (num_instances, max_sim_mesh_vertices_per_body, 4).
 

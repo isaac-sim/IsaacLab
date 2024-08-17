@@ -88,7 +88,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
     count = 0
 
     # Nodal kinematic targets of the deformable bodies
-    nodal_kinematic_target = cube_object.data.sim_kinematic_target.clone()
+    nodal_kinematic_target = cube_object.data.nodal_kinematic_target.clone()
 
     # Simulate physics
     while simulation_app.is_running():

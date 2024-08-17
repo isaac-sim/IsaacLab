@@ -214,9 +214,9 @@ class DeformableObject(AssetBase):
             env_ids = slice(None)
             physx_env_ids = self._ALL_INDICES
         # store into internal buffers
-        self._data.sim_kinematic_target[env_ids] = targets.clone()
+        self._data.nodal_kinematic_target[env_ids] = targets.clone()
         # set into simulation
-        self.root_physx_view.set_sim_kinematic_targets(self._data.sim_kinematic_target, indices=physx_env_ids)
+        self.root_physx_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target, indices=physx_env_ids)
 
     """
     Internal helper.
@@ -331,9 +331,9 @@ class DeformableObject(AssetBase):
         self._data.default_nodal_state_w = torch.cat((nodal_positions, nodal_velocities), dim=-1)
 
         # kinematic targets
-        self._data.sim_kinematic_target = self.root_physx_view.get_sim_kinematic_targets()
+        self._data.nodal_kinematic_target = self.root_physx_view.get_sim_kinematic_targets()
         # set all nodes as non-kinematic targets by default
-        self._data.sim_kinematic_target[..., -1] = 1.0
+        self._data.nodal_kinematic_target[..., -1] = 1.0
 
     """
     Internal simulation callbacks.
@@ -353,8 +353,8 @@ class DeformableObject(AssetBase):
 
     def _debug_vis_callback(self, event):
         # check where to visualize
-        targets_enabled = self.data.sim_kinematic_target[:, :, 3] == 0.0
-        positions = self.data.sim_kinematic_target[targets_enabled][..., :3]
+        targets_enabled = self.data.nodal_kinematic_target[:, :, 3] == 0.0
+        positions = self.data.nodal_kinematic_target[targets_enabled][..., :3]
         # show target visualizer
         self.target_visualizer.visualize(positions.view(-1, 3))
 

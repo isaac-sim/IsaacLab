@@ -142,7 +142,7 @@ class TestDeformableObject(unittest.TestCase):
                             (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 6),
                         )
                         self.assertEqual(
-                            cube_object.data.sim_kinematic_target.shape,
+                            cube_object.data.nodal_kinematic_target.shape,
                             (num_cubes, cube_object.max_sim_mesh_vertices_per_body, 4),
                         )
                         self.assertEqual(cube_object.data.root_pos_w.shape, (num_cubes, 3))
@@ -293,7 +293,7 @@ class TestDeformableObject(unittest.TestCase):
                     sim.reset()
 
                     # Get sim kinematic targets
-                    sim_kinematic_targets = cube_object.root_physx_view.get_sim_kinematic_targets().clone()
+                    nodal_kinematic_targets = cube_object.root_physx_view.get_sim_kinematic_targets().clone()
 
                     # Now we are ready!
                     for _ in range(5):
@@ -307,13 +307,13 @@ class TestDeformableObject(unittest.TestCase):
 
                         # write kinematic targets
                         # -- enable kinematic targets for the first cube
-                        sim_kinematic_targets[1:, :, 3] = 1.0
-                        sim_kinematic_targets[0, :, 3] = 0.0
+                        nodal_kinematic_targets[1:, :, 3] = 1.0
+                        nodal_kinematic_targets[0, :, 3] = 0.0
                         # -- set kinematic targets for the first cube
-                        sim_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w[0, :, :3]
+                        nodal_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w[0, :, :3]
                         # -- write kinematic targets to simulation
                         cube_object.write_nodal_kinematic_target_to_sim(
-                            sim_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
+                            nodal_kinematic_targets[0], env_ids=torch.tensor([0], device=sim.device)
                         )
 
                         # perform simulation
