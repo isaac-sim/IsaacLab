@@ -268,6 +268,10 @@ class DeformableObject(AssetBase):
         # -- object view
         self._root_physx_view = self._physics_sim_view.create_soft_body_view(root_prim_path_expr.replace(".*", "*"))
 
+        # Return if the asset is not found
+        if self._root_physx_view._backend is None:
+            raise RuntimeError(f"Failed to create deformable body at: {self.cfg.prim_path}. Please check PhysX logs.")
+
         # resolve material path back into regex expression
         if material_prim is not None:
             # -- material prim expression

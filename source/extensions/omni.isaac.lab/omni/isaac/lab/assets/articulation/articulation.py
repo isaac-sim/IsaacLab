@@ -909,6 +909,10 @@ class Articulation(AssetBase):
         # -- articulation
         self._root_physx_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 
+        # check if the articulation was created
+        if self._root_physx_view._backend is None:
+            raise RuntimeError(f"Failed to create articulation at: {self.cfg.prim_path}. Please check PhysX logs.")
+
         # log information about the articulation
         carb.log_info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
         carb.log_info(f"Is fixed root: {self.is_fixed_base}")
