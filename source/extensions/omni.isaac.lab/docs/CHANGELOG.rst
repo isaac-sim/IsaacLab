@@ -1,17 +1,7 @@
 Changelog
 ---------
 
-0.22.12 (2024-09-08)
-~~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Moved the configuration of visualization markers for the command terms to their respective configuration classes.
-  This allows users to modify the markers for the command terms without having to modify the command term classes.
-
-
-0.22.11 (2024-09-10)
+0.23.10 (2024-09-10)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -20,7 +10,7 @@ Added
 * Added config class, support, and tests for MJCF conversion via standalone python scripts.
 
 
-0.22.10 (2024-09-09)
+0.23.9 (2024-09-09)
 ~~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -32,7 +22,7 @@ Added
   file or the command line argument. This ensures that the simulation results are reproducible across different runs.
 
 
-0.22.9 (2024-09-08)
+0.23.8 (2024-09-08)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -42,7 +32,7 @@ Changed
   for faster processing of high dimensional input tensors.
 
 
-0.22.8 (2024-09-06)
+0.23.7 (2024-09-06)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -53,7 +43,7 @@ Added
   instance variables instead.
 
 
-0.22.7 (2024-09-05)
+0.23.6 (2024-09-05)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -63,7 +53,7 @@ Fixed
   more-intuitive to control the y-axis motion based on the right-hand rule.
 
 
-0.22.6 (2024-08-29)
+0.23.5 (2024-08-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -73,7 +63,7 @@ Added
   consistent with all other cameras (equal to type "depth").
 
 
-0.22.5 (2024-08-29)
+0.23.4 (2024-09-02)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -84,7 +74,7 @@ Fixed
 * Added test to check :attr:`omni.isaac.lab.sensors.RayCasterCamera.set_intrinsic_matrices`
 
 
-0.22.4 (2024-08-29)
+0.23.3 (2024-08-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -95,7 +85,7 @@ Fixed
   which required initialization of the class to call the class-methods.
 
 
-0.22.3 (2024-08-28)
+0.23.2 (2024-08-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -116,13 +106,22 @@ Fixed
   the behavior equal to the USD Camera.
 
 
-0.22.2 (2024-08-21)
+0.23.1 (2024-08-21)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
 * Disabled default viewport in certain headless scenarios for better performance.
+
+
+0.23.0 (2024-08-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added direct workflow base class :class:`omni.isaac.lab.envs.DirectMARLEnv` for multi-agent environments.
 
 
 0.22.1 (2024-08-17)
@@ -140,7 +139,7 @@ Added
 ~~~~~~~~~~~~~~~~~~~
 
 Added
-^^^^^^^
+^^^^^
 
 * Added :mod:`~omni.isaac.lab.utils.modifiers` module to provide framework for configurable and custom
   observation data modifiers.

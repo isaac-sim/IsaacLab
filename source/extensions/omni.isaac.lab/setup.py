@@ -25,7 +25,7 @@ INSTALL_REQUIRES = [
     "toml",
     # devices
     "hidapi",
-    # gym
+    # reinforcement learning
     "gymnasium==0.29.0",
     # procedural-generation
     "trimesh",
