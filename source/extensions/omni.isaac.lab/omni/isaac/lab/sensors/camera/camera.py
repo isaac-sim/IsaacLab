@@ -247,7 +247,7 @@ class Camera(SensorBase):
             }
             # TODO: Adjust to handle aperture offsets once supported by omniverse
             if params["horizontal_aperture_offset"] > 1e-4 or params["vertical_aperture_offset"] > 1e-4:
-                print("[WARNING]: Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
+                carb.log_warn("Aperture offsets are not supported by Omniverse cameras. Ignoring offsets.")
             # change data for corresponding camera index
             sensor_prim = self._sensor_prims[i]
             # set parameters for camera
